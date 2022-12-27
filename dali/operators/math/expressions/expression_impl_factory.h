@@ -24,14 +24,16 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
+#include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/constant_storage.h"
 #include "dali/operators/math/expressions/expression_tile.h"
 #include "dali/operators/math/expressions/expression_tree.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
+namespace expr {
 
 #define ALLOWED_UN_OPS                                                               \
   (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::sqrt,   \
@@ -129,121 +131,132 @@ struct ExprImplTask {
   ExprImplContext ctx;
 };
 
-inline OutputSamplePtr GetOutputSamplePointer(HostWorkspace &ws, int output_idx, int sample_idx) {
-  return ws.template Output<CPUBackend>(output_idx).raw_mutable_tensor(sample_idx);
-}
-
-inline OutputSamplePtr GetOutputSamplePointer(DeviceWorkspace &ws, int output_idx, int sample_idx) {
-  return ws.template Output<GPUBackend>(output_idx).raw_mutable_tensor(sample_idx);
-}
-
-inline InputSamplePtr GetInputSamplePointer(HostWorkspace &ws, int input_idx, int sample_idx) {
-  return ws.template Input<CPUBackend>(input_idx).raw_tensor(sample_idx);
-}
-
-inline InputSamplePtr GetInputSamplePointer(DeviceWorkspace &ws, int input_idx, int sample_idx) {
-  return ws.template Input<GPUBackend>(input_idx).raw_tensor(sample_idx);
-}
-
 template <typename Backend>
-inline OutputSamplePtr GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, TileDesc tile) {
-  return reinterpret_cast<char *>(GetOutputSamplePointer(ws, 0, tile.sample_idx)) +
-         tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
+inline OutputData GetOutput(const ExprFunc &func, Workspace &ws, int sample_idx) {
+  auto &out = ws.Output<Backend>(0);
+  void *out_ptr = out.raw_mutable_tensor(sample_idx);
+  auto shape = out.shape()[sample_idx];
+  TensorShape<> strides;
+  kernels::CalcStrides(strides, shape);
+
+  OutputData ret;
+  ret.data = out_ptr;
+  ret.dtype = out.type();
+  ret.shape = shape;
+  ret.strides = strides;
+  return ret;
 }
 
 /**
  * @brief Type erased obtaining pointers to inputs
  */
 template <typename Backend>
-inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
-                          const ConstantStorage<Backend> &st, const OpSpec &spec, TileDesc tile) {
+inline ArgPack GetArgPack(const ExprFunc &func, Workspace &ws,
+                          const ConstantStorage<Backend> &st, const OpSpec &spec, int sample_idx) {
   ArgPack result;
   result.resize(func.GetSubexpressionCount());
   for (int i = 0; i < func.GetSubexpressionCount(); i++) {
     DALI_ENFORCE(func[i].GetNodeType() != NodeType::Function,
                  "Function nodes are not supported as subexpressions");
-    if (IsScalarLike(func[i])) {
-      if (func[i].GetNodeType() == NodeType::Constant) {
-        const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
-        result[i] = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
-      } else if (func[i].GetNodeType() == NodeType::Tensor) {
-        // No tile offset, just take the pointer for this element as this is a scalar
-        const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
-        auto input_idx = tensor.GetInputIndex();
-        result[i] = GetInputSamplePointer(ws, input_idx, tile.sample_idx);
-      }
+    if (func[i].GetNodeType() == NodeType::Constant) {
+      const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
+      result[i].data = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
+      result[i].dtype = constant.GetTypeId();
+      result[i].shape = {};
+      result[i].strides = {};
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
-      const auto *ptr =
-          reinterpret_cast<const char *>(GetInputSamplePointer(ws, input_idx, tile.sample_idx));
-      auto tile_offset =
-          tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
-      result[i] = ptr + tile_offset;
+      auto &in = ws.Input<Backend>(input_idx);
+      result[i].data = in.raw_tensor(sample_idx);
+      result[i].dtype = tensor.GetTypeId();
+      result[i].shape = in.tensor_shape(sample_idx);
+      kernels::CalcStrides(result[i].strides, result[i].shape);
     }
   }
   return result;
 }
 
 /**
- * @brief Transfor vector of TileDesc into vector of ExtendedTileDesc
- * based on the ExprFunc by extracting the input and output pointers to data
- * from workspace and constant storage.
- *
- * @param extended_tiles Output vector of ExtendedTiles for given task
+ * @brief Extracts sample descriptor (pointer, shape, strides, dtype for inputs/outputs)
  */
 template <typename Backend>
-void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
-                    const std::vector<TileDesc> &tiles, const ExprFunc &func,
-                    workspace_t<Backend> &ws, const ConstantStorage<Backend> &st,
-                    const OpSpec &spec) {
-  extended_tiles.reserve(tiles.size());
-  SmallVector<DALIDataType, kMaxArity> in_types;
-  in_types.resize(func.GetSubexpressionCount());
-  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
-    in_types[i] = func[i].GetTypeId();
+void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
+                        const ExprFunc &func,
+                        Workspace &ws, const ConstantStorage<Backend> &st,
+                        const OpSpec &spec) {
+  int nsamples =  ws.GetInputBatchSize(0);
+  out_samples.clear();
+  out_samples.reserve(nsamples);
+  if (nsamples == 0)
+    return;
+
+  for (int s = 0; s < nsamples; s++) {
+    out_samples.emplace_back(GetOutput<Backend>(func, ws, s), GetArgPack(func, ws, st, spec, s));
+
+    SmallVector<TensorShape<>*, kMaxArity + 1> shape_ptrs;
+    shape_ptrs.push_back(&(out_samples.back().output.shape));
+    for (auto &arg : out_samples.back().args) {
+      shape_ptrs.push_back(&arg.shape);
+    }
+    span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
+    SimplifyShapesForBroadcasting(make_span(shape_ptrs));
   }
-  for (auto &tile : tiles) {
-    extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile),
-                                GetArgPack(func, ws, st, spec, tile), func.GetTypeId(), in_types);
+
+  // Making sure all samples have same dimensionality and
+  // at least 1D (the implementation requires it)
+  int max_ndim = 1;
+  for (int s = 0; s < nsamples; s++) {
+    max_ndim = std::max(max_ndim, out_samples[s].output.shape.sample_dim());
+    for (size_t a = 0; a < out_samples[s].args.size(); a++)
+      max_ndim = std::max(max_ndim, out_samples[s].args[a].shape.sample_dim());
   }
+  for (auto &out_sample : out_samples) {
+    ExpandToNDims(out_sample.output.shape, max_ndim);
+    kernels::CalcStrides(out_sample.output.strides, out_sample.output.shape);
+    for (size_t a = 0; a < out_sample.args.size(); a++) {
+      auto &arg = out_sample.args[a];
+      ExpandToNDims(arg.shape, max_ndim);
+      kernels::CalcStrides(arg.strides, arg.shape);
+      arg.strides = StridesForBroadcasting(out_sample.output.shape, arg.shape, arg.strides);
+    }
+  }
+
+  // Throws an error if more than 6 dims
+  CheckBroadcastingSimplifiedDim(max_ndim);
 }
 
 /**
- * @brief Prepare vector of ExtendedTiles for every task that we have to execute, filling
- * the pointers to data.
- *
- * @param tiles_per_task  Output vectors of ExtendedTiles per every task to execute
+ * @brief Prepare data needed for execution.
+ *        Fills vector of SampleDesc for every task that we have to execute, including
+ *        the pointers to data, shapes, etc.
  */
 template <typename Backend>
-void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_task,
-                          const std::vector<ExprImplTask> &task_exec_order,
-                          const std::vector<TileDesc> &tiles, workspace_t<Backend> &ws,
-                          const ConstantStorage<Backend> &constant_storage, const OpSpec &spec) {
-  tiles_per_task.resize(task_exec_order.size());
-  for (size_t i = 0; i < task_exec_order.size(); i++) {
+void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_task,
+                           const std::vector<ExprImplTask> &task_exec_order,
+                           Workspace &ws,
+                           const ConstantStorage<Backend> &constant_storage,
+                           const OpSpec &spec) {
+  int ntasks = task_exec_order.size();
+  samples_per_task.resize(ntasks);
+  for (int i = 0; i < ntasks; i++) {
     const auto &expr_task = task_exec_order[i];
     const auto &expr_func = dynamic_cast<const ExprFunc &>(*expr_task.ctx.node);
-    tiles_per_task[i].resize(0);
-    TransformDescs<Backend>(tiles_per_task[i], tiles, expr_func, ws, constant_storage, spec);
+    ExtractSampleDescs<Backend>(samples_per_task[i], expr_func, ws, constant_storage, spec);
   }
 }
 
 /**
  * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
  *        a static type switch over the `expr` data. CPU variant.
- *
- * @param ws Workspace to disambiguate over backend.
  */
-std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const ExprNode &expr);
+std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, CPUBackend);
 
 /**
  * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
  *        a static type switch over the `expr` data. GPU variant.
- *
- * @param ws Workspace to disambiguate over backend.
  */
-std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr);
+std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, GPUBackend);
 
 struct ExprImplCache {
   template <typename Backend>
@@ -253,7 +266,7 @@ struct ExprImplCache {
     if (it != cache_.end()) {
       return it->second.get();
     }
-    auto new_impl = ExprImplFactory(workspace_t<Backend>{}, expr);
+    auto new_impl = ExprImplFactory(expr, Backend{});
     auto ptr = std::shared_ptr<ExprImplBase>(std::move(new_impl));
     cache_[node_desc] = ptr;
     return ptr.get();
@@ -263,6 +276,7 @@ struct ExprImplCache {
   std::map<std::string, std::shared_ptr<ExprImplBase>> cache_;
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_FACTORY_H_

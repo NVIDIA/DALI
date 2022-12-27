@@ -558,6 +558,11 @@ bool OpGraph::IsAlwaysContiguous(TensorNodeId tensor_id) const {
     return true;
   }
 
+  // If we can mix samples it means that we won't produce contiguous Tensor
+  if (producer_op_node.spec.GetSchema().HasSamplewisePassThrough()) {
+    return false;
+  }
+
   // If the input is inferred, the allocation is done by executor in contiguous fashion
   // this means we can just pass through the data instead of copying them.
   bool is_input_always_contiguous = producer_op_node.op->CanInferOutputs();
@@ -566,59 +571,34 @@ bool OpGraph::IsAlwaysContiguous(TensorNodeId tensor_id) const {
   }
 
   // Check if we were passed through.
-  auto maybe_source = FollowPassThroughUp(producer_op_node_id, tensor_id);
+  auto maybe_source = FollowPassThroughUp(producer_op_node_id, tensor_id, true);
 
   // We were not passed through, we can stop here and assume that this tensor node is not guaranteed
   // to be produced contiguous batch.
-  if (maybe_source == -1) {
+  if (maybe_source.empty()) {
     return false;
   }
 
+  assert(maybe_source.size() == 1 && "For strict pass through there can be only one source.");
+
   // Otherwise check recursively for the tensor that was passed through.
-  return IsAlwaysContiguous(maybe_source);
+  return IsAlwaysContiguous(maybe_source[0]);
 }
 
 std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names,
                                               bool follow_pass_through) const {
-  std::vector<TensorNodeId> result;
-  if (!follow_pass_through) {
-    for (const auto& out : output_names) {
-      result.push_back(TensorId(out));
-    }
-  } else {
-    std::vector<bool> visited(tensor_nodes_.size());
-    std::vector<TensorNodeId> q;
-    for (const auto& out : output_names) {
-      q.push_back(TensorId(out));
-    }
-    while (!q.empty()) {
-      TensorNodeId tid = q.back();
-      q.pop_back();
-      if (visited[tid])
-        continue;
-      visited[tid] = true;
-      result.push_back(tid);
-      auto output = Tensor(tid).producer;
-      auto &output_op_node = Node(output.node);
-      auto &schema = output_op_node.spec.GetSchema();
-      // Special PassThrough handling for built-in operator. We calculate it via earlier pass.
-      if (schema.name() == "MakeContiguous") {
-        if (IsPassThrough(*output_op_node.op)) {
-          assert(output_op_node.parent_tensors.size() == 1);
-          q.push_back(output_op_node.parent_tensors[0]);
-        }
-      }
-      auto maybe_source = FollowPassThroughUp(output.node, tid);
-      if (maybe_source >= 0) {
-        q.push_back(maybe_source);
-      }
-    }
+  std::vector<TensorNodeId> output_ids;
+  for (const auto& out : output_names) {
+    output_ids.push_back(TensorId(out));
   }
-  return result;
+  if (!follow_pass_through) {
+    return output_ids;
+  }
+  return GetPassThroughGroupImpl(output_ids, false);
 }
 
 
-void OpGraph::SetupMakeContiguousPassThrough(const std::vector<string>& output_names) {
+void OpGraph::SetupMakeContiguousPassThrough() {
   // Detect the pass through for all MakeContiguous ops
   for (int i = 0; i < NumOp(); i++) {
     auto &node = Node(i);
@@ -632,25 +612,68 @@ void OpGraph::SetupMakeContiguousPassThrough(const std::vector<string>& output_n
       }
     }
   }
+  pass_through_computed_ = true;
 }
 
-TensorNodeId OpGraph::FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through) const {
-  // TODO(klecki): Use std::optional instead of returning -1. op_graph is transitively included
-  // in some .cu compilation units, so we cannot use it yet.
+
+std::vector<TensorNodeId> OpGraph::GetTensorOrigin(TensorNodeId target_node) const {
+  return GetPassThroughGroupImpl({target_node}, false);
+}
+
+
+std::vector<TensorNodeId> OpGraph::GetPassThroughGroupImpl(
+    const std::vector<TensorNodeId> &target_nodes, bool strict_only) const {
+  DALI_ENFORCE(pass_through_computed_, "SetupMakeContiguousPassThrough must be called first.");
+  std::vector<bool> visited(tensor_nodes_.size());
+  std::vector<TensorNodeId> q;
+  q.insert(q.end(), target_nodes.begin(), target_nodes.end());
+  std::vector<TensorNodeId> result;
+
+  while (!q.empty()) {
+    TensorNodeId tid = q.back();
+    q.pop_back();
+    if (visited[tid])
+      continue;
+    visited[tid] = true;
+    result.push_back(tid);
+    auto producer_edge = Tensor(tid).producer;
+    auto &producer_op_node = Node(producer_edge.node);
+    auto &schema = producer_op_node.spec.GetSchema();
+    // Special PassThrough handling for built-in operator. We calculate it via earlier pass.
+    if (schema.name() == "MakeContiguous") {
+      if (IsPassThrough(*producer_op_node.op)) {
+        assert(producer_op_node.parent_tensors.size() == 1);
+        q.push_back(producer_op_node.parent_tensors[0]);
+      }
+    }
+    auto maybe_sources = FollowPassThroughUp(producer_edge.node, tid, strict_only);
+    q.insert(q.end(), maybe_sources.begin(), maybe_sources.end());
+  }
+  return result;
+}
+
+
+std::vector<TensorNodeId> OpGraph::FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through,
+                                                       bool strict_only) const {
   auto &node = Node(op);
   const auto &schema = node.spec.GetSchema();
   if (!schema.HasPassThrough()) {
-    return -1;
+    return {};
   }
   auto &output = Tensor(passed_through);
   auto output_index = output.producer.index;
   // Find if there is a PassThrough between input id and requested output id.
+  std::vector<TensorNodeId> result;
   for (size_t input_index = 0; input_index < node.parent_tensors.size(); input_index++) {
-    if (schema.IsPassThrough(input_index, output_index)) {
-      return node.parent_tensors[input_index];
+    if (schema.IsPassThrough(input_index, output_index, strict_only)) {
+      result.push_back(node.parent_tensors[input_index]);
+      if (strict_only) {
+        // In strict mode we have exactly one result
+        return result;
+      }
     }
   }
-  return -1;
+  return result;
 }
 
 
@@ -662,8 +685,9 @@ bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_sta
       return true;
     }
     const OpSchema &schema = cons_op.spec.GetSchema();
-    int out_idx = schema.GetPassThroughOutputIdx(cons_edge.index);
-    if (out_idx >= 0) {
+    // note, that out_idxs may be empty
+    auto out_idxs = schema.GetPassThroughOutputIdx(cons_edge.index, cons_op.spec);
+    for (int out_idx : out_idxs) {
       if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
         return true;
     }

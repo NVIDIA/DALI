@@ -15,78 +15,73 @@
 #include "color_space.h"
 
 #include <cuda_runtime.h>
+#include "dali/kernels/imgproc/sampler.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
-typedef struct {
-    uint8_t r, g, b;
-} Rgb;
+namespace dali {
 
-__constant__ float mat_yuv_to_rgb[3][3] = {
-    1.164383f,  0.0f,       1.596027f,
-    1.164383f, -0.391762f, -0.812968f,
-    1.164383f,  2.017232f,  0.0f
-};
-
-__device__ static uint8_t clamp(float x, float lower, float upper) {
-    return fminf(fmaxf(x, lower), upper);
-}
-
-__device__ inline Rgb pixel_yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v) {
-    const int low = 1 << (sizeof(uint8_t) * 8 - 4);
-    const int mid = 1 << (sizeof(uint8_t) * 8 - 1);
-    float fy = (int)y - low;
-    float fu = (int)u - mid;
-    float fv = (int)v - mid;
-    const float maxf = (1 << sizeof(uint8_t) * 8) - 1.0f;
-
-    return Rgb { 
-        clamp(mat_yuv_to_rgb[0][0] * fy + mat_yuv_to_rgb[0][1] * fu + mat_yuv_to_rgb[0][2] * fv, 0.0f, maxf),
-        clamp(mat_yuv_to_rgb[1][0] * fy + mat_yuv_to_rgb[1][1] * fu + mat_yuv_to_rgb[1][2] * fv, 0.0f, maxf),
-        clamp(mat_yuv_to_rgb[2][0] * fy + mat_yuv_to_rgb[2][1] * fu + mat_yuv_to_rgb[2][2] * fv, 0.0f, maxf)};
-}
-
+template <bool full_range>
 __global__ static void yuv_to_rgb_kernel(
-    uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height) {
-    int x = (threadIdx.x + blockIdx.x * blockDim.x) * 2;
-    int y = (threadIdx.y + blockIdx.y * blockDim.y) * 2;
-    if (x + 1 >= width || y + 1 >= height) {
+    const uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height) {
+    int halfx = (threadIdx.x + blockIdx.x * blockDim.x);
+    int halfy = (threadIdx.y + blockIdx.y * blockDim.y);
+    int x = 2 * halfx;
+    int y = 2 * halfy;
+    if (x >= width || y >= height) {
         return;
     }
 
-    uint8_t *src = yuv + x * sizeof(uint8_t) + y * yuv_pitch;
+    kernels::Surface2D<const uint8_t> Y_surf, UV_surf;
+    kernels::Surface2D<uint8_t> RGB;
+    const uint8_t *chroma = yuv + height * yuv_pitch;
 
-    uint8_t *dst_1 = rgb + x * sizeof(Rgb) + y * rgb_pitch;
-    uint8_t *dst_2 = rgb + x * sizeof(Rgb) + (y+1) * rgb_pitch;
+    Y_surf  = { yuv,    width,     height,     1, 1, yuv_pitch, 1 };
+    UV_surf = { chroma, width / 2, height / 2, 2, 2, yuv_pitch, 1 };
 
-    uint8_t luma_1 = *src;
-    uint8_t luma_2 = *(src + yuv_pitch);
-    uint8_t *chroma = (src + (height - y / 2) * yuv_pitch);
+    RGB = { rgb, width, height, 3, 3, rgb_pitch, 1 };
 
-    Rgb pixel_1 = pixel_yuv_to_rgb(luma_1, chroma[0], chroma[1]);
-    Rgb pixel_2 = pixel_yuv_to_rgb(luma_2, chroma[0], chroma[1]);
+    auto Y = kernels::make_sampler<DALI_INTERP_NN>(Y_surf);
+    auto UV = kernels::make_sampler<DALI_INTERP_LINEAR>(UV_surf);
 
-    dst_1[0] = pixel_1.r;
-    dst_1[1] = pixel_1.g;
-    dst_1[2] = pixel_1.b;
+    #pragma unroll
+    for (int i = 0; i < 2; i++) {
+        float cy = halfy + i * 0.5f + 0.25f;
+        #pragma unroll
+        for (int j = 0; j < 2; j++) {
+            float cx = halfx + j * 0.5f + 0.25f;
+            u8vec3 yuv_val;
+            yuv_val[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
 
-    dst_1[3] = pixel_1.r;
-    dst_1[4] = pixel_1.g;
-    dst_1[5] = pixel_1.b;
+            UV(&yuv_val[1], vec2(cx, cy), kernels::BorderClamp());
 
-    dst_2[0] = pixel_2.r;
-    dst_2[1] = pixel_2.g;
-    dst_2[2] = pixel_2.b;
+            u8vec3 rgb_val;
+            if (full_range)
+                rgb_val = dali::kernels::color::jpeg::ycbcr_to_rgb<uint8_t>(yuv_val);
+            else
+                rgb_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(yuv_val);
 
-    dst_2[3] = pixel_2.r;
-    dst_2[4] = pixel_2.g;
-    dst_2[5] = pixel_2.b;
+            RGB({x + j, y + i, 0}) = rgb_val.x;
+            RGB({x + j, y + i, 1}) = rgb_val.y;
+            RGB({x + j, y + i, 2}) = rgb_val.z;
+        }
+    }
 
 }
 
-void yuv_to_rgb(uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height, cudaStream_t stream) {
-    auto grid_layout = dim3((width + 63) / 32 / 2, (height + 3)); 
+}  // namespace dali
+
+void yuv_to_rgb(uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height,
+                bool full_range, cudaStream_t stream) {
+    auto grid_layout = dim3((width + 63) / 32 / 2, (height + 3));
     auto block_layout = dim3(32, 2);
 
-    yuv_to_rgb_kernel
-        <<<grid_layout, block_layout, 0, stream>>>
-        (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    if (full_range) {
+        dali::yuv_to_rgb_kernel<true>
+            <<<grid_layout, block_layout, 0, stream>>>
+            (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    } else {
+        dali::yuv_to_rgb_kernel<false>
+            <<<grid_layout, block_layout, 0, stream>>>
+            (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    }
 }

@@ -59,7 +59,7 @@ R"code(Output data type. If not set, the input type is used.)code")
 .NumOutput(1);
 
 template <typename OutputType, typename InputType>
-void MultiPasteCPU::SetupTyped(const workspace_t<CPUBackend> & /*ws*/,
+void MultiPasteCPU::SetupTyped(const Workspace & /*ws*/,
                                const TensorListShape<> & /*out_shape*/) {
   using Kernel = kernels::PasteCPU<OutputType, InputType>;
   kernel_manager_.Initialize<Kernel>();
@@ -67,9 +67,9 @@ void MultiPasteCPU::SetupTyped(const workspace_t<CPUBackend> & /*ws*/,
 
 
 template <typename OutputType, typename InputType>
-void MultiPasteCPU::RunTyped(workspace_t<CPUBackend> &ws) {
-  const auto &images = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void MultiPasteCPU::RunTyped(Workspace &ws) {
+  const auto &images = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
 
   output.SetLayout(images.GetLayout());
   auto out_shape = output.shape();

@@ -31,6 +31,7 @@ NVIDIA DALI Documentation
    installation
    Platform Support <support_matrix>
    Getting Started Tutorial <examples/getting_started.ipynb>
+   Reporting vulnerabilities <security>
 
 .. toctree::
    :hidden:

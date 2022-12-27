@@ -44,6 +44,18 @@ std::string from_dali_extra(const std::string& path_relative_to_dali_extra) {
   return make_string_delim('/', testing::dali_extra_path(), path_relative_to_dali_extra);
 }
 
+std::vector<std::string> orientation_files = {
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_horizontal",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal_rotate_270",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal_rotate_90",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_vertical",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_no_exif",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_no_orientation",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_rotate_270",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_rotate_90",
+};
+
 struct ImageBuffer {
   std::vector<uint8_t> buffer;
   ImageSource src;
@@ -72,32 +84,6 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     return std::make_shared<JpegParser>();
   }
 
-  /**
-   * @brief Checks if the image is similar to the reference.
-   *
-   * Checks if 1) max error is lower than 30% 2) mean squared error is lower than 2%.
-   */
-  void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
-                     const Tensor<CPUBackend> &ref_tensor) {
-    TYPE_SWITCH(ref_tensor.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
-      auto ref = view<const RefType>(ref_tensor);
-
-      float eps = ConvertSatNorm<OutputType>(0.3);
-      Check(img, ref, EqualConvertNorm(eps));
-
-      double mean_square_error = 0;
-      uint64_t size = volume(img.shape);
-      for (size_t i = 0; i < size; i++) {
-        double img_value = ConvertSatNorm<double>(img.data[i]);
-        double ref_value = ConvertSatNorm<double>(ref.data[i]);
-        double error = img_value - ref_value;
-        mean_square_error += error * error;
-      }
-      mean_square_error = sqrt(mean_square_error / size);
-      EXPECT_LT(mean_square_error, 0.02);
-    ), DALI_FAIL(make_string("Unsupported reference type: ", ref_tensor.type())));  // NOLINT
-  }
-
   DecodeParams GetParams() {
     DecodeParams opts{};
     opts.dtype = dtype;
@@ -111,9 +97,9 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280.npy"));
 
     if (roi.use_roi()) {
-      this->AssertSimilar(decoded, Crop(ref, roi));
+      AssertSimilar(decoded, Crop(ref, roi));
     } else {
-      this->AssertSimilar(decoded, ref);
+      AssertSimilar(decoded, ref);
     }
   }
 
@@ -127,11 +113,34 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     auto ref = this->ReadReferenceFrom(
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280_ycbcr.npy"));
 
-    this->AssertSimilar(decoded, ref);
+    AssertSimilar(decoded, ref);
+  }
+
+  void RunOrientationTest(ROI roi = {}) {
+    std::vector<ImageBuffer> buffers;
+    for (const auto &name : orientation_files)
+      buffers.emplace_back(from_dali_extra(name + ".jpg"));
+
+    std::vector<ImageSource*> sources;
+    for (auto &buff : buffers)
+      sources.push_back(&buff.src);
+
+    const size_t batch_size = orientation_files.size();
+    std::vector<ROI> rois(batch_size, roi);
+
+    auto decoded = this->Decode(make_cspan(sources), this->GetParams(), make_span(rois));
+    assert(decoded.size() == static_cast<int>(sources.size()));
+    for (int i = 0; i < decoded.size(); i++) {
+      auto ref = this->ReadReferenceFrom(from_dali_extra(orientation_files[i] + ".npy"));
+      if (roi)
+        AssertSimilar(decoded[i], Crop(ref, roi));
+      else
+        AssertSimilar(decoded[i], ref);
+    }
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>;
+using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(NvJpegDecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingle) {
@@ -144,6 +153,14 @@ TYPED_TEST(NvJpegDecoderTest, DecodeSingleYCbCr) {
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingleRoi) {
   this->RunSingleTest({{12, 34}, {340, 450}});
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeOrientationBatched) {
+  this->RunOrientationTest();
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeOrientationWithRoiBatched) {
+  this->RunOrientationTest({{1, 2}, {21, 37}});
 }
 
 }  // namespace test

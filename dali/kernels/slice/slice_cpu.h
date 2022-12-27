@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ namespace kernels {
 
 static constexpr int kSliceCost = 2;  // compared to memcpy (heuristic)
 
-namespace detail {
+namespace slice_impl {
 
 /**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
@@ -249,7 +249,7 @@ void SliceKernelImpl(OutputType *output,
   }
 }
 
-}  // namespace detail
+}  // namespace slice_impl
 
 
 template <typename OutputType, typename InputType, int Dims>
@@ -264,14 +264,14 @@ void SliceKernel(OutputType *output,
                  int channel_dim = -1) {  // negative if no channel dim or already processed
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
   if (need_pad) {
-    detail::SliceKernelImpl(
+    slice_impl::SliceKernelImpl(
         output, input, out_strides.data(), in_strides.data(), out_shape.data(),
         in_shape.data(), anchor.data(), fill_values, channel_dim,
         std::integral_constant<int, Dims>(),
         std::integral_constant<bool, false>(),
         std::integral_constant<bool, true>());
   } else {
-    detail::SliceKernelImpl(
+    slice_impl::SliceKernelImpl(
         output, input, out_strides.data(), in_strides.data(), out_shape.data(),
         in_shape.data(), anchor.data(), fill_values, channel_dim,
         std::integral_constant<int, Dims>(),

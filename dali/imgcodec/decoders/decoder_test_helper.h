@@ -27,6 +27,7 @@
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/util/output_shape.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
@@ -74,6 +75,49 @@ static void AssertEqualSatNorm(const Tensor<CPUBackend> &img,
     AssertEqualSatNorm<T>(view<const T>(img), ref);
   ), DALI_FAIL(make_string("Unsupported type: ", img.type())));  // NOLINT
 }
+
+
+/**
+ * @brief Checks that the image is similar to the reference based on mean square error
+ *
+ * Unlike AssertClose, this check allows for a rather large max. error, but has a much lower
+ * limit on mean square error. It's used for different JPEG decoders which have differences in
+ * chroma upsampling or apply deblocking filters.
+ */
+template <typename OutputType, typename RefType>
+void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const RefType> &ref) {
+  float eps = ConvertSatNorm<OutputType>(0.3);
+  Check(img, ref, EqualConvertNorm(eps));
+
+  double mean_square_error = 0;
+  uint64_t size = volume(img.shape);
+  for (size_t i = 0; i < size; i++) {
+    double img_value = ConvertSatNorm<double>(img.data[i]);
+    double ref_value = ConvertSatNorm<double>(ref.data[i]);
+    double error = img_value - ref_value;
+    mean_square_error += error * error;
+  }
+  mean_square_error = sqrt(mean_square_error / size);
+  EXPECT_LT(mean_square_error, 0.04);
+}
+
+
+template <typename T>
+void AssertSimilar(const TensorView<StorageCPU, const T> &img,
+                   const Tensor<CPUBackend> &ref) {
+  TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
+    AssertSimilar(img, view<const RefType>(ref));
+  ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
+}
+
+static void AssertSimilar(const Tensor<CPUBackend> &img,
+                          const Tensor<CPUBackend> &ref) {
+  TYPE_SWITCH(img.type(), type2id, T, (IMGCODEC_TYPES), (
+    AssertSimilar<T>(view<const T>(img), ref);
+  ), DALI_FAIL(make_string("Unsupported type: ", img.type())));  // NOLINT
+}
+
 
 
 /**
@@ -210,11 +254,8 @@ class DecoderTestBase : public ::testing::Test {
     EXPECT_TRUE(Decoder()->CanDecode(ctx, src, opts));
 
     ImageInfo info = Parser()->GetInfo(src);
-    auto shape = AdjustToRoi(info.shape, roi);
-
-    // Number of channels can be different than input's due to color conversion
-    // TODO(skarpinski) Don't assume channel-last layout here
-    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
+    TensorShape<> shape;
+    OutputShape(shape, info, opts, roi);
 
     output_.reshape({{shape}});
 
@@ -231,8 +272,9 @@ class DecoderTestBase : public ::testing::Test {
       ctx.stream = stream_lease;
       auto decode_result = Decoder()->Decode(ctx, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
+      auto out_tv = output_.cpu(ctx.stream)[0];
       CUDA_CALL(cudaStreamSynchronize(ctx.stream));
-      return output_.cpu()[0];
+      return out_tv;
     }
   }
 
@@ -252,7 +294,7 @@ class DecoderTestBase : public ::testing::Test {
       EXPECT_TRUE(Parser()->CanParse(in[i]));
       EXPECT_TRUE(Decoder()->CanDecode(ctx, in[i], opts));
       ImageInfo info = Parser()->GetInfo(in[i]);
-      shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
+      OutputShape(shape[i], info, opts, rois.empty() ? ROI{} : rois[i]);
     }
 
     output_.reshape(TensorListShape{shape});
@@ -276,8 +318,9 @@ class DecoderTestBase : public ::testing::Test {
       auto res = Decoder()->Decode(ctx, make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
-      CUDA_CALL(cudaStreamSynchronize(stream));
-      return output_.cpu();
+      auto out_tlv = output_.cpu(ctx.stream);
+      CUDA_CALL(cudaStreamSynchronize(ctx.stream));
+      return out_tlv;
     }
   }
 

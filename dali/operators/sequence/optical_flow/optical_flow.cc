@@ -26,7 +26,7 @@ The main input for this operator is a sequence of frames. Optionally, the operat
 can be provided with external hints for the optical flow calculation. The output format of this operator
 matches the output format of the optical flow driver API.
 Refer to https://developer.nvidia.com/opticalflow-sdk for more information about the
-Turing and Ampere optical flow hardware that is used by DALI.
+Turing, Ampere and Hopper optical flow hardware that is used by DALI.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
@@ -92,7 +92,7 @@ constexpr int kNOutputDims = 2;
 constexpr int kNInputDims = 4;
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace &ws) {
   // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
   // use on default context and non-default streams may lead to memory corruption.
   cudaStream_t of_stream = ws.stream();

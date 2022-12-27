@@ -23,7 +23,6 @@
 #include "dali/core/util.h"
 #include "dali/core/convert.h"
 #include "dali/core/geom/vec.h"
-#include "dali/core/cuda_utils.h"
 
 namespace dali {
 namespace kernels {

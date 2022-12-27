@@ -95,9 +95,10 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
     return std::make_shared<JpegParser>();
   }
 
-  DecodeParams GetParams() {
+  DecodeParams GetParams(DALIImageType color_fmt) {
     DecodeParams opts{};
     opts.dtype = dtype;
+    opts.format = color_fmt;
     return opts;
   }
 
@@ -109,46 +110,85 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
       return 0.01 * max_value<OutputType>();
     }
   }
+
+  std::string GetPath(const std::string &prefix, DALIImageType color_fmt) {
+    if (color_fmt == DALI_YCbCr) {
+      return make_string(prefix, "_ycbcr.npy");
+    } else if (color_fmt == DALI_GRAY) {
+      return make_string(prefix, "_gray.npy");
+    } else {
+      assert(color_fmt == DALI_RGB);
+      return make_string(prefix, ".npy");
+    }
+  }
+
+  void TestDecodeSingleAPI(DALIImageType color_fmt) {
+    ImageBuffer image(jpeg_image);
+    auto decoded = this->Decode(&image.src, this->GetParams(color_fmt));
+    auto ref = this->ReadReferenceFrom(GetPath(ref_prefix, color_fmt));
+    if (color_fmt != DALI_RGB) {
+      AssertClose(decoded, ref, this->GetEps());
+    } else {
+      AssertEqualSatNorm(decoded, ref);
+    }
+  }
+
+  void TestDecodeBatchAPI(DALIImageType color_fmt) {
+    auto ref0 = this->ReadReferenceFrom(GetPath(ref_prefix, color_fmt));
+    auto ref1 = this->ReadReferenceFrom(GetPath(ref_prefix1, color_fmt));
+    auto ref2 = this->ReadReferenceFrom(GetPath(ref_prefix2, color_fmt));
+    ImageBuffer image0(jpeg_image);
+    ImageBuffer image1(jpeg_image1);
+    ImageBuffer image2(jpeg_image2);
+
+    std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
+    auto img = this->Decode(make_span(srcs), this->GetParams(color_fmt));
+
+    if (color_fmt != DALI_RGB) {
+      auto eps = this->GetEps();
+      AssertClose(img[0], ref0, eps);
+      AssertClose(img[1], ref1, eps);
+      AssertClose(img[2], ref2, eps);
+    } else {
+      AssertEqualSatNorm(img[0], ref0);
+      AssertEqualSatNorm(img[1], ref1);
+      AssertEqualSatNorm(img[2], ref2);
+    }
+  }
 };
 
 using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(LibJpegTurboDecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
-  ImageBuffer image(jpeg_image);
-  auto decoded = this->Decode(&image.src, this->GetParams());
-  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
-  AssertEqualSatNorm(decoded, ref);
+  this->TestDecodeSingleAPI(DALI_RGB);
 }
 
-TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
-  auto ref0 = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
-  auto ref1 = this->ReadReferenceFrom(make_string(ref_prefix1, ".npy"));
-  auto ref2 = this->ReadReferenceFrom(make_string(ref_prefix2, ".npy"));
-  ImageBuffer image0(jpeg_image);
-  ImageBuffer image1(jpeg_image1);
-  ImageBuffer image2(jpeg_image2);
-  std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
-  auto img = this->Decode(make_span(srcs), this->GetParams());
-  AssertEqualSatNorm(img[0], ref0);
-  AssertEqualSatNorm(img[1], ref1);
-  AssertEqualSatNorm(img[2], ref2);
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatch) {
+  this->TestDecodeBatchAPI(DALI_RGB);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   ImageBuffer image(jpeg_image);
-  auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
+  auto decoded = this->Decode(&image.src, this->GetParams(DALI_RGB), {{5, 20}, {800, 1000}});
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_roi.npy"));
   AssertEqualSatNorm(decoded, ref);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
-  ImageBuffer image(jpeg_image);
-  auto params = this->GetParams();
-  params.format = DALI_YCbCr;
-  auto decoded = this->Decode(&image.src, params);
-  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  AssertClose(decoded, ref, this->GetEps());
+  this->TestDecodeSingleAPI(DALI_YCbCr);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchYCbCr) {
+  this->TestDecodeBatchAPI(DALI_YCbCr);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeGray) {
+  this->TestDecodeSingleAPI(DALI_GRAY);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchGray) {
+  this->TestDecodeBatchAPI(DALI_GRAY);
 }
 
 }  // namespace test

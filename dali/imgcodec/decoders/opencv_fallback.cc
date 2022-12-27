@@ -89,8 +89,11 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
       cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
 
-    // TODO(michalz): correct the orientation of images loaded with IMREAD_UNCHANGED
-    (void)adjust_orientation;
+    Orientation orientation = {};
+    if (adjust_orientation) {
+      auto info = ImageFormatRegistry::instance().GetImageFormat(in)->Parser()->GetInfo(in);
+      orientation = info.orientation;
+    }
 
     res.success = cvimg.ptr(0) != nullptr;
     if (res.success) {
@@ -109,12 +112,17 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
       SampleView<CPUBackend> in(cvimg.ptr(0), shape, type);
 
       int in_channels = cvimg.channels();
-
+      auto out_format = opts.format;
+      if (out_format == DALI_ANY_DATA && in_format == DALI_ANY_DATA) {
+        if (in_channels == 3) {
+          // OpenCV uses BGR by default. Here we avoid outputting BGR when requesting ANY_DATA
+          in_format = DALI_BGR;
+          out_format = DALI_RGB;
+        }  // TODO(michalz): support RGBA in DALI
+      }
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
-      Convert(out, layout, opts.format,
-              in, layout, in_format,
-              roi);
+      Convert(out, layout, out_format, in, layout, in_format, roi, orientation);
     }
   } catch (...) {
     res.exception = std::current_exception();

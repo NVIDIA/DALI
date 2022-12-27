@@ -44,12 +44,12 @@ TEST(MMDefaultResource, GetResource_Host) {
 TEST(MMDefaultResource, GetResource_Pinned) {
   DeviceBuffer<char> dev;
   dev.resize(1000);
-  CUDA_CALL(cudaMemset(dev, 0, 1000));
 
   auto *rsrc = GetDefaultResource<memory_kind::pinned>();
   ASSERT_NE(rsrc, nullptr);
 
   CUDAStream stream = CUDAStream::Create(true);
+  CUDA_CALL(cudaMemsetAsync(dev, 0, 1000, stream));
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
   EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
@@ -62,7 +62,8 @@ TEST(MMDefaultResource, GetResource_Pinned) {
   stream = CUDAStream();  // destroy the stream, it should still complete just fine
   char back_copy[1000] = {};
   CUDA_CALL(cudaEventSynchronize(event));
-  CUDA_CALL(cudaMemcpy(back_copy, dev, 1000, cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaMemcpyAsync(back_copy, dev, 1000, cudaMemcpyDeviceToHost, 0));
+  CUDA_CALL(cudaStreamSynchronize(0));
 
   for (int i = 0; i < 1000; i++)
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));

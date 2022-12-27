@@ -15,6 +15,7 @@
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
 #include <sstream>
+#include <cstring>
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
@@ -202,7 +203,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
-                                    [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
+                                    [dlm_tensor_ptr = std::move(dlm_tensor_ptr)](void*) {}),
                                     bytes, is_pinned, typed_shape, dali_type.id(), device_id);
 
 
@@ -369,6 +370,26 @@ void CopyToExternalImplGPU(SourceObject &src,
   wait_order.wait(copy_order);
 }
 
+template <typename Backend>
+py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
+  if (name == "layout") {
+    TensorLayout layout = tensor.GetLayout();
+    if (layout.empty())
+      return py::none();
+    else
+      return py::str(layout.c_str());
+  } else if (name == "source_info") {
+    auto &&srcinfo = tensor.GetSourceInfo();
+    if (srcinfo.empty())
+      return py::none();
+    else
+      return py::str(srcinfo);
+  } else {
+    // TODO(michalz): Make TensorMeta more flexible and have some dictionary
+    return py::none();
+  }
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -508,6 +529,10 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("source_info", &Tensor<CPUBackend>::GetSourceInfo,
+        R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
+        from which the data was loaded.)")
+    .def("get_property", GetTensorProperty<CPUBackend>)
     .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
           auto ret = std::make_unique<Tensor<GPUBackend>>();
           int dev = -1;
@@ -566,6 +591,9 @@ void ExposeTensor(py::module &m) {
       It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
       and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
 
+  py::implicitly_convertible<py::buffer, Tensor<CPUBackend>>();
+  py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
+
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
@@ -607,6 +635,10 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("source_info", &Tensor<GPUBackend>::GetSourceInfo,
+        R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
+        from which the data was loaded.)")
+    .def("get_property", GetTensorProperty<GPUBackend>)
     .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
           auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);
@@ -681,6 +713,10 @@ void ExposeTensor(py::module &m) {
 
       :type: DALIDataType
       )code");
+
+  py::implicitly_convertible<py::object, Tensor<GPUBackend>>();
+  py::implicitly_convertible<py::capsule&, Tensor<GPUBackend>>();
+
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
@@ -719,11 +755,19 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
   TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
+
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
         non_contiguous_tmp.SetupLike(t);
+        if (std::is_same<Backend, GPUBackend>::value) {
+           // it is safe due to above if
+           Tensor<GPUBackend> *t_gpu = reinterpret_cast<Tensor<GPUBackend>*>(&t);
+           copy_order = AccessOrder(UserStream::Get()->GetStream(*t_gpu));
+        }
       }
       DALIDataType cur_type = t.type();
 
@@ -741,13 +785,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
       throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
                                        std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
     }
-  }
-
-  AccessOrder wait_order = AccessOrder::host();
-  AccessOrder copy_order = AccessOrder::host();
-  if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
-    auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
-    copy_order = AccessOrder(UserStream::Get()->GetStream(t));
   }
 
   contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
@@ -878,7 +915,7 @@ void ExposeTensorList(py::module &m) {
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, false, i_shape, type.id(), device_id);
+                     bytes, is_pinned, i_shape, type.id(), device_id);
         t->SetLayout(layout);
         return t;
       }),
@@ -1549,7 +1586,7 @@ PYBIND11_MODULE(backend_impl, m) {
 #if SHM_WRAPPER_ENABLED
 
   py::class_<SharedMem>(m, "SharedMem")
-      .def(py::init<int, int>())
+      .def(py::init<int, uint64_t>())
       .def_property_readonly("size", &SharedMem::size)
       .def_property_readonly("handle", &SharedMem::handle)
       .def("buf",
@@ -1759,7 +1796,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {
-          DeviceWorkspace ws;
+          Workspace ws;
           p->Outputs(&ws);
 
           py::tuple outs(ws.NumOutput());
@@ -1774,7 +1811,7 @@ PYBIND11_MODULE(backend_impl, m) {
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
-          DeviceWorkspace ws;
+          Workspace ws;
           p->ShareOutputs(&ws);
 
           py::tuple outs(ws.NumOutput());

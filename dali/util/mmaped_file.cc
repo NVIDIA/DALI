@@ -147,6 +147,11 @@ MmapedFileStream::MmapedFileStream(const std::string& path, bool read_ahead) :
   DALI_ENFORCE(p_ != nullptr, "Could not open file " + path + ": " + std::strerror(errno));
 }
 
+MmapedFileStream::~MmapedFileStream() {
+  Close();
+}
+
+
 void MmapedFileStream::Close() {
   // Not doing any munmap right now, since Buffer objects might still
   // reference the memory range of the mapping.
@@ -156,6 +161,7 @@ void MmapedFileStream::Close() {
   length_ = 0;
   pos_ = 0;
 }
+
 
 inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
                                  size_t &n_bytes, bool read_ahead) {

@@ -37,14 +37,12 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
+#include "dali/pipeline/operator/builtin/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/workspace/device_workspace.h"
-#include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
@@ -69,17 +67,15 @@ static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mu
 
 class DLL_PUBLIC ExecutorBase {
  public:
-  using ExecutorCallback = std::function<void(void)>;
   DLL_PUBLIC virtual ~ExecutorBase() {}
   DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
   DLL_PUBLIC virtual void RunCPU() = 0;
   DLL_PUBLIC virtual void RunMixed() = 0;
   DLL_PUBLIC virtual void RunGPU() = 0;
-  DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws) = 0;
-  DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
+  DLL_PUBLIC virtual void Outputs(Workspace *ws) = 0;
+  DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
-  DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
@@ -108,7 +104,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        callback_(nullptr),
         event_pool_(),
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
@@ -129,10 +124,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunCPU() override;
   DLL_PUBLIC void RunMixed() override;
   DLL_PUBLIC void RunGPU() override;
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override;
-  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
+  DLL_PUBLIC void Outputs(Workspace *ws) override;
+  DLL_PUBLIC void ShareOutputs(Workspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
-  DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
   DLL_PUBLIC void Shutdown() override;
 
@@ -181,8 +175,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
-  template <typename W>
-  inline void FillStats(ExecutorMetaMap &memory_stats, W &ws, std::string op_name,
+  inline void FillStats(ExecutorMetaMap &memory_stats, Workspace &ws, std::string op_name,
                         std::mutex &write_mutex) {
     if (enable_memory_stats_) {
         size_t out_size = 0;
@@ -198,13 +191,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
           max_out_size = 0;
           reserved_size = 0;
           max_reserved_size = 0;
-          if (ws.template OutputIsType<CPUBackend>(i)) {
-            auto &out = ws.template Output<CPUBackend>(i);
+          if (ws.OutputIsType<CPUBackend>(i)) {
+            auto &out = ws.Output<CPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
           } else {
-            auto &out = ws.template Output<GPUBackend>(i);
+            auto &out = ws.Output<GPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
@@ -329,7 +322,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
 
   OpGraph *graph_ = nullptr;
-  ExecutorCallback callback_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
@@ -341,10 +333,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
-  // queue_idx -> cudaEvent_t
-  // To introduce dependency from MIXED stage to GPU stage for callback only
-  // in some edge cases where there are no operators
-  std::vector<cudaEvent_t> mixed_callback_events_;
 
   std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
@@ -356,7 +344,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   WorkspacePolicy ws_policy_;
 
  private:
-  template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws);
 
   void RethrowError() const {
@@ -385,18 +372,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void PreRun();
 };
-
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
-  callback_ = cb;
-  // Create necessary events lazily
-  if (mixed_callback_events_.empty()) {
-    mixed_callback_events_.resize(stage_queue_depths_[OpType::MIXED]);
-    for (auto &event : mixed_callback_events_) {
-      event = event_pool_.GetEvent();
-    }
-  }
-}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
@@ -476,13 +451,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
+void Executor<WorkspacePolicy, QueuePolicy>::Outputs(Workspace *ws) {
   ReleaseOutputs();
   ShareOutputs(ws);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
+void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(Workspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
   DeviceGuard g(device_id_);
   ws->Clear();
@@ -605,7 +580,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   pipeline_outputs_ = graph.GetOutputs(output_names_);
 
 
-  graph.SetupMakeContiguousPassThrough(output_names_);
+  graph.SetupMakeContiguousPassThrough();
 
   // If there are GPU outputs from given stages, we have to wait for them
   auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs,
@@ -652,11 +627,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int tid = 0; tid < graph.NumTensor(); tid++) {
       // Only CPU storage device in CPU_ONLY mode
       auto &cpu_cpu_queue =
-          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
       auto &mixed_cpu_queue =
-          get_queue<OpType::MIXED, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::MIXED, StorageDevice::CPU>(tensor_to_store_queue[tid]);
       auto &gpu_cpu_queue =
-          get_queue<OpType::GPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::GPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
 
       for (auto &t : cpu_cpu_queue) {
         t->set_pinned(false);
@@ -670,6 +645,22 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     }
     return;
   }
+
+  auto pin_cpu_passthrough = [](std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                const OpGraph &graph, int tid) {
+    auto origin_group = graph.GetTensorOrigin(tid);
+    // For all tensors that are forming a pass through group ...
+    for (auto &origin_tensor_id : origin_group) {
+      // (we do this only for CPU data produced in CPU nodes)
+      auto &parent_tensor_queue =
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[origin_tensor_id]);
+      for (auto &batch : parent_tensor_queue) {
+        // ... mark all executor buffer queues as `pinned`
+        batch->set_pinned(true);
+      }
+    }
+  };
+
   // We only pin what we need:
   // The inputs of mixed ops are potentially used for H2D copies...
   for (int i = 0; i < graph.NumOp(OpType::MIXED); i++) {
@@ -679,10 +670,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
-      auto &parent_tensor_queue =
-          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
-      for (auto &tensor : parent_tensor_queue) {
-        tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
+      if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+        pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
       }
     }
   }
@@ -693,12 +682,52 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       if (graph.Tensor(tid).producer.storage_device == StorageDevice::CPU) {
-        auto &parent_tensor_queue =
-            get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
-        for (auto &tensor : parent_tensor_queue) {
-          tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
+        if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+          pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
         }
       }
+    }
+  }
+
+  auto any_pinned = [&](int tid) {
+    auto origin_group = graph.GetTensorOrigin(tid);
+    for (auto &origin_tensor_id : origin_group) {
+      auto &parent_tensor_queue =
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
+      for (auto &tensor : parent_tensor_queue) {
+        if (tensor->is_pinned()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // anything that goes into a Merge CPU node, needs to be uniformly pinned
+  for (int i = 0; i < graph.NumOp(OpType::CPU); i++) {
+    auto &node = graph.Node(OpType::CPU, i);
+    if (!IsMerge(node.spec.GetSchema())) {
+      continue;
+    }
+    bool should_pin_all = false;
+    // we are interested only in the proper inputs, find out if any of them is pinned
+    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+      auto tid = node.parent_tensors[j];
+      should_pin_all = should_pin_all || any_pinned(tid);
+      if (should_pin_all) {
+        break;
+      }
+    }
+    if (!should_pin_all) {
+      continue;
+    }
+    // If any input was pinned, try to pin everything, indicate to the output that we expect
+    // data to be pinned.
+    // Some operator may still ignore pinning, for example a no_copy External Source.
+    // Just use the whole group that goes through Merge node.
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      auto tid = node.children_tensors[j];
+      pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
     }
   }
 }
@@ -780,11 +809,6 @@ using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueueP
 
 
 namespace detail {
-
-void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData) {
-  auto callback = static_cast<ExecutorBase::ExecutorCallback*>(userData);
-  (*callback)();
-}
 
 void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex) {
   const std::lock_guard<std::mutex> lock(mutex);

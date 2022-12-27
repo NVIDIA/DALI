@@ -44,14 +44,27 @@ void OutputShape(OutShape &&out_shape,
     if (rotate) {
       in_d = 1 - d;
     }
+
     int extent = info.shape[in_d];
-    if (d < roi.end.size())
+    if (d < roi.end.size()) {
+      DALI_ENFORCE(0 <= roi.end[d] && roi.end[d] <= info.shape[in_d],
+                   "ROI end must fit within the image bounds");
       extent = roi.end[d];
-    if (d < roi.begin.size())
+    }
+    if (d < roi.begin.size()) {
+      DALI_ENFORCE(0 <= roi.begin[d] && roi.begin[d] <= info.shape[in_d],
+                   "ROI begin must fit within the image bounds");
       extent -= roi.begin[d];
+    }
+
     out_shape[d + (d >= out_channel_dim)] = extent;
   }
 }
+
+/**
+ * @brief Calculates the ROI in the pre-orientation coordinates
+ */
+ROI DLL_PUBLIC PreOrientationRoi(const ImageInfo &info, ROI roi);
 
 }  // namespace imgcodec
 }  // namespace dali

@@ -511,6 +511,7 @@ void VideoLoader::read_file() {
   auto& file = get_or_open_file(req.filename);
   auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
   req.frame_base = file.frame_base_;
+  req.full_range = codecpar(stream)->color_range == AVCOL_RANGE_JPEG;
 
   if (vid_decoder_) {
       vid_decoder_->push_req(req);

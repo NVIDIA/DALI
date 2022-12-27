@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 #ifndef DALI_CORE_DEVICE_GUARD_H_
 #define DALI_CORE_DEVICE_GUARD_H_
 
-#include "dali/core/cuda_utils.h"
-#include "dali/core/error_handling.h"
+#include <cuda.h>
+#include "dali/core/api_helper.h"
 
 namespace dali {
 

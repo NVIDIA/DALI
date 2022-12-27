@@ -162,7 +162,7 @@ template <typename Backend>
 void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
                              unsigned int copy_output_flags = DALI_ext_default,
                              int batch_size = dali::batch_size) {
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   baseline.Outputs(&ws);
   daliOutput(&handle);
 
@@ -274,7 +274,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
                      prefetch_queue_depth, false);
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
@@ -351,7 +351,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
@@ -423,7 +423,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
     }
     daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-    dali::DeviceWorkspace ws;
+    dali::Workspace ws;
     for (int i = 0; i < prefetch_queue_depth; i++) {
       ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, DALI_ext_default,
                                          input_shape.num_samples());
@@ -474,7 +474,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
@@ -538,7 +538,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
   }
@@ -592,7 +592,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    input.Copy(input_cpu, this->order_);
+    input.Copy(input_cpu, std::is_same_v<DataBackend, CPUBackend>
+                          ? AccessOrder::host()
+                          : this->order_);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
     daliSetExternalInputTensors(&handle, input_name.c_str(),
@@ -607,14 +609,16 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
   }
 
   SequentialFill(view<uint8_t>(input_cpu), 42 * prefetch_queue_depth);
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-  input.Copy(input_cpu, this->order_);
+  input.Copy(input_cpu, std::is_same_v<DataBackend, CPUBackend>
+                        ? AccessOrder::host()
+                        : this->order_);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
   daliSetExternalInputTensors(&handle, input_name.c_str(),
@@ -708,7 +712,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, flags);
   }
@@ -822,7 +826,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
-  dali::DeviceWorkspace ws;
+  dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }

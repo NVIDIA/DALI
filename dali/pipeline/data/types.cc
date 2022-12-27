@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,6 +93,9 @@ void TypeInfo::Copy(void *dst,
     return;
 
   if (is_host_to_host) {
+    if (stream)
+      throw std::logic_error("Cannot issue a H2H copy on a stream");
+
     // Call our copy function
     copier_(dst, src, n);
   } else if (use_copy_kernel) {

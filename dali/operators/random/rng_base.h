@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/operators/util/randomizer.cuh"
 
 namespace dali {
+namespace rng {
 
 template <typename Backend, bool IsNoiseGen>
 struct RNGBaseFields;
@@ -44,17 +45,17 @@ class RNGBase : public Operator<Backend> {
     return true;
   }
 
-  int GetBatchSize(const workspace_t<Backend> &ws) const {
+  int GetBatchSize(const Workspace &ws) const {
     if (spec_.NumRegularInput() == 1)
-      return ws.template Input<Backend>(0).shape().size();
+      return ws.Input<Backend>(0).shape().size();
     else
       return ws.GetRequestedBatchSize(0);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
+                 const Workspace &ws) override {
     if (IsNoiseGen)
-      dtype_ = ws.template Input<Backend>(0).type();
+      dtype_ = ws.Input<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType();
 
@@ -65,13 +66,13 @@ class RNGBase : public Operator<Backend> {
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (IsNoiseGen) {
-      shape_ = ws.template Input<Backend>(0).shape();
+      shape_ = ws.Input<Backend>(0).shape();
     } else if (has_shape_like) {
-      if (ws.template InputIsType<Backend>(0)) {
-        shape_ = ws.template Input<Backend>(0).shape();
+      if (ws.InputIsType<Backend>(0)) {
+        shape_ = ws.Input<Backend>(0).shape();
       } else if (std::is_same<GPUBackend, Backend>::value &&
-                 ws.template InputIsType<CPUBackend>(0)) {
-        shape_ = ws.template Input<CPUBackend>(0).shape();
+                 ws.InputIsType<CPUBackend>(0)) {
+        shape_ = ws.Input<CPUBackend>(0).shape();
       } else {
         DALI_FAIL(
             "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
@@ -97,10 +98,15 @@ class RNGBase : public Operator<Backend> {
   }
 
   template <typename T, typename Dist>
-  void RunImplTyped(workspace_t<CPUBackend> &ws);
+  void RunImplTyped(Workspace &ws, CPUBackend);
 
   template <typename T, typename Dist>
-  void RunImplTyped(workspace_t<GPUBackend> &ws);
+  void RunImplTyped(Workspace &ws, GPUBackend);
+
+  template <typename T, typename Dist>
+  void RunImplTyped(Workspace &ws) {
+    RunImplTyped<T, Dist>(ws, Backend{});
+  }
 
   using Operator<Backend>::spec_;
   using Operator<Backend>::max_batch_size_;
@@ -111,6 +117,7 @@ class RNGBase : public Operator<Backend> {
   RNGBaseFields<Backend, IsNoiseGen> backend_data_;
 };
 
+}  // namespace rng
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_H_

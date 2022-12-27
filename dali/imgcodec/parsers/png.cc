@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include "dali/core/byte_io.h"
+#include "dali/core/error_handling.h"
 #include "dali/imgcodec/parsers/png.h"
 #include "dali/imgcodec/util/tag.h"
 #include "third_party/opencv/exif/exif.h"

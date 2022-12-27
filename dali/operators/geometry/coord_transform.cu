@@ -20,7 +20,7 @@ namespace dali {
 
 template <>
 template <typename OutputType, typename InputType, int out_dim, int in_dim>
-void CoordTransform<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
+void CoordTransform<GPUBackend>::RunTyped(Workspace &ws) {
   auto &in = ws.Input<GPUBackend>(0);
   auto &out = ws.Output<GPUBackend>(0);
   auto in_view = view<const InputType>(in);

@@ -31,9 +31,9 @@ class ResampleGPU : public ResampleBase<GPUBackend> {
   using Base = ResampleBase<GPUBackend>;
   explicit ResampleGPU(const OpSpec &spec) : Base(spec) {}
 
-  void RunImpl(DeviceWorkspace &ws) override {
-    auto &out = ws.template Output<GPUBackend>(0);
-    const auto &in = ws.template Input<GPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &out = ws.Output<GPUBackend>(0);
+    const auto &in = ws.Input<GPUBackend>(0);
     out.SetLayout(in.GetLayout());
 
     int N = in.num_samples();

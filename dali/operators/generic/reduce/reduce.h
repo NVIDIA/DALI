@@ -52,6 +52,11 @@ class AxesHelper {
       axes_.resize(sample_dim);
       std::iota(axes_.begin(), axes_.end(), 0);
     }
+
+    // checks range and duplicates
+    kernels::reduce_impl::CheckAxes(make_cspan(axes_), sample_dim);
+    // adjusts negative indices to positive range
+    kernels::reduce_impl::AdjustAxes(make_span(axes_), sample_dim);
   }
 
   bool has_axes_arg_;
@@ -81,9 +86,9 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
   inline ~Reduce() override = default;
 
   bool SetupImpl(
-    std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
 
     output_desc[0].type = OutputType(input.type());
     output_desc[0].shape = input.shape();
@@ -102,13 +107,13 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
     reduce_impl.RunImplImpl(ws);
   }
 
   template <typename OutputType, typename InputType>
-  void RunTyped(HostWorkspace &ws) {
+  void RunTyped(Workspace &ws, CPUBackend) {
     auto& in = ws.Input<CPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
@@ -139,7 +144,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
   }
 
   template <typename OutputType, typename InputType>
-  void RunTyped(DeviceWorkspace &ws) {
+  void RunTyped(Workspace &ws, GPUBackend) {
     auto& in = ws.Input<GPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
@@ -160,6 +165,11 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
       keep_dims_,
       false);
     kmgr_.Run<Kernel>(0, ctx, out_view, in_view);
+  }
+
+  template <typename OutputType, typename InputType>
+  void RunTyped(Workspace &ws) {
+    RunTyped<OutputType, InputType>(ws, Backend{});
   }
 
   DALIDataType OutputType(DALIDataType input_type) const {
@@ -183,8 +193,8 @@ class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
  public:
   explicit inline ReduceOp(const OpSpec &spec) :  Reduce<ReductionType, Backend, ReduceOp>(spec) {}
 
-  void RunImplImpl(workspace_t<Backend> &ws) {
-    auto& in = ws.template Input<Backend>(0);
+  void RunImplImpl(Workspace &ws) {
+    auto& in = ws.Input<Backend>(0);
     DALIDataType input_type = in.type();
 
     TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (

@@ -33,7 +33,7 @@ int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
 
 /**
  * @brief Method for seeking the memory video. It sets position according to provided arguments.
- * 
+ *
  * @param new_position Requested new_position.
  * @param mode Chosen method of seeking. This argument changes how new_position is interpreted and how seeking is performed.
  * @return int64_t actual new position in the file.
@@ -81,10 +81,15 @@ using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_H264,
-  AVCodecID::AV_CODEC_ID_HEVC
+  AVCodecID::AV_CODEC_ID_HEVC,
+  AVCodecID::AV_CODEC_ID_MPEG4
 };
 
 int64 FramesDecoder::NumFrames() const {
+    if (num_frames_.has_value()) {
+      return num_frames_.value();
+    }
+
     if (index_.has_value()) {
       return index_->size();
     }
@@ -92,7 +97,7 @@ int64 FramesDecoder::NumFrames() const {
     return av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames;
 }
 
-void FramesDecoder::InitAvState() {
+void FramesDecoder::InitAvState(bool init_codecs) {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
 
@@ -101,41 +106,61 @@ void FramesDecoder::InitAvState() {
     ret >= 0,
     make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
 
-  ret = avcodec_open2(av_state_->codec_ctx_, av_state_->codec_, nullptr);
-  DALI_ENFORCE(
-    ret == 0,
-    make_string("Could not initialize codec context: ", detail::av_error_string(ret)));
-
-  av_state_->frame_ = av_frame_alloc();
-  DALI_ENFORCE(av_state_->frame_, "Could not allocate the av frame");
-
   av_state_->packet_ = av_packet_alloc();
   DALI_ENFORCE(av_state_->packet_, "Could not allocate av packet");
+
+  if (init_codecs) {
+    ret = avcodec_open2(av_state_->codec_ctx_, av_state_->codec_, nullptr);
+    DALI_ENFORCE(
+      ret == 0,
+      make_string("Could not initialize codec context: ", detail::av_error_string(ret)));
+
+    av_state_->frame_ = av_frame_alloc();
+    DALI_ENFORCE(av_state_->frame_, "Could not allocate the av frame");
+  }
 }
 
 bool FramesDecoder::CheckCodecSupport() {
   return std::find(
     SupportedCodecs.begin(),
     SupportedCodecs.end(),
-    av_state_->codec_->id) != SupportedCodecs.end();
+    av_state_->codec_params_->codec_id) != SupportedCodecs.end();
 }
 
-void FramesDecoder::FindVideoStream() {
-  for (size_t i = 0; i < av_state_->ctx_->nb_streams; ++i) {
-    av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
-    av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
+void FramesDecoder::FindVideoStream(bool init_codecs) {
+  if (init_codecs) {
+    size_t i = 0;
 
-    if (av_state_->codec_ == nullptr) {
-      continue;
+    for (i = 0; i < av_state_->ctx_->nb_streams; ++i) {
+      av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
+      av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
+
+      if (av_state_->codec_ == nullptr) {
+        continue;
+      }
+
+      if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
+        av_state_->stream_id_ = i;
+        break;
+      }
     }
 
-    if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
-      av_state_->stream_id_ = i;
-      return;
-    }
+    DALI_ENFORCE(i < av_state_->ctx_->nb_streams,
+                 make_string("Could not find a valid video stream in a file ", Filename()));
+  } else {
+    av_state_->stream_id_ = av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO,
+                                                -1, -1, nullptr, 0);
+
+    LOG_LINE << "Best stream " << av_state_->stream_id_ << std::endl;
+    DALI_ENFORCE(av_state_->stream_id_ >= 0,
+                 make_string("Could not find video stream in ", Filename()));
+
+    av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
   }
-
-  DALI_FAIL(make_string("Could not find a valid video stream in a file ", Filename()));
+  if (Height() == 0 || Width() == 0) {
+    DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
+    DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
+  }
 }
 
 FramesDecoder::FramesDecoder(const std::string &filename)
@@ -155,7 +180,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
     CheckCodecSupport(),
     make_string(
       "Unsupported video codec: ",
-      av_state_->codec_->name,
+      CodecName(),
       " in file: ", Filename(),
       " Supported codecs: h264, HEVC."));
   InitAvState();
@@ -164,11 +189,17 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 }
 
 
-
-FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index)
+FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
+                             bool init_codecs, int num_frames)
   : av_state_(std::make_unique<AvState>()),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
+  DALI_ENFORCE(init_codecs || !build_index,
+               "FramesDecoder doesn't support index without CPU codecs");
   av_log_set_level(AV_LOG_ERROR);
+
+  if (num_frames != -1) {
+    num_frames_ = num_frames;
+  }
 
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
@@ -190,14 +221,19 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
                                      detail::av_error_string(ret)));
 
-  FindVideoStream();
+  FindVideoStream(init_codecs || build_index);
   DALI_ENFORCE(
     CheckCodecSupport(),
     make_string(
       "Unsupported video codec: ",
-      av_state_->codec_->name,
+      CodecName(),
       ". Supported codecs: h264, HEVC."));
-  InitAvState();
+  InitAvState(init_codecs || build_index);
+
+  // Number of frames is unknown and we do not plan to build the index
+  if (NumFrames() == 0 && !build_index) {
+    ParseNumFrames();
+  }
 
   if (!build_index) {
     return;
@@ -205,6 +241,85 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 
   BuildIndex();
   DetectVfr();
+}
+
+void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs) {
+    av_state->ctx_ = avformat_alloc_context();
+    DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
+
+    uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
+
+    AVIOContext *av_io_context = avio_alloc_context(
+      av_io_buffer,
+      default_av_buffer_size,
+      0,
+      &memory_video_file_.value(),
+      detail::read_memory_video_file,
+      nullptr,
+      detail::seek_memory_video_file);
+
+    av_state->ctx_->pb = av_io_context;
+
+    int ret = avformat_open_input(&av_state->ctx_, "", nullptr, nullptr);
+    DALI_ENFORCE(
+      ret == 0,
+      make_string(
+        "Failed to open video file ",
+        Filename(),
+        "due to ",
+        detail::av_error_string(ret)));
+    av_state->stream_id_ = av_find_best_stream(
+      av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    av_state->codec_params_ = av_state->ctx_->streams[av_state->stream_id_]->codecpar;
+
+    av_state->codec_ctx_ = avcodec_alloc_context3(av_state->codec_);
+    DALI_ENFORCE(av_state->codec_ctx_, "Could not alloc av codec context");
+
+    ret = avcodec_parameters_to_context(av_state->codec_ctx_, av_state->codec_params_);
+    DALI_ENFORCE(
+      ret >= 0,
+      make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
+
+    av_state->packet_ = av_packet_alloc();
+    DALI_ENFORCE(av_state->packet_, "Could not allocate av packet");
+}
+
+void FramesDecoder::ParseNumFrames() {
+  if (IsFormatSeekable()) {
+    CountFrames(av_state_.get());
+    Reset();
+  } else {
+    // Failover for unseekable video
+    auto current_position = memory_video_file_->position_;
+    memory_video_file_->Seek(0, SEEK_SET);
+    std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
+    CreateAvState(tmp_av_state, false);
+    CountFrames(tmp_av_state.get());
+    memory_video_file_->Seek(current_position, SEEK_SET);
+  }
+}
+
+void FramesDecoder::CountFrames(AvState *av_state) {
+  num_frames_ = 0;
+  while (av_read_frame(av_state->ctx_, av_state->packet_) >= 0) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state->stream_id_) {
+      continue;
+    }
+    ++num_frames_.value();
+  }
+}
+
+bool FramesDecoder::IsFormatSeekable() {
+  if (
+    av_state_->ctx_->iformat->read_seek == nullptr &&
+    av_state_->ctx_->iformat->read_seek2 == nullptr) {
+    return false;
+  }
+
+  return av_state_->ctx_->pb->read_seek != nullptr;
 }
 
 void FramesDecoder::BuildIndex() {
@@ -353,7 +468,9 @@ void FramesDecoder::Reset() {
       Filename(),
       "due to",
       detail::av_error_string(ret)));
-  avcodec_flush_buffers(av_state_->codec_ctx_);
+  if (av_state_->codec_) {
+    avcodec_flush_buffers(av_state_->codec_ctx_);
+  }
 }
 
 void FramesDecoder::SeekFrame(int frame_id) {

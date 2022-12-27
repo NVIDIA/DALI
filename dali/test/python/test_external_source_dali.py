@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
-from nose_utils import raises, assert_warns
+from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
 
 
@@ -44,13 +44,21 @@ def build_src_pipe(device, layout=None):
     return src_pipe, len(batches)
 
 
-def _test_feed_input(device):
+def _test_feed_input(device, is_serialized):
     src_pipe, batch_size = build_src_pipe(device)
 
     dst_pipe = Pipeline(batch_size, 1, 0, exec_async=False, exec_pipelined=False)
     dst_pipe.set_outputs(fn.external_source(name="ext", device=device))
-    dst_pipe.build()
-    for iter in range(3):
+    if is_serialized:
+        serialized = dst_pipe.serialize()
+        dst_pipe = None
+        dst_pipe = Pipeline.deserialize(serialized_pipeline=serialized, batch_size=batch_size,
+                                        num_threads=1, device_id=0, exec_async=False,
+                                        exec_pipelined=False)
+        dst_pipe.build()
+    else:
+        dst_pipe.build()
+    for _ in range(3):
         out1 = src_pipe.run()
         dst_pipe.feed_input("ext", out1[0])
         out2 = dst_pipe.run()
@@ -59,7 +67,8 @@ def _test_feed_input(device):
 
 def test_feed_input():
     for device in ["cpu", "gpu"]:
-        yield _test_feed_input, device
+        for is_serialized in [True, False]:
+            yield _test_feed_input, device, is_serialized
 
 
 def _test_callback(device, as_tensors, change_layout_to=None):
@@ -388,10 +397,11 @@ def test_ndim_changing():
 
 @raises(RuntimeError, glob="Expected data with layout: \"H\" and got: \"W\"")
 def test_layout_data_mismatch():
-    src_pipe = Pipeline(1, 1, 0)
+    src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+    src_pipe.run()
 
 
 @raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
@@ -403,6 +413,8 @@ def test_layout_changing():
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
+    src_pipe.run()
+    src_pipe.run()
 
 
 def _test_partially_utilized_external_source_warning(usage_mask, source_type):
@@ -553,3 +565,19 @@ def test_non_utilized_external_source_pruning():
     # if all outputs are unused, ES should simply be pruned not preventing pipeline from operation
     for num_outputs in (None, 1, 2, 3, 4):
         yield _test_non_utilized_external_source_pruning, num_outputs
+
+
+def test_empty_es():
+    max_batch_size = 16
+
+    @pipeline_def
+    def pipeline():
+        return fn.external_source(source=lambda: [])
+
+    # Providing an empty batch was legal, but it failed on MakeContiguous node.
+    # This checks proper validation in External Source which is the only way that could provide
+    # empty batch as input into DALI graph.
+    with assert_raises(RuntimeError, glob="*ExternalSource expects non-empty batches*"):
+        pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        pipe.build()
+        pipe.run()

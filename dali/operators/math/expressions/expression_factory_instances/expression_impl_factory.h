@@ -1,5 +1,5 @@
 
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/static_switch.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Inspect `expr` to transform runtime information to static information, obtain the
@@ -86,22 +87,27 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   std::unique_ptr<ExprImplBase> result;
   auto left_type = expr[0].GetTypeId();
   auto right_type = expr[1].GetTypeId();
+  auto is_non_scalar = [](const ExprNode& node) {
+    return node.GetNodeType() == NodeType::Tensor && !IsScalarLike(node);
+  };
+  auto is_scalar = [](const ExprNode& node) {
+    return IsScalarLike(node);
+  };
   TYPE_SWITCH(left_type, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
     TYPE_SWITCH(right_type, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
       using Out_t = typename arithm_meta<op, Backend>::template result_t<Left_t, Right_t>;
-      if (expr[0].GetNodeType() == NodeType::Tensor && IsScalarLike(expr[1])) {
-        result.reset(new ImplTensorConstant<op, Out_t, Left_t, Right_t>());
-      } else if (IsScalarLike(expr[0]) && expr[1].GetNodeType() == NodeType::Tensor) {
-        result.reset( new ImplConstantTensor<op, Out_t, Left_t, Right_t>());
-      } else if (expr[0].GetNodeType() == NodeType::Tensor &&
-                 expr[1].GetNodeType() == NodeType::Tensor) {
+      if (is_non_scalar(expr[0]) && is_non_scalar(expr[1])) {
         // Both are non-scalar tensors
         result.reset(new ImplTensorTensor<op, Out_t, Left_t, Right_t>());
+      } else if (is_scalar(expr[0]) && is_non_scalar(expr[1])) {
+        result.reset(new ImplConstantTensor<op, Out_t, Left_t, Right_t>());
       } else {
-        DALI_FAIL("Expression cannot have two scalar operands");
+        // Either Tensor/Scalar or Scalar/Scalar. In the second case we treat
+        // the first argument as tensor.
+        result.reset(new ImplTensorConstant<op, Out_t, Left_t, Right_t>());
       }
     ), DALI_FAIL(make_string("Invalid type (right operand): ", right_type)););  // NOLINT
-  ), DALI_FAIL(make_string("Invalid type (left operarand): ", left_type)););  // NOLINT
+  ), DALI_FAIL(make_string("Invalid type (left operand): ", left_type)););  // NOLINT
   return result;
 }
 
@@ -140,23 +146,13 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
   }
 
   TYPE_SWITCH(expr.GetTypeId(), type2id, Out_t, ARITHMETIC_ALLOWED_TYPES, (
-    if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, true, true>());
-    } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, true, false>());
-    } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, false, true>());
-    } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, false, false>());
-    } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, true, true>());
-    } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, true, false>());
-    } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, false, true>());
-    } else {
-      DALI_FAIL("Expression cannot have three scalar operands");
-    }
+    BOOL_SWITCH(is_tensor[0], IsFirstTensor, (
+      BOOL_SWITCH(is_tensor[1], IsSecondTensor, (
+        BOOL_SWITCH(is_tensor[2], IsThirdTensor, (
+          result.reset(new ImplsAll<op, Out_t, IsFirstTensor, IsSecondTensor, IsThirdTensor>());
+        ));  // NOLINT
+      ));  // NOLINT
+    ));  // NOLINT
   ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
   return result;
 }
@@ -941,6 +937,7 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBa
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, GPUBackend>,
                                         const ExprFunc &expr);
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_FACTORY_INSTANCES_EXPRESSION_IMPL_FACTORY_H_

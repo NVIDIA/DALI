@@ -130,15 +130,17 @@ class DLL_PUBLIC Pipeline {
     return AddOperator(spec, name);
   }
 
-  template <typename T, typename OperatorBackend>
-  void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           AccessOrder order = {}, ExtSrcSettingMode ext_src_setting_mode = {}) {
+
+  template<typename T, typename OperatorBackend>
+  void
+  SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
+                      InputOperatorSettingMode in_op_setting_mode = {}) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
-    auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
+    auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
-                 "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, order, ext_src_setting_mode);
+                 "Input name '" + name + "' is not marked as an InputOperator.");
+    source->SetDataSource(tl, order, in_op_setting_mode);
   }
 
   /**
@@ -151,9 +153,9 @@ class DLL_PUBLIC Pipeline {
    * @param ext_src_setting_mode Options passed to the External Source describing the behaviour
    *                        of setting the data.
    */
-  template <typename TL>
-  inline void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
-                                     ExtSrcSettingMode ext_src_setting_mode = {}) {
+  template<typename TL>
+  void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
+                              InputOperatorSettingMode ext_src_setting_mode = {}) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -192,10 +194,11 @@ class DLL_PUBLIC Pipeline {
    * @param no_copy_mode Select whether to use the parameter defined in the External Source or
    *                     override the mode of operation forcing the copy or no-copy
    */
-  template <typename Backend>
-  DLL_PUBLIC inline void SetExternalInput(
-      const string &name, const TensorList<Backend> &tl, AccessOrder order = {}, bool sync = false,
-      bool use_copy_kernel = false, ExtSrcNoCopyMode no_copy_mode = ExtSrcNoCopyMode::DEFAULT) {
+  template<typename Backend>
+  DLL_PUBLIC void
+  SetExternalInput(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
+                   bool sync = false, bool use_copy_kernel = false,
+                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT) {
     SetExternalInputHelper(name, tl, order, {sync, use_copy_kernel, no_copy_mode});
   }
 
@@ -340,20 +343,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunGPU();
 
   /**
-   * @brief Sets completion callback which is called when GPU work is done
-   * It blocks next GPU iteration so it is up to the developer to schedule
-   * long lasting work in some thread and just fire the work from this CB
-   */
-  DLL_PUBLIC void SetCompletionCallback(ExecutorBase::ExecutorCallback cb);
-
-  /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws);
+  DLL_PUBLIC void Outputs(Workspace *ws);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
@@ -362,7 +358,7 @@ class DLL_PUBLIC Pipeline {
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
-  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws);
+  DLL_PUBLIC void ShareOutputs(Workspace *ws);
 
   /**
    * @brief Release buffers returned by the Output call
@@ -549,7 +545,7 @@ class DLL_PUBLIC Pipeline {
    * Validate, that the outputs from the Pipeline match the criteria.
    * @return True, if the outputs passed the validation test.
    */
-  bool ValidateOutputs(const DeviceWorkspace &ws) const;
+  bool ValidateOutputs(const Workspace &ws) const;
 
   /**
    * @brief Prepare the OpSpec and generate operator name and output name for a specified

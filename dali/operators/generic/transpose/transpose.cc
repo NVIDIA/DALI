@@ -29,12 +29,13 @@ class TransposeCPU : public Transpose<CPUBackend> {
  public:
   explicit inline TransposeCPU(const OpSpec &spec) : Transpose(spec) {}
 
-  void RunImpl(HostWorkspace& ws) {
-        const auto& input = ws.Input<CPUBackend>(0);
+  void RunImpl(Workspace &ws) {
+    const auto& input = ws.Input<CPUBackend>(0);
     auto& output = ws.Output<CPUBackend>(0);
     output.SetLayout(output_layout_);
     auto& thread_pool = ws.GetThreadPool();
     auto input_type = input.type();
+    auto ndim = input.shape().sample_dim();
 
     auto out_shape = output.shape();
     int nsamples = out_shape.num_samples();
@@ -44,6 +45,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
         thread_pool.AddWork(
           [this, &input, &output, i](int thread_id) {
             TensorShape<> src_ts = input.shape()[i];
+
             auto dst_ts = permute(src_ts, perm_);
             kernels::TransposeGrouped(
                 TensorView<StorageCPU, T>{output.mutable_tensor<T>(i), dst_ts},
@@ -79,9 +81,11 @@ for all valid coordinates.
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddArg("perm",
-            R"code(Permutation of the dimensions of the input, for example, [2, 0, 1].)code",
-            DALI_INT_VEC)
+    .AddOptionalArg<std::vector<int>>("perm",
+        R"code(Permutation of the dimensions of the input, for example, [2, 0, 1].
+
+If not given, the dimensions are reversed.)code",
+        nullptr)
     .AddOptionalArg(
         "transpose_layout",
         R"code(When set to True, the axis names in the output data layout are permuted according

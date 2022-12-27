@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
 #include "dali/operators/audio/preemphasis_filter_op.h"
 #include <vector>
 #include "dali/pipeline/data/types.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
-namespace detail {
+namespace {
 
 template <typename OutputType, typename InputType>
 struct SampleDescriptor {
@@ -56,32 +57,34 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
     sample.out[k] = sample.in[k] - sample.coeff * sample.in[k-1];
 }
 
-}  // namespace detail
+}  // namespace
 
 class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
  public:
   explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
     // void is OK here, pointer sizes are the same size
-    int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
+    int64_t sz = max_batch_size_ * sizeof(SampleDescriptor<void, void>);
     scratch_mem_.Resize({sz}, DALI_UINT8);
   }
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   template <typename OutputType, typename InputType>
-  void RunImplTyped(workspace_t<GPUBackend> &ws);
+  void RunImplTyped(Workspace &ws);
 
   Tensor<GPUBackend> scratch_mem_;
 };
 
 template <typename OutputType, typename InputType>
-void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
-  using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
+void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
+  using SampleDesc = SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  std::vector<SampleDesc> samples_cpu(curr_batch_size);
+  auto stream = ws.stream();
+  kernels::DynamicScratchpad scratch({}, AccessOrder(stream));
+  auto samples_cpu = scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(curr_batch_size);
   for (int sample_idx = 0; sample_idx < curr_batch_size; sample_idx++) {
     auto &sample = samples_cpu[sample_idx];
     sample.in = input.tensor<InputType>(sample_idx);
@@ -93,18 +96,18 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   int64_t sz = curr_batch_size * sizeof(SampleDesc);
   scratch_mem_.Resize({sz}, DALI_UINT8);
   auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
-  auto stream = ws.stream();
+
   CUDA_CALL(
-    cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
+    cudaMemcpyAsync(sample_descs_gpu, samples_cpu, sz, cudaMemcpyHostToDevice, stream));
 
   int block = 256;
   auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
   dim3 grid(blocks_per_sample, curr_batch_size);
-  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
+  PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
 }
 
-void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+void PreemphasisFilterGPU::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);

@@ -129,7 +129,10 @@ do
         # install the latest cuda wheel for CUDA 11.x tests if not in conda and if it is x86_64
         version_ge "$CUDA_VERSION" "110" && \
           if [ -z "$CONDA_PREFIX" ] && [ "$(uname -m)" == "x86_64" ]; then
-            install_pip_pkg "pip install --upgrade nvidia-npp-cu11 nvidia-nvjpeg-cu11 nvidia-cufft-cu11 -f /pip-packages"
+            install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
+                                                   nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                   nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
+                                                   -f /pip-packages"
           fi
 
         # install packages
@@ -149,10 +152,13 @@ do
                 pip install /opt/dali/nvidia_dali*.whl
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
-            # if we are using any wheel named nvidia- in the test, like nvidia-tensorflow
+            # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels
-            if [[ "$inst" == *nvidia-* ]]; then
-                export LD_LIBRARY_PATH=
+            # however avoid removing compat from the path
+            if [[ "$inst" == *nvidia-n* ]] || [[ "$inst" == *nvidia-c* ]] || [[ "$inst" == *nvidia-t* ]]; then
+                TAIL=${LD_LIBRARY_PATH#*compat}
+                LD_LIBRARY_PATH=${LD_LIBRARY_PATH/$TAIL/}
+                export LD_LIBRARY_PATH=${LD_LIBRARY_PATH##*:}
             fi
         fi
         # test code

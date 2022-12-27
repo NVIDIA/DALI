@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <vector>
 #include "dali/core/geom/box.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/error_handling.h"  // TODO(michalz): remove DALI_ENFORCE from this file
 
 namespace dali {
 namespace kernels {
@@ -89,6 +90,7 @@ Roi<spatial_dims> WholeImage(const TensorShape <ndims> &shape) {
 }  // namespace detail
 
 
+///@{
 /**
  * Defines TensorShape corresponding to provided Roi.
  *
@@ -127,6 +129,38 @@ TensorListShape<ndims> ShapeFromRoi(span<const Roi<spatial_dims>> rois, int ncha
   }
   return ret;
 }
+
+
+/**
+ * Overload for the case, when the memory layout is *HW,
+ * as the 1-channel image might be expressed in such layout.
+ */
+template <int ndims>
+TensorShape<ndims> ShapeFromRoi(const Roi<ndims> &roi) {
+  DALI_ENFORCE(all_coords(roi.hi >= roi.lo), "Cannot create a TensorShape from an invalid Roi");
+  TensorShape<ndims> ret;
+  auto e = roi.extent();
+  auto ridx = ndims;
+  for (size_t idx = 0; idx < ndims; idx++) {
+    ret[--ridx] = e[idx];
+  }
+  return ret;
+}
+
+
+/**
+ * Convenient overload for batch processing (creating TensorListShape)
+ */
+template <int ndims>
+TensorListShape<ndims> ShapeFromRoi(span<const Roi<ndims>> rois) {
+  TensorListShape<ndims> ret(rois.size());
+  size_t i = 0;
+  for (const auto &roi : rois) {
+    ret.set_tensor_shape(i++, ShapeFromRoi(roi));
+  }
+  return ret;
+}
+///@}
 
 
 /**

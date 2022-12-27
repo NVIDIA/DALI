@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "dali/core/cuda_utils.h"
 #include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
@@ -30,7 +29,11 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/math/expressions/math_overloads.h"
 
+#define ARITHM_OPS_ALLOWED_DIMS (1, 2, 3, 4, 5, 6)
+#define ARITHM_OPS_MAX_DIM 6
+
 namespace dali {
+namespace expr {
 
 constexpr int kMaxArity = 3;
 
@@ -1053,13 +1056,14 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
  * scalars).
  */
 inline bool IsScalarLike(const TensorListShape<> &shape) {
-  return is_uniform(shape) && shape.sample_dim() <= 1 && volume(shape.tensor_shape_span(0)) == 1;
+  return is_uniform(shape) && volume(shape.tensor_shape_span(0)) == 1;
 }
 
 inline bool IsScalarLike(const TensorShape<> &shape) {
-  return shape.sample_dim() <= 1 && volume(shape) == 1;
+  return volume(shape) == 1;
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_ARITHMETIC_META_H_

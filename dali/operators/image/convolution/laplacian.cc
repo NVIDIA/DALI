@@ -114,8 +114,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
   explicit LaplacianOpCpu(const OpSpec* spec)
       : spec_{*spec}, args{*spec}, lap_windows_{maxWindowSize} {}
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
-    const auto& input = ws.template Input<CPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
+    const auto& input = ws.Input<CPUBackend>(0);
     int nsamples = input.num_samples();
 
     output_desc.resize(1);
@@ -144,9 +144,9 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     return true;
   }
 
-  void RunImpl(workspace_t<CPUBackend>& ws) override {
-    const auto& input = ws.template Input<CPUBackend>(0);
-    auto& output = ws.template Output<CPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    const auto& input = ws.Input<CPUBackend>(0);
+    auto& output = ws.Output<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
     auto& thread_pool = ws.GetThreadPool();
     int nsamples = input.num_samples();
@@ -187,8 +187,8 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
 }  // namespace laplacian
 
 template <>
-bool Laplacian<CPUBackend>::ShouldExpand(const workspace_t<CPUBackend>& ws) {
-  const auto& input = ws.template Input<CPUBackend>(0);
+bool Laplacian<CPUBackend>::ShouldExpand(const Workspace &ws) {
+  const auto& input = ws.Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
   bool should_expand = SequenceOperator<CPUBackend>::ShouldExpand(ws);
@@ -202,8 +202,8 @@ bool Laplacian<CPUBackend>::ShouldExpand(const workspace_t<CPUBackend>& ws) {
 
 template <>
 bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
-                                      const workspace_t<CPUBackend>& ws) {
-  const auto& input = ws.template Input<CPUBackend>(0);
+                                      const Workspace &ws) {
+  const auto& input = ws.Input<CPUBackend>(0);
   assert(input.GetLayout().empty() || input.GetLayout().size() == dim_desc_.total_axes_count);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
@@ -232,7 +232,7 @@ bool Laplacian<CPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
 }
 
 template <>
-void Laplacian<CPUBackend>::RunImpl(workspace_t<CPUBackend>& ws) {
+void Laplacian<CPUBackend>::RunImpl(Workspace &ws) {
   impl_->RunImpl(ws);
 }
 

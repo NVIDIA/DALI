@@ -434,6 +434,38 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.executor_statistics()
 
+    def external_source_shm_statistics(self):
+        """Returns parallel external source's statistics regarding shared memory consumption.
+        The returned dictionary contains following keys:
+
+            * ``capacities`` - a list of sizes (in bytes) of shared memory slots allocated to
+              accommodate data produced by the parallel external source.
+
+            * ``per_sample_capacities`` - a list of sizes (in bytes) of shared memory slots
+              divided by the mini-batch size, i.e. the maximal number of samples stored in
+              such a slot. This value corresponds to external source's ``bytes_per_sample_hint``
+              parameter, i.e., if the hint is big enough and the external source does not need
+              to reallocate the memory, the values should be equal.
+        """
+        if self._py_pool is None:
+            capacities, per_sample_capacities = [], []
+        else:
+            capacities = [
+                shm.capacity for context in self._py_pool.contexts
+                for shm in context.shm_manager.shm_pool
+            ]
+            per_sample_capacities = []
+            for context in self._py_pool.contexts:
+                num_mini_batches = context.shm_manager.num_minibatches
+                batch_size = self.max_batch_size
+                mini_batch_size = (batch_size + num_mini_batches - 1) // num_mini_batches
+                for shm in context.shm_manager.shm_pool:
+                    per_sample_capacities.append(shm.capacity // mini_batch_size)
+        return {
+            "capacities": capacities,
+            "per_sample_capacities": per_sample_capacities,
+        }
+
     def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
         a dictionary with data for all readers as {reader_name : meta}
@@ -680,6 +712,7 @@ Parameters
             return
         self._py_pool = WorkerPool.from_groups(self._parallel_input_callbacks,
                                                self._prefetch_queue_depth,
+                                               self._max_batch_size,
                                                self._py_start_method,
                                                self._py_num_workers,
                                                py_callback_pickler=self._py_callback_pickler)
@@ -846,19 +879,21 @@ Parameters
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
-        """Pass a multidimensional array or DLPack (or a list thereof) to an output of
-           ExternalSource.
+        """Pass a multidimensional array or DLPack (or a list thereof) to an eligible operator.
+
+        The operators that may be provided with data using this function are the input operators
+        (i.e. everything in ``fn.inputs`` module) and the :meth:`fn.external_source`.
 
         In the case of the GPU input, the data must be modified on the same stream as the one
-        used by feed_input. See ``cuda_stream`` parameter for details.
+        used by ``feed_input``. See ``cuda_stream`` parameter for details.
 
         Parameters
         ----------
-        data_node : :class:`DataNode` or str
-            The name of the :class:`nvidia.dali.fn.external_source` node or a :class:`DataNode`
-            object returned by a call to that ExternalSource.
+        data_node : :class:`DataNode` or a string
+            The name of an eligible operator node or a :class:`DataNode`
+            object returned by a call to that operator.
 
-        data : an ndarray or DLPack or a list thereof
+        data : ndarray or DLPack or a list thereof
             The array(s) may be one of:
 
               * NumPy ndarray (CPU)
@@ -866,21 +901,21 @@ Parameters
               * PyTorch tensor (CPU or GPU)
               * CuPy array (GPU)
               * objects implementing ``__cuda_array_interface__``
-              * DALI `TensorList` or list of DALI `Tensor` objects
+              * DALI ``TensorList`` or list of DALI ``Tensor`` objects
 
-            The data to be used as the output of the ExternalSource referred to by `data_node`.
+            The data to be used as the output of the operator referred to by ``data_node``.
 
-        layout : str or None
+        layout : string or ``None``
             The description of the data layout (or empty string, if not specified).
             It should be a string of the length that matches the dimensionality of the data, batch
-            dimension excluded. For a batch of channel-first images, this should be "CHW", for
-            channel-last video it's "FHWC" and so on.
-            If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
+            dimension excluded. For a batch of channel-first images, this should be ``"CHW"``, for
+            channel-last video it's ``"FHWC"`` and so on.
+            If ``data`` is a DALI ``TensorList`` or a list of DALI ``Tensor`` objects and ``layout``
             is ``None``, the layout is taken from ``data``.
             The layout of the data must be the same in each iteration.
 
-        cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`,
-            e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
+        cuda_stream : optional, ``cudaStream_t`` or an object convertible to ``cudaStream_t``,
+            e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The CUDA stream, which is going to be used for copying data to GPU or from a GPU
             source. If not set, best effort will be taken to maintain correctness - i.e. if the data
             is provided as a tensor/array from a recognized library (CuPy, PyTorch), the library's
@@ -897,9 +932,9 @@ Parameters
             internal buffer is complete, since there's no way to synchronize with this stream to
             prevent overwriting the array with new data in another stream.
 
-        use_copy_kernel : optional, `bool`
+        use_copy_kernel : optional, ``bool``
             If set to True, DALI will use a CUDA kernel to feed the data (only applicable
-            when copying data to/from GPU memory) instead of cudaMemcpyAsync (default).
+            when copying data to/from GPU memory) instead of ``cudaMemcpyAsync`` (default).
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -911,9 +946,13 @@ Parameters
 
         # Check for use of feed_input on an external_source operator that was
         # initialized with 'source'. This check makes sense only for fully Python-based
-        # pipelines, and not deserialized ones
+        # pipelines, and not deserialized ones.
+        from .external_source import _is_external_source
         if not self._deserialized:
-            if next((op._callback is not None for op in self._ops if op.name == name), False):
+            if next(
+                    (_is_external_source(op) and op._callback is not None
+                     for op in self._ops if op.name == name),
+                    False):
                 raise RuntimeError(
                     f"Cannot use `feed_input` on the external source '{name}' with a `source`"
                     " argument specified.")
@@ -1232,6 +1271,17 @@ Parameters
         pipeline._pipe.Build()
         pipeline._built = True
         pipeline._deserialized = True
+        pipeline._max_batch_size = kw.get("batch_size", -1)
+        pipeline._num_threads = kw.get("num_threads", -1)
+        pipeline._device_id = kw.get("device_id", -1)
+        pipeline._exec_pipelined = kw.get("exec_pipelined", True)
+        pipeline._prefetch_queue_depth = kw.get("prefetch_queue_depth", 2)
+        pipeline._exec_async = kw.get("exec_async", True)
+        pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
+        pipeline._set_affinity = kw.get("set_affinity", False)
+        pipeline._max_streams = kw.get("max_streams", -1)
+        pipeline._default_cuda_stream_priority = kw.get("default_cuda_stream_priority", 0)
+
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):
@@ -1376,7 +1426,7 @@ def _discriminate_args(func, **func_kwargs):
             fn_args[farg[0]] = farg[1]
             if is_ctor_arg:
                 print(
-                    "Warning: the argument `{farg[0]}` shadows a Pipeline constructor "
+                    f"Warning: the argument `{farg[0]}` shadows a Pipeline constructor "
                     "argument of the same name.")
         elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]

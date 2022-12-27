@@ -148,9 +148,9 @@ Pipeline Debug Mode (experimental)
 ----------------------------------
 
 Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
-experimental variant ``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to
-True. It allows you to access and modify data inside the pipeline execution graph, as well as use
-non-DALI data types as inputs to the DALI operators.
+experimental variant ``@nvidia.dali.pipeline.experimental.pipeline_def`` and setting parameter
+``debug`` to True. It allows you to access and modify data inside the pipeline execution graph,
+as well as use non-DALI data types as inputs to the DALI operators.
 
 In this mode outputs of operators are of type ``DataNodeDebug`` which is an equivalent to
 ``DataNode`` in the standard mode. You can perform the same operations on objects of type
@@ -159,7 +159,7 @@ In this mode outputs of operators are of type ``DataNodeDebug`` which is an equi
 Use ``.get()`` to access data associated with the ``DataNodeDebug`` object during current execution
 of :meth:`Pipeline.run`::
 
-    @nvidia.dali.experimental.pipeline_def(debug=True)
+    @nvidia.dali.pipeline.experimental.pipeline_def(debug=True)
     def my_pipe():
         data, _ = fn.readers.file(file_root=images_dir)
         img = fn.decoders.image(data)
@@ -168,7 +168,7 @@ of :meth:`Pipeline.run`::
 
 Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI operators::
 
-    @nvidia.dali.experimental.pipeline_def(batch_size=8, debug=True)
+    @nvidia.dali.pipeline.experimental.pipeline_def(batch_size=8, debug=True)
     def my_pipe():
         img = [np.random.rand(640, 480, 3) for _ in range(8)]
         output = fn.flip(img)

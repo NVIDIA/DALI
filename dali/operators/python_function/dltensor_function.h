@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,30 +92,30 @@ void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr, cudaStream_t str
 }
 
 template <typename Backend>
-py::list PrepareDLTensorInputs(workspace_t<Backend> &ws);
+py::list PrepareDLTensorInputs(Workspace &ws);
 
 template <typename Backend>
-py::list PrepareDLTensorInputsPerSample(workspace_t<Backend> &ws);
+py::list PrepareDLTensorInputsPerSample(Workspace &ws);
 
 template <typename Workspace, typename Output>
 void CopyOutputData(Output& output, std::vector<DLMTensorPtr> &dl_tensors,
                     int batch_size, Workspace &workspace);
 
 template <typename Backend>
-void PrepareOutputs(workspace_t<Backend> &ws, const py::object &output_o, int batch_size) {
+void PrepareOutputs(Workspace &ws, const py::object &output_o, int batch_size) {
   py::tuple return_tuple = (py::tuple::check_(output_o)) ? output_o : py::make_tuple(output_o);
   for (Index idx = 0; idx < ws.NumOutput(); ++idx) {
     py::list dl_list = py::cast<py::list>(return_tuple[idx]);
     auto dl_tensors = CastToDLTensorList<Backend>(dl_list, batch_size, idx);
     if (dl_tensors.empty()) continue;
-    auto &tlist = ws.template Output<Backend>(idx);
+    auto &tlist = ws.Output<Backend>(idx);
     tlist.Resize(GetDLTensorListShape(dl_tensors), DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
     CopyOutputData(tlist, dl_tensors, batch_size, ws);
   }
 }
 
 template <typename Backend>
-void PrepareOutputsPerSample(workspace_t<Backend> &ws, const py::object &output_o, int batch_size) {
+void PrepareOutputsPerSample(Workspace &ws, const py::object &output_o, int batch_size) {
   py::list output = output_o;
   py::tuple output_tuple(ws.NumOutput());
   std::vector<py::list> output_lists(ws.NumOutput());
@@ -141,7 +141,7 @@ class StreamSynchronizer;
 template <>
 class StreamSynchronizer<GPUBackend> {
  public:
-  StreamSynchronizer(DeviceWorkspace &ws, bool synchronize): previous_(GetCurrentStream()) {
+  StreamSynchronizer(Workspace &ws, bool synchronize): previous_(GetCurrentStream()) {
     SetCurrentStream(ws.stream());
     if (synchronize) CUDA_CALL(cudaStreamSynchronize(ws.stream()));
   }
@@ -156,7 +156,7 @@ class StreamSynchronizer<GPUBackend> {
 template <>
 class StreamSynchronizer<CPUBackend> {
  public:
-  StreamSynchronizer(HostWorkspace &ws, bool synchronize) {}
+  StreamSynchronizer(Workspace &ws, bool synchronize) {}
 };
 
 }  // namespace detail
@@ -183,11 +183,11 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     SetOutputLayouts(ws);
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
@@ -229,10 +229,10 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     }
   };
 
-  void SetOutputLayouts(workspace_t<Backend> &ws) {
+  void SetOutputLayouts(Workspace &ws) {
     Index output_idx = 0;
     for (const auto &layout : output_layouts_) {
-      auto &output = ws.template Output<Backend>(output_idx);
+      auto &output = ws.Output<Backend>(output_idx);
       output.SetLayout(layout);
       ++output_idx;
     }
@@ -247,7 +247,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   std::vector<TensorLayout> output_layouts_;
 
  private:
-  int GetCurrBatchSize(workspace_t<Backend> &ws) {
+  int GetCurrBatchSize(Workspace &ws) {
     if (ws.NumInput() > 0) {
       auto curr_batch_size = ws.GetInputBatchSize(0);
       for (int i = 1; i < ws.NumInput(); i++) {

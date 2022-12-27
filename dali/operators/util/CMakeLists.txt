@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,26 +25,5 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
-if (WITH_DYNAMIC_CUDA_TOOLKIT)
-    set(NPP_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_npp_gen.cc")
-    add_custom_command(
-        OUTPUT ${NPP_GENERATED_STUB}
-        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/stub_generator/stub_codegen.py --unique_prefix=Npp --
-                    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/stub_generator/npp.json" ${NPP_GENERATED_STUB}
-                    "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/npp.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
-                    # for some reason QNX fails with 'too many errors emitted' is this is not set
-                    "-ferror-limit=0"
-                    ${DEFAULT_COMPILER_INCLUDE}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/stub_generator/stub_codegen.py
-                "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/npp.h"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/stub_generator/npp.json"
-        COMMENT "Running npp.h stub generator"
-        VERBATIM)
-
-    set_source_files_properties(${NPP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_npp STATIC npp_wrap.cc ${NPP_GENERATED_STUB})
-endif()
-
-list(FILTER DALI_OPERATOR_SRCS EXCLUDE REGEX ".*npp_wrap.cc")
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
 

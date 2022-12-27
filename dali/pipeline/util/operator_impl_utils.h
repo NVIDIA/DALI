@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
-#include "dali/pipeline/workspace/device_workspace.h"
-#include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/workspace/sample_workspace.h"
 
 namespace dali {
 
@@ -37,8 +35,8 @@ class OpImplBase {
  public:
   virtual ~OpImplBase() = default;
   virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                         const workspace_t<Backend> &ws) = 0;
-  virtual void RunImpl(workspace_t<Backend> &ws) = 0;
+                         const Workspace &ws) = 0;
+  virtual void RunImpl(Workspace &ws) = 0;
 };
 
 template <>
@@ -46,8 +44,8 @@ class OpImplBase<CPUBackend> {
  public:
   virtual ~OpImplBase() = default;
   virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                         const workspace_t<CPUBackend> &ws) = 0;
-  virtual void RunImpl(HostWorkspace &ws) {
+                         const Workspace &ws) = 0;
+  virtual void RunImpl(Workspace &ws) {
     assert(false);
   }
   virtual void RunImpl(SampleWorkspace &ws) {

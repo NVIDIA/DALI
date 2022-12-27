@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+namespace expr {
 
 class ExprNode;
 
@@ -40,8 +41,13 @@ struct ExprImplContext {
  */
 class ExprImplBase {
  public:
-  virtual void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-                       TileRange range) = 0;
+  /**
+   * @brief Executes a range of tiles
+   */
+  virtual void Execute(ExprImplContext &ctx,
+                       span<const SampleDesc> samples,
+                       span<const TileDesc> tiles) = 0;
+
   virtual ~ExprImplBase() = default;
 };
 
@@ -228,6 +234,7 @@ inline bool IsScalarLike(const ExprNode &node) {
          (node.GetNodeType() == NodeType::Tensor && IsScalarLike(node.GetShape()));
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_TREE_H_

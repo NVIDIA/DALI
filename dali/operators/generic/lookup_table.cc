@@ -40,7 +40,7 @@ void LookupValuesImpl(ThreadPool &tp, TensorList<CPUBackend> &output,
 }  // namespace
 
 template <>
-void LookupTable<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void LookupTable<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   const auto &shape = input.shape();
   auto &output = ws.Output<CPUBackend>(0);

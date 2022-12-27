@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/type_tag.h"
 #include "dali/operators/math/expressions/arithmetic.h"
+#include <vector>
+#include "dali/kernels/type_tag.h"
 
 namespace dali {
+namespace expr {
 
 template <>
-void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  PrepareTilesForTasks<GPUBackend>(tiles_per_task_, exec_order_, tile_cover_, ws, constant_storage_,
-                                   spec_);
+void ArithmeticGenericOp<GPUBackend>::RunImpl(Workspace &ws) {
+  PrepareSamplesPerTask<GPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   ws.Output<GPUBackend>(0).SetLayout(result_layout_);
+  std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
   assert(tile_range_.size() == 1 && "Expected to cover whole GPU execution by 1 task");
+  auto tiles = make_cspan(tile_cover_);
   for (size_t i = 0; i < exec_order_.size(); i++) {
     // call impl for whole batch
-    exec_order_[i].impl->Execute(exec_order_[i].ctx, tiles_per_task_[i], tile_range_[0]);
+    exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(samples_per_task_[i]), tiles);
   }
 }
 
-DALI_REGISTER_OPERATOR(ArithmeticGenericOp, ArithmeticGenericOp<GPUBackend>, GPU);
+}  // namespace expr
 
+DALI_REGISTER_OPERATOR(ArithmeticGenericOp, expr::ArithmeticGenericOp<GPUBackend>, GPU);
 
 }  // namespace dali

@@ -17,12 +17,37 @@ import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
 import inspect
+import functools
 import os
 import random
 import re
 import subprocess
 import sys
 import tempfile
+
+
+def get_arch(device_id=0):
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        print("NVML not found")
+    return compute_cap
+
+
+def is_mulit_gpu():
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        is_mulit_gpu_var = pynvml.nvmlDeviceGetCount() != 1
+    except ModuleNotFoundError:
+        print("Python bindings for NVML not found")
+
+    return is_mulit_gpu_var
 
 
 def get_dali_extra_path():
@@ -179,7 +204,12 @@ def check_batch(batch1, batch2, batch_size=None,
                     error_msg = (f"Mean error: [{err}], Min error: [{min_err}], "
                                  f"Max error: [{max_err}]\n"
                                  f"Total error count: [{total_errors}], "
-                                 f"Tensor size: [{absdiff.size}]")
+                                 f"Tensor size: [{absdiff.size}]\n"
+                                 f"Index in batch: {i}\n")
+                if hasattr(batch1[i], "source_info"):
+                    error_msg += f"\nLHS data source: {batch1[i].source_info()}"
+                if hasattr(batch2[i], "source_info"):
+                    error_msg += f"\nRHS data source: {batch2[i].source_info()}"
                 try:
                     save_image(left, "err_1.png")
                     save_image(right, "err_2.png")
@@ -667,3 +697,45 @@ def python_function(*inputs, function, **kwargs):
         return function(*iteration_inputs)
 
     return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)
+
+
+def has_operator(operator):
+    def get_attr(obj, path):
+        attrs = path.split(".")
+        for attr in attrs:
+            obj = getattr(obj, attr)
+        return obj
+
+    def decorator(fun):
+        try:
+            get_attr(dali.fn, operator)
+        except AttributeError:
+            @functools.wraps(fun)
+            def dummy_case(*args, **kwargs):
+                print(f"Omitting test case for unsupported operator: `{operator}`")
+            return dummy_case
+        else:
+            return fun
+    return decorator
+
+
+def restrict_platform(min_compute_cap=None, platforms=None):
+    spec = []
+    if min_compute_cap is not None:
+        compute_cap = get_arch()
+        cond = f"compute cap ({compute_cap}) >= {min_compute_cap}"
+        spec.append((cond, compute_cap >= min_compute_cap))
+    if platforms is not None:
+        import platform
+        cond = f"platform.machine() ({platform.machine()}) in {platforms}"
+        spec.append((cond, platform.machine() in platforms))
+
+    def decorator(fun):
+        if all(val for _, val in spec):
+            return fun
+        else:
+            @functools.wraps(fun)
+            def dummy_case(*args, **kwargs):
+                print(f"Omitting test case in unsupported env: `{spec}`")
+            return dummy_case
+    return decorator

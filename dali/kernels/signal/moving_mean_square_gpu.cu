@@ -18,7 +18,7 @@
 #include <numeric>
 #include <vector>
 #include "dali/core/convert.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/core/util.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
@@ -27,9 +27,8 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
-/**
- * @brief Sample descriptor
- */
+namespace {
+
 template <typename Out, typename In>
 struct SampleDesc {
   Out *out;
@@ -196,6 +195,8 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int64_t log
     }
   }
 }
+
+}  // namespace
 
 template <typename InputType>
 KernelRequirements MovingMeanSquareGpu<InputType>::Setup(KernelContext &ctx,

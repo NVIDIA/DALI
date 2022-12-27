@@ -53,18 +53,12 @@ AccessOrder SyncBefore(AccessOrder dst_order, AccessOrder src_order, AccessOrder
   if (!order)
     order = src_order ? src_order : dst_order;
 
-  // Wait on the order on which we will run the copy for the work to finish on the dst
+  // The destination buffer must be ready to be overwritten
   order.wait(dst_order);
+  // The source buffer must be ready to cosume
+  order.wait(src_order);
 
   return order;
-}
-
-
-/**
- * @brief Wait for the reallocation to happen in the copy order, so we can actually proceed.
- */
-void SyncAfterResize(AccessOrder dst_order, AccessOrder copy_order) {
-  copy_order.wait(dst_order);
 }
 
 
@@ -221,7 +215,7 @@ TensorList<Backend> &TensorList<Backend>::operator=(TensorList<Backend> &&other)
 template <typename Backend>
 void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int sample_dim,
                                                          TensorLayout layout, bool pinned,
-                                                         AccessOrder order, int device_id,
+                                                         int device_id,
                                                          const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
@@ -241,9 +235,6 @@ void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int 
                make_string("Sample must have the same pinned status as target batch, current: ",
                            this->is_pinned(), ", new: ", pinned, error_suffix));
 
-  DALI_ENFORCE(this->order() == order,
-               make_string("Sample must have the same order as the target batch", error_suffix));
-
   DALI_ENFORCE(this->device_id() == device_id,
                make_string("Sample must have the same device id as target batch, current: ",
                            this->device_id(), ", new: ", device_id, error_suffix));
@@ -261,7 +252,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const TensorList<Backend> &s
   if (&src.tensors_[src_sample_idx] == &tensors_[sample_idx])
     return;
   VerifySampleShareCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
-                                 src.is_pinned(), src.order(), src.device_id(),
+                                 src.is_pinned(), src.device_id(),
                                  make_string(" for source sample idx: ", src_sample_idx,
                                              " and target sample idx: ", sample_idx, "."));
 
@@ -270,6 +261,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const TensorList<Backend> &s
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(src.tensors_[src_sample_idx]);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(order(), false);
+  order().wait(src.order());
 
   if (src.GetLayout().empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -284,7 +280,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
   VerifySampleShareCompatibility(owner.type(), owner.shape().sample_dim(), owner.GetLayout(),
-                                 owner.is_pinned(), owner.order(), owner.device_id(),
+                                 owner.is_pinned(), owner.device_id(),
                                  make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, owner.shape());
@@ -292,6 +288,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(owner);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(order(), false);
+  order().wait(owner.order());
 
   if (owner.GetLayout().empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -307,7 +308,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr,
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  VerifySampleShareCompatibility(type, shape.sample_dim(), layout, pinned, order, device_id,
+  VerifySampleShareCompatibility(type, shape.sample_dim(), layout, pinned, device_id,
                                  make_string(" for sample idx: ", sample_idx, "."));
 
   DALI_ENFORCE(!IsContiguous());
@@ -316,6 +317,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr,
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(ptr, bytes, pinned, shape, type, device_id, order);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(this->order(), false);
+  this->order().wait(order);
 
   if (layout.empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -463,6 +469,11 @@ const TensorListShape<> &TensorList<Backend>::shape() const & {
 
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
+  DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
+
+  if (this->order() == order)
+    return;
+
   // Optimization: synchronize only once, if needed.
   if (this->order().is_device() && order && synchronize) {
     bool need_sync = contiguous_buffer_.has_data();
@@ -475,7 +486,7 @@ void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
       }
     }
     if (need_sync)
-      this->order().wait(order);
+      order.wait(this->order());
   }
   contiguous_buffer_.set_order(order, false);
   for (auto &t : tensors_)
@@ -569,6 +580,23 @@ void TensorList<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataTyp
     device_ = tensors_[0].device_id();
   }
   SetLayout(GetLayout());
+}
+
+
+template <typename Backend>
+void TensorList<Backend>::ResizeSample(int sample_idx, const TensorShape<> &new_shape) {
+  DALI_ENFORCE(IsValidType(type()),
+               "Sample in TensorList cannot be resized with invalid type. Set the type first for "
+               "the whole TensorList using set_type or Resize.");
+  DALI_ENFORCE(sample_dim() == new_shape.sample_dim(),
+               "Sample in TensorList cannot be resized with non-compatible batch dimension. Use "
+               "set_sample_dim or Resize to set correct sample dimension for the whole batch.");
+  // Bounds check
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
+  // Resizing any individual sample converts the batch to non-contiguous mode
+  MakeNoncontiguous();
+  shape_.set_tensor_shape(sample_idx, new_shape);
+  tensors_[sample_idx].Resize(new_shape);
 }
 
 
@@ -818,13 +846,26 @@ template <typename Backend>
 template <typename SrcBackend>
 void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder order,
                                bool use_copy_kernel) {
-  auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
+  if (!IsValidType(src.type())) {
+    assert(!src.has_data() && "It is not possible to have data without valid type.");
+    Reset();
+    SetLayout(src.GetLayout());
+    // no copying to do
+    return;
+  }
+  if (std::is_same_v<Backend, CPUBackend> &&
+      std::is_same_v<SrcBackend, CPUBackend>) {
+    DALI_ENFORCE(!order.is_device(),
+      "Cannot run a host-to-host copy on a device stream.");
+    if (!order)
+      order = AccessOrder::host();
+  }
 
   Resize(src.shape(), src.type());
   // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
   // postconditions are met, as well as the buffers are correctly adjusted.
 
-  copy_impl::SyncAfterResize(this->order(), copy_order);
+  auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
 
   use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned()) &&
                      (std::is_same<Backend, GPUBackend>::value || this->is_pinned());
@@ -998,7 +1039,8 @@ void TensorList<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes, b
   layout_ = layout;
   pinned_ = pinned;
   device_ = device_id;
-  order_ = order;
+  if (order)
+    order_ = order;
   recreate_views();
 }
 
@@ -1030,10 +1072,11 @@ void TensorList<Backend>::resize_tensors(int new_size) {
       setup_tensor_allocation(i);
       if (type() != DALI_NO_TYPE) {
         if (sample_dim_ >= 0) {
-          tensors_[i].Resize(
-              sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) : TensorShape<>({}),
-              type());
-          shape_.set_tensor_shape(i, TensorShape<>::empty_shape(sample_dim()));
+          // We can't have empty scalar.
+          const auto &emptyish_shape = sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) :
+                                                          TensorShape<>();
+          tensors_[i].Resize(emptyish_shape, type());
+          shape_.set_tensor_shape(i, emptyish_shape);
         } else if (type() != tensors_[i].type()) {
           tensors_[i].Reset();
           tensors_[i].set_type(type());

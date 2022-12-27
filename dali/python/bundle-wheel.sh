@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ OUTWHLNAME=${4:-$(basename $INWHL)}
 DEPS_PATH=${5:-/usr/local}
 OUTDIR=${6:-/wheelhouse}
 COMPRESSION=${7:-YES} # whether to compress the resulting wheel
+BUNDLE_NVCOMP=${8:-NO}
 
 if [[ "$COMPRESSION" == "NO" ]]; then
     ZIP_FLAG="-0"
@@ -110,9 +111,9 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libavfilter.so.8"
     "${DEPS_PATH}/lib/libavutil.so.57"
     "${DEPS_PATH}/lib/libswscale.so.6"
-    "${DEPS_PATH}/lib/libtiff.so.5"
+    "${DEPS_PATH}/lib/libtiff.so.6"
     "${DEPS_PATH}/lib/libsndfile.so.1"
-    "${DEPS_PATH}/lib/libFLAC.so.8"
+    "${DEPS_PATH}/lib/libFLAC.so.12"
     "${DEPS_PATH}/lib/libogg.so.0"
     "${DEPS_PATH}/lib/libvorbis.so.0"
     "${DEPS_PATH}/lib/libvorbisenc.so.2"
@@ -120,7 +121,16 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
+    "${DEPS_PATH}/lib/libcfitsio.so.4"
 )
+
+if [ "$BUNDLE_NVCOMP" = "YES" ]; then
+    DEPS_LIST+=(
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+    )
+fi
 
 TMPDIR=$(mktemp -d)
 pushd $TMPDIR

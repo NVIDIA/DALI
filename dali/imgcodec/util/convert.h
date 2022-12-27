@@ -210,13 +210,13 @@ void ApplyOrientation(Orientation orientation, T *&data,
 
   if (orientation.rotate == 90) {
     swap_xy = true;
-    flip_x = true;
+    flip_y = true;
   } else if (orientation.rotate == 180) {
     flip_x = true;
     flip_y = true;
   } else if (orientation.rotate == 270) {
     swap_xy = true;
-    flip_y = true;
+    flip_x = true;
   }
   flip_x ^= orientation.flip_x;
   flip_y ^= orientation.flip_y;
@@ -251,7 +251,7 @@ template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
-  if (out_format == DALI_ANY_DATA && in_format == DALI_ANY_DATA) {
+  if (out_format == DALI_ANY_DATA) {
     // When converting ANY -> ANY, we simply ignore the color conversion and rewrite the data
     Convert(out, out_strides, in, in_strides, size, ndim, ConvertPixelDType<Out, In, 1>{1, 1});
     return;
@@ -272,11 +272,6 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
     out_format = DALI_RGB;
     out += 2 * out_channel_stride;
     out_channel_stride = -out_channel_stride;
-  }
-
-  if (out_format == DALI_ANY_DATA) {
-    // Conversion to DALI_ANY_DATA is a no-op
-    out_format = in_format;
   }
 
   // Here we remove the channel dimension in order to process whole pixels

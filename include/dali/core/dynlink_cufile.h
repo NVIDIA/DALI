@@ -17,9 +17,10 @@
 
 #include <cufile.h>
 #include <string>
-#include "dali/core/cuda_utils.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
+
+bool cuFileIsSymbolAvailable(const char *symbol);
 
 namespace dali {
 

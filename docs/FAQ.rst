@@ -156,7 +156,7 @@ Q: Can I send a request to the Triton server with a batch of samples of differen
 #############################################################################################################################
 A: Batch processing is one of main DALI paradigms. On the other hand, Triton Inference Server
 supports a uniform batch by default. However, by enabling
-a `ragged batching <https://github.com/triton-inference-server/server/blob/main/docs/ragged_batching.md>`_
+a `ragged batching <https://github.com/triton-inference-server/server/blob/v2.26.0/docs/user_guide/ragged_batching.md>`_
 you can send non-uniform batches and process them successfully.
 `Here <https://github.com/triton-inference-server/dali_backend/blob/7d51c7299dd66964097f839501e18f3b579cc306/qa/L0_DALI_GPU_ensemble/client.py#L31>`_
 you can find an example of using ragged batching feature with DALI Backend.

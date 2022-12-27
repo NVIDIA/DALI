@@ -50,7 +50,7 @@ to a minimum ratio of ``1e-8``.)code",
 
 template <>
 bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                       const workspace_t<CPUBackend> &ws) {
+                                       const Workspace &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
@@ -72,7 +72,7 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void ToDecibels<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();

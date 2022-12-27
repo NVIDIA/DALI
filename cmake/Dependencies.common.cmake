@@ -129,6 +129,32 @@ endif()
 
 
 ##################################################################
+# nvcomp
+##################################################################
+if(BUILD_NVCOMP)
+  find_library(
+    nvcomp_LIBS
+    NAMES nvcomp
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES lib lib64)
+  find_path(
+    nvcomp_INCLUDE_DIR
+    NAMES nvcomp
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES include)
+  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
+    message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
+  if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
+    message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
+  message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
+  include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
+  list(APPEND DALI_LIBS ${nvcomp_LIBS})
+endif()
+
+
+##################################################################
 # FFmpeg
 ##################################################################
 if(BUILD_FFMPEG)
@@ -220,3 +246,18 @@ list(APPEND DALI_EXCLUDES libcocoapi.a)
 # libcu++
 ##################################################################
 include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include)
+
+##################################################################
+# cfitsio
+##################################################################
+if(BUILD_CFITSIO)
+  find_library(cfitsio_LIBS
+          NAMES libcfitsio.so libcfitsio
+          PATHS ${CFITSIO_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+          PATH_SUFFIXES lib lib64)
+  if(${cfitsio_LIBS} STREQUAL cfitsio_LIBS-NOTFOUND)
+    message(FATAL_ERROR "cfitsio could not be found. Try to specify it's location with `-DCFITSIO_ROOT_DIR`.")
+  endif()
+  message(STATUS "Found cfitsio: ${cfitsio_LIBS}")
+  list(APPEND DALI_LIBS ${cfitsio_LIBS})
+endif()

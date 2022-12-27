@@ -97,7 +97,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   ThreadPool tp(4, 0, false, "DisplacementBench");
 
   // Create workspace and set input and output
-  HostWorkspace ws;
+  Workspace ws;
   ws.AddInput(tensor_in);
   ws.AddOutput(tensor_out);
 

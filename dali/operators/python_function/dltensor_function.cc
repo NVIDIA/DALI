@@ -73,7 +73,7 @@ If set to True, the function will receive its arguments as lists of DLPack tenso
 namespace detail {
 
 template <>
-py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
+py::list PrepareDLTensorInputs<CPUBackend>(Workspace &ws) {
   py::list input_tuple;
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     py::list dl_tensor_list;
@@ -88,7 +88,7 @@ py::list PrepareDLTensorInputs<CPUBackend>(HostWorkspace &ws) {
 }
 
 template <>
-py::list PrepareDLTensorInputs<GPUBackend>(DeviceWorkspace &ws) {
+py::list PrepareDLTensorInputs<GPUBackend>(Workspace &ws) {
   py::list input_tuple;
   for (Index idx = 0; idx < ws.NumInput(); ++idx) {
     auto &input = ws.UnsafeMutableInput<GPUBackend>(idx);
@@ -99,7 +99,7 @@ py::list PrepareDLTensorInputs<GPUBackend>(DeviceWorkspace &ws) {
 }
 
 template <>
-py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
+py::list PrepareDLTensorInputsPerSample<CPUBackend>(Workspace &ws) {
   py::list input_tuples;
   if (ws.NumInput() == 0) return input_tuples;
   auto batch_size = ws.GetInputBatchSize(0);
@@ -116,7 +116,7 @@ py::list PrepareDLTensorInputsPerSample<CPUBackend>(HostWorkspace &ws) {
 }
 
 template <>
-py::list PrepareDLTensorInputsPerSample<GPUBackend>(DeviceWorkspace &ws) {
+py::list PrepareDLTensorInputsPerSample<GPUBackend>(Workspace &ws) {
   std::vector<py::list> input_tuples;
   if (ws.NumInput() == 0) return py::cast(input_tuples);
   Index batch_size = ws.Input<GPUBackend>(0).num_samples();
@@ -143,7 +143,7 @@ TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tenso
 
 template <>
 void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &dl_tensors,
-                    int batch_size, HostWorkspace &workspace) {
+                    int batch_size, Workspace &workspace) {
   auto &thread_pool = workspace.GetThreadPool();
   auto out_shape = output.shape();
   for (int i = 0; i < batch_size; ++i) {
@@ -156,7 +156,7 @@ void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &d
 
 template <>
 void CopyOutputData(TensorList<GPUBackend>& output, std::vector<DLMTensorPtr> &dl_tensors,
-                    int batch_size, DeviceWorkspace &workspace) {
+                    int batch_size, Workspace &workspace) {
   for (int i = 0; i < batch_size; ++i) {
     CopyDlTensor<GPUBackend>(output.raw_mutable_tensor(i), dl_tensors[i], workspace.stream());
   }

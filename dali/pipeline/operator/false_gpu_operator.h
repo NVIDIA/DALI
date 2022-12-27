@@ -57,11 +57,11 @@ class FalseGPUOperator : public Operator<GPUBackend> {
     return false;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(workspace_t<GPUBackend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     if (cpu_ws_.NumInput() == 0 && cpu_ws_.NumOutput() == 0) {
       cpu_inputs_.resize(ws.NumInput());
       for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
@@ -98,7 +98,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
       assert(static_cast<int>(output_desc_.size()) == cpu_ws_.NumOutput());
       for (int output_idx = 0; output_idx < cpu_ws_.NumOutput(); output_idx++) {
         auto &desc = output_desc_[output_idx];
-        cpu_ws_.template Output<CPUBackend>(output_idx).Resize(desc.shape, desc.type);
+        cpu_ws_.Output<CPUBackend>(output_idx).Resize(desc.shape, desc.type);
       }
     }
 
@@ -117,7 +117,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
  private:
   CPUOperator cpu_impl_;
   ThreadPool thread_pool_;
-  HostWorkspace cpu_ws_;
+  Workspace cpu_ws_;
 
   // Keep it here so that we can modify (ws gives only const ref to inputs)
   std::vector<std::shared_ptr<TensorList<CPUBackend>>> cpu_inputs_;

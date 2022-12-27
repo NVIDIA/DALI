@@ -191,6 +191,10 @@ def test_to_snake_case_impl():
         ('COCOReader', 'coco_reader'),
         ('DLTensorPythonFunction', 'dl_tensor_python_function'),
         ('TFRecordReader', 'tfrecord_reader'),
+        ('_Leading', '_leading'),
+        ('_LEADing', '_lea_ding'),
+        ('_LeAdIng', '_le_ad_ing'),
+        ('_L_Eading', '_l_eading'),
     ]
 
     for inp, out in fn_name_tests:

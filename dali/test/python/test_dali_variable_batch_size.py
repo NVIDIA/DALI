@@ -21,6 +21,7 @@ import nvidia.dali.types as types
 import os
 import random
 import re
+from functools import partial
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
@@ -30,7 +31,7 @@ import test_utils
 from segmentation_test_utils import make_batch_select_masks
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames, is_of_supported
-from test_utils import module_functions
+from test_utils import module_functions, has_operator, restrict_platform
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -679,8 +680,31 @@ def test_box_encoder_op():
     check_pipeline(input_data, pipeline_fn=pipe, devices=["cpu"])
 
 
-def test_random_bbox_crop_op():
+def test_remap():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, device_id=0, num_threads=4)
+        with pipe:
+            input, mapx, mapy = fn.external_source(device=device, source=input_data, num_outputs=3)
+            out = fn.experimental.remap(input, mapx, mapy)
+        pipe.set_outputs(out)
+        return pipe
 
+    def get_data(batch_size):
+        input_shape = [480, 640, 3]
+        mapx_shape = mapy_shape = [480, 640]
+        input = [np.random.randint(0, 255, size=input_shape, dtype=np.uint8)
+                 for _ in range(batch_size)]
+        mapx = [640 * np.random.random(size=mapx_shape).astype(np.float32)  # [0, 640) interval
+                for _ in range(batch_size)]
+        mapy = [480 * np.random.random(size=mapy_shape).astype(np.float32)  # [0, 480) interval
+                for _ in range(batch_size)]
+        return input, mapx, mapy
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe, devices=['gpu'])
+
+
+def test_random_bbox_crop_op():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         with pipe:
@@ -741,10 +765,8 @@ def test_reshape():
 def test_slice():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-        anch = fn.constant(fdata=.1, device='cpu')
-        sh = fn.constant(fdata=.5, device='cpu')
         data = fn.external_source(source=input_data, cycle=False, device=device)
-        processed = fn.slice(data, anch, sh, axes=0, device=device)
+        processed = fn.slice(data, 0.1, 0.5, axes=0, device=device)
         pipe.set_outputs(processed)
         return pipe
 
@@ -937,40 +959,38 @@ def test_audio_decoders():
 
 
 def test_image_decoders():
-    def image_decoder_pipe(max_batch_size, input_data, device):
+    def image_decoder_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.decoders.image(encoded, device=device)
+        decoded = module.image(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
-    def image_decoder_crop_pipe(max_batch_size, input_data, device):
+    def image_decoder_crop_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.decoders.image_crop(encoded, device=device)
+        decoded = module.image_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
-    def image_decoder_slice_pipe(max_batch_size, input_data, device):
+    def image_decoder_slice_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        anch = fn.constant(fdata=.1)
-        sh = fn.constant(fdata=.4)
-        decoded = fn.decoders.image_slice(encoded, anch, sh, axes=0, device=device)
+        decoded = module.image_slice(encoded, 0.1, 0.4, axes=0, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
-    def image_decoder_rcrop_pipe(max_batch_size, input_data, device):
+    def image_decoder_rcrop_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        decoded = fn.decoders.image_random_crop(encoded, device=device)
+        decoded = module.image_random_crop(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
-    def peek_image_shape_pipe(max_batch_size, input_data, device):
+    def peek_image_shape_pipe(module, max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
-        shape = fn.peek_image_shape(encoded, device=device)
+        shape = module.peek_image_shape(encoded, device=device)
         pipe.set_outputs(shape)
         return pipe
 
@@ -983,11 +1003,20 @@ def test_image_decoders():
 
     data_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'single')
     for ext in image_decoder_extensions:
-        for pipe in image_decoder_pipes:
+        for pipe_template in image_decoder_pipes:
+            pipe = partial(pipe_template, fn.decoders)
             yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
-        yield test_decoders_run, image_decoder_rcrop_pipe, data_path, ext, ['cpu', 'mixed']
+            pipe = partial(pipe_template, fn.experimental.decoders)
+            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
+        pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
+        pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
 
-    yield test_decoders_check, peek_image_shape_pipe, data_path, '.jpg', ['cpu']
+    pipe = partial(peek_image_shape_pipe, fn)
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
+    pipe = partial(peek_image_shape_pipe, fn.experimental)
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
 
 
 def test_python_function():
@@ -1123,161 +1152,268 @@ def test_video_decoder():
 
     file_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'video', 'cfr', 'test_1.mp4')
     video_file = np.fromfile(file_path, dtype=np.uint8)
-    n_iters = 4
-    batches = [[video_file] * random.randint(2, 6) for _ in range(n_iters)]
-    check_pipeline(batches, video_decoder_pipe, devices=['cpu'])
+    batches = [[video_file] * 2, [video_file] * 5, [video_file] * 3]
+    check_pipeline(batches, video_decoder_pipe, devices=['cpu', 'mixed'])
+
+
+@has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+def test_inflate():
+    import lz4.block
+
+    def sample_to_lz4(sample):
+        deflated_buf = lz4.block.compress(sample, store_size=False)
+        return np.frombuffer(deflated_buf, dtype=np.uint8)
+
+    def inflate_pipline(max_batch_size, inputs, device):
+        input_data = [
+            [sample_to_lz4(sample) for sample in batch]
+            for batch in inputs]
+        input_shape = [
+            [np.array(sample.shape, dtype=np.int32) for sample in batch]
+            for batch in inputs]
+
+        @pipeline_def
+        def piepline():
+            defalted = fn.external_source(source=input_data)
+            shape = fn.external_source(source=input_shape)
+            return fn.experimental.inflate(defalted.gpu(), shape=shape)
+
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        j = 42
+        while True:
+            yield np.full((13, 7), j)
+            j += 1
+
+    sample = sample_gen()
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, inflate_pipline, devices=['gpu'])
+
+
+def test_debayer():
+    from debayer_test_utils import rgb2bayer, bayer_patterns, blue_position
+
+    def debayer_pipline(max_batch_size, inputs, device):
+        batches = [list(zip(*batch)) for batch in inputs]
+        img_batches = [list(imgs) for imgs, _ in batches]
+        blue_positions = [list(positions) for _, positions in batches]
+
+        @pipeline_def
+        def piepline():
+            bayered = fn.external_source(source=img_batches)
+            positions = fn.external_source(source=blue_positions)
+            return fn.experimental.debayer(bayered.gpu(), blue_position=positions)
+
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        rng = np.random.default_rng(seed=101)
+        j = 0
+        while True:
+            pattern = bayer_patterns[j % len(bayer_patterns)]
+            h, w = 2 * np.int32(rng.uniform(2, 3, 2))
+            r, g, b = np.full((h, w), j), np.full((h, w), j + 1), np.full((h, w), j + 2)
+            rgb = np.uint8(np.stack([r, g, b], axis=2))
+            yield rgb2bayer(rgb, pattern), np.array(blue_position(pattern), dtype=np.int32)
+            j += 1
+
+    sample = sample_gen()
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, debayer_pipline, devices=['gpu'])
+
+
+def test_cast_like():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data, data2 = fn.external_source(
+                source=input_data, cycle=False, device=device, num_outputs=2)
+        out = fn.cast_like(data, data2)
+        pipe.set_outputs(out)
+        return pipe
+
+    def get_data(batch_size):
+        test_data_shape = [random.randint(5, 21), random.randint(5, 21), 3]
+        data1 = [
+            np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+            for _ in range(batch_size)]
+        data2 = [
+            np.random.randint(1, 4, size=test_data_shape, dtype=np.int32)
+            for _ in range(batch_size)]
+        return (data1, data2)
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe)
 
 
 tested_methods = [
+    "arithmetic_generic_op",
     "audio_decoder",
-    "image_decoder",
-    "image_decoder_slice",
-    "image_decoder_crop",
-    "image_decoder_random_crop",
-    "decoders.image",
-    "decoders.image_crop",
-    "decoders.image_slice",
-    "decoders.image_random_crop",
-    "decoders.audio",
-    "peek_image_shape",
-    "external_source",
+    "audio_resample",
+    "batch_permutation",
+    "bb_flip",
+    "bbox_paste",
+    "box_encoder",
     "brightness",
     "brightness_contrast",
+    "cast",
+    "cast_like",
     "cat",
-    "color_twist",
-    "contrast",
-    "copy",
-    "crop_mirror_normalize",
-    "dump_image",
-    "hsv",
-    "hue",
-    "jpeg_compression_distortion",
-    "noise.shot",
-    "noise.salt_and_pepper",
-    "noise.gaussian",
-    "reductions.mean",
-    "reductions.mean_square",
-    "reductions.rms",
-    "reductions.min",
-    "reductions.max",
-    "reductions.sum",
-    "saturation",
-    "shapes",
-    "sphere",
-    "stack",
-    "water",
+    "coin_flip",
     "color_space_conversion",
+    "color_twist",
+    "constant",
+    "contrast",
+    "coord_flip",
     "coord_transform",
+    "copy",
+    "copy",
     "crop",
+    "crop",
+    "crop_mirror_normalize",
+    "crop_mirror_normalize",
+    "decoders.audio",
+    "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_random_crop",
+    "decoders.image_slice",
+    "dl_tensor_python_function",
+    "dump_image",
+    "element_extract",
     "erase",
+    "erase",
+    "expand_dims",
+    "experimental.debayer",
+    "experimental.decoders.image",
+    "experimental.decoders.image_crop",
+    "experimental.decoders.image_slice",
+    "experimental.decoders.image_random_crop",
+    "experimental.decoders.video",
+    "experimental.inflate",
+    "experimental.peek_image_shape",
+    "experimental.remap",
+    "external_source",
     "fast_resize_crop_mirror",
     "flip",
-    "gaussian_blur",
-    "laplacian",
-    "normalize",
-    "pad",
-    "paste",
-    "per_frame",
-    "resize",
-    "resize_crop_mirror",
-    "rotate",
-    "transpose",
-    "warp_affine",
-    "power_spectrum",
-    "preemphasis_filter",
-    "spectrogram",
-    "to_decibels",
-    "jitter",
-    "random_resized_crop",
-    "cast",
-    "copy",
-    "crop",
-    "crop_mirror_normalize",
-    "erase",
     "flip",
     "gaussian_blur",
+    "gaussian_blur",
     "get_property",
-    "normalize",
-    "resize",
-    "bb_flip",
-    "one_hot",
-    "reinterpret",
-    "batch_permutation",
-    "reductions.std_dev",
-    "reductions.variance",
-    "mel_filter_bank",
-    "constant",
-    "mfcc",
-    "bbox_paste",
-    "sequence_rearrange",
-    "coord_flip",
+    "grid_mask",
+    "hsv",
+    "hue",
+    "image_decoder",
+    "image_decoder_crop",
+    "image_decoder_random_crop",
+    "image_decoder_slice",
+    "jitter",
+    "jpeg_compression_distortion",
+    "laplacian",
     "lookup_table",
-    "slice",
-    "permute_batch",
-    "nonsilent_region",
-    "element_extract",
-    "reshape",
-    "coin_flip",
-    "uniform",
-    "random.coin_flip",
-    "random.uniform",
-    "python_function",
-    "normal_distribution",
-    "random.normal",
-    "arithmetic_generic_op",
-    "segmentation.select_masks",
-    "expand_dims",
-    "tensor_subscript",
-    "subscript_dim_check",
-    "transforms.rotation",
-    "transforms.shear",
-    "transforms.crop",
-    "transforms.scale",
-    "transforms.translation",
-    "transform_translation",
-    "transforms.combine",
-    "math.ceil",
-    "math.clamp",
-    "math.tanh",
-    "math.tan",
-    "math.log2",
-    "math.atanh",
+    "math.abs",
+    "math.acos",
+    "math.acosh",
+    "math.asin",
+    "math.asinh",
     "math.atan",
     "math.atan2",
-    "math.sin",
-    "math.cos",
-    "math.asinh",
-    "math.abs",
-    "math.sqrt",
-    "math.exp",
-    "math.acos",
-    "math.log",
-    "math.fabs",
-    "math.sinh",
-    "math.rsqrt",
-    "math.asin",
-    "math.floor",
-    "math.cosh",
-    "math.log10",
-    "math.max",
+    "math.atanh",
     "math.cbrt",
-    "math.pow",
+    "math.ceil",
+    "math.clamp",
+    "math.cos",
+    "math.cosh",
+    "math.exp",
+    "math.fabs",
+    "math.floor",
     "math.fpow",
-    "math.acosh",
+    "math.log",
+    "math.log10",
+    "math.log2",
+    "math.max",
     "math.min",
-    "grid_mask",
+    "math.pow",
+    "math.rsqrt",
+    "math.sin",
+    "math.sinh",
+    "math.sqrt",
+    "math.tan",
+    "math.tanh",
+    "mel_filter_bank",
+    "mfcc",
+    "noise.gaussian",
+    "noise.salt_and_pepper",
+    "noise.shot",
+    "nonsilent_region",
+    "normal_distribution",
+    "normalize",
+    "normalize",
+    "numba.fn.experimental.numba_function",
+    "one_hot",
+    "optical_flow",
+    "pad",
+    "paste",
+    "peek_image_shape",
+    "per_frame",
+    "permute_batch",
+    "power_spectrum",
+    "preemphasis_filter",
+    "python_function",
+    "random.coin_flip",
+    "random.normal",
+    "random.uniform",
+    "random_bbox_crop",
+    "random_resized_crop",
+    "reductions.max",
+    "reductions.mean",
+    "reductions.mean_square",
+    "reductions.min",
+    "reductions.rms",
+    "reductions.std_dev",
+    "reductions.sum",
+    "reductions.variance",
+    "reinterpret",
+    "reshape",
+    "resize",
+    "resize",
+    "resize_crop_mirror",
+    "roi_random_crop",
+    "rotate",
+    "saturation",
     "segmentation.random_mask_pixel",
     "segmentation.random_object_bbox",
-    "roi_random_crop",
+    "segmentation.select_masks",
+    "sequence_rearrange",
+    "shapes",
+    "slice",
+    "spectrogram",
+    "sphere",
     "squeeze",
-    "box_encoder",
-    "numba.fn.experimental.numba_function",
-    "dl_tensor_python_function",
-    "random_bbox_crop",
     "ssd_random_crop",
-    "optical_flow",
-    "audio_resample",
-    "experimental.decoders.video"
+    "stack",
+    "subscript_dim_check",
+    "tensor_subscript",
+    "to_decibels",
+    "transform_translation",
+    "transforms.combine",
+    "transforms.crop",
+    "transforms.rotation",
+    "transforms.scale",
+    "transforms.shear",
+    "transforms.translation",
+    "transpose",
+    "uniform",
+    "warp_affine",
+    "water",
 ]
 
 excluded_methods = [
@@ -1306,8 +1442,10 @@ excluded_methods = [
     "readers.video",                 # readers do not support variable batch size yet
     "readers.video_resize",          # readers do not support variable batch size yet
     "readers.webdataset",            # readers do not support variable batch size yet
+    "experimental.inputs.video",     # Input batch_size of inputs.video is always 1 and output
+                                     # batch_size varies and is tested in this operator's test.
     "experimental.readers.video",    # readers do not support variable batch size yet
-    "experimental.audio_resample"    # Alias of audio_resample (already tested)
+    "experimental.audio_resample",   # Alias of audio_resample (already tested)
 ]
 
 

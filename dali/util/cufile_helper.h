@@ -18,6 +18,7 @@
 // general stuff
 #include <cstdio>
 #include <string>
+#include <utility>
 
 #if !defined(__AARCH64_QNX__) && !defined(__AARCH64_GNU__) && !defined(__aarch64__)
 #include <linux/sysctl.h>
@@ -28,35 +29,60 @@
 // dali device guard
 #include "dali/core/dynlink_cufile.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/cuda_error.h"
 
-// we need this class to make sure that the driver
-// is only opened once per thread. It is not thread safe, coordination outside
 namespace cufile {
 
-// wrapper struct to conveniently store the fd's as well
-class DLL_PUBLIC CUFileHandle{
- public:
-  CUFileHandle() {
-    fd = -1;
-    fdd = -1;
+struct CUFileDriverScope {
+  CUFileDriverScope() {
+    // v2 API performs proper reference counting, so we increase the reference count here...
+    if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      CUDA_CALL(cuFileDriverOpen());
+    }
   }
+  ~CUFileDriverScope() {
+    // ...and decrease it here.
+    // The old GDS API would simply destroy the library, possibly still in use by other modules
+    // within the process.
+    if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      CUDA_DTOR_CALL(cuFileDriverClose());  // termination on exception is expected
+    }
+  }
+};
 
+// wrapper struct to conveniently store the fd's as well
+class DLL_PUBLIC CUFileHandle {
+ public:
   ~CUFileHandle() {
     Close();
   }
+  CUFileHandle() = default;
+  CUFileHandle(CUFileHandle &&other) {
+    *this = std::move(other);
+  }
+
+  CUFileHandle &operator=(CUFileHandle &&other) {
+    std::swap(fd, other.fd);
+    std::swap(fdd, other.fdd);
+    std::swap(cufh, other.cufh);
+    other.Close();
+    return *this;
+  }
 
   void Close() {
-    if ((fd != -1) && (fdd != -1))
+    if (cufh) {
       cuFileHandleDeregister(cufh);
+      cufh = nullptr;
+    }
     if (fd != -1) close(fd);
     if (fdd != -1) close(fdd);
     fd = -1;
     fdd = -1;
   }
 
-  CUfileHandle_t cufh;
-  int fd;  // descriptor for buffered IO
-  int fdd;  // descriptor for direct IO
+  CUfileHandle_t cufh = nullptr;
+  int fd = -1;  // descriptor for buffered IO
+  int fdd = -1;  // descriptor for direct IO
 };
 
 }  // namespace cufile

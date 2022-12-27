@@ -559,6 +559,23 @@ class Observer:
             self.thread = None
 
 
+def create_shm_chunk_manager_for_group(group, shm_pool, keep_alive_queue_size,
+                                       min_initial_chunk_size, num_workers,
+                                       batch_size=None):
+    num_mini_batches = 1 if group.batch else num_workers
+    if group.bytes_per_sample_hint is None or batch_size is None:
+        initial_chunk_size = min_initial_chunk_size
+    else:
+        num_samples_per_mini_batch = (batch_size + num_mini_batches - 1) // num_mini_batches
+        initial_chunk_size = num_samples_per_mini_batch * group.bytes_per_sample_hint
+        initial_chunk_size = max(min_initial_chunk_size, initial_chunk_size)
+    return ShmChunkManager(
+        shm_pool,
+        keep_alive_queue_size + group.prefetch_queue_depth,
+        initial_chunk_size,
+        num_mini_batches)
+
+
 class WorkerPool:
     """"Combines worker processes pool with callback contexts, can be used to schedule batches
     to be run on the workers and to receive resulting batches from the workers."""
@@ -585,8 +602,8 @@ class WorkerPool:
 
     @classmethod
     def from_groups(
-            cls, groups, keep_alive_queue_size, start_method="fork", num_workers=1,
-            initial_chunk_size=1024 * 1024, py_callback_pickler=None):
+            cls, groups, keep_alive_queue_size, batch_size=None, start_method="fork",
+            num_workers=1, min_initial_chunk_size=1024 * 1024, py_callback_pickler=None):
         """Creates new WorkerPool instance for given list of ExternalSource groups.
 
         Parameters
@@ -598,11 +615,14 @@ class WorkerPool:
             remain untouched (because they might still be referenced further in the pipeline).
             Note that the actual number of simultaneously kept batches will be greater by the length
             of parallel external source prefetching queue which is at least one.
+        `batch_size` : int, optional
+            Maximal batch size. For now, used only to estimate initial capacity of virtual
+            memory slots.
         `start_method` : str
             Method of starting worker processes, either fork or spawn.
         `num_workers` : int
             Number of workers to be created in ProcPool.
-        `initial_chunk_size` : int
+        `min_initial_chunk_size` : int
             Minimal initial size of each shared memory chunk.
             NOTE it must be enough to accommodate serialized `ScheduledTask` instance.
         """
@@ -635,12 +655,10 @@ class WorkerPool:
         # of all sources in the pipeline
         shm_pool = []
         shm_managers = [
-            ShmChunkManager(
-                shm_pool,
-                keep_alive_queue_size + group.prefetch_queue_depth,
-                initial_chunk_size,
-                1 if group.batch else num_workers
-            ) for group in groups]
+            create_shm_chunk_manager_for_group(
+                group, shm_pool, keep_alive_queue_size,
+                min_initial_chunk_size, num_workers, batch_size)
+            for group in groups]
         contexts = [
             CallbackContext(source_desc, shm_manager, dedicated_worker_id)
             for source_desc, shm_manager, dedicated_worker_id

@@ -46,7 +46,7 @@ struct Property {
    * This function implements filling the output of the operator. Its implementation should
    * be similar to any RunImpl function of the operator.
    */
-  virtual void FillOutput(workspace_t<Backend>&) = 0;
+  virtual void FillOutput(Workspace&) = 0;
 };
 
 
@@ -64,7 +64,7 @@ struct SourceInfo : public Property<Backend> {
     return DALI_UINT8;
   }
 
-  void FillOutput(workspace_t<Backend>& ws) override;
+  void FillOutput(Workspace &ws) override;
 
  private:
   const std::string& GetSourceInfo(const TensorList<Backend>& input, size_t idx) {
@@ -84,7 +84,7 @@ struct Layout : public Property<Backend> {
     return DALI_UINT8;
   }
 
-  void FillOutput(workspace_t<Backend>& ws) override;
+  void FillOutput(Workspace &ws) override;
 
  private:
   const TensorLayout& GetLayout(const TensorList<Backend>& input, int idx) {

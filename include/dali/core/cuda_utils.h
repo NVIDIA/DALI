@@ -15,13 +15,13 @@
 #ifndef DALI_CORE_CUDA_UTILS_H_
 #define DALI_CORE_CUDA_UTILS_H_
 
-#include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
-#include <cassert>
+// Device code utilities go into this file.
+// For host code utilities, see cuda_rt_utils.h
+
+#include <cuda_runtime.h>  // for __host__ and __device__
+#include <malloc.h>
 #include <type_traits>
-#include <vector>
 #include "dali/core/host_dev.h"
-#include "dali/core/dynlink_cuda.h"
-#include "dali/core/cuda_error.h"
 
 namespace dali {
 
@@ -74,52 +74,6 @@ __host__ __device__ void cuda_swap(T &a, T &b) {
   T tmp = cuda_move(a);
   a = cuda_move(b);
   b = cuda_move(tmp);
-}
-
-/**
- * @brief Gets the maximum number of threads per block for given kernel function on current device
- */
-template <typename KernelFunction>
-int MaxThreadsPerBlock(KernelFunction *f) {
-  static constexpr int kMaxDevices = 1024;
-  static int max_block_size[kMaxDevices] = {};
-  int device = 0;
-  CUDA_CALL(cudaGetDevice(&device));
-  assert(device >= 0 && device < kMaxDevices);
-  if (!max_block_size[device]) {
-    cudaFuncAttributes attr = {};
-    CUDA_CALL(cudaFuncGetAttributes(&attr, f));
-    max_block_size[device] = attr.maxThreadsPerBlock;
-  }
-  return max_block_size[device];
-}
-
-inline const cudaDeviceProp& GetDeviceProperties(int device_id = -1) {
-  if (device_id < 0) {
-    CUDA_CALL(cudaGetDevice(&device_id));
-  }
-  static int dev_count = []() {
-    int ndevs = 0;
-    CUDA_CALL(cudaGetDeviceCount(&ndevs));
-    return ndevs;
-  }();
-  static vector<bool> read(dev_count, false);
-  static vector<cudaDeviceProp> properties(dev_count);
-  if (!read[device_id]) {
-    CUDA_CALL(cudaGetDeviceProperties(&properties[device_id], 0));
-    read[device_id] = true;
-  }
-  return properties[device_id];
-}
-
-inline int GetSmCount(int device_id = -1) {
-  const auto& props = GetDeviceProperties(device_id);
-  return props.multiProcessorCount;
-}
-
-inline int GetSharedMemPerBlock(int device_id = -1) {
-  const auto& props = GetDeviceProperties(device_id);
-  return props.sharedMemPerBlock;
 }
 
 }  // namespace dali

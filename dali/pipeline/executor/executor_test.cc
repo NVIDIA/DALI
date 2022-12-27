@@ -14,9 +14,9 @@
 
 
 #include <gtest/gtest.h>
-#include <chrono>
-#include <future>
 
+#include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
@@ -57,17 +57,17 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
   }
 
   // TODO(klecki): adjust to refactored code
-  vector<HostWorkspace> CPUData(ExecutorBase *exe, int idx) const {
+  vector<Workspace> CPUData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(OpType::CPU)>(exe->wss_[idx].op_data);
     return {};
   }
 
-  vector<MixedWorkspace> MixedData(ExecutorBase *exe, int idx) const {
+  vector<Workspace> MixedData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(OpType::MIXED)>(exe->wss_[idx].op_data);
     return {};
   }
 
-  vector<DeviceWorkspace> GPUData(ExecutorBase *exe, int idx) const {
+  vector<Workspace> GPUData(ExecutorBase *exe, int idx) const {
     // return std::get<static_cast<int>(OpType::GPU)>(exe->wss_[idx].op_data);
     return {};
   }
@@ -361,7 +361,7 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
   for (int i = 0; i < 2; ++i) {
     auto host_workspaces = this->CPUData(exe.get(), i);
     ASSERT_EQ(host_workspaces.size(), 1);
-    HostWorkspace &hws = host_workspaces[0];
+    Workspace &hws = host_workspaces[0];
     ASSERT_EQ(hws.NumInput(), 0);
     ASSERT_EQ(hws.NumOutput(), 1);
     ASSERT_EQ(hws.GetRequestedBatchSize(0), this->batch_size_);
@@ -369,7 +369,7 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
 
     auto mixed_workspaces = this->MixedData(exe.get(), i);
     ASSERT_EQ(mixed_workspaces.size(), 1);
-    MixedWorkspace &mws = mixed_workspaces[0];
+    Workspace &mws = mixed_workspaces[0];
     ASSERT_EQ(mws.NumInput(), 1);
     ASSERT_EQ(mws.GetInputBatchSize(0), this->batch_size_);
     ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
@@ -378,7 +378,7 @@ TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
 
     auto device_workspaces = this->GPUData(exe.get(), i);
     ASSERT_EQ(device_workspaces.size(), 1);
-    DeviceWorkspace &dws = device_workspaces[0];
+    Workspace &dws = device_workspaces[0];
     ASSERT_EQ(dws.NumInput(), 1);
     ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
     ASSERT_EQ(dws.NumOutput(), 1);
@@ -425,7 +425,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   exe->RunMixed();
   exe->RunGPU();
 
-  DeviceWorkspace ws;
+  Workspace ws;
   exe->Outputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
@@ -457,13 +457,6 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           .AddOutput("final_images", "cpu")), "");
 
   vector<string> outputs = {"final_images_cpu"};
-  int cb_counter = 0;
-  std::promise<int> barrier;
-  auto barrier_future = barrier.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier]() mutable {
-    ++cb_counter;
-    barrier.set_value(cb_counter);
-  });
 
   exe->Build(&graph, outputs);
 
@@ -479,13 +472,10 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   exe->RunMixed();
   exe->RunGPU();
 
-  DeviceWorkspace ws;
+  Workspace ws;
   exe->Outputs(&ws);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_EQ(ws.NumOutput(), 1);
-  auto status = barrier_future.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
@@ -525,19 +515,6 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("final_images", "gpu")), "");
 
   vector<string> outputs = {"final_images_gpu"};
-  int cb_counter = 0;
-  std::promise<void> barrier_1, barrier_2;
-  auto barrier_future_1 = barrier_1.get_future();
-  auto barrier_future_2 = barrier_2.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier_1, &barrier_2]() mutable {
-    ++cb_counter;
-    if (cb_counter == 1) {
-      barrier_1.set_value();
-    }
-    if (cb_counter == 2) {
-      barrier_2.set_value();
-    }
-  });
   exe->Build(&graph, outputs);
 
   // Set the data for the external source
@@ -570,37 +547,137 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
         volume(tl.tensor_shape(i+batch_size)));
   }
 
-  // Run twice without getting the results
-  src_op->SetDataSource(tl1);
+
+  Workspace ws;
+
+
+  auto run = [&src_op, &exe] (TensorList<CPUBackend> &input) {
+    src_op->SetDataSource(input);
+    exe->RunCPU();
+    exe->RunMixed();
+    exe->RunGPU();
+  };
+
+  auto check = [&exe, &ws, &tl, batch_size] (int batch_idx) {
+    exe->Outputs(&ws);
+    ASSERT_EQ(ws.NumOutput(), 1);
+    ASSERT_EQ(ws.NumInput(), 0);
+    ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+    test::CheckResults(ws, batch_size, batch_idx, tl);
+  };
+
+  // Run twice without getting the results if we are not SimpleExecutor which will overwrite data
+  // due to prefetch queue = 1.
+  if (std::is_same_v<SimpleExecutor, TypeParam>) {
+    run(tl1);
+    check(0);
+    run(tl2);
+    check(1);
+  } else {
+    run(tl1);
+    run(tl2);
+    check(0);
+    check(1);
+  }
+}
+
+
+TYPED_TEST(ExecutorTest, TestPinning) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("device_id", 0)
+                                    .AddOutput("data_0", "cpu")),
+              "ExternalSource_0");
+
+  // First set of Copy + Copy and Pass Through
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_0", "cpu")),
+              "Copy_0");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_1", "cpu")),
+              "Copy_1");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("copy_0", "cpu")
+                                    .AddOutput("pass_through_0", "cpu")),
+              "PassThrough_0");
+
+  // Trigger pinning of first set when it moves CPU -> GPU
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("pass_through_0", "cpu")
+                                    .AddOutput("out_0", "gpu")),
+              "MakeContiguous_0");
+
+  // but not the Copy_1 to compare against
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("copy_1", "cpu")
+                                    .AddOutput("out_1", "cpu")),
+              "MakeContiguous_1");
+
+
+  // Second set of Copy and Pass Through
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_2", "cpu")),
+              "Copy_2");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("copy_2", "cpu")
+                                    .AddOutput("pass_through_1", "cpu")),
+              "PassThrough_1");
+
+  // Check pinning argument inputs to operators in GPU stage
+  graph.AddOp(this->PrepareSpec(OpSpec("CopyArgumentOp")
+                                    .AddArg("device", "gpu")
+                                    .AddArgumentInput("to_copy", "pass_through_1")
+                                    .AddOutput("out_2", "gpu")),
+              "DummyOpGpu");
+
+  vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
+                            "pass_through_1_cpu", "out_0_gpu",  "out_1_cpu",          "out_2_gpu"};
+
+  exe->Build(&graph, outputs);
+
+  // Set the data for the external source
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
+  ASSERT_NE(src_op, nullptr);
+  TensorList<CPUBackend> tl;
+  tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
+  src_op->SetDataSource(tl);
+
   exe->RunCPU();
   exe->RunMixed();
   exe->RunGPU();
 
-  auto status_1 = barrier_future_1.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_1, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
-  src_op->SetDataSource(tl2);
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
-
-  DeviceWorkspace ws;
+  Workspace ws;
   exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-  test::CheckResults(ws, batch_size, 0, tl);
 
-  exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+  // Utilize the fact that the outputs are shared from the executor, so we can check if they are
+  // pinned in a way we expect
+  // Currently we expect to pin anything that is CPU argument input into GPU operator, and
+  // is a CPU -> GPU copy (not via a decoder), so CPU input to Mixed operator that returns GPU data.
+  // The whole pass-through group should be pinned as well.
 
-  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_2, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 2);
-
-  test::CheckResults(ws, batch_size, 1, tl);
+  EXPECT_TRUE(ws.Output<CPUBackend>(0).is_pinned());   // copy_0_cpu
+  EXPECT_FALSE(ws.Output<CPUBackend>(1).is_pinned());  // copy_1_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(2).is_pinned());   // pass_through_0_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(3).is_pinned());   // copy_2_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(4).is_pinned());   // pass_through_1_cpu
 }
 
 }  // namespace dali

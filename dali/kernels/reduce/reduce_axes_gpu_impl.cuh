@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
-#define _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
+#ifndef DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_
+#define DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_
 
 
 #include "dali/core/util.h"
@@ -68,6 +68,24 @@ struct UniformPreprocessorBank {
 }  // namespace reduce_impl
 
 
+template <typename Out, typename In>
+struct ReduceSampleDesc {
+  Out *out;
+  const In *in;
+  int64_t n_outer;    // volume of the outermost (non-reduced) dimensions
+  int64_t n_reduced;  // volume of the reduced
+  int64_t n_inner;    // volume of the innermost (non-reduced) dimensions
+
+  /**  number of macroblocks in reduced dimension - must be a power of 2 for easier division */
+  int num_macroblocks;
+
+  /**
+   * @brief Size, in elements, of the macroblock in reduced dimension - does *not* need to be
+   * aligned on block boundary.
+   */
+  int macroblock_size;
+};
+
 /**
  * @brief This function is used when the reduction is no-op (reduced extent is 1)
  *
@@ -79,8 +97,8 @@ struct UniformPreprocessorBank {
  * @param post          posptprocessing unary functor
  */
 template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceNone(Out *out, const In *in, int64_t n,
-                           PreprocessorBank pre_bank, Postprocessor post) {
+__device__ void ReduceFlatNone(Out *out, const In *in, int64_t n,
+                                PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
@@ -91,6 +109,33 @@ __device__ void ReduceNone(Out *out, const In *in, int64_t n,
   }
 }
 
+/**
+ * @brief This function is used when the reduction is no-op (reduced extent is 1),
+ *        but the reduced axis is not inner, so we need to account for complex addressing
+ *        of the preprocessor.
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceMiddleNone(Out *out, const In *in, int64_t n_outer, int64_t n_inner,
+                                 PreprocessorBank pre_bank, Postprocessor post) {
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  int64_t n = n_inner * n_outer;
+  for (int64_t index = base_idx; index < n; index += grid_stride) {
+    int64_t outer = index / n_inner;
+    int64_t inner = index % n_inner;
+    auto pre = pre_bank.Get(i64vec2(outer, inner));
+    out[index] = ConvertSat<Out>(post(pre(in[index])));
+  }
+}
 
 /**
  * @brief This kernel is used when the reduction is no-op (reduced extent is 1)
@@ -107,14 +152,82 @@ __device__ void ReduceNone(Out *out, const In *in, int64_t n,
 template <typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
-__global__ void ReduceNoneKernel(Out *const *out, const In *const *in, const int64_t *lengths,
-                                 PreprocessorBank *pre = nullptr,
-                                 Postprocessor *post = nullptr) {
+__global__ void ReduceNoneRawKernel(Out *const *out, const In *const *in, const int64_t *lengths,
+                                    PreprocessorBank *pre = nullptr,
+                                    Postprocessor *post = nullptr) {
   int sample_idx = blockIdx.y;
   PreprocessorBank pre_bank = pre ? pre[sample_idx] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[sample_idx] : Postprocessor();
-  ReduceNone(out[sample_idx], in[sample_idx], lengths[sample_idx], pre_bank, postprocessor);
+  ReduceFlatNone(out[sample_idx], in[sample_idx], lengths[sample_idx], pre_bank, postprocessor);
 }
+
+
+/**
+ * @brief This kernel is used when the reduction is no-op (reduced extent is 1)
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ * When the data sub-batch contains only samples where the reduced extent happens to be 1,
+ * this kernel will be used.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceFlatNoneKernel(const ReduceSampleDesc<Out, In> *samples,
+                                     Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                     const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+
+  int64_t n = sample.n_outer * sample.n_inner;  // n_reduced is 1, so we don't need to multiply
+  Out *out = sample.out;
+  const In *in = sample.in;
+
+  ReduceFlatNone(out, in, n, pre_bank, postprocessor);
+}
+
+/**
+ * @brief This kernel is used when the reduction is a no-op, but the reduced axis is not the inner
+ *        one, so complex preprocessing is possible.
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ * When the data sub-batch contains only samples where the reduced extent happens to be 1,
+ * this kernel will be used.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleNoneKernel(const ReduceSampleDesc<Out, In> *samples,
+                                       Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+
+  Out *out = sample.out;
+  const In *in = sample.in;
+
+  if (std::is_same<PreprocessorBank, reduce_impl::IdentityPreprocessor<2>>::value) {
+    int64_t n = sample.n_outer * sample.n_inner;  // n_reduced is 1, so we don't need to multiply
+    ReduceFlatNone(out, in, n, pre_bank, postprocessor);
+  } else {
+    ReduceMiddleNone(out, in, sample.n_outer, sample.n_inner, pre_bank, postprocessor);
+  }
+}
+
+
 
 
 /**
@@ -270,25 +383,6 @@ __device__ void ReduceInnerLarge(Out *out, const In *in, int64_t n_outer, int64_
   }
 }
 
-template <typename Out, typename In>
-struct ReduceSampleDesc {
-  Out *out;
-  const In *in;
-  int64_t n_outer;    // volume of the outermost (non-reduced) dimensions
-  int64_t n_reduced;  // volume of the reduced
-  int64_t n_inner;    // volume of the innermost (non-reduced) dimensions
-
-  /**  number of macroblocks in reduced dimension - must be a power of 2 for easier division */
-  int num_macroblocks;
-
-  /**
-   * @brief Size, in elements, of the macroblock in reduced dimension - does *not* need to be
-   * aligned on block boundary.
-   */
-  int macroblock_size;
-};
-
-
 template <typename Acc, typename Out, typename In,
           typename Reduction, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
@@ -300,16 +394,62 @@ __device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
   const In *in = sample.in;
 
   if (n_reduced == 1) {
-    ReduceNone(out, in, n_outer, pre_bank, post);
+    ReduceFlatNone(out, in, n_outer, pre_bank, post);
   } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
     ReduceInnerSmall<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else if (n_reduced < 1024 && sample.num_macroblocks == 1) {
     ReduceInnerMedium<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else {
     ReduceInnerLarge<Acc>(out, in, n_outer, n_reduced,
-                     sample.num_macroblocks, sample.macroblock_size,
-                     reduce, pre_bank, post);
+                          sample.num_macroblocks, sample.macroblock_size,
+                          reduce, pre_bank, post);
   }
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceInnerSmallKernel(const ReduceSampleDesc<Out, In> *samples,
+                                       Reduction reduce = {},
+                                       const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+  ReduceInnerSmall<Acc>(sample.out, sample.in, sample.n_outer, sample.n_reduced,
+                        reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceInnerMediumKernel(const ReduceSampleDesc<Out, In> *samples,
+                                        Reduction reduce = {},
+                                        const PreprocessorBank *pre = nullptr,
+                                        const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+  ReduceInnerMedium<Acc>(sample.out, sample.in, sample.n_outer, sample.n_reduced,
+                         reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
+          typename Postprocessor = identity>
+__global__ void ReduceInnerLargeKernel(const ReduceSampleDesc<Out, In> *samples,
+                                       Reduction reduce = {},
+                                       const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+  ReduceInnerLarge<Acc>(sample.out, sample.in, sample.n_outer, sample.n_reduced,
+                        sample.num_macroblocks, sample.macroblock_size,
+                        reduce, pre_bank, postprocessor);
 }
 
 template <typename Acc, typename Out, typename In,
@@ -353,10 +493,12 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Out, In> &sample,
     inner = idx % n_inner;
     const In *base = in + outer * outer_stride + inner;
     auto pre = pre_bank.Get({outer, inner});
+
     OnlineReducer<Acc, Reduction> red;
     red.reset();
     for (int i = 0; i < n_reduced; i++)
       red.add(pre(__ldg(base + i * n_inner)), reduce);
+
     out[idx] = ConvertSat<Out>(post(red.result()));
   }
 }
@@ -613,9 +755,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
           typename Postprocessor = identity>
 __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {},
-                                  const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                   Reduction reduce = {},
+                                   const PreprocessorBank *pre = nullptr,
+                                   const Postprocessor *post = nullptr) {
   auto sample = samples[blockIdx.y];
 
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
@@ -630,7 +772,57 @@ __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Out, In> *samples,
   }
 }
 
+
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleSmallKernel(const ReduceSampleDesc<Out, In> *samples,
+                                        Reduction reduce = {},
+                                        const PreprocessorBank *pre = nullptr,
+                                        const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleSmall<Acc>(sample, reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleLargeInnerSmallKernel(const ReduceSampleDesc<Out, In> *samples,
+                                                  Reduction reduce = {},
+                                                  const PreprocessorBank *pre = nullptr,
+                                                  const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleLargeInnerSmall<Acc>(sample, reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleLargeInnerMediumKernel(const ReduceSampleDesc<Out, In> *samples,
+                                                   Reduction reduce = {},
+                                                   const PreprocessorBank *pre = nullptr,
+                                                   const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleLargeInnerMedium<Acc>(sample, reduce, pre_bank, postprocessor);
+}
+
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
+#endif  // DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_

@@ -51,6 +51,7 @@ NvDecoder::NvDecoder(int device_id,
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
+      frame_full_range_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
       current_recv_(), req_ready_(VidReqStatus::REQ_READY), textures_(), stop_(false) {
 
@@ -182,14 +183,12 @@ int NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
   return decoder->handle_sequence_(format);
 }
 
-int NvDecoder::handle_decode(void* user_data,
-                                            CUVIDPICPARAMS* pic_params) {
+int NvDecoder::handle_decode(void* user_data, CUVIDPICPARAMS* pic_params) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_decode_(pic_params);
 }
 
-int NvDecoder::handle_display(void* user_data,
-                                             CUVIDPARSERDISPINFO* disp_info) {
+int NvDecoder::handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info) {
   auto decoder = reinterpret_cast<NvDecoder*>(user_data);
   return decoder->handle_display_(disp_info);
 }
@@ -381,6 +380,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   current_recv_.count -= current_recv_.stride;
 
   frame_in_use_[disp_info->picture_index] = true;
+  frame_full_range_[disp_info->picture_index] = current_recv_.full_range;
   frame_queue_.push(disp_info);
   if (current_recv_.count <= 0) {
     req_ready_ = VidReqStatus::REQ_READY;
@@ -427,6 +427,8 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
             nv_time_base_));
       if (stop_) break;
       convert_frame(frame, sequence, i);
+      // synchronize before MappedFrame is destroyed and cuvidUnmapVideoFrame is called
+      CUDA_CALL(cudaStreamSynchronize(stream_));
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
@@ -515,7 +517,7 @@ void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequenc
                   sequence,
                   output_idx, stream_,
                   input_width, input_height,
-                  rgb_, normalized_);
+                  rgb_, normalized_, frame_full_range_[frame.disp_info->picture_index]);
     ), DALI_FAIL(make_string("Not supported output type:", dtype_, // NOLINT
         "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
 

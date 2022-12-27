@@ -41,7 +41,6 @@ class WarpAffineParamProvider
  protected:
   using MappingParams = WarpAffineParams<spatial_ndim>;
   using Base = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
-  using Workspace = typename Base::Workspace;
   using Base::ws_;
   using Base::spec_;
   using Base::params_gpu_;

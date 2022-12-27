@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   using Operator<CPUBackend>::RunImpl;
 
  protected:
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   struct ThreadCtx {
@@ -70,7 +70,7 @@ static void RunJpegDistortionCPU(ThreadCtx &ctx, const uint8_t *input, uint8_t *
   cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
 }
 
-void JpegCompressionDistortionCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();

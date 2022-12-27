@@ -163,8 +163,8 @@ class TensorSubscript : public Operator<Backend> {
     subscripts_.resize(nsub);
   }
 
-  bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(vector<OutputDesc> &outputs, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     DALI_ENFORCE(input.sample_dim() > 0, "Cannot apply an index to a scalar.");
     const auto &input_shape = input.shape();
     outputs.resize(1);
@@ -177,7 +177,7 @@ class TensorSubscript : public Operator<Backend> {
   /**
    * @brief Calculates the input ranges from the arguments and the input shape.
    */
-  void GetRanges(const workspace_t<Backend> &ws, const TensorListShape<> &in_shape) {
+  void GetRanges(const Workspace &ws, const TensorListShape<> &in_shape) {
     int nsub = subscripts_.size();
     int ndim = in_shape.sample_dim();
     DALI_ENFORCE(ndim >= nsub_declared_,
@@ -312,9 +312,9 @@ class TensorSubscript : public Operator<Backend> {
   bool CanInferOutputs() const override { return true; }
 
   using Operator<Backend>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
-    auto &output = ws.template Output<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
+    auto &output = ws.Output<Backend>(0);
     output.SetLayout(GetOutputLayout(input.GetLayout()));
     VALUE_SWITCH(simplified_in_shape_.sample_dim(), ndim,
       (1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16),
@@ -329,7 +329,7 @@ class TensorSubscript : public Operator<Backend> {
 
  private:
   template <int ndim, int element_size>
-  void RunTyped(workspace_t<Backend> &ws);
+  void RunTyped(Workspace &ws);
 
   // Number of declared subscripts - this may include the full-range ones.
   int nsub_declared_ = -1;

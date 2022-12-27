@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     auto curr_batch_size = ws.GetRequestedBatchSize(0);
     output_desc[0].type = DALI_FLOAT;
@@ -67,12 +67,12 @@ class Uniform : public Operator<CPUBackend> {
     return true;
   }
 
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
-  void AssignRange(HostWorkspace &ws);
+  void AssignRange(Workspace &ws);
 
-  void AssignSet(HostWorkspace &ws);
+  void AssignSet(Workspace &ws);
 
   std::mt19937 rng_;
   const bool discrete_mode_;  // mode can't change throughout lifetime of this op, due to RNG

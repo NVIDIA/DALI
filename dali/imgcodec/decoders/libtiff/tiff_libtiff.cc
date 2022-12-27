@@ -127,6 +127,10 @@ struct TiffInfo {
   bool is_tiled;
   bool is_palette;
   bool is_planar;
+  struct {
+    uint16_t *red, *green, *blue;
+  } palette;
+
   uint32_t tile_width, tile_height;
 };
 
@@ -162,6 +166,12 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_PLANARCONFIG, &planar_config));
   info.is_planar = (planar_config == PLANARCONFIG_SEPARATE);
 
+  if (info.is_palette) {
+    LIBTIFF_CALL(TIFFGetField(tiffptr, TIFFTAG_COLORMAP,
+                              &info.palette.red, &info.palette.green, &info.palette.blue));
+    info.channels = 3;  // Palette is always RGB
+  }
+
   return info;
 }
 
@@ -182,19 +192,18 @@ struct depth2type<32> {
   using type = uint32_t;
 };
 
-
 /**
- * @brief Unpacks packed bits.
+ * @brief Unpacks packed bits and/or converts palette data to RGB.
  *
  * @tparam OutputType Required output type
  * @tparam normalize If true, values will be upscaled to OutputType's dynamic range
  * @param nbits Number of bits per value
  * @param out Output array
  * @param in Pointer to the bits to unpack
- * @param n Number of values to unpack
+ * @param n Number of input values to unpack
  */
 template<typename OutputType, bool normalize = true>
-void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
+void DLL_PUBLIC TiffConvert(const TiffInfo &info, OutputType *out, const void *in, size_t n) {
   // We don't care about endianness here, because we read byte-by-byte and:
   // 1) "The library attempts to hide bit- and byte-ordering differences between the image and the
   //    native machine by converting data to the native machine order."
@@ -203,6 +212,7 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
   //    order required in Baseline TIFF readers.
   //    https://www.awaresystems.be/imaging/tiff/tifftags/fillorder.html
 
+  size_t nbits = info.bit_depth;
   size_t out_type_bits = 8 * sizeof(OutputType);
   if (out_type_bits < nbits)
     throw std::logic_error("Unpacking bits failed: OutputType too small");
@@ -234,11 +244,17 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
         bits_in_buffer = buffer_capacity;
       }
     }
-    if (normalize) {
-      double coeff = static_cast<double>((1ull << out_type_bits) - 1) / ((1ull << nbits) - 1);
-      result *= coeff;
+    if (info.is_palette) {
+      out[3*i+0] = ConvertNorm<OutputType>(info.palette.red[result]);
+      out[3*i+1] = ConvertNorm<OutputType>(info.palette.green[result]);
+      out[3*i+2] = ConvertNorm<OutputType>(info.palette.blue[result]);
+    } else {
+      if (normalize) {
+        double coeff = static_cast<double>((1ull << out_type_bits) - 1) / ((1ull << nbits) - 1);
+        result *= coeff;
+      }
+      out[i] = result;
     }
-    out[i] = result;
   }
 }
 
@@ -264,10 +280,6 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   if (info.bit_depth > 32)
     return {false, make_exception_ptr(std::logic_error(
                       make_string("Unsupported bit depth: ", info.bit_depth)))};
-
-  // TODO(skarpinski) Support palette images
-  if (info.is_palette)
-    return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
 
   if (info.is_tiled && (info.tile_width % 16 != 0 || info.tile_height % 16 != 0)) {
     // http://www.libtiff.org/libtiff.html
@@ -325,7 +337,8 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
     }
   }
 
-  uint64_t out_row_stride = roi.shape()[1] * out_channels;
+  const auto roi_shape = roi.shape();
+  uint64_t out_row_stride = roi_shape[1] * out_channels;
 
   DALIImageType in_format;
   if (info.channels == 1)
@@ -335,7 +348,7 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   else
     in_format = DALI_ANY_DATA;
 
-  TensorShape<> img_shape = {roi.shape()[0], roi.shape()[1], out_channels};
+  TensorShape<> img_shape = {roi_shape[0], roi_shape[1], out_channels};
   TensorShape<> img_strides = kernels::GetStrides(img_shape);
   TensorShape<> tile_shape = {info.tile_height, info.tile_width, info.channels};
   TensorShape<> tile_strides = kernels::GetStrides(tile_shape);
@@ -352,9 +365,10 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
     VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
       using InputType = detail::depth2type<InTypeBits>::type;
 
+      bool convert_needed = info.bit_depth != InTypeBits || info.is_palette;
       kernels::DynamicScratchpad scratchpad;
       InputType *in;
-      if (info.bit_depth == InTypeBits) {
+      if (!convert_needed) {
         in = static_cast<InputType *>(buf.get());
       } else {
         in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
@@ -387,8 +401,10 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
             LIBTIFF_CALL(TIFFReadScanline(tiff.get(), buf.get(), tile_y, 0));
           }
 
-          if (info.bit_depth != InTypeBits) {
-            detail::UnpackBits(info.bit_depth, in, buf.get(), volume(tile_shape));
+          if (convert_needed) {
+            size_t input_values = volume(tile_shape);
+            if (info.is_palette) input_values /= 3;
+            detail::TiffConvert(info, in, buf.get(), input_values);
           }
 
           OutType *out_ptr = img_out + (tile_begin[0] - roi.begin[0]) * img_strides[0]

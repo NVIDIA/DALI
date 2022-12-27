@@ -31,13 +31,13 @@ class CastGPU : public Cast<GPUBackend> {
  public:
   explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec}, block_setup_{block_volume_scale} {}
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
-  void RunImpl(DeviceWorkspace &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   ~CastGPU() override = default;
 
  protected:
-  void PrepareBlocks(const DeviceWorkspace &ws);
+  void PrepareBlocks(const Workspace &ws);
 
   static const int block_volume_scale = 4;
 
@@ -51,12 +51,12 @@ class CastGPU : public Cast<GPUBackend> {
   USE_OPERATOR_MEMBERS();
 };
 
-bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   PrepareBlocks(ws);
   return Cast<GPUBackend>::SetupImpl(output_desc, ws);
 }
 
-void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
+void CastGPU::PrepareBlocks(const Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   if (input.sample_dim() > 0) {
@@ -69,7 +69,7 @@ void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   block_setup_.SetupBlocks(collapsed_shape_, true);
 }
 
-void CastGPU::RunImpl(DeviceWorkspace &ws) {
+void CastGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
@@ -110,18 +110,18 @@ void CastGPU::RunImpl(DeviceWorkspace &ws) {
   std::tie(params_dev, samples_dev) = scratchpad.ToContiguousGPU(ws.stream(),
                                                                  params_host, samples_);
 
-  DALIDataType itype = input.type();
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
-    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+  TYPE_SWITCH(output.type(), type2id, OType, CAST_ALLOWED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, IType, CAST_ALLOWED_TYPES, (
       kernels::BinSearchCastKernel<OType, IType>
           <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev, params_dev,
             num_samples, block_volume_scale);
-    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid input type: ", input.type())););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type: ", output.type())););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);
+DALI_REGISTER_OPERATOR(CastLike, CastGPU, GPU);
 
 }  // namespace dali

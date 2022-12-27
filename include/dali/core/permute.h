@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "dali/core/host_dev.h"
 #include "dali/core/util.h"
 #include "dali/core/traits.h"
+#include "dali/core/cuda_utils.h"
 
 namespace dali {
 
@@ -83,6 +84,25 @@ OutPerm inverse_permutation(const InPerm &permutation) {
   OutPerm inv_perm;
   inverse_permutation(inv_perm, permutation);
   return inv_perm;
+}
+
+/**
+ * @brief Permutes a sequence in place
+ *
+ * @remarks The function will return incorrect result or hang if `idx` contains repetitions.
+ */
+DALI_NO_EXEC_CHECK
+template <typename Seq, typename Indices>
+DALI_HOST_DEV
+void permute_in_place(Seq &inout, Indices &&idx) {
+  using index_type = std::remove_reference_t<decltype(idx[0])>;
+  for (index_type i = 0, n = dali::size(idx); i < n; i++) {
+      index_type src_idx = idx[i];
+      while (src_idx < i)
+          src_idx = idx[src_idx];
+      if (src_idx != i)
+          cuda_swap(inout[i], inout[src_idx]);
+  }
 }
 
 }  // namespace dali

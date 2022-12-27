@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,8 +51,8 @@ class TensorJoin : public Operator<Backend> {
   using Operator<Backend>::Operator;
 
   bool CanInferOutputs() const override { return true; }
-  void RunImpl(workspace_t<Backend> &ws) override;
-  bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
+  bool SetupImpl(vector<OutputDesc> &outputs, const Workspace &ws) override;
 
  protected:
   template <typename T>
@@ -65,17 +65,17 @@ class TensorJoin : public Operator<Backend> {
   }
 
   template <typename T>
-  void SetupTyped(TensorListShape<> &output_shape, const workspace_t<Backend> &ws);
+  void SetupTyped(TensorListShape<> &output_shape, const Workspace &ws);
 
   template <typename T>
-  void RunTyped(const TensorListView<Storage, T> &out, HostWorkspace &ws);
+  void RunTyped(const TensorListView<Storage, T> &out, Workspace &ws, CPUBackend);
 
   template <typename T>
-  void RunTyped(const TensorListView<Storage, T> &out, DeviceWorkspace &ws);
+  void RunTyped(const TensorListView<Storage, T> &out, Workspace &ws, GPUBackend);
 
-  void GetInputLayout(const workspace_t<Backend> &ws);
-  void SetupAxis();
-  void SetOutputLayout(const workspace_t<Backend> &ws);
+  void GetInputLayout(const Workspace &ws);
+  void SetupAxis(int ndim);
+  void SetOutputLayout(const Workspace &ws);
 
   any inputs_;
   kernels::KernelManager kmgr_;

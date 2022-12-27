@@ -25,8 +25,9 @@
 #include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
+namespace rng {
 
-namespace {
+namespace {  // NOLINT
 
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;
@@ -125,9 +126,9 @@ __global__ void RNGKernel(SampleDesc* __restrict__ sample_descs,
 
 template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &ws) {
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend) {
   static_assert(std::is_same<Backend, GPUBackend>::value, "Unexpected backend");
-  auto &output = ws.template Output<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   auto rngs = backend_data_.randomizer_.states();
   int block_sz = backend_data_.block_size_;
   int max_nblocks = backend_data_.max_blocks_;
@@ -140,7 +141,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   }
 
   if (IsNoiseGen) {
-    const auto& input = ws.template Input<GPUBackend>(0);
+    const auto& input = ws.Input<GPUBackend>(0);
     in_view = view<const T>(input);
     output.SetLayout(input.GetLayout());
   }
@@ -181,8 +182,8 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   auto dists_cpu = make_span(scratch.Allocate<mm::memory_kind::host, Dist>(nsamples), nsamples);
   bool use_default_dist = !This().template SetupDists<T>(dists_cpu.data(), nsamples);
 
-  SampleDesc* samples_gpu = nullptr;
-  BlockDesc* blocks_gpu = nullptr;
+  rng::SampleDesc* samples_gpu = nullptr;
+  rng::BlockDesc* blocks_gpu = nullptr;
   Dist* dists_gpu = nullptr;
   if (!use_default_dist) {
     std::tie(samples_gpu, blocks_gpu, dists_gpu) =
@@ -209,6 +210,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   CUDA_CALL(cudaGetLastError());
 }
 
+}  // namespace rng
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_GPU_CUH_

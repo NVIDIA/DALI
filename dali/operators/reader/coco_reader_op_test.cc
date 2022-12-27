@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ class CocoReaderTest : public ::testing::Test {
   int ImagesWithBigObjects() { return 2; }
   int ObjectCount(bool masks) { return masks ? 7 : 194; }
 
-  std::vector<int> CopyIds(DeviceWorkspace &ws, int ids_out_idx = 3) {
+  std::vector<int> CopyIds(Workspace &ws, int ids_out_idx = 3) {
     auto &output = ws.Output<dali::CPUBackend>(ids_out_idx);
     const auto &shape = output.shape();
 
@@ -133,7 +133,7 @@ class CocoReaderTest : public ::testing::Test {
       ASSERT_EQ(pipe.GetReaderMeta("coco_reader").epoch_size, expected_size);
     }
 
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
@@ -180,7 +180,7 @@ class CocoReaderTest : public ::testing::Test {
     RemoveAll(tmp_dir.c_str());
   }
 
-  void CheckInstances(DeviceWorkspace &ws, bool ltrb, bool ratio, bool skip_empty,
+  void CheckInstances(Workspace &ws, bool ltrb, bool ratio, bool skip_empty,
                       int expected_size, bool polygon_masks, bool polygon_masks_legacy) {
     const auto &boxes_output = ws.Output<dali::CPUBackend>(1);
     const auto &labels_output = ws.Output<dali::CPUBackend>(2);
@@ -587,7 +587,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
     "coco_reader");
   pipe1.Build(Outputs(false, true));
 
-  DeviceWorkspace ws1;
+  Workspace ws1;
   pipe1.RunCPU();
   pipe1.RunGPU();
   pipe1.Outputs(&ws1);
@@ -599,7 +599,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
     "coco_reader");
   pipe2.Build(Outputs(false, true));
 
-  DeviceWorkspace ws2;
+  Workspace ws2;
   pipe2.RunCPU();
   pipe2.RunGPU();
   pipe2.Outputs(&ws2);
@@ -655,7 +655,7 @@ TEST_F(CocoReaderTest, BigSizeThreshold) {
 
   ASSERT_EQ(pipe.GetReaderMeta("coco_reader").epoch_size, this->ImagesWithBigObjects());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);
@@ -676,7 +676,7 @@ TEST_F(CocoReaderTest, ShuffleAfterEpoch) {
 
   pipe.Build(this->Outputs());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);

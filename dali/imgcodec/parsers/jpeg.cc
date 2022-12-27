@@ -14,6 +14,7 @@
 
 #include <vector>
 #include "third_party/opencv/exif/exif.h"
+#include "dali/core/error_handling.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/core/byte_io.h"
 
@@ -77,7 +78,7 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       stream->Read(exif_block.data(), size - 8);
       cv::ExifReader reader;
       if (!reader.parseExif(exif_block.data(), exif_block.size()))
-        DALI_FAIL(make_string("Couldn't parse EXIF data in: ", encoded->SourceInfo()));
+        continue;
       auto entry = reader.getTag(cv::ORIENTATION);
       if (entry.tag != cv::INVALID_TAG) {
         info.orientation = FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));

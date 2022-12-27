@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,12 +32,9 @@ using kernels::ResamplingParamsND;
 
 template <typename Backend>
 struct ResizeBase<Backend>::Impl {
-  using InputBufferType  = typename Workspace::template input_t<Backend>::element_type;
-  using OutputBufferType = typename Workspace::template output_t<Backend>::element_type;
-
-  virtual void RunResize(workspace_t<Backend> &ws,
-                         OutputBufferType &output,
-                         const InputBufferType &input) = 0;
+  virtual void RunResize(Workspace &ws,
+                         TensorList<Backend> &output,
+                         const TensorList<Backend> &input) = 0;
 
   virtual void Setup(TensorListShape<> &out_shape,
                      const TensorListShape<> &in_shape,

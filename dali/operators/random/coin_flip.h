@@ -46,18 +46,18 @@ struct CoinFlipImpl {
 };
 
 template <typename Backend>
-class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
+class CoinFlip : public rng::RNGBase<Backend, CoinFlip<Backend>, false> {
  public:
-  using BaseImpl = RNGBase<Backend, CoinFlip<Backend>, false>;
+  using BaseImpl = rng::RNGBase<Backend, CoinFlip<Backend>, false>;
 
   using Impl = CoinFlipImpl<Backend>;
 
   explicit CoinFlip(const OpSpec &spec)
-      : RNGBase<Backend, CoinFlip<Backend>, false>(spec),
+      : BaseImpl(spec),
         probability_("probability", spec) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     probability_.Acquire(spec, ws, nsamples);
   }
 
@@ -73,8 +73,8 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
     return true;
   }
 
-  using RNGBase<Backend, CoinFlip<Backend>, false>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  using BaseImpl::RunImpl;
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_COINFLIP_TYPES), (
       BaseImpl::template RunImplTyped<T, Impl>(ws);
     ), (  // NOLINT
@@ -85,8 +85,8 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using RNGBase<Backend, CoinFlip<Backend>, false>::dtype_;
-  using RNGBase<Backend, CoinFlip<Backend>, false>::backend_data_;
+  using BaseImpl::dtype_;
+  using BaseImpl::backend_data_;
 
   ArgValue<float> probability_;
 };

@@ -28,19 +28,25 @@
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/core/mm/memory.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/cuda_event.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/static_switch.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/util/nvml.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
-#include "dali/core/dev_buffer.h"
-#include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
-#if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
-                               (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
+#define NVJPEG_FLAT_VERSION(major, minor, patch) ((major)*1000000+(minor)*1000+(patch))
+
+#define NVJPEG_AT_LEAST(major, minor, patch) \
+  (NVJPEG_FLAT_VERSION(major, minor, patch) <= NVJPEG_FLAT_VERSION( \
+      NVJPEG_VER_MAJOR, NVJPEG_VER_MINOR, NVJPEG_VER_PATCH))
+
+#if NVJPEG_AT_LEAST(11, 4, 1)
   #define IS_HW_DECODER_COMPATIBLE 1
 #else
   #define IS_HW_DECODER_COMPATIBLE 0
@@ -86,6 +92,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                      spec.GetArgument<int>("device_id"),
                      spec.GetArgument<bool>("affine"),
                      "image decoder nvJPEG2k") {
+    // TODO(ktokarski) TODO(jlisiecki) For now it is unused,
+    // adjust NVJPEG to (full capacity of) H100
+    (void) num_hw_engines_;
 #if IS_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
@@ -115,6 +124,17 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
         CUDA_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+      #if NVJPEG_AT_LEAST(11, 9, 0)
+        if (nvjpegIsSymbolAvailable("nvjpegGetHardwareDecoderInfo")) {
+          nvjpegGetHardwareDecoderInfo(handle_, &num_hw_engines_, &num_hw_cores_per_engine_);
+          // ToDo adjust hw_decoder_load_ based on num_hw_engines_ and num_hw_cores_per_engine_
+        } else  // NOLINT
+      #endif
+        {
+          // assume pre H100 so the defaults are as follow
+          num_hw_engines_ = 1;
+          num_hw_cores_per_engine_ = 5;
+        }
         if (!RestrictPinnedMemUsage()) {
           hw_decoder_images_staging_.set_pinned(true);
           // assume close the worst case size 300kb per image
@@ -206,19 +226,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
-      CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
-                                             default_cuda_stream_priority_));
+      stream = CUDAStreamPool::instance().Get();
     }
-    CUDA_CALL(cudaStreamCreateWithPriority(
-      &hw_decode_stream_, cudaStreamNonBlocking, default_cuda_stream_priority_));
+    hw_decode_stream_ = CUDAStreamPool::instance().Get();
+
+    if (hw_decoder_images_staging_.is_pinned())
+      hw_decoder_images_staging_.set_order(hw_decode_stream_);
+
 
     for (auto &event : decode_events_) {
-      CUDA_CALL(cudaEventCreate(&event));
-      CUDA_CALL(cudaEventRecord(event, streams_[0]));
+      event = CUDAEvent::Create();
     }
 
-    CUDA_CALL(cudaEventCreate(&hw_decode_event_));
-    CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
+    hw_decode_event_ = CUDAEvent::Create();
 
 #if NVJPEG2K_ENABLED
     auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
@@ -251,10 +271,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     });
     nvjpeg2k_thread_.RunAll();
 
-    CUDA_CALL(cudaStreamCreateWithPriority(&nvjpeg2k_cu_stream_, cudaStreamNonBlocking,
-                                           default_cuda_stream_priority_));
-    CUDA_CALL(cudaEventCreate(&nvjpeg2k_decode_event_));
-    CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
+    nvjpeg2k_cu_stream_ = CUDAStreamPool::instance().Get();
+    nvjpeg2k_decode_event_ = CUDAEvent::Create();
 
     for (auto &stream : nvjpeg2k_streams_) {
       stream = NvJPEG2KStream::Create();
@@ -273,6 +291,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVML_ENABLED
       nvml::Shutdown();
 #endif
+      if (hw_decode_stream_)
+        CUDA_CALL(cudaStreamSynchronize(hw_decode_stream_));
+
+      hw_decoder_images_staging_.Reset();
 
       sample_data_.clear();
 
@@ -293,15 +315,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (auto &buffer : device_buffers_) {
         CUDA_CALL(nvjpegBufferDeviceDestroy(buffer));
       }
-      for (auto &event : decode_events_) {
-        CUDA_CALL(cudaEventDestroy(event));
-      }
-      CUDA_CALL(cudaEventDestroy(hw_decode_event_));
-
-      for (auto &stream : streams_) {
-        CUDA_CALL(cudaStreamDestroy(stream));
-      }
-      CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       if (state_hw_batched_) {
         CUDA_CALL(nvjpegJpegStateDestroy(state_hw_batched_));
@@ -315,8 +328,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
 #if NVJPEG2K_ENABLED
-      CUDA_CALL(cudaEventDestroy(nvjpeg2k_decode_event_));
-      CUDA_CALL(cudaStreamDestroy(nvjpeg2k_cu_stream_));
       for (auto thread_id : nvjpeg2k_thread_.GetThreadIds()) {
         nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
@@ -330,14 +341,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     hw_decoder_bs_ = CalcHwDecoderBatchSize(hw_decoder_load_, curr_batch_size);
     return false;
   }
 
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace &ws) override {
+  void Run(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
@@ -545,7 +556,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     return false;
   }
 
-  void ParseImagesInfo(MixedWorkspace &ws) {
+  void ParseImagesInfo(Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     output_shape_.resize(curr_batch_size);
     samples_cache_.clear();
@@ -694,7 +705,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     RebalanceAndSortSamples();
   }
 
-  void ProcessImagesCache(MixedWorkspace &ws) {
+  void ProcessImagesCache(Workspace &ws) {
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_cache_) {
       assert(sample);
@@ -705,7 +716,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     LoadDeferred(ws.stream());
   }
 
-  void ProcessImagesCuda(MixedWorkspace &ws) {
+  void ProcessImagesCuda(Workspace &ws) {
     auto& output = ws.Output<GPUBackend>(0);
     const auto &input = ws.Input<CPUBackend>(0);
     for (auto *sample : samples_single_) {
@@ -791,7 +802,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 #endif  // NVJPEG2K_ENABLED
 
-  void ProcessImagesJpeg2k(MixedWorkspace &ws) {
+  void ProcessImagesJpeg2k(Workspace &ws) {
 #if NVJPEG2K_ENABLED
     if (!nvjpeg2k_handle_) {
       return;
@@ -813,7 +824,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif  // NVJPEG2K_ENABLED
   }
 
-  void ProcessImagesHost(MixedWorkspace &ws) {
+  void ProcessImagesHost(Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_host_) {
@@ -831,7 +842,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  void ProcessImagesHw(MixedWorkspace &ws) {
+  void ProcessImagesHw(Workspace &ws) {
 #if IS_HW_DECODER_COMPATIBLE
     auto& output = ws.Output<GPUBackend>(0);
     if (!samples_hw_batched_.empty()) {
@@ -875,9 +886,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           in_data_[k] = static_cast<unsigned char*>(tv.raw_mutable_tensor(k));
         }
       } else {
-        // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
-        // maybe someday...
-        hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
+        hw_decoder_images_staging_.Copy(tv);
         for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
           in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
         }
@@ -916,7 +925,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
   }
 
-  void ProcessImages(MixedWorkspace &ws) {
+  void ProcessImages(Workspace &ws) {
     auto &output = ws.Output<GPUBackend>(0);
     assert(output_shape_.num_samples() ==
            ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape
@@ -1069,8 +1078,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   NvJPEG2KHandle nvjpeg2k_handle_{};
   NvJPEG2KDecodeState nvjpeg2k_decoder_{};
   DeviceBuffer<uint8_t> nvjpeg2k_intermediate_buffer_;
-  cudaStream_t nvjpeg2k_cu_stream_;
-  cudaEvent_t nvjpeg2k_decode_event_;
+  CUDAStreamLease nvjpeg2k_cu_stream_;
+  CUDAEvent nvjpeg2k_decode_event_;
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
 
@@ -1081,10 +1090,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // GPU
   // Per thread
   std::vector<nvjpegBufferDevice_t> device_buffers_;
-  std::vector<cudaStream_t> streams_;
-  cudaStream_t hw_decode_stream_;
-  std::vector<cudaEvent_t> decode_events_;
-  cudaEvent_t hw_decode_event_;
+  std::vector<CUDAStreamLease> streams_;
+  CUDAStreamLease hw_decode_stream_;
+  std::vector<CUDAEvent> decode_events_;
+  CUDAEvent hw_decode_event_;
   std::vector<int> thread_page_ids_;  // page index for double-buffering
 
   int device_id_;
@@ -1135,10 +1144,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (hw_decoder_load == 0.f) return 0;
     auto hw_batch_size = static_cast<int>(std::round(hw_decoder_load * curr_batch_size));
 
-    constexpr int kNumHwDecoders = 5;
-    int tail = hw_batch_size % kNumHwDecoders;
+    int tail = hw_batch_size % num_hw_cores_per_engine_;
     if (tail > 0) {
-      hw_batch_size = hw_batch_size + kNumHwDecoders - tail;
+      hw_batch_size = hw_batch_size + num_hw_cores_per_engine_ - tail;
     }
     if (hw_batch_size > curr_batch_size) {
       hw_batch_size = curr_batch_size;
@@ -1166,6 +1174,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Used to ensure the work in the thread pool is picked FIFO
   int64_t task_priority_seq_ = 0;
+  unsigned int num_hw_engines_ = 1;
+  unsigned int num_hw_cores_per_engine_ = 1;
 };
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,13 @@ if (BUILD_NVJPEG)
   add_subdirectory(nvjpeg)
 endif()
 
-add_subdirectory(video)
+if (BUILD_FFMPEG)
+  add_subdirectory(video)
+endif()
+
+if (BUILD_NVCOMP)
+  add_subdirectory(inflate)
+endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)

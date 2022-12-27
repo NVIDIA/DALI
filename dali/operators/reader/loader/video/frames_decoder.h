@@ -58,8 +58,10 @@ struct AvState {
       av_frame_free(&frame_);
     }
     avcodec_free_context(&codec_ctx_);
-    avformat_close_input(&ctx_);
-    avformat_free_context(ctx_);
+    if (ctx_ != nullptr) {
+      avformat_close_input(&ctx_);
+      avformat_free_context(ctx_);
+    }
 
     ctx_ = nullptr;
     codec_ = nullptr;
@@ -73,7 +75,6 @@ struct AvState {
 
 /**
  * @brief Helper representing video file kept in memory. Allows reading and seeking.
- * 
  */
 struct MemoryVideoFile {
   MemoryVideoFile(const char *data, int64_t size)
@@ -90,7 +91,6 @@ struct MemoryVideoFile {
 
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
- * 
  */
 class DLL_PUBLIC FramesDecoder {
  public:
@@ -98,7 +98,7 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Construct a new FramesDecoder object.
-   * 
+   *
    * @param filename Path to a video file.
    */
   explicit FramesDecoder(const std::string &filename);
@@ -106,25 +106,26 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Construct a new FramesDecoder object.
-   * 
+   *
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
    * @param build_index If set to false index will not be build and some features are unavailable.
-   * 
+   * @param init_codecs If set to false CPU codec part is not initalized, only parser
+   * @param num_frames If set, number of frames in the video.
+   *
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true);
+  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
+                bool init_codecs = true, int num_frames = -1);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
-   * 
    */
   int64_t NumFrames() const;
 
   /**
    * @brief Width of a video frame in pixels
-   * 
    */
   int Width() const {
     return av_state_->codec_params_->width;
@@ -132,7 +133,6 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Height of a video frame in pixels
-   * 
    */
   int Height() const {
     return av_state_->codec_params_->height;
@@ -140,7 +140,6 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Number of channels in a video
-   * 
    */
   int Channels() const {
       return channels_;
@@ -148,15 +147,13 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Total number of values in a frame (width * height * channels)
-   * 
    */
   int FrameSize() const {
     return Channels() * Width() * Height();
   }
 
-    /**
+  /**
    * @brief Is video variable frame rate
-   * 
    */
   bool IsVfr() const {
     return is_vfr_;
@@ -164,32 +161,38 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Reads next frame of the video and copies it to the provided buffer, if copy_to_output is True.
-   * 
+   *
    * @param data Output buffer to copy data to.
-   * @param copy_to_output Whether copy the data to the output. 
+   * @param copy_to_output Whether copy the data to the output.
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
   virtual bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
-   * 
+   *
    * @param frame_id Id of the frame to seek to
    */
   virtual void SeekFrame(int frame_id);
 
   /**
    * @brief Seeks to the first frame
-   * 
    */
   virtual void Reset();
 
   /**
    * @brief Returns index of the frame that will be returned by the next call of ReadNextFrame
-   * 
+   *
    * @return int Index of the next frame to be read
    */
   int NextFrameIdx() { return next_frame_idx_; }
+
+  /**
+ * @brief Returns true if the index was built.
+ *
+ * @return Boolean indicating whether or not the index was created.
+ */
+  bool HasIndex() const { return index_.has_value(); }
 
   FramesDecoder(FramesDecoder&&) = default;
 
@@ -204,28 +207,32 @@ class DLL_PUBLIC FramesDecoder {
 
   int next_frame_idx_ = 0;
 
+  bool is_full_range_ = false;
+
+  std::optional<bool> zero_latency_ = {};
+
  private:
    /**
-   * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns 
+   * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
    * boolean indicating, if the frame was succesfully read.
    * After this method returns false, there might be more frames to read. Call `ReadFlushFrame` until
    * it returns false, to get all of the frames from the video file.
-   * 
+   *
    * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
    * @param copy_to_output Whether copy the frame to provided output.
-   * 
-   * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
-   * 
+   *
+   * @returns True, if the read was succesful, or false, when all regular frames were consumed.
+   *
    */
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Reads frames from the last packet. This packet can hold
    * multiple frames. This method will read all of them one by one.
-   * 
+   *
    * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
    * @param copy_to_output Whether copy the frame to provided output.
-   * 
+   *
    * @returns True, if the read was succesful, or false, when ther are no more frames in last the packet.
    */
   bool ReadFlushFrame(uint8_t *data, bool copy_to_output = true);
@@ -234,9 +241,9 @@ class DLL_PUBLIC FramesDecoder {
 
   void BuildIndex();
 
-  void InitAvState();
+  void InitAvState(bool init_codecs = true);
 
-  void FindVideoStream();
+  void FindVideoStream(bool init_codecs = true);
 
   void LazyInitSwContext();
 
@@ -244,8 +251,21 @@ class DLL_PUBLIC FramesDecoder {
 
   void DetectVfr();
 
+  void ParseNumFrames();
+
+  void CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs);
+
+  bool IsFormatSeekable();
+
+  void CountFrames(AvState *av_state);
+
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
+  }
+
+  std::string CodecName() {
+    return av_state_->codec_ ? av_state_->codec_->name :
+                               to_string(static_cast<int>(av_state_->codec_params_->codec_id));
   }
 
   int channels_ = 3;
@@ -254,6 +274,8 @@ class DLL_PUBLIC FramesDecoder {
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
+
+  std::optional<int> num_frames_ = {};
 
   // Default size of the buffer used to load video files from memory to FFMPEG
   const int default_av_buffer_size = (1 << 15);

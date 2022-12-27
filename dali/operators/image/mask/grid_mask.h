@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ class GridMask : public Operator<Backend> {
 
  protected:
   bool CanInferOutputs() const override { return true; }
-  void GetArguments(const workspace_t<Backend> &ws) {
+  void GetArguments(const Workspace &ws) {
     int batch_size = ws.GetInputBatchSize(0);
     this->GetPerSampleArgument(tile_, "tile", ws, batch_size);
     this->GetPerSampleArgument(ratio_, "ratio", ws, batch_size);
@@ -54,8 +54,8 @@ class GridMaskCpu : public GridMask<CPUBackend> {
   using Operator<CPUBackend>::RunImpl;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 };
 
 class GridMaskGpu : public GridMask<GPUBackend> {
@@ -63,8 +63,8 @@ class GridMaskGpu : public GridMask<GPUBackend> {
   explicit GridMaskGpu(const OpSpec &spec) : GridMask(spec) { }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 };
 
 }  // namespace dali

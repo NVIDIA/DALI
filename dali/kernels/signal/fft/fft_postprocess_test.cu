@@ -17,8 +17,7 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
-#include "dali/kernels/scratch.h"
-
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/kernels/signal/fft/fft_postprocess.cuh"
 
 namespace dali {
@@ -109,12 +108,10 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
     ToFreqMajorSpectrum<Out, In, Convert> tr;
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    ScratchpadAllocator sa;
     KernelRequirements req = tr.Setup(ctx, in_shape);
     ASSERT_EQ(req.output_shapes.size(), 1u);
     ASSERT_EQ(req.output_shapes[0], out_shape);
-    sa.Reserve(req.scratch_sizes);
-    auto scratchpad = sa.GetScratchpad();
+    DynamicScratchpad scratchpad;
     ctx.scratchpad = &scratchpad;
     out.reshape(out_shape);
     tr.Run(ctx, out.gpu(), in.gpu());
@@ -184,22 +181,79 @@ class FFTPostprocessTest<FFTPostprocessArgs<Out, In, Convert>> : public ::testin
 
     for (int i = 0; i < N; i++)
       copy(cpu_out[i], out_gpu[i], ctx.gpu.stream);
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
-    // data requires padding - clear it so we don't make the comparison fail
+    Compare(cpu_out, cpu_ref, in_shape);
+  }
+
+  void ConvertTimeMajorPadded() {
+    std::mt19937_64 rng;
+    TensorListShape<2> shape, padded_shape;
+    std::uniform_int_distribution<int> dist(1, 500);
+    int N = 10;
+    int padded_nfft = 256;
+    int nfft = 200;  // deliberately not a multiple of 32
+    shape.resize(N);
+    padded_shape.resize(N);
+
     for (int i = 0; i < N; i++) {
-      TensorView<StorageCPU, In, 2> in_tv = cpu_in[i];
-      TensorView<StorageCPU, Out, 2> ref_tv = cpu_ref[i];
-      TensorView<StorageCPU, Out, 2> out_tv = cpu_out[i];
-      for (int i = 0; i < in_tv.shape[0]; i++)
-        for (int j = fft; j < ref_tv.shape[1]; j++) {
-          *ref_tv(i, j) = {};
-          *out_tv(i, j) = {};
-        }
+      int len = dist(rng);
+      shape.set_tensor_shape(i, { len, nfft });
+      padded_shape.set_tensor_shape(i, { len, padded_nfft });
+    }
+    TestTensorList<In, 2> in;
+    TestTensorList<Out, 2> out, ref;
+    in.reshape(padded_shape);
+    out.reshape(shape);
+    auto cpu_in = in.cpu();
+    UniformRandomFill(cpu_in, rng, -1, 1);
+
+    ref.reshape(shape);
+    auto cpu_ref = ref.cpu();
+
+    Convert convert;
+    for (int s = 0; s < N; s++) {
+      TensorView<StorageCPU, In, 2> in_tv = cpu_in[s];
+      TensorView<StorageCPU, Out, 2> ref_tv = cpu_ref[s];
+      auto sh = shape.tensor_shape_span(s);
+      for (int i = 0; i < sh[0]; i++)
+        for (int j = 0; j < sh[1]; j++)
+          *ref_tv(i, j) = convert(*in_tv(i, j));
     }
 
+    ConvertTimeMajorSpectrum<Out, In, Convert> tr;
+    KernelContext ctx;
+    ctx.gpu.stream = 0;
+    tr.Setup(ctx, padded_shape);
+    tr.Run(ctx, out.gpu(), in.gpu());
+    CUDA_CALL(cudaGetLastError());
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
+    Compare(out.cpu(), cpu_ref, shape);
+  }
+
+  /**
+   * @brief Compares tensor list views excluding the padding area
+   */
+  void Compare(const TensorListView<StorageCPU, Out, 2> &cpu_out,
+               const TensorListView<StorageCPU, Out, 2> &cpu_ref,
+               const TensorListShape<>& tlv_sh) {
+    int nsamples = cpu_out.size();
+    // data requires padding - clear it so we don't make the comparison fail
+    for (int s = 0; s < nsamples; s++) {
+      TensorView<StorageCPU, Out, 2> ref_tv = cpu_ref[s];
+      TensorView<StorageCPU, Out, 2> out_tv = cpu_out[s];
+      auto sh = tlv_sh[s];
+      for (int i = 0; i < ref_tv.shape[0]; i++) {
+        for (int j = 0; j < ref_tv.shape[1]; j++) {
+          if (i >= sh[0] || j >= sh[1]) {
+            *ref_tv(i, j) = {};
+            *out_tv(i, j) = {};
+          }
+        }
+      }
+    }
     double eps = std::is_same<Convert, identity>::value ? 0 : 1e-5;
-
     Check(cpu_out, cpu_ref, EqualEps(eps));
   }
 };
@@ -222,6 +276,11 @@ TYPED_TEST(FFTPostprocessTest, ToFreqMajor) {
 TYPED_TEST(FFTPostprocessTest, ConvertTimeMajorInPlace) {
   this->ConvertTimeMajorInPlace();
 }
+
+TYPED_TEST(FFTPostprocessTest, ConvertTimeMajorPadded) {
+  this->ConvertTimeMajorPadded();
+}
+
 
 }  // namespace fft_postprocess
 }  // namespace signal

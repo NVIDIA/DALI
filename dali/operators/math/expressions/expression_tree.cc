@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
+namespace expr {
 
 namespace {
 
@@ -188,4 +189,5 @@ std::unique_ptr<ExprNode> ParseExpressionString(const std::string &expr) {
   return std::move(std::get<0>(ParseExpr(expr, 0)));
 }
 
+}  // namespace expr
 }  // namespace dali

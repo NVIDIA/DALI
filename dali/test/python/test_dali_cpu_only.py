@@ -23,6 +23,7 @@ import os
 import re
 from collections.abc import Iterable
 from nose.plugins.attrib import attr
+from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
@@ -60,6 +61,20 @@ def get_data():
     return out
 
 
+# The same code is used as CPU-only pipeline to test if TF plugin loads successfully
+# during its installation.
+def test_tensorflow_build_check():
+
+    @pipeline_def()
+    def get_dali_pipe():
+        data = types.Constant(1)
+        return data
+
+    pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+    pipe.build()
+    pipe.run()
+
+
 def test_move_to_device_end():
     test_data_shape = [1, 3, 0, 4]
 
@@ -72,7 +87,7 @@ def test_move_to_device_end():
     pipe.set_outputs(outs.gpu())
     assert_raises(
         RuntimeError, pipe.build,
-        glob='Cannot move the data node __ExternalSource_0 to the GPU in a CPU-only pipeline. '
+        glob='Cannot move the data node __ExternalSource_* to the GPU in a CPU-only pipeline. '
              'The `device_id` parameter is set to `CPU_ONLY_DEVICE_ID`. '
              'Set `device_id` to a valid GPU identifier to enable GPU features in the pipeline.')
 
@@ -134,17 +149,6 @@ def test_mixed_op_bad_device():
 
     for device_id, error_msg in zip(device_ids, error_msgs):
         yield check_mixed_op_bad_device, device_id, error_msg
-
-
-def test_image_decoder_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    with pipe:
-        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-        decoded = fn.decoders.image(input, output_type=types.RGB)
-        pipe.set_outputs(decoded)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
 
 
 def check_single_input(op, input_layout="HWC", get_data=get_data, batch=True, cycle=None,
@@ -224,6 +228,15 @@ def test_cast_cpu():
     check_single_input(fn.cast, dtype=types.INT32)
 
 
+def test_cast_like_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
+    pipe.set_outputs(out)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+
 def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
@@ -264,27 +277,42 @@ def test_noise_salt_and_pepper_cpu():
     check_single_input(fn.noise.salt_and_pepper)
 
 
-def test_image_decoder_crop_device():
+@nottest
+def _test_image_decoder_args_cpu(decoder_type, **args):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop=(10, 10))
+    decoded = decoder_type(input, output_type=types.RGB, **args)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
 
-def test_image_decoder_random_crop_device():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image_random_crop(input, output_type=types.RGB)
-    pipe.set_outputs(decoded)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+def test_image_decoder_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image)
 
 
-def test_coin_flip_device():
+def test_experimental_image_decoder_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image)
+
+
+def test_image_decoder_crop_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image_crop, crop=(10, 10))
+
+
+def test_experimental_image_decoder_crop_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
+
+
+def test_image_decoder_random_crop_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image_random_crop)
+
+
+def test_experimental_image_decoder_random_crop_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
+
+
+def test_coin_flip_cpu():
     check_no_input(fn.random.coin_flip)
 
 
@@ -579,7 +607,8 @@ def test_slice_cpu():
         pipe.run()
 
 
-def test_image_decoder_slice_cpu():
+@nottest
+def _test_image_decoder_slice_cpu(decoder_type):
     anch_shape = [2]
 
     def get_anchors():
@@ -596,11 +625,19 @@ def test_image_decoder_slice_cpu():
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     anchors = fn.external_source(source=get_anchors)
     shape = fn.external_source(source=get_shape)
-    processed = fn.decoders.image_slice(input, anchors, shape)
+    processed = decoder_type(input, anchors, shape)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+
+def test_image_decoder_slice_cpu():
+    _test_image_decoder_slice_cpu(fn.decoders.image_slice)
+
+
+def test_experimental_image_decoder_slice_cpu():
+    _test_image_decoder_slice_cpu(fn.experimental.decoders.image_slice)
 
 
 def test_pad_cpu():
@@ -1011,14 +1048,23 @@ def test_squeeze_cpu():
     check_single_input(fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ")
 
 
-def test_peek_image_shape_cpu():
+@nottest
+def _test_peek_image_shape_cpu(op):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    shapes = fn.peek_image_shape(input)
+    shapes = op(input)
     pipe.set_outputs(shapes)
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+
+def test_peek_image_shape_cpu():
+    _test_peek_image_shape_cpu(fn.peek_image_shape)
+
+
+def test_experimental_peek_image_shape_cpu():
+    _test_peek_image_shape_cpu(fn.experimental.peek_image_shape)
 
 
 def test_separated_exec_setup():
@@ -1088,6 +1134,22 @@ def test_tensor_list_cpu():
     del d_tl
 
 
+def test_video_input():
+    @pipeline_def(batch_size=3, num_threads=1, device_id=None)
+    def video_input_pipeline(input_name):
+        vid = fn.experimental.inputs.video(name=input_name, sequence_length=7, blocking=False)
+        return vid
+
+    input_name = "VIDEO_INPUT"
+    n_iterations = 3
+    test_data = np.fromfile(video_files[0], dtype=np.uint8)
+    p = video_input_pipeline(input_name)
+    p.build()
+    p.feed_input(input_name, [test_data])
+    for _ in range(n_iterations):
+        p.run()
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1098,6 +1160,11 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
+    "experimental.decoders.image",
+    "experimental.decoders.image_crop",
+    "experimental.decoders.image_slice",
+    "experimental.decoders.image_random_crop",
+    "experimental.inputs.video",
     "decoders.audio",
     "external_source",
     "stack",
@@ -1159,6 +1226,7 @@ tested_methods = [
     "crop",
     "color_space_conversion",
     "cast",
+    "cast_like",
     "resize",
     "gaussian_blur",
     "laplacian",
@@ -1208,6 +1276,7 @@ tested_methods = [
     "batch_permutation",
     "squeeze",
     "peek_image_shape",
+    "experimental.peek_image_shape",
     "expand_dims",
     "coord_transform",
     "grid_mask",
@@ -1260,7 +1329,10 @@ excluded_methods = [
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
-    "experimental.audio_resample"  # Alias of audio_resample (already tested)
+    "experimental.audio_resample",  # Alias of audio_resample (already tested)
+    "experimental.debayer",  # not supported for CPU
+    "experimental.inflate",  # not supported for CPU
+    "experimental.remap",  # operator is GPU-only
 ]
 
 

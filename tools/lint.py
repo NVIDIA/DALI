@@ -88,6 +88,7 @@ def gen_cmd(dali_root_dir, file_list, process_includes=False):
            os.path.join(dali_root_dir, "third_party", "cpplint.py"),
            "--quiet",
            "--linelength=100",
+           "--headers=h,cuh",
            "--root=" + os.path.join(dali_root_dir, "include" if process_includes else "")]
     cmd.extend(file_list)
     return cmd

@@ -245,7 +245,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
@@ -253,7 +253,7 @@ class DisplacementFilter<GPUBackend, Displacement,
     return true;
   }
 
-  void RunImpl(DeviceWorkspace& ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
@@ -268,7 +268,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   template <typename U = Displacement>
-  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(DeviceWorkspace &ws) {
+  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     params_.Resize({curr_batch_size});
     params_.mutable_data<typename U::Param>();
@@ -282,7 +282,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   template <typename U = Displacement>
-  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(DeviceWorkspace &) {}
+  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(Workspace &) {}
 
   template <typename U = Displacement>
   std::enable_if_t<HasParam<U>::value, const typename U::Param *> GetDisplacementParams(
@@ -296,7 +296,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
 
-  void SetupSharedSampleParams(DeviceWorkspace &ws) override {
+  void SetupSharedSampleParams(Workspace &ws) override {
     PrepareDisplacement(ws);
   }
 
@@ -311,7 +311,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   static const size_t nDims = 3;
 
   template <typename T>
-  bool BatchedGPUKernel(DeviceWorkspace &ws) {
+  bool BatchedGPUKernel(Workspace &ws) {
     const auto &input = ws.Input<GPUBackend>(0);
     const auto &shape = input.shape();
     auto &output = ws.Output<GPUBackend>(0);

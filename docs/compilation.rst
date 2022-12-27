@@ -38,11 +38,11 @@ Building Python Wheel
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | CUDA_VERSION - CUDA toolkit version (10.2 and 11.7 are officially supported, 10.0, 11.0, 11.1,
-    11.2, 11.4, 11.5 and 11.6 are deprecated and may not work).
-  | The default is ``11.7``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
-    11.5, 11.6 and 11.7 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
-    family. Please update to the latest recommended driver version in that family.
+* | CUDA_VERSION - CUDA toolkit version (11.8 and 12.0 are officially supported, 11.0,
+    11.1, 11.2, 11.4, 11.5, 11.6 and 11.7 are deprecated and may not work).
+  | The default is ``12.0``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
+    11.5, 11.6, 11.7 and 11.8 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
+    family. Same applies to CUDA 12.0. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
     Dockerfile.cudaXXY.deps is present in the `docker/` directory.
@@ -145,8 +145,7 @@ Prerequisites
 .. |gds link| replace:: **GPU Direct Storage**
 .. _gds link: https://developer.nvidia.com/gpudirect-storage
 
-For the recommended dependency versions, links to the projects and the exact build commands used,
-please check https://github.com/NVIDIA/DALI_deps.
+DALI has several open-source dependencies. We keep them in two locations. First of all, the `main DALI repository <https://github.com/NVIDIA/DALI>`_ contains a ``third_party`` directory, which lists the source code based dependencies. Secondly, we maintain a `separate DALI_deps repository <https://github.com/NVIDIA/DALI_deps>`_, with the links to remaining dependencies. Please refer to the `DALI_deps README file <https://github.com/NVIDIA/DALI_deps/blob/main/README.rst>`_ for instructions, how to install the dependencies from that repository.
 
 The SHA of the currently used version of DALI_deps can be found in DALI_PROJECT_ROOT/DALI_EXTRA_VERSION.
 
@@ -359,6 +358,7 @@ Optional CMake Build Parameters
 -  ``BUILD_NVJPEG2K`` - build with ``nvJPEG2k`` support (default: OFF)
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
 -  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
+-  ``BUILD_CFITSIO`` - build with ``CFITSIO`` support (default: ON)
 -  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_LIBTAR`` - build with libtar support (default: ON)
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)

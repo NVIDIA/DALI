@@ -20,7 +20,7 @@
 #include <random>
 #include <string>
 #include <vector>
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/memory.h"
 
@@ -51,7 +51,7 @@ TEST(DynamicScratchpad, BasicTest) {
   for (int attempt = 0; attempt < max_attempts; attempt++) {
     char *pinned;
     {
-      DynamicScratchpad scratch({}, AccessOrder(stream));
+      DynamicScratchpad scratch({}, AccessOrder(stream.get()));
       pinned = scratch.Allocate<mm::memory_kind::pinned, char>(N);
       memcpy(pinned, in.data(), N);
       CUDA_CALL(cudaMemcpyAsync(dev.get(), pinned, N, cudaMemcpyHostToDevice, stream));

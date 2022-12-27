@@ -261,7 +261,7 @@ BoxEncoder<GPUBackend>::CalculateDims(
   return {boxes_output_shape, labels_output_shape};
 }
 
-void BoxEncoder<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+void BoxEncoder<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &boxes_input = ws.Input<GPUBackend>(kBoxesInId);
   const auto &labels_input = ws.Input<GPUBackend>(kLabelsInId);
   assert(ws.GetInputBatchSize(kBoxesInId) == ws.GetInputBatchSize(kLabelsInId));

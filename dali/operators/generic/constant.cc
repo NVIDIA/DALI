@@ -96,7 +96,7 @@ void FillTensorList(TensorList<CPUBackend> &dst, const TensorListShape<> &shape,
 }  // namespace
 
 template <>
-void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void Constant<CPUBackend>::RunImpl(Workspace &ws) {
   auto &out = ws.Output<CPUBackend>(0);
   if (output_.num_samples() == 0) {
     output_.set_pinned(out.is_pinned());

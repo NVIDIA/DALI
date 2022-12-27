@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_OPERATORS_GENERIC_ONE_HOT_CUH_
+#define DALI_OPERATORS_GENERIC_ONE_HOT_CUH_
+
 #include <cstdint>
 #include <algorithm>
 #include "dali/core/util.h"
 
 namespace dali {
-
-namespace detail {
+namespace one_hot {
 
 struct SampleDesc {
   uint64_t inner_vol, output_vol, inner_vol_classes;
@@ -50,6 +52,7 @@ dim3 gridHelper(uint64_t output_vol, int batch_size, int block = 256,
   return dim3(block_size, batch_size);
 }
 
-}  // namespace detail
-
+}  // namespace one_hot
 }  // namespace dali
+
+#endif  // DALI_OPERATORS_GENERIC_ONE_HOT_CUH_

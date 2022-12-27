@@ -51,9 +51,9 @@ struct GaussianNoiseImpl {
 };
 
 template <typename Backend>
-class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
+class GaussianNoise : public rng::RNGBase<Backend, GaussianNoise<Backend>, true> {
  public:
-  using BaseImpl = RNGBase<Backend, GaussianNoise<Backend>, true>;
+  using BaseImpl = rng::RNGBase<Backend, GaussianNoise<Backend>, true>;
 
   template <typename T>
   using Impl = GaussianNoiseImpl<Backend, T>;
@@ -64,7 +64,7 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
         stddev_("stddev", spec) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     mean_.Acquire(spec, ws, nsamples);
     stddev_.Acquire(spec, ws, nsamples);
   }
@@ -85,7 +85,7 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
   }
 
   using BaseImpl::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_GAUSSIAN_NOISE_TYPES), (
       using ImplT = Impl<T>;
       BaseImpl::template RunImplTyped<T, ImplT>(ws);

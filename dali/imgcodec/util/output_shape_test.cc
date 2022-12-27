@@ -26,6 +26,18 @@ TEST(OutputShapeTest, Trivial) {
   EXPECT_EQ(ii.shape, out);
 }
 
+TEST(OutputShapeTest, Grayscale) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  DecodeParams params;
+  params.format = DALI_GRAY;
+  OutputShape(out, ii, params, {});
+  EXPECT_EQ(out[0], 480);
+  EXPECT_EQ(out[1], 640);
+  EXPECT_EQ(out[2], 1);
+}
+
 TEST(OutputShapeTest, Planar) {
   ImageInfo ii;
   ii.shape = { 480, 640, 3 };
@@ -35,6 +47,20 @@ TEST(OutputShapeTest, Planar) {
   OutputShape(out, ii, params, {});
   ASSERT_EQ(out.sample_dim(), 3);
   EXPECT_EQ(out[0], 3);
+  EXPECT_EQ(out[1], 480);
+  EXPECT_EQ(out[2], 640);
+}
+
+TEST(OutputShapeTest, PlanarGrayscale) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  DecodeParams params;
+  params.planar = true;
+  params.format = DALI_GRAY;
+  OutputShape(out, ii, params, {});
+  ASSERT_EQ(out.sample_dim(), 3);
+  EXPECT_EQ(out[0], 1);
   EXPECT_EQ(out[1], 480);
   EXPECT_EQ(out[2], 640);
 }
@@ -83,6 +109,31 @@ TEST(OutputShapeTest, RoiBoth) {
   EXPECT_EQ(out[2], 3);
 }
 
+TEST(OutputShapeTest, NegativeRoi) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { -1, 5 };
+  roi.end = { 77, 55 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+  }
+}
+
+TEST(OutputShapeTest, RoiExceedingShape) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { 7, 5 };
+  roi.end = { 481, 641 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+  }
+}
 
 TEST(OutputShapeTest, Rotate) {
   ImageInfo ii;
@@ -106,7 +157,6 @@ TEST(OutputShapeTest, Rotate) {
   }
 }
 
-
 TEST(OutputShapeTest, RoiRotate) {
   ImageInfo ii;
   ii.shape = { 480, 640, 3 };
@@ -123,6 +173,120 @@ TEST(OutputShapeTest, RoiRotate) {
     EXPECT_EQ(out[1], 50);
     EXPECT_EQ(out[2], 3);
   }
+}
+
+TEST(OutputShapeTest, InvalidRoiRotate) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { 7, 5 };
+  roi.end = { 432, 543 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    if (a % 180 == 90) {
+      ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+    } else {
+      OutputShape(out, ii, {}, roi);
+      ASSERT_EQ(out.sample_dim(), 3);
+      EXPECT_EQ(out[0], 425);
+      EXPECT_EQ(out[1], 538);
+      EXPECT_EQ(out[2], 3);
+    }
+  }
+}
+
+TEST(PreOrientationRoiTest, Horizontal) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::HORIZONTAL)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 0);
+  EXPECT_EQ(roi.begin[1], 1);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 2);
+}
+
+TEST(PreOrientationRoiTest, MirrorHorizontal) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::MIRROR_HORIZONTAL)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 0);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 4);
+}
+
+TEST(PreOrientationRoiTest, Rotate180) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::ROTATE_180)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 4);
+  EXPECT_EQ(roi.end[1], 4);
+}
+
+TEST(PreOrientationRoiTest, MirrorVertical) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::MIRROR_VERTICAL)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 1);
+  EXPECT_EQ(roi.end[0], 4);
+  EXPECT_EQ(roi.end[1], 2);
+}
+
+TEST(PreOrientationRoiTest, MirrorHorizontalRotate270) {
+  ImageInfo info = {{4, 5, 3},
+                    FromExifOrientation(ExifOrientation::MIRROR_HORIZONTAL_ROTATE_270_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 1);
+  EXPECT_EQ(roi.begin[1], 0);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 2);
+}
+
+TEST(PreOrientationRoiTest, Rotate90) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::ROTATE_90_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 0);
+  EXPECT_EQ(roi.end[0], 3);
+  EXPECT_EQ(roi.end[1], 2);
+}
+
+TEST(PreOrientationRoiTest, MirrorHorizontalRotate90) {
+  ImageInfo info = {{4, 5, 3},
+                    FromExifOrientation(ExifOrientation::MIRROR_HORIZONTAL_ROTATE_90_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 3);
+  EXPECT_EQ(roi.end[1], 5);
+}
+
+TEST(PreOrientationRoiTest, Rotate270) {
+  ImageInfo info = {{4, 5, 3}, FromExifOrientation(ExifOrientation::ROTATE_270_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 1);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 5);
+}
+
+TEST(PreOrientationRoiTest, MirrorHorizontalRotate90WithoutChannel) {
+  ImageInfo info = {{4, 5},
+                    FromExifOrientation(ExifOrientation::MIRROR_HORIZONTAL_ROTATE_90_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 3);
+  EXPECT_EQ(roi.end[1], 5);
+}
+
+TEST(PreOrientationRoiTest, Rotate270WithExtraDim) {
+  ImageInfo info = {{10, 4, 5, 3}, FromExifOrientation(ExifOrientation::ROTATE_270_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 1);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 5);
 }
 
 }  // namespace imgcodec

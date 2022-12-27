@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/workspace/host_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 
 namespace dali {
 
-void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx, int thread_idx) {
+void MakeSampleView(SampleWorkspace &sample, Workspace &batch, int data_idx, int thread_idx) {
   sample.Clear();
   sample.set_data_idx(data_idx);
   sample.set_thread_idx(thread_idx);
+  sample.set_output_order(batch.output_order());
+  sample.SetThreadPool(batch.HasThreadPool() ? &batch.GetThreadPool() : nullptr);
   int num_inputs = batch.NumInput();
   for (int i = 0; i < num_inputs; i++) {
     if (batch.InputIsType<CPUBackend>(i)) {
@@ -47,7 +49,7 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   }
 }
 
-void FixBatchPropertiesConsistency(HostWorkspace& ws, bool contiguous) {
+void FixBatchPropertiesConsistency(Workspace &ws, bool contiguous) {
   for (int i = 0; i < ws.NumOutput(); i++) {
     ws.Output<CPUBackend>(i).UpdatePropertiesFromSamples(contiguous);
   }

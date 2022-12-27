@@ -68,7 +68,7 @@ TensorListShape<2> GetNormalizedShape(const TensorListShape<-1> &shape) {
   return result;
 }
 
-void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+void BbFlipGPU::RunImpl(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   const auto &shape = input.shape();
   auto nsamples = shape.num_samples();

@@ -69,7 +69,7 @@ copy_desc GetCopyDesc(char *output_sample, const char *input_sample, int out_ele
 }
 
 template <>
-void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void SequenceRearrange<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();

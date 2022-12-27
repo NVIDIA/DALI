@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,15 @@ TEST(ConvertSat, float2int) {
       ASSERT_EQ(ConvertSat<uint32_t>(f), clamped) << " with f = " << f;
     }
   }
+}
+
+TEST(ConvertSat, int2int) {
+  EXPECT_EQ((ConvertSat<uint8_t, int8_t>(42)), 42);
+  EXPECT_EQ((ConvertSat<uint8_t, int8_t>(-42)), 0);
+  EXPECT_EQ((ConvertSat<int8_t, uint8_t>(200)), 127);
+  EXPECT_EQ((ConvertSat<int32_t, uint64_t>(0x101234567ull)), 0x7fffffff);
+  EXPECT_EQ((ConvertSat<int64_t, uint64_t>(0xc123456701234567ull)), 0x7fffffffffffffffll);
+  EXPECT_EQ((ConvertSat<int32_t, int64_t>(-0x101234567ull)), int32_t(~0x7fffffff));
 }
 
 TEST(ConvertNorm, int2int) {

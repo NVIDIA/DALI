@@ -25,7 +25,8 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_slice import check_slice_output, abs_slice_start_and_end
-
+import itertools
+from nose2.tools import params
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -568,3 +569,58 @@ def test_crop_empty_layout():
     batch_size = 3
     for device in ['gpu', 'cpu']:
         yield check_crop_empty_layout, device, batch_size, in_shape
+
+
+@params(*itertools.product(('cpu', 'gpu'), ('HWC', 'FHWC', 'CHW')))
+def test_crop_arg_input(device, layout):
+    @pipeline_def
+    def pipe():
+        assert 'C' in layout
+        spatial_ndim = len(layout) - 1
+        shape = [100 if layout[i] != 'C' else 3 for i in range(len(layout))]
+        data = fn.random.uniform(range=[0, 255], shape=shape, device='cpu')
+        if device == 'gpu':
+            data = data.gpu()
+        data = fn.reshape(data, layout=layout)
+        crop_arg = fn.random.uniform(range=[10, 90], shape=(spatial_ndim,))
+        out = fn.crop(data, crop=crop_arg)
+        return out, crop_arg
+
+    p = pipe(batch_size=3, num_threads=1, device_id=0)
+    p.build()
+    out, shape = p.run()
+    ndim = len(layout)
+    channel_dim = layout.find('C')
+    spatial_dims = [k for k in range(ndim) if k != channel_dim]
+    for i in range(len(out)):
+        expected = list(np.array(shape[i], dtype=np.int32))
+        actual = [np.array(out[i].shape())[k] for k in spatial_dims]
+        assert expected == actual, f"{expected} != {actual}"
+
+
+@params(*itertools.product(('cpu', 'gpu'), ('round', 'truncate')))
+def test_crop_rounding(device, rounding):
+    # Checking window placement when the cropping window extent is an odd number
+    input_shape = (20, 8, 3)
+    crop = (11, 9)
+
+    @pipeline_def
+    def pipe():
+        data = fn.random.uniform(range=[0, 255], shape=input_shape, device='cpu')
+        if device == 'gpu':
+            data = data.gpu()
+        data = fn.reshape(data, layout='HWC')
+        cropped = fn.crop(data, crop=crop, out_of_bounds_policy='pad', rounding=rounding)
+        return data, cropped
+
+    p = pipe(batch_size=1, num_threads=1, device_id=0)
+    p.build()
+    input_data, cropped_data = p.run()
+    data = as_array(input_data[0])
+    cropped = as_array(cropped_data[0])
+    if rounding == 'truncate':
+        # padding happens to the right of the input
+        np.testing.assert_array_equal(data[4:15, :, :], cropped[:, 0:8, :])
+    elif rounding == 'round':
+        # padding happens to the left of the input
+        np.testing.assert_array_equal(data[5:16, :, :], cropped[:, 1:9, :])

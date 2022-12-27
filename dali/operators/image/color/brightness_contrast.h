@@ -75,7 +75,7 @@ class BrightnessContrastOp : public SequenceOperator<Backend> {
   // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.
-  bool ShouldExpand(const workspace_t<Backend> &ws) override {
+  bool ShouldExpand(const Workspace &ws) override {
     return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
   }
 
@@ -97,7 +97,7 @@ class BrightnessContrastOp : public SequenceOperator<Backend> {
     multiplier = brightness * contrast;
   }
 
-  void AcquireArguments(const workspace_t<Backend> &ws) {
+  void AcquireArguments(const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     if (this->spec_.ArgumentDefined("brightness")) {
       this->GetPerSampleArgument(brightness_, "brightness", ws, curr_batch_size);
@@ -117,12 +117,12 @@ class BrightnessContrastOp : public SequenceOperator<Backend> {
       contrast_ = std::vector<float>(curr_batch_size, kDefaultContrast);
     }
 
-    input_type_ = ws.template Input<Backend>(0).type();
+    input_type_ = ws.Input<Backend>(0).type();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
   }
 
   template <typename InputType>
-  const vector<float> &GetContrastCenter(const workspace_t<Backend> &ws, int num_samples) {
+  const vector<float> &GetContrastCenter(const Workspace &ws, int num_samples) {
     if (this->spec_.ArgumentDefined("contrast_center")) {
       this->GetPerSampleArgument(contrast_center_, "contrast_center", ws, num_samples);
     } else {
@@ -133,8 +133,8 @@ class BrightnessContrastOp : public SequenceOperator<Backend> {
     return contrast_center_;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     AcquireArguments(ws);
 
     auto sh = input.shape();
@@ -170,10 +170,10 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastCpu);
 
  protected:
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   template <typename OutputType, typename InputType, int ndim>
-  void RunImplHelper(workspace_t<CPUBackend> &ws);
+  void RunImplHelper(Workspace &ws);
 };
 
 
@@ -186,10 +186,10 @@ class BrightnessContrastGpu : public BrightnessContrastOp<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastGpu);
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   template <typename OutputType, typename InputType>
-  void RunImplHelper(workspace_t<GPUBackend> &ws);
+  void RunImplHelper(Workspace &ws);
 
   std::vector<float> addends_, multipliers_;
 };

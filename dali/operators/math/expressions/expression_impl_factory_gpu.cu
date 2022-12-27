@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Inspect `expr` to transform runtime information to static information, do the static
@@ -65,7 +66,8 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryGpuTernary(const ExprFunc &expr) {
   return result;
 }
 
-std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr) {
+std::unique_ptr<ExprImplBase>
+ExprImplFactory(const ExprNode &expr, GPUBackend) {
   DALI_ENFORCE(expr.GetNodeType() == NodeType::Function, "Only function nodes can be executed.");
 
   switch (expr.GetSubexpressionCount()) {
@@ -81,4 +83,5 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const E
   }
 }
 
+}  // namespace expr
 }  // namespace dali

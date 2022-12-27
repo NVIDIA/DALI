@@ -80,15 +80,15 @@ class VideoTestBase : public ::testing::Test {
    * @brief Utility to save decoded frame as a PNG file.
    * Frame is saved to the folder given as an argument.
    * Output file name is created with provaided ids of frame, sample and batch.
-   * 
+   *
    * For example:
-   * 
+   *
    * SaveFrame(ptr, 0, 1, 2, '/tmp', 800, 600)
-   * 
+   *
    * will save the frame as:
-   * 
+   *
    * /tmp/batch_002_sample_001_frame_000.png
-   * 
+   *
    * @param frame Frame data
    * @param frame_id FrameId that will be included in output file name
    * @param sample_id SampleId that will be included in output file name
@@ -117,9 +117,18 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<std::string> cfr_hevc_videos_paths_;
   static std::vector<std::string> vfr_hevc_videos_paths_;
 
+  static std::vector<std::string> cfr_mpeg4_videos_paths_;
+  static std::vector<std::string> vfr_mpeg4_videos_paths_;
+
+  static std::vector<std::string> cfr_mpeg4_mkv_videos_paths_;
+  static std::vector<std::string> vfr_mpeg4_mkv_videos_paths_;
+
   static std::vector<TestVideo> cfr_videos_;
   static std::vector<TestVideo> vfr_videos_;
   static std::vector<TestVideo> vfr_hevc_videos_;
+
+  static std::vector<std::string> cfr_raw_h264_videos_paths_;
+  static std::vector<std::string> cfr_raw_h265_videos_paths_;
 
   static void SetUpTestSuite();
 

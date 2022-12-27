@@ -110,14 +110,14 @@ def run_keras_single_device(device='cpu', device_id=0):
         model = keras_model()
         train_dataset = get_dataset(device, device_id)
 
-    model.fit(
-        train_dataset,
-        epochs=EPOCHS,
-        steps_per_epoch=ITERATIONS)
+        model.fit(
+            train_dataset,
+            epochs=EPOCHS,
+            steps_per_epoch=ITERATIONS)
 
-    assert model.evaluate(
-        train_dataset,
-        steps=ITERATIONS)[1] > TARGET
+        assert model.evaluate(
+            train_dataset,
+            steps=ITERATIONS)[1] > TARGET
 
 
 def graph_model(images, reuse, is_training):

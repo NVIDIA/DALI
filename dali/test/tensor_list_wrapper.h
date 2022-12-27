@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,12 +85,17 @@ class TensorListWrapper {
     std::unique_ptr<TensorList<DestinationBackend>> result(new TensorList<DestinationBackend>());
     ASSERT_NE(has_cpu(), has_gpu())
         << "Should contain TensorList from exactly one backend", nullptr;
+    AccessOrder order;
     if (has_cpu()) {
-      result->Copy(*cpu_, cudaStream_t(0));
+      order = std::is_same<DestinationBackend, CPUBackend>::value
+        ? AccessOrder::host()
+        : cudaStream_t(0);
+      result->Copy(*cpu_, order);
     } else {
-      result->Copy(*gpu_, cudaStream_t(0));
+      order = cudaStream_t(0);
+      result->Copy(*gpu_, order);
     }
-    CUDA_CALL(cudaStreamSynchronize(0));
+    AccessOrder::host().wait(order);
     return result;
   }
 

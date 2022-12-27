@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     auto inner_vol_classes = inner_vol * config_.num_classes;
     auto output_vol = outer_vol * inner_vol_classes;
 
-    memset(samples_cpu.data, 0, TestConfig::batch_size * sizeof(detail::SampleDesc));
+    memset(samples_cpu.data, 0, TestConfig::batch_size * sizeof(one_hot::SampleDesc));
     auto input_gpu = input_.gpu(stream_);
     auto output_gpu = output_.gpu(stream_);
     for (int sample_id = 0; sample_id < config_.batch_size; ++sample_id) {
@@ -80,10 +80,11 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     auto output_vol = input_vol * config_.num_classes;
 
     const int block = 256;
-    auto grid = detail::gridHelper(output_vol, config_.batch_size, block);
+    auto grid = one_hot::gridHelper(output_vol, config_.batch_size, block);
 
     Out on_value = 1, off_value = 0;
-    detail::PopulateOneHot<Out, In><<<grid, block, 0, stream_>>>(on_value, off_value, samples_gpu_);
+    one_hot::PopulateOneHot<Out, In>
+    <<<grid, block, 0, stream_>>>(on_value, off_value, samples_gpu_);
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
@@ -91,7 +92,7 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
     CUDA_CALL(cudaEventRecord(start, stream_));
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
-      detail::PopulateOneHot<Out, In><<<grid, block, 0, stream_>>>(
+      one_hot::PopulateOneHot<Out, In><<<grid, block, 0, stream_>>>(
         on_value, off_value, samples_gpu_);
     }
     CUDA_CALL(cudaEventRecord(end, stream_));
@@ -109,9 +110,9 @@ struct OneHotOpGpuPerfTest : public ::testing::Test {
 
   kernels::TestTensorList<In, TestConfig::ndim> input_;
   kernels::TestTensorList<Out, TestConfig::ndim + 1> output_;
-  kernels::TestTensorList<typename detail::SampleDesc, 1> sample_descs_tensor_;
+  kernels::TestTensorList<typename one_hot::SampleDesc, 1> sample_descs_tensor_;
 
-  const detail::SampleDesc *samples_gpu_;
+  const one_hot::SampleDesc *samples_gpu_;
 };
 
 TYPED_TEST_SUITE_P(OneHotOpGpuPerfTest);

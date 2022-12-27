@@ -20,11 +20,13 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
+#include "dali/pipeline/executor/source_info_propagation.h"
 
 namespace dali {
 
@@ -102,7 +104,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   // Process each CPU Op in batch
   for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU) && !exec_error_; ++cpu_op_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
-    auto ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
+    decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
 
     ws.SetBatchSizes(batch_size);
 
@@ -147,7 +149,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::MIXED, i);
     try {
-      auto ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
+      decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
@@ -169,13 +171,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   }
 
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    if (callback_) {
-      // Record event that will allow to call the callback after whole run of this pipeline is
-      // finished.
-      CUDA_CALL(
-          cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
-    }
-
     if (!mixed_output_events_.empty()) {
       int queue_id = mixed_idxs[OpType::MIXED];
       CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
@@ -183,10 +178,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
 
     // We know that this is the proper stream, we do not need to look it up in any workspace
     CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
-  } else {
-    if (callback_) {
-      callback_();
-    }
   }
 
   // Pass the work to the gpu stage
@@ -223,7 +214,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
     try {
-      auto ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
+      decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
@@ -255,14 +246,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   if (!gpu_output_events_.empty()) {
     int queue_id = gpu_idxs[OpType::GPU];
     CUDA_CALL(cudaEventRecord(gpu_output_events_.GetEvent(queue_id), gpu_op_stream_));
-  }
-
-  // Schedule the call to any callback registered previously
-  if (callback_) {
-    CUDA_CALL(
-        cudaStreamWaitEvent(gpu_op_stream_, mixed_callback_events_[gpu_idxs[OpType::MIXED]], 0));
-    CUDA_CALL(cudaStreamAddCallback(gpu_op_stream_, &detail::gpu_finished_callback,
-                                    static_cast<void *>(&callback_), 0));
   }
 
   // We know that this is the proper stream, we do not need to look it up in any workspace
@@ -306,7 +289,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-template <typename Workspace>
 void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws) {
   auto &output_desc = op_node.output_desc;
   auto &op = *op_node.op;
@@ -315,21 +297,55 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  cudaStream_t prev_stage_stream = ws.has_stream() && ws.stream() == gpu_op_stream_
-    ? mixed_op_stream_ : gpu_op_stream_;
 
-  auto order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
-  auto set_order = [&](auto &output) {
-    // NOTE: the stage streams are synchronized by the executor
-    bool need_sync = output.order().stream() != prev_stage_stream;
+  auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
+
+  // Try to infer from which stage the buffer comes from
+  auto order_to_stage_index = [&](AccessOrder order) {
+    if (!order || order == AccessOrder::host())
+      return 0;
+    else if (order == mixed_op_stream_)
+      return 1;
+    else if (order == gpu_op_stream_)
+      return 2;
+    else
+      return 3;  // foreign order, comes last
+  };
+
+  auto set_order = [&](auto &output, AccessOrder order) {
+    // Check if this stage (identified by ws_order) is already synchronized with the output's
+    // order. If yes, we're implicitly synchronized and we can skip sync.
+    bool need_sync = order_to_stage_index(output.order()) > order_to_stage_index(ws_order);
     output.set_order(order, need_sync);
   };
 
   for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.template OutputIsType<CPUBackend>(i)) {
-      set_order(ws.template Output<CPUBackend>(i));
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      set_order(ws.Output<CPUBackend>(i), AccessOrder::host());
     } else {
-      set_order(ws.template Output<GPUBackend>(i));
+      set_order(ws.Output<GPUBackend>(i), ws_order);
+    }
+  }
+
+  // Assuming that most operators don't expect empty input, and expect consistent input.
+  if (ws.NumInput() > 0) {
+    bool all_inputs_empty = true;
+    for (int i = 0; i < ws.NumInput(); i++) {
+      all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
+    }
+    if (all_inputs_empty) {
+      // We skip the execution of this operator and Reset the outputs in case some state was still
+      // present.
+      for (int i = 0; i < spec.NumOutput(); i++) {
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template Output<CPUBackend>(i).Reset();
+        } else {
+          ws.template Output<GPUBackend>(i).Reset();
+        }
+      }
+      // TODO(klecki): Instead of skipping the execution, rework all DALI operators to correctly
+      // propagate the dim, type and do validation (arguments, types, etc) with empty input batches.
+      return;
     }
   }
 
@@ -347,12 +363,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     bool had_empty_layout = false;
-    if (ws.template InputIsType<CPUBackend>(i)) {
+    if (ws.InputIsType<CPUBackend>(i)) {
       had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.template UnsafeMutableInput<CPUBackend>(i), schema, i);
+          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<CPUBackend>(i), schema, i);
     } else {
       had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.template UnsafeMutableInput<GPUBackend>(i), schema, i);
+          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<GPUBackend>(i), schema, i);
     }
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
@@ -374,10 +390,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
                     "CanInferOutputs should always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
-        if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template Output<CPUBackend>(i).Resize(desc.shape, desc.type);
+        if (ws.OutputIsType<CPUBackend>(i)) {
+          ws.Output<CPUBackend>(i).Resize(desc.shape, desc.type);
         } else {
-          ws.template Output<GPUBackend>(i).Resize(desc.shape, desc.type);
+          ws.Output<GPUBackend>(i).Resize(desc.shape, desc.type);
         }
       }
     } else {
@@ -387,17 +403,33 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
                     "always return false.");
     }
   }
+
+  ClearOutputSourceInfo(ws);
+
   {
     DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);
   }
 
+  PropagateSourceInfo(ws);
+
+  /* TODO(michalz): Find a way to make this valid in presence of passthrough between stages
+  // Set the output order to the stage's stream
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      ws.Output<CPUBackend>(i).set_order(ws_order);
+    } else {
+      ws.Output<GPUBackend>(i).set_order(ws_order);
+    }
+  }
+  */
+
   for (int i : empty_layout_in_idxs) {
-    if (ws.template InputIsType<CPUBackend>(i)) {
-      auto &in = ws.template UnsafeMutableInput<CPUBackend>(i);
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &in = ws.UnsafeMutableInput<CPUBackend>(i);
       in.SetLayout({});
     } else {
-      auto &in = ws.template UnsafeMutableInput<GPUBackend>(i);
+      auto &in = ws.UnsafeMutableInput<GPUBackend>(i);
       in.SetLayout({});
     }
   }

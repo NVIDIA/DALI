@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -192,17 +192,13 @@ struct DropDims {
     int64_t volumes[2*kMaxDims];
     int64_t kept_volumes[2*kMaxDims];
     int64_t vol_total = 1, vol_kept = 1;
-    int reduced_dims = 0;
-    int kept_dims = 0;
+
     for (int i = d - 1; i >= 0; i--) {
       volumes[i] = vol_total;
       kept_volumes[i] = vol_kept;
       vol_total *= shape[i];
       if ((axis_mask & (1u << i)) == 0) {
         vol_kept *= shape[i];
-        kept_dims++;
-      } else {
-        reduced_dims++;
       }
     }
 

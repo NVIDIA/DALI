@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "dali/core/format.h"
@@ -27,11 +28,13 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/type_tag.h"
+#include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief The first element contains vector of tiles, the second groups the tiles into task ranges
@@ -51,7 +54,8 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
     for (Index covered = 0; covered < sample_elements; covered += tile_size, extent_idx++) {
       auto actual_tile_size =
           std::min(static_cast<Index>(tile_size), shape[sample_idx].num_elements() - covered);
-      descs.push_back({sample_idx, extent_idx, static_cast<int>(actual_tile_size), tile_size});
+      descs.push_back(
+          {sample_idx, covered, static_cast<int>(actual_tile_size)});
     }
   }
   Index num_tasks = (descs.size() + num_tiles_in_task - 1) / num_tiles_in_task;
@@ -62,20 +66,35 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
     ranges.push_back({tiles_used, tiles_end});
     tiles_used = tiles_end;
   }
-  return std::make_tuple(descs, ranges);
+  return std::make_tuple(std::move(descs), std::move(ranges));
+}
+
+inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
+  std::vector<TileDesc> descs;
+  descs.reserve(shape.num_samples());
+  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+    descs.push_back({sample_idx, 0, shape.tensor_size(sample_idx)});
+  }
+  std::vector<TileRange> ranges;
+  int ntasks = descs.size();
+  ranges.reserve(ntasks);
+  for (int task = 0; task < ntasks; task++) {
+    ranges.push_back({task, task+1});
+  }
+  return std::make_tuple(std::move(descs), std::move(ranges));
 }
 
 /**
  * @brief Recurse over expression tree and return the only matching layout
  */
 template <typename Backend>
-DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backend> &ws) {
+DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const Workspace &ws) {
   if (expr.GetNodeType() == NodeType::Constant) {
     return "";
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    return ws.template Input<Backend>(e.GetInputIndex()).GetLayout();
+    return ws.Input<Backend>(e.GetInputIndex()).GetLayout();
   }
   if (expr.GetSubexpressionCount() == 0) {
     return "";
@@ -104,13 +123,13 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
  * @brief Recurse over expression tree, fill the missing types of TensorInputs
  */
 template <typename Backend>
-DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend> &ws) {
+DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws) {
   if (expr.GetNodeType() == NodeType::Constant) {
     return expr.GetTypeId();
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetTypeId(ws.template Input<Backend>(e.GetInputIndex()).type());
+    expr.SetTypeId(ws.Input<Backend>(e.GetInputIndex()).type());
     return expr.GetTypeId();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
@@ -155,58 +174,49 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
   return result;
 }
 
-inline TensorListShape<> ShapePromotion(const std::string &op,
-                                        span<const TensorListShape<> *> shapes,
-                                        int batch_size) {
-  const TensorListShape<> *out_shape = nullptr;
-  bool only_scalars = true;
-  for (int i = 0; i < shapes.size(); i++) {
-    bool scalar_input = IsScalarLike(*shapes[i]);
-    if (only_scalars) {
-      if (!out_shape || shapes[i]->sample_dim() > out_shape->sample_dim() || !scalar_input)
-        out_shape = shapes[i];
-      if (!scalar_input)
-        only_scalars = false;
-    } else {
-      DALI_ENFORCE(scalar_input || *out_shape == *shapes[i],
-                   make_string("Input shapes of elemenetwise arithemtic operator \"", op,
-                               "\" do not match. Expected equal shapes, got: ", op, "(",
-                               *out_shape, ", ", *shapes[i], ")."));
-    }
-  }
-  return *out_shape;
-}
-
 /**
  * @brief Recurse over expression tree and propagate shapes between expression nodes.
  *
- * @return The resulting shape of the expression
+ * @return False if the operand shapes required no broadcasting, by being either
+ *         identical shapes or scalar-like. True if the shapes needed broadcasting.
  */
 template <typename Backend>
-DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
-                                                           const workspace_t<Backend> &ws,
-                                                           int batch_size) {
+DLL_PUBLIC inline void PropagateShapes(TensorListShape<> &result_shape,
+                                       ExprNode &expr,
+                                       const Workspace &ws,
+                                       int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
     expr.SetShape(TensorListShape<0>(batch_size));
-    return expr.GetShape();
+    result_shape = expr.GetShape();
+    return;
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetShape(ws.template Input<Backend>(e.GetInputIndex()).shape());
-    return expr.GetShape();
+    expr.SetShape(ws.Input<Backend>(e.GetInputIndex()).shape());
+    result_shape = expr.GetShape();
+    return;
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = expr.GetSubexpressionCount();
   DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
                "Only unary, binary and ternary expressions are supported");
 
-  SmallVector<const TensorListShape<> *, kMaxArity> shapes;
+
+  SmallVector<TensorListShape<>, kMaxArity> shapes;
   shapes.resize(subexpression_count);
   for (int i = 0; i < subexpression_count; i++) {
-    shapes[i] = &PropagateShapes<Backend>(func[i], ws, batch_size);
+    PropagateShapes<Backend>(shapes[i], func[i], ws, batch_size);
   }
-  func.SetShape(ShapePromotion(func.GetFuncName(), make_span(shapes), batch_size));
-  return func.GetShape();
+  SmallVector<const TensorListShape<>*, kMaxArity> shapes_ptrs;
+  shapes.reserve(shapes.size());
+  for (const auto& sh : shapes)
+    shapes_ptrs.push_back(&sh);
+  auto shapes_ptrs_span = make_span(shapes_ptrs);
+
+  // Throws an error if the shapes can't be broadcast
+  BroadcastShape(result_shape, shapes_ptrs_span);
+  func.SetShape(result_shape);
+  return;
 }
 
 inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes) {
@@ -312,7 +322,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     for (int i = 1; i < ws.NumInput(); i++) {
       DALI_ENFORCE(ws.GetInputBatchSize(i) == ws.GetInputBatchSize(0),
@@ -331,17 +341,16 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    result_shape_ = PropagateShapes<Backend>(*expr_, ws, curr_batch_size);
+    PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
     output_desc[0] = {result_shape_, result_type_id_};
-    std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
     return true;
   }
 
   using Operator<Backend>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   void AllocateIntermediateNodes() {
@@ -368,7 +377,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   std::vector<TileDesc> tile_cover_;
   std::vector<TileRange> tile_range_;
   std::vector<ExprImplTask> exec_order_;
-  std::vector<std::vector<ExtendedTileDesc>> tiles_per_task_;
+  std::vector<std::vector<SampleDesc>> samples_per_task_;
   ConstantStorage<Backend> constant_storage_;
   ExprImplCache cache_;
   // For CPU we limit the tile size to limit the sizes of intermediate buffers
@@ -378,9 +387,11 @@ class ArithmeticGenericOp : public Operator<Backend> {
   // CPU packs up to 64 tiles in one task, GPU porcesses all of them in one task
   static constexpr int kTaskSize =
       std::is_same<Backend, CPUBackend>::value ? 64 : std::numeric_limits<int>::max();
+
   USE_OPERATOR_MEMBERS();
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_ARITHMETIC_H_

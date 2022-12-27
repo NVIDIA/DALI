@@ -65,7 +65,7 @@ TEST_F(VideoReaderTest, VariableFrameRate2) {
                                                                      "/db/video/vfr_test.mp4"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Build(this->Outputs());
   EXPECT_THROW([&]() {
       for (int i = 0; i < 10; ++i) {
@@ -105,7 +105,7 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
 
   pipe.Build(this->Outputs());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);
@@ -155,7 +155,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
           .AddOutput("frames", "gpu")
           .AddOutput("labels", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Build(this->LabelledOutputs());
 
   pipe.RunCPU();
@@ -214,7 +214,7 @@ TEST_F(VideoReaderTest, PackedBFrames) {
 
   pipe.Build(this->Outputs());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -251,7 +251,7 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
                                                                      "/db/video/vp9/vp9_0.mp4"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   try {
     pipe.Build(this->Outputs());
 
@@ -290,7 +290,7 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
                                                                      "/db/video/vp9/vp9_2.mp4"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   try {
     pipe.Build(this->Outputs());
 
@@ -327,7 +327,7 @@ TEST_F(VideoReaderTest, Vp8Profile0) {
                                                                      "/db/video/vp8/vp8.webm"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   try {
     pipe.Build(this->Outputs());
 
@@ -366,7 +366,7 @@ TEST_F(VideoReaderTest, MJpeg) {
                                                                      "/db/video/mjpeg/mjpeg.avi"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   try {
     pipe.Build(this->Outputs());
 
@@ -405,7 +405,7 @@ TEST_F(VideoReaderTest, HEVC) {
                              {testing::dali_extra_path() +"/db/video/hevc/sintel_trailer-720p.mp4"})
                        .AddOutput("frames", "gpu"));
 
-  DeviceWorkspace ws;
+  Workspace ws;
   constexpr int iterations = 10;
   try {
     pipe.Build(this->Outputs());
@@ -448,7 +448,7 @@ TEST_F(VideoReaderTest, FrameLabels) {
 
   pipe.Build(this->Output_frames_label_frame_num());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -494,7 +494,7 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
 
   pipe.Build(this->Output_frames_label_frame_num());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -542,7 +542,7 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
 
   pipe.Build(this->Output_frames_label_frame_num());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -590,7 +590,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -652,7 +652,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
 
   pipe.Build(this->Output_frames_frame_num_timestamp());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -698,7 +698,7 @@ TEST_F(VideoReaderTest, StartEndLabels) {
 
   pipe.Build(this->Output_frames_label_timestamp());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -738,7 +738,7 @@ TEST_F(VideoReaderTest, MultipleFrameRates) {
 
   pipe.Build(this->LabelledOutputs());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();

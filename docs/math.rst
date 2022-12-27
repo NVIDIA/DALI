@@ -101,6 +101,55 @@ Currently, DALI supports the following operations:
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
+Broadcasting
+------------
+
+The term "broadcasting" refers to how tensors with different shapes are treated in mathematical
+expressions. A value from a smaller tensor is "broadcast" so it contributes to multiple output
+values. At its simplest, a scalar value is broadcast to all output values. In more complex cases,
+the values can be broadcast along some dimensions if one of the operands has size 1 and the other is larger::
+
+                [[D, E],       [[ A+D,  B+E ],
+    [[A, B]] +   [F, G],   ==   [ A+F,  B+G ],
+                 [H, J]]        [ A+H,  B+J ]]
+
+
+In the example above, the operands have shapes of (1, 2) and (3, 2). The values from the array
+[[A, B]] are broadcast along axis 0. It's possible that both operands are subject to broadcasting
+along different dimensions::
+
+                [[D],      [[ A+D,  B+D ],
+    [[A, B ]] +  [E],  ==   [ A+E,  B+E ],
+                 [F]]       [ A+F,  B+F ]]
+
+
+In this example, the shapes are (1, 2) and (3, 1) - the first operand is broadcast along axis 0 and
+the second is broadcast along axis 1.
+
+Shape extension
+===============
+
+For convenience, if the arrays have different number of dimensions, the shapes are padded with outer unit dimensions::
+
+    shape of A == (480, 640, 3)
+    shape of B == (3)
+    shape of A + B == (480, 640, 3)   # b is treated as if it was shaped (1, 1, 3)
+
+
+Limitations
+===========
+
+The broadcasting operations in DALI can have only limited complexity. When broadcasting, the adjacent axes that need
+or do not need broadcasting are grouped. There can be up to six alternating broadcast/non-broadcast groups. Example of
+grouping::
+
+    shape of A == a, b, 1, c, d
+    shape of B == a, b, e, 1, 1
+    grouping dimensions (0..1) and (3..4)
+    grouped shapes:
+    a*b, 1, c*d
+    a*b, e, 1
+
 
 Mathematical Functions
 ----------------------

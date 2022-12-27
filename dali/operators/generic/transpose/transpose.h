@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,9 +31,14 @@ class Transpose : public Operator<Backend> {
  public:
   explicit inline Transpose(const OpSpec &spec)
       : Operator<Backend>(spec),
-        perm_(spec.GetRepeatedArgument<int>("perm")),
         transpose_layout_(spec.GetArgument<bool>("transpose_layout")),
         output_layout_arg_(spec.GetArgument<TensorLayout>("output_layout")) {
+    if (spec.HasArgument("perm"))
+      perm_ = spec.GetRepeatedArgument<int>("perm");
+    // perm_ is later populated based on the number of dims
+    // in case of default permutation
+    default_perm_ = perm_.empty();
+
     if (spec.HasArgument("output_layout")) {
       DALI_ENFORCE(!output_layout_arg_.empty(),
         "Providing an empty output layout is not supported");
@@ -72,20 +77,29 @@ class Transpose : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
-    SetOutputLayout(input);
-
+                 const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     const auto &input_shape = input.shape();
-    int dim = input_shape.sample_dim();
-    int pdim = perm_.size();
-    DALI_ENFORCE(dim == pdim, make_string("Input has different dimensionality (", dim,
-        ") than the length of the permutation (", pdim, ")"));
+    int ndim = input_shape.sample_dim();
 
+    if (default_perm_ && static_cast<int>(perm_.size()) != ndim) {
+      perm_.resize(ndim);
+      for (int i = 0; i < ndim; i++)
+        perm_[i] = ndim - 1 - i;
+    }
+
+    SetOutputLayout(input);
     output_desc.resize(1);
-    permute_dims(output_desc[0].shape, input_shape, make_span(perm_));
     output_desc[0].type = input.type();
+    output_desc[0].shape = input_shape;
 
+    if (!perm_.empty()) {
+      int dim = input_shape.sample_dim();
+      int pdim = perm_.size();
+      DALI_ENFORCE(dim == pdim, make_string("Input has different dimensionality (", dim,
+          ") than the length of the permutation (", pdim, ")"));
+      permute_dims(output_desc[0].shape, input_shape, perm_);
+    }
     return true;
   }
 
@@ -94,10 +108,11 @@ class Transpose : public Operator<Backend> {
   }
 
  protected:
-  std::vector<int> perm_;
   bool transpose_layout_;
   TensorLayout output_layout_arg_;
   TensorLayout output_layout_;
+  std::vector<int> perm_;
+  bool default_perm_ = false;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

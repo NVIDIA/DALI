@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ void BatchedPaste(
 
 
 template<>
-void Paste<GPUBackend>::RunHelper(DeviceWorkspace &ws) {
+void Paste<GPUBackend>::RunHelper(Workspace &ws) {
   auto curr_batch_size = ws.GetInputBatchSize(0);
   fill_value_.set_order(ws.stream());
   BatchedPaste<<<curr_batch_size, PASTE_BLOCKSIZE, 0, ws.stream()>>>(
@@ -119,12 +119,12 @@ void Paste<GPUBackend>::RunHelper(DeviceWorkspace &ws) {
 }
 
 template<>
-void Paste<GPUBackend>::SetupSharedSampleParams(DeviceWorkspace &ws) {
+void Paste<GPUBackend>::SetupSharedSampleParams(Workspace &ws) {
   // No setup shared between input sets
 }
 
 template<>
-void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
+void Paste<GPUBackend>::SetupSampleParams(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
@@ -191,7 +191,7 @@ void Paste<GPUBackend>::SetupSampleParams(DeviceWorkspace &ws) {
 }
 
 template<>
-void Paste<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void Paste<GPUBackend>::RunImpl(Workspace &ws) {
   SetupSampleParams(ws);
   RunHelper(ws);
 }

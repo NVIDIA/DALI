@@ -23,9 +23,9 @@ DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastGpu, GPU);
 DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastGpu, GPU);
 
 template <typename OutputType, typename InputType>
-void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
-  auto &output = ws.template Output<GPUBackend>(0);
+void BrightnessContrastGpu::RunImplHelper(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto sh = input.shape();
   int num_samples = input.num_samples();
@@ -60,8 +60,8 @@ void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, addends_, multipliers_);
 }
 
-void BrightnessContrastGpu::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+void BrightnessContrastGpu::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
       {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,8 +77,8 @@ class NormalizeBase : public Operator<Backend> {
 
   bool CanInferOutputs() const override { return true; }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     data_shape_ = input.shape();
     output_descs.resize(1);
     output_descs[0] = { data_shape_, output_type_ };
@@ -93,7 +93,7 @@ class NormalizeBase : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(input_type_, type2id, InputType, DALI_NORMALIZE_INPUT_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, DALI_NORMALIZE_OUTPUT_TYPES, (
         This().template RunTyped<OutputType, InputType>(ws);
@@ -110,7 +110,7 @@ class NormalizeBase : public Operator<Backend> {
     GetParamShapeFromAxes();
   }
 
-  void SetupAxes(const workspace_t<Backend> &ws) {
+  void SetupAxes(const Workspace &ws) {
     int dim = data_shape_.sample_dim();
     if (has_scalar_mean_ && has_scalar_stddev_) {
       UseAllAxes();
@@ -134,7 +134,7 @@ class NormalizeBase : public Operator<Backend> {
         GetParamShapeFromAxes();
     } else if (has_axis_names_arg_) {
       TensorLayout names = spec.GetArgument<TensorLayout>("axis_names");
-      const auto &input = ws.template Input<Backend>(0);
+      const auto &input = ws.Input<Backend>(0);
       auto dim_idx = GetDimIndices(input.GetLayout(), names);
       axes_ = dim_idx.to_vector();
       SetAxisMask();
@@ -184,7 +184,7 @@ class NormalizeBase : public Operator<Backend> {
     }
   }
 
-  void ConsumeArguments(const workspace_t<Backend> &ws) {
+  void ConsumeArguments(const Workspace &ws) {
     if (has_tensor_mean_) {
       mean_input_ = view<const float>(ws.ArgumentInput("mean"));
       param_shape_ = mean_input_.shape;

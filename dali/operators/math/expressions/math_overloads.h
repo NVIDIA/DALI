@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,12 +35,13 @@
 #endif
 
 namespace dali {
+namespace expr {
 
 DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_sqrt(T x) {
 #ifdef __CUDA_ARCH__
-  return sqrt(x);
+  return ::sqrt(x);
 #else
   return std::sqrt(x);
 #endif
@@ -56,7 +57,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_cbrt(T x) {
 #ifdef __CUDA_ARCH__
-  return cbrt(x);
+  return ::cbrt(x);
 #else
   return std::cbrt(x);
 #endif
@@ -66,7 +67,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_exp(T x) {
 #ifdef __CUDA_ARCH__
-  return exp(x);
+  return ::exp(x);
 #else
   return std::exp(x);
 #endif
@@ -76,7 +77,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_log(T x) {
 #ifdef __CUDA_ARCH__
-  return log(x);
+  return ::log(x);
 #else
   return std::log(x);
 #endif
@@ -86,7 +87,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_log2(T x) {
 #ifdef __CUDA_ARCH__
-  return log2(x);
+  return ::log2(x);
 #else
   return std::log2(x);
 #endif
@@ -96,7 +97,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_log10(T x) {
 #ifdef __CUDA_ARCH__
-  return log10(x);
+  return ::log10(x);
 #else
   return std::log10(x);
 #endif
@@ -118,7 +119,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_fabs(T x) {
 #ifdef __CUDA_ARCH__
-  return fabs(x);
+  return ::fabs(x);
 #else
   return std::fabs(x);
 #endif
@@ -128,7 +129,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_floor(T x) {
 #ifdef __CUDA_ARCH__
-  return floor(x);
+  return ::floor(x);
 #else
   return std::floor(x);
 #endif
@@ -138,7 +139,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_ceil(T x) {
 #ifdef __CUDA_ARCH__
-  return ceil(x);
+  return ::ceil(x);
 #else
   return std::ceil(x);
 #endif
@@ -148,7 +149,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_sin(T x) {
 #ifdef __CUDA_ARCH__
-  return sin(x);
+  return ::sin(x);
 #else
   return std::sin(x);
 #endif
@@ -158,7 +159,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_cos(T x) {
 #ifdef __CUDA_ARCH__
-  return cos(x);
+  return ::cos(x);
 #else
   return std::cos(x);
 #endif
@@ -168,7 +169,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_tan(T x) {
 #ifdef __CUDA_ARCH__
-  return tan(x);
+  return ::tan(x);
 #else
   return std::tan(x);
 #endif
@@ -178,7 +179,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_asin(T x) {
 #ifdef __CUDA_ARCH__
-  return asin(x);
+  return ::asin(x);
 #else
   return std::asin(x);
 #endif
@@ -188,7 +189,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_acos(T x) {
 #ifdef __CUDA_ARCH__
-  return acos(x);
+  return ::acos(x);
 #else
   return std::acos(x);
 #endif
@@ -198,7 +199,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_atan(T x) {
 #ifdef __CUDA_ARCH__
-  return atan(x);
+  return ::atan(x);
 #else
   return std::atan(x);
 #endif
@@ -208,7 +209,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_sinh(T x) {
 #ifdef __CUDA_ARCH__
-  return sinh(x);
+  return ::sinh(x);
 #else
   return std::sinh(x);
 #endif
@@ -218,7 +219,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_cosh(T x) {
 #ifdef __CUDA_ARCH__
-  return cosh(x);
+  return ::cosh(x);
 #else
   return std::cosh(x);
 #endif
@@ -228,7 +229,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_tanh(T x) {
 #ifdef __CUDA_ARCH__
-  return tanh(x);
+  return ::tanh(x);
 #else
   return std::tanh(x);
 #endif
@@ -238,7 +239,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_asinh(T x) {
 #ifdef __CUDA_ARCH__
-  return asinh(x);
+  return ::asinh(x);
 #else
   return std::asinh(x);
 #endif
@@ -248,7 +249,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_acosh(T x) {
 #ifdef __CUDA_ARCH__
-  return acosh(x);
+  return ::acosh(x);
 #else
   return std::acosh(x);
 #endif
@@ -258,7 +259,7 @@ DALI_NO_EXEC_CHECK
 template <typename T>
 DALI_HOST_DEV inline T math_atanh(T x) {
 #ifdef __CUDA_ARCH__
-  return atanh(x);
+  return ::atanh(x);
 #else
   return std::atanh(x);
 #endif
@@ -270,7 +271,7 @@ DALI_HOST_DEV inline auto math_pow(
     X x, Y y,
     std::enable_if_t<!std::is_integral<X>::value || !std::is_integral<Y>::value>* = nullptr) {
 #ifdef __CUDA_ARCH__
-  return pow(x, y);
+  return ::pow(x, y);
 #else
   return std::pow(x, y);
 #endif
@@ -299,13 +300,13 @@ DALI_NO_EXEC_CHECK
 template <typename X, typename Y>
 DALI_HOST_DEV inline auto math_atan2(X x, Y y) {
 #ifdef __CUDA_ARCH__
-  return atan2(x, y);
+  return ::atan2(x, y);
 #else
   return std::atan2(x, y);
 #endif
 }
 
-
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_MATH_OVERLOADS_H_

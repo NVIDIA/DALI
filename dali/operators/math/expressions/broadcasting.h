@@ -16,13 +16,16 @@
 #define DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_
 
 #include <utility>
+#include "dali/core/api_helper.h"
+#include "dali/core/small_vector.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 
 namespace dali {
+namespace expr {
 
 /**
- * @brief Returns the number of dimensions of the broadcasted shape
+ * @brief Returns the number of dimensions of the broadcast shape
  */
 DLL_PUBLIC int BroadcastNdim(span<const TensorShape<>*> shapes);
 DLL_PUBLIC int BroadcastNdim(span<const TensorListShape<>*> shapes);
@@ -59,8 +62,8 @@ void BroadcastShape(Shape &result, const Shape &a, const Shape &b, const Shape &
 }
 
 /**
- * @brief Verifies whether two shapes or more can be broadcasted
- *        Two shapes can be broadcasted if all the extents are either
+ * @brief Verifies whether two shapes or more can be broadcast
+ *        Two shapes can be broadcast if all the extents are either
  *        equal or one of them is equal to one for the `ndim` rightmost
  *        dimensions, being `ndim` the minimum number of dimensions of
  *        the two.
@@ -87,7 +90,7 @@ bool CanBroadcast(const Shape &a, const Shape &b, const Shape& c) {
  * @brief Returns true if the shapes require broadcasting
  *        Two or more shapes require broadcasting if they are not scalar-like
  *        and their shapes are not equal.
- * @remarks This function does not check whether the shapes can be broadcasted
+ * @remarks This function does not check whether the shapes can be broadcast
  *          For this, use CanBroadcast
  */
 DLL_PUBLIC bool NeedBroadcasting(span<const TensorShape<>*> shapes);
@@ -106,8 +109,8 @@ bool NeedBroadcasting(const Shape &a, const Shape &b, const Shape& c) {
 }
 
 /**
- * @brief Calculates strides to cover a possibly broadcasted shape.
- *        The stride for those broadcasted dimensions is set to 0
+ * @brief Calculates strides to cover a possibly broadcast shape.
+ *        The stride for those broadcast dimensions is set to 0
  */
 DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
                                                 const TensorShape<> &in_sh,
@@ -120,12 +123,22 @@ DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
 DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
- * @brief It simplifies a shape for arithmetic op execution with broadcasting.
- *        It detects and collapses adjacent dimensions that are not broadcasted
+ * @brief It simplifies shapes for arithmetic op execution with broadcasting.
+ *        It detects and collapses adjacent dimensions into groups of dimensions
+ *        that either broadcast or not.
+ * @param shapes span of shapes to broadcast
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
  */
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs);
+void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
 
+/**
+ * @brief Throws an error when the number of dimensions in the simplified shapes exceeds 6
+ */
+DLL_PUBLIC void CheckBroadcastingSimplifiedDim(int ndim);
+
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_

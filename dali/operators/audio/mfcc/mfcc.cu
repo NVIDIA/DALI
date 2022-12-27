@@ -61,7 +61,7 @@ std::vector<OutputDesc> SetupKernel(kernels::KernelManager &kmgr, kernels::Kerne
 
 template<>
 bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<GPUBackend> &ws) {
+                                 const Workspace &ws) {
   GetArguments(ws);
   ctx_.gpu.stream = ws.stream();
   auto &input = ws.Input<GPUBackend>(0);
@@ -85,7 +85,7 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template<>
-void MFCC<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void MFCC<GPUBackend>::RunImpl(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     using Kernel = kernels::signal::dct::Dct1DGpu<T>;

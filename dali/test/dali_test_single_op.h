@@ -278,7 +278,7 @@ class DALISingleOpTest : public DALITest {
     }
   }
 
-  void RunOperator(DeviceWorkspace *ws) {
+  void RunOperator(Workspace *ws) {
     SetTestCheckType(GetTestCheckType());
     FillExternalInputs();
     pipeline_->RunCPU();
@@ -289,13 +289,13 @@ class DALISingleOpTest : public DALITest {
   virtual
   vector<std::shared_ptr<TensorList<CPUBackend>>>
   Reference(const vector<TensorList<CPUBackend> *> &inputs,
-            DeviceWorkspace *ws) = 0;
+            Workspace *ws) = 0;
 
   /**
    * Check the desired calculated answers in ws (given by user-provided indices)
    * against a supplied reference implementation.
    */
-  void CheckAnswers(DeviceWorkspace *ws,
+  void CheckAnswers(Workspace *ws,
                     const vector<int>& output_indices) {
     // outputs_ contains map of idx -> (name, device)
     auto res = Reference(input_data_, ws);
@@ -447,10 +447,10 @@ class DALISingleOpTest : public DALITest {
     RunOperator(AddArguments(&spec, descr.args), descr.epsVal);
   }
 
-  void RunOperator(const OpSpec& spec, double eps, DeviceWorkspace *pWS = nullptr) {
+  void RunOperator(const OpSpec& spec, double eps, Workspace *pWS = nullptr) {
     AddSingleOp(spec);
 
-    DeviceWorkspace ws;
+    Workspace ws;
     if (!pWS)
       pWS = &ws;
 

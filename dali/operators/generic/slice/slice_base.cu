@@ -25,8 +25,8 @@ class SliceBaseGpu : public OpImplBase<GPUBackend> {
   using Kernel = kernels::SliceGPU<OutputType, InputType, Dims>;
   using SliceArgs = kernels::SliceArgs<OutputType, Dims>;
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   std::vector<SliceArgs>& Args() { return args_; }
 
@@ -37,8 +37,8 @@ class SliceBaseGpu : public OpImplBase<GPUBackend> {
 
 template <typename OutputType, typename InputType, int Dims>
 bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                                          const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+                                                          const Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
   int nsamples = in_shape.num_samples();
 
@@ -56,9 +56,9 @@ bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
 }
 
 template <typename OutputType, typename InputType, int Dims>
-void SliceBaseGpu<OutputType, InputType, Dims>::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
-  auto &output = ws.template Output<GPUBackend>(0);
+void SliceBaseGpu<OutputType, InputType, Dims>::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
 
   auto in_view = view<const InputType, Dims>(input);
   auto out_view = view<OutputType, Dims>(output);
@@ -70,8 +70,8 @@ void SliceBaseGpu<OutputType, InputType, Dims>::RunImpl(workspace_t<GPUBackend> 
 
 template <>
 bool SliceBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+                                      const Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   auto input_type = input.type();
   auto ndim = input.shape().sample_dim();
 
@@ -104,7 +104,7 @@ bool SliceBase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void SliceBase<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void SliceBase<GPUBackend>::RunImpl(Workspace &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

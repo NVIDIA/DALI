@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.16.3)
 
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
@@ -75,6 +75,8 @@ cmake_dependent_option(BUILD_LIBSND "Build with support for libsnd library" ON
 cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
+cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
@@ -109,12 +111,16 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+
 if(NOT (${ARCH} MATCHES "aarch64"))
   cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" OFF
+                         "NOT BUILD_DALI_NODEPS" OFF)
+  cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" OFF
                          "NOT BUILD_DALI_NODEPS" OFF)
 else()
   # make sure that even is set by -DBUILD_CUFILE it will be unset as not suppported
   unset(BUILD_CUFILE CACHE)
+  unset(BUILD_NVCOMP CACHE)
 endif()
 
 if (BUILD_DALI_NODEPS)
@@ -210,10 +216,12 @@ propagate_option(BUILD_LIBTIFF)
 propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
+propagate_option(BUILD_CFITSIO)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_NVCOMP)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)

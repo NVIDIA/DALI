@@ -20,6 +20,10 @@ test_py() {
     python test_data_containers.py -s -b 20 -n
 }
 
+test_autograph() {
+    ${python_new_invoke_test} -s autograph
+}
+
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
 }
@@ -27,6 +31,7 @@ test_pytorch() {
 test_no_fw() {
     test_py_with_framework
     test_py
+    test_autograph
 }
 
 run_all() {

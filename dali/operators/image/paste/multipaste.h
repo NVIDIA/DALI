@@ -98,8 +98,8 @@ class MultiPasteOp : public Operator<Backend> {
     return true;
   }
 
-  void AcquireArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    const auto &images = ws.template Input<Backend>(0);
+  void AcquireArguments(const OpSpec &spec, const Workspace &ws) {
+    const auto &images = ws.Input<Backend>(0);
 
     auto curr_batch_size = ws.GetRequestedBatchSize(0);
     if (curr_batch_size == 0)
@@ -117,7 +117,7 @@ class MultiPasteOp : public Operator<Backend> {
     if (shapes_.HasExplicitValue()) {
       shapes_.Acquire(spec, ws, curr_batch_size);
     }
-    input_type_ = ws.template Input<Backend>(0).type();
+    input_type_ = ws.Input<Backend>(0).type();
     output_type_ =
         output_type_arg_ != DALI_NO_TYPE
         ? output_type_arg_
@@ -197,18 +197,19 @@ class MultiPasteOp : public Operator<Backend> {
 
   using Operator<Backend>::RunImpl;
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    const auto input_type_id = ws.template Input<Backend>(0).type();
+  void RunImpl(Workspace &ws) override {
+    const auto input_type_id = ws.Input<Backend>(0).type();
     TYPE_SWITCH(input_type_id, type2id, InputType, (MULTIPASTE_INPUT_TYPES), (
         TYPE_SWITCH(output_type_, type2id, OutputType, (MULTIPASTE_OUTPUT_TYPES), (
                 This().template RunTyped<OutputType, InputType>(ws);
         ), UnsupportedOutpuType(output_type_))  // NOLINT
     ), UnsupportedInputType(input_type_id))  // NOLINT
+    SetSourceInfo(ws);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &images = ws.template Input<Backend>(0);
+                 const Workspace &ws) override {
+    const auto &images = ws.Input<Backend>(0);
     int ndim = images.sample_dim();
     DALI_ENFORCE(ndim == 3, "MultiPaste supports only 2D data with channels (HWC)");
 
@@ -269,6 +270,25 @@ class MultiPasteOp : public Operator<Backend> {
     return sh;
   }
 
+  void SetSourceInfo(Workspace &ws) {
+    auto &in = ws.Input<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
+    for (int  i = 0; i < out.num_samples(); i++) {
+      auto in_idx = in_idx_[i];
+      std::string out_source_info;
+      for (int j = 0; j < in_idx.shape[0]; j++) {
+        int source_sample = in_idx.data[j];
+        auto &&in_source_info = in.GetMeta(source_sample).GetSourceInfo();
+        if (!in_source_info.empty()) {
+          if (!out_source_info.empty())
+            out_source_info += ";";
+          out_source_info += in_source_info;
+        }
+      }
+      out.SetSourceInfo(i, out_source_info);
+    }
+  }
+
   inline Coords GetOutAnchors(int sample_num, int paste_num) const {
     return out_anchors_.HasExplicitValue()
            ? subtensor(out_anchors_[sample_num], paste_num)
@@ -310,10 +330,10 @@ class MultiPasteCPU : public MultiPasteOp<CPUBackend, MultiPasteCPU> {
 
  private:
   template<typename OutputType, typename InputType>
-  void RunTyped(workspace_t<CPUBackend> &ws);
+  void RunTyped(Workspace &ws);
 
   template<typename OutputType, typename InputType>
-  void SetupTyped(const workspace_t<CPUBackend> &ws,
+  void SetupTyped(const Workspace &ws,
                   const TensorListShape<> &out_shape);
 
   friend class MultiPasteOp<CPUBackend, MultiPasteCPU>;
@@ -325,10 +345,10 @@ class MultiPasteGPU : public MultiPasteOp<GPUBackend, MultiPasteGPU> {
 
  private:
   template<typename OutputType, typename InputType>
-  void RunTyped(workspace_t<GPUBackend> &ws);
+  void RunTyped(Workspace &ws);
 
   template<typename OutputType, typename InputType>
-  void SetupTyped(const workspace_t<GPUBackend> &ws,
+  void SetupTyped(const Workspace &ws,
                   const TensorListShape<> &out_shape);
 
   void InitSamples(const TensorListShape<> &out_shape);

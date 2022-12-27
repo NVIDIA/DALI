@@ -137,8 +137,8 @@ TEST_F(PngParserOrientationTest, MirrorHorizontalRotate270) {
   auto img = GetImage("mirror_horizontal_rotate_270");
   auto orientation = parser_.GetInfo(&img).orientation;
   EXPECT_EQ(360 - 270, NormalizeAngle(orientation.rotate));
-  EXPECT_EQ(true, orientation.flip_x);
-  EXPECT_EQ(false, orientation.flip_y);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(true, orientation.flip_y);
 }
 
 TEST_F(PngParserOrientationTest, Rotate90) {
@@ -153,8 +153,8 @@ TEST_F(PngParserOrientationTest, MirrorHorizontalRotate90) {
   auto img = GetImage("mirror_horizontal_rotate_90");
   auto orientation = parser_.GetInfo(&img).orientation;
   EXPECT_EQ(360 - 90, NormalizeAngle(orientation.rotate));
-  EXPECT_EQ(true, orientation.flip_x);
-  EXPECT_EQ(false, orientation.flip_y);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(true, orientation.flip_y);
 }
 
 TEST_F(PngParserOrientationTest, Rotate270) {

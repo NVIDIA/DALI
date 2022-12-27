@@ -91,11 +91,11 @@ class RandomObjectBBox : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) override;
-  void RunImpl(HostWorkspace &ws) override;
+  bool SetupImpl(vector<OutputDesc> &out_descs, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
-  void AcquireArgs(const HostWorkspace &ws, int N, int ndim);
+  void AcquireArgs(const Workspace &ws, int N, int ndim);
 
   bool HasClassLabelOutput() const {
     return class_output_idx_ >= 0;

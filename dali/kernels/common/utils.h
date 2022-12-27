@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,20 +34,24 @@ inline void CalcStrides(Stride *strides, const Extent *shape, int ndim) {
   }
 }
 
-
-template <typename Strides, typename Shape>
-DALI_HOST_DEV
-void CalcStrides(Strides &strides, const Shape& shape) {
+template <bool outer_first = true, typename Strides, typename Shape>
+DALI_HOST_DEV std::remove_reference_t<decltype(std::declval<Strides>()[0])> CalcStrides(
+    Strides &strides, const Shape &shape) {
   int ndim = dali::size(shape);
   resize_if_possible(strides, ndim);  // no-op if strides is a plain array or std::array
-  if (ndim > 0) {
-    int64_t v = 1;
-    for (int d = ndim - 1; d > 0; d--) {
-      strides[d] = v;
-      v *= shape[d];
+  int64_t ret = 1;
+  if (outer_first) {
+    for (int d = ndim - 1; d >= 0; d--) {
+      strides[d] = ret;
+      ret *= shape[d];
     }
-    strides[0] = v;
+  } else {
+    for (int d = 0; d < ndim; d++) {
+      strides[d] = ret;
+      ret *= shape[d];
+    }
   }
+  return ret;
 }
 
 template <typename Shape, typename OutShape = Shape>

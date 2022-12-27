@@ -176,6 +176,43 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   }
 }
 
+TYPED_TEST(TensorListTest, ConsistentDeviceAndOrder) {
+  using Backend = std::tuple_element_t<0, TypeParam>;
+  auto shape = uniform_list_shape(10, {1, 2, 3});
+  TensorList<Backend> non_pinned, cpu_pinned, empty;
+  non_pinned.SetContiguity(this->kContiguity);
+  cpu_pinned.SetContiguity(this->kContiguity);
+  empty.SetContiguity(this->kContiguity);
+
+  non_pinned.set_pinned(false);
+  // pin only for CPU, it doesn't make sense for GPU.
+  cpu_pinned.set_pinned(std::is_same_v<CPUBackend, Backend>);
+
+  non_pinned.Resize(shape, DALI_INT32);
+  cpu_pinned.Resize(shape, DALI_INT32);
+
+  // By default we use host order
+  EXPECT_EQ(non_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(cpu_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(empty.order(), AccessOrder::host());
+
+  if (std::is_same_v<CPUBackend, Backend>) {
+    // On CPU pinned memory is associated with device after allocation, regular memory is not
+    EXPECT_EQ(non_pinned.device_id(), CPU_ONLY_DEVICE_ID);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  } else {
+    // On GPU we associate all allocations with current device, by default 0.
+    EXPECT_EQ(non_pinned.device_id(), 0);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  }
+
+  // uninitialized is not associated with any device id
+  EXPECT_EQ(empty.device_id(), CPU_ONLY_DEVICE_ID);
+
+  // No zeroing of order
+  EXPECT_THROW(empty.set_order({}), std::runtime_error);
+}
+
 TYPED_TEST(TensorListTest, TestReserveResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorList<Backend> tl;
@@ -472,7 +509,7 @@ TYPED_TEST(TensorListTest, TestCopy) {
 
 TYPED_TEST(TensorListTest, TestCopyEmpty) {
   using Backend = std::tuple_element_t<0, TypeParam>;
-  TensorList<Backend> tl;
+  TensorList<Backend> tl, uninitialized;
   tl.SetContiguity(this->kContiguity);
 
   tl.template set_type<float>();
@@ -487,6 +524,13 @@ TYPED_TEST(TensorListTest, TestCopyEmpty) {
     ASSERT_EQ(tl.type(), tl2.type());
     ASSERT_EQ(tl._num_elements(), tl2._num_elements());
     ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
+
+    tl2.Copy(uninitialized);
+    ASSERT_FALSE(tl2.has_data());
+    ASSERT_EQ(uninitialized.num_samples(), tl2.num_samples());
+    ASSERT_EQ(uninitialized.type(), tl2.type());
+    ASSERT_EQ(uninitialized._num_elements(), tl2._num_elements());
+    ASSERT_EQ(uninitialized.GetLayout(), tl2.GetLayout());
   }
 }
 
@@ -828,6 +872,52 @@ TYPED_TEST(TensorListSuite, ResizeWithRecreate) {
 }
 
 
+TYPED_TEST(TensorListSuite, ResizeWithRecreate0d) {
+  // Check if the tensors that get back to the scope are correctly typed
+  // Scalar values cannot exist as 0-volume tensors, so they always have some allocation
+  for (auto contiguity : {BatchContiguity::Contiguous, BatchContiguity::Noncontiguous}) {
+    TensorList<TypeParam> tv;
+    tv.SetContiguity(contiguity);
+    tv.set_pinned(true);
+    auto shape0 = uniform_list_shape(3, TensorShape<0>{});
+    tv.Resize(shape0, DALI_UINT8);
+    EXPECT_EQ(tv.shape().num_samples(), 3);
+    EXPECT_EQ(tv.shape().sample_dim(), 0);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+
+    tv.SetSize(4);
+
+    EXPECT_EQ(tv.shape().num_samples(), 4);
+    EXPECT_EQ(tv.shape().sample_dim(), 0);
+
+    for (int i = 0; i < 4; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+
+    auto shape1 = uniform_list_shape(5, TensorShape<2>{1, 2});
+    tv.Resize(shape1);
+    EXPECT_EQ(tv.shape().num_samples(), 5);
+    EXPECT_EQ(tv.shape().sample_dim(), 2);
+
+    auto shape2 = uniform_list_shape(6, TensorShape<0>{});
+    tv.Resize(shape2, DALI_UINT8);
+    tv.SetSize(6);
+    EXPECT_EQ(tv.shape().num_samples(), 6);
+    for (int i = 0; i < 6; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+  }
+}
+
+
 TYPED_TEST(TensorListSuite, SetupLikeMultiGPU) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
@@ -871,12 +961,6 @@ std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> 
       {"layout", [layout](TensorList<Backend> &t) { t.SetLayout(layout); }},
       {"device id", [device_id](TensorList<Backend> &t) { t.set_device_id(device_id); }},
       {"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }},
-      {"order",
-       [device_id](TensorList<Backend> &t) {
-         constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-         const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
-         t.set_order(order);
-       }},
   };
 }
 
@@ -887,7 +971,7 @@ TYPED_TEST(TensorListSuite, PartialSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
@@ -985,7 +1069,7 @@ TYPED_TEST(TensorListSuite, FullSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
@@ -1243,6 +1327,71 @@ TYPED_TEST(TensorListSuite, NoncontiguousResize) {
     EXPECT_EQ(tv[i].type(), DALI_FLOAT);
     CompareWithNumber(tv[i], 2.f);
   }
+}
+
+
+TYPED_TEST(TensorListSuite, ResizeSample) {
+  TensorList<TypeParam> tv;
+  tv.SetContiguity(BatchContiguity::Automatic);
+
+  auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Contiguous);
+  EXPECT_TRUE(tv.IsContiguous());
+
+  for (int i = 0; i < 3; i++) {
+    FillWithNumber(tv[i], 1 + i * 1.f);
+  }
+
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NE(tv[i].raw_data(), nullptr);
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+    EXPECT_EQ(tv[i].type(), DALI_FLOAT);
+    CompareWithNumber(tv[i], 1 + i * 1.f);
+  }
+
+  auto new_sample_shape = TensorShape<>{10, 10, 3};
+  new_shape.set_tensor_shape(1, new_sample_shape);
+
+  tv.ResizeSample(1, new_sample_shape);
+
+  EXPECT_FALSE(tv.IsContiguous());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+  }
+
+  FillWithNumber(tv[1], 42.f);
+
+  EXPECT_EQ(tv[1].shape(), new_sample_shape);
+  EXPECT_EQ(tv[1].type(), DALI_FLOAT);
+  CompareWithNumber(tv[1], 42.f);
+
+  auto new_smaller_sample_shape = TensorShape<>{5, 5, 3};
+  new_shape.set_tensor_shape(1, new_smaller_sample_shape);
+
+  tv.ResizeSample(1, new_smaller_sample_shape);
+
+  EXPECT_FALSE(tv.IsContiguous());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+  }
+
+  FillWithNumber(tv[1], 42.f);
+
+  EXPECT_EQ(tv[1].shape(), new_smaller_sample_shape);
+  EXPECT_EQ(tv[1].type(), DALI_FLOAT);
+  CompareWithNumber(tv[1], 42.f);
+}
+
+
+TYPED_TEST(TensorListSuite, ResizeSampleProhibited) {
+  TensorList<TypeParam> tv;
+  auto sample_shape = TensorShape<>{10, 10};
+  tv.SetContiguity(BatchContiguity::Automatic);
+  EXPECT_THROW(tv.ResizeSample(0, sample_shape), std::runtime_error);
+  auto shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  tv.Resize(shape, DALI_FLOAT, BatchContiguity::Contiguous);
+
+  EXPECT_THROW(tv.ResizeSample(1, sample_shape), std::runtime_error);
 }
 
 

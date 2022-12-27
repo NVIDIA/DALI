@@ -1,0 +1,13 @@
+# AutoGraph uses 2 spaces, thus it requires a separate flake8 config
+[flake8]
+indent-size = 2
+color = auto
+count = True
+doctests = False
+max-doc-length = 100
+max-line-length = 100
+statistics = True
+# E741 - ambiguous variable name 'l'
+# E731 - do not assign a lambda expression, use a def
+# F401 - 'autograph.operators....' imported but unused - used to bring types into another module
+extend-ignore = E741,E731,F401

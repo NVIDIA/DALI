@@ -47,6 +47,30 @@ TEST(RoiTest, roi_to_TensorShape) {
 }
 
 
+TEST(RoiTest, roi_to_TensorShape_HW) {
+  {
+    Roi roi{0, 3};
+    auto sh = ::dali::kernels::ShapeFromRoi(roi);
+    TensorShape<2> ref_sh = {3, 3};
+    EXPECT_EQ(ref_sh, sh);
+  }
+  {
+    Roi roi{{0, 2},
+            {5, 6}};
+    auto sh = ::dali::kernels::ShapeFromRoi(roi);
+    TensorShape<2> ref_sh = {4, 5};
+    EXPECT_EQ(ref_sh, sh);
+  }
+  {
+    Roi roi{{0, 0},
+            {0, 0}};
+    auto sh = ::dali::kernels::ShapeFromRoi(roi);
+    TensorShape<2> ref_sh = {0, 0};
+    EXPECT_EQ(ref_sh, sh);
+  }
+}
+
+
 TEST(RoiTest, roi_to_TensorListShape) {
   using Rois = std::vector<Roi>;
   constexpr int nchannels = 3;
@@ -61,6 +85,23 @@ TEST(RoiTest, roi_to_TensorListShape) {
                                       {4, 5, nchannels},
                                       {0, 0, nchannels}};
   auto shs = ShapeFromRoi(make_cspan(rois), nchannels);
+  EXPECT_EQ(shs, TensorListShape<-1>(ref));
+}
+
+
+TEST(RoiTest, roi_to_TensorListShape_HW) {
+  using Rois = std::vector<Roi>;
+  Roi roi1{0, 3};
+  Roi roi2{{0, 2},
+           {5, 6}};
+  Roi roi3{{0, 0},
+           {0, 0}};
+  Rois rois = {roi1, roi2, roi3};
+
+  std::vector<TensorShape<-1>> ref = {{3, 3},
+                                      {4, 5},
+                                      {0, 0}};
+  auto shs = ShapeFromRoi(make_cspan(rois));
   EXPECT_EQ(shs, TensorListShape<-1>(ref));
 }
 

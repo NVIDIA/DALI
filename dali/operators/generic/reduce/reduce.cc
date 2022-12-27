@@ -27,6 +27,8 @@ DALI_SCHEMA(ReduceBase)
     "axes",
     R"code(Axis or axes along which reduction is performed.
 
+Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.
+
 Not providing any axis results in reduction of all elements.)code",
    nullptr)
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Name(s) of the axis or axes along which the reduction is performed.

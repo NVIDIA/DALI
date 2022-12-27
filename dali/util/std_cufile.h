@@ -42,11 +42,13 @@ class StdCUFileStream : public CUFileStream {
   void HandleIOError(int64 ret) const;
   size_t Size() const override;
 
-  ~StdCUFileStream() override {
-    Close();
-  }
+  ~StdCUFileStream() override;
 
  private:
+  StdCUFileStream(const StdCUFileStream &) = delete;
+  StdCUFileStream(StdCUFileStream &&) = delete;
+  StdCUFileStream &operator=(const StdCUFileStream &) = delete;
+  StdCUFileStream &operator=(StdCUFileStream &&) = delete;
   cufile::CUFileHandle f_ = {};
   size_t length_ = 0;
   size_t pos_ = 0;

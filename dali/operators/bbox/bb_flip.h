@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ class BbFlip : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     DALI_ENFORCE(input.type() == DALI_FLOAT, "Bounding box in wrong format");
     auto nsamples = input.shape().size();
     horz_.Acquire(spec_, ws, nsamples, TensorShape<0>{});
@@ -79,7 +79,7 @@ class BbFlipCPU : public BbFlip<CPUBackend> {
   explicit BbFlipCPU(const OpSpec &spec) : BbFlip<CPUBackend>(spec) {}
 
  protected:
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
   using BbFlip<CPUBackend>::RunImpl;
 
  private:

@@ -67,7 +67,7 @@ class OperatorBench : public DALIBenchmark {
       }
     }
     // Create workspace and set input and output
-    HostWorkspace ws;
+    Workspace ws;
     ws.AddInput(data_in);
     ThreadPool tp(num_threads, 0, false, "OperatorBench");
     ws.SetThreadPool(&tp);
@@ -108,7 +108,7 @@ class OperatorBench : public DALIBenchmark {
     CUDA_CALL(cudaStreamSynchronize(0));
 
     // Create workspace and set input and output
-    DeviceWorkspace ws;
+    Workspace ws;
     ws.AddInput(data_in_gpu);
     ws.set_stream(0);
 

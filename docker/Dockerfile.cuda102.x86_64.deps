@@ -12,5 +12,17 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_
     ./cuda_*.run --extract=/tmp/cuda/ --override && mv /tmp/cuda/cuda-toolkit/ /usr/local/cuda && \
     rm -f cuda_*.run;
 
+RUN NVCOMP_VERSION=2.4 && \
+    apt-get update && \
+    apt-get install wget -y && \
+    mkdir nvcomp && \
+    cd nvcomp && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_install_CUDA_10.2.tgz && \
+    tar -xvf nvcomp*.tgz && \
+    cp -rv include/nvcomp* /usr/local/cuda/include/ && \
+    cp -v lib/*.so /usr/local/cuda/lib64/ && \
+    cd .. && \
+    rm -rf nvcomp
+
 FROM scratch
 COPY --from=cuda /usr/local/cuda /usr/local/cuda

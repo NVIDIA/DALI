@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_GPU_H_
-#define DALI_KERNELS_SLICE_SLICE_GPU_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_GPU_CUH_
+#define DALI_KERNELS_SLICE_SLICE_GPU_CUH_
 
 #include <cuda_runtime.h>
 #include <utility>
@@ -21,6 +21,7 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/fast_div.h"
@@ -38,7 +39,7 @@ __device__ DALI_FORCEINLINE bool __ldg(const bool* ptr) {
 namespace dali {
 namespace kernels {
 
-namespace {
+namespace {  // NOLINT
 
 DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
   // check idx < 0 and idx >= data_extent at once
@@ -48,7 +49,7 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
 }  // namespace
 
 
-namespace detail {
+namespace slice_impl {
 
 template <int Dims>
 struct SliceSampleDesc {
@@ -229,7 +230,7 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
   }
 }
 
-}  // namespace detail
+}  // namespace slice_impl
 
 template <typename OutputType, typename InputType, int Dims>
 class SliceGPU {
@@ -277,8 +278,8 @@ class SliceGPU {
     se.add<mm::memory_kind::pinned, OutputType>(num_samples * nfill_values_);
     se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
 
-    se.add<mm::memory_kind::pinned, detail::SliceSampleDesc<Dims>>(num_samples);
-    se.add<mm::memory_kind::device, detail::SliceSampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::pinned, slice_impl::SliceSampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::device, slice_impl::SliceSampleDesc<Dims>>(num_samples);
 
     std::vector<int64_t> sample_sizes;
     sample_sizes.reserve(slice_args.size());
@@ -290,11 +291,11 @@ class SliceGPU {
 
     if (blocks_per_sm_ == 0) {
       CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
-                detail::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim, 0));
+                slice_impl::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim, 0));
     }
     unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
     uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
-    unsigned block_align = 32 * detail::PackedBuffer<OutputType>::kCapacity;
+    unsigned block_align = 32 * slice_impl::PackedBuffer<OutputType>::kCapacity;
     block_size_ = align_up(div_ceil(total_volume, max_active_blocks * waves), block_align);
     if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
     if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
@@ -304,8 +305,8 @@ class SliceGPU {
       block_count_ += div_ceil(sample_size, block_size_);
     }
 
-    se.add<mm::memory_kind::pinned, detail::SliceBlockDesc>(block_count_);
-    se.add<mm::memory_kind::device, detail::SliceBlockDesc>(block_count_);
+    se.add<mm::memory_kind::pinned, slice_impl::SliceBlockDesc>(block_count_);
+    se.add<mm::memory_kind::device, slice_impl::SliceBlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
 
     req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
@@ -337,10 +338,10 @@ class SliceGPU {
     CUDA_CALL(cudaGetLastError());
 
     // Host memory
-    detail::SliceSampleDesc<Dims> *sample_descs_cpu =
-        context.scratchpad->AllocatePinned<detail::SliceSampleDesc<Dims>>(num_samples);
-    detail::SliceBlockDesc *block_descs_cpu =
-        context.scratchpad->AllocatePinned<detail::SliceBlockDesc>(block_count_);
+    slice_impl::SliceSampleDesc<Dims> *sample_descs_cpu =
+        context.scratchpad->AllocatePinned<slice_impl::SliceSampleDesc<Dims>>(num_samples);
+    slice_impl::SliceBlockDesc *block_descs_cpu =
+        context.scratchpad->AllocatePinned<slice_impl::SliceBlockDesc>(block_count_);
 
     bool any_padded_sample = false;
     std::vector<int64_t> sample_sizes(in.size());
@@ -383,8 +384,8 @@ class SliceGPU {
       }
     }
 
-    detail::SliceSampleDesc<Dims> *sample_descs;
-    detail::SliceBlockDesc *block_descs;
+    slice_impl::SliceSampleDesc<Dims> *sample_descs;
+    slice_impl::SliceBlockDesc *block_descs;
     std::tie(sample_descs, block_descs) =
         context.scratchpad->ToContiguousGPU(context.gpu.stream,
                                             make_cspan(sample_descs_cpu, num_samples),
@@ -393,7 +394,7 @@ class SliceGPU {
 
     const auto grid = block_count_;
     BOOL_SWITCH(any_padded_sample, NeedPad, (
-      detail::SliceKernel<OutputType, InputType, Dims, NeedPad>
+      slice_impl::SliceKernel<OutputType, InputType, Dims, NeedPad>
         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
     ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
@@ -407,4 +408,4 @@ class SliceGPU {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_GPU_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_GPU_CUH_

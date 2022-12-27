@@ -1,4 +1,4 @@
-# Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,6 +67,8 @@ target_link_libraries(dali_kernels PUBLIC dali_core)
 
 if (WITH_DYNAMIC_CUDA_TOOLKIT)
   target_link_libraries(dali_kernels PRIVATE dynlink_cufft)
+  target_link_libraries(dali_kernels PRIVATE dynlink_npp)
+  target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
 else()
   target_link_libraries(dali_kernels PRIVATE ${CUDA_cufft_LIBRARY})
   target_link_libraries(dali_kernels PRIVATE "-Wl,--exclude-libs,${CUDA_cufft_LIBRARY}")
@@ -92,6 +94,9 @@ if (BUILD_TEST)
   target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali)
   target_link_libraries(dali_kernel_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(dali_kernel_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
+  if (WITH_DYNAMIC_CUDA_TOOLKIT)
+    target_link_libraries(dali_kernel_test PRIVATE dynlink_npp)
+  endif ()
   target_link_libraries(dali_kernel_test PRIVATE "-pie")
   set_target_properties(dali_kernel_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_kernel_test PROPERTIES OUTPUT_NAME "dali_kernel_test.bin")

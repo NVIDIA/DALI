@@ -14,6 +14,7 @@
 
 #include "dali/imgcodec/parsers/jpeg2000.h"
 #include "dali/core/byte_io.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 namespace imgcodec {

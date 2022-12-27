@@ -20,7 +20,7 @@
 
 namespace dali {
 
-bool WebdatasetReader::SetupImpl(std::vector<OutputDesc>& output_desc, const HostWorkspace& ws) {
+bool WebdatasetReader::SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) {
   DataReader<CPUBackend, std::vector<Tensor<CPUBackend>>>::SetupImpl(output_desc, ws);
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
@@ -40,7 +40,7 @@ bool WebdatasetReader::SetupImpl(std::vector<OutputDesc>& output_desc, const Hos
   return true;
 }
 
-void WebdatasetReader::RunImpl(HostWorkspace& ws) {
+void WebdatasetReader::RunImpl(Workspace &ws) {
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
 

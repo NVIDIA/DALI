@@ -28,7 +28,7 @@ template <typename ImgType>
 class GenericDecoderTest : public DALISingleOpTest<ImgType> {
  public:
   vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
-      const vector<TensorList<CPUBackend> *> &inputs, DeviceWorkspace *ws) override {
+      const vector<TensorList<CPUBackend> *> &inputs, Workspace *ws) override {
     // single input - encoded images
     // single output - decoded images
 
