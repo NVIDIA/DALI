@@ -18,6 +18,17 @@
 
 namespace dali {
 
+namespace {
+
+/**
+ * Checks, if the operator described by a given Schema is a VideoInput operator.
+ */
+inline bool IsVideoInput(const OpSchema &schema) {
+  return schema.name() == "experimental__inputs__Video";
+}
+
+}
+
 template <typename Backend>
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
