@@ -152,13 +152,10 @@ do
                 pip install /opt/dali/nvidia_dali*.whl
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
-            # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
+            # if we are using any wheel named nvidia- in the test, like nvidia-tensorflow
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels
-            # however avoid removing compat from the path
-            if [[ "$inst" == *nvidia-n* ]] || [[ "$inst" == *nvidia-c* ]] || [[ "$inst" == *nvidia-t* ]]; then
-                TAIL=${LD_LIBRARY_PATH#*compat}
-                LD_LIBRARY_PATH=${LD_LIBRARY_PATH/$TAIL/}
-                export LD_LIBRARY_PATH=${LD_LIBRARY_PATH##*:}
+            if [[ "$inst" == *nvidia-* ]]; then
+                export LD_LIBRARY_PATH=
             fi
         fi
         # test code
