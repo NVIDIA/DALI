@@ -28,10 +28,12 @@ fi
 # If driver version is less than 450 and CUDA version is 11,
 # add /usr/local/cuda/compat to LD_LIBRARY_PATH
 version_eq "$DALI_CUDA_MAJOR_VERSION" "11" && \
+test "$NVIDIA_SMI_DRIVER_VERSION" != "" && \
 version_lt "$NVIDIA_SMI_DRIVER_VERSION" "450.0" && \
 export LD_LIBRARY_PATH="/usr/local/cuda/compat:$LD_LIBRARY_PATH"
 
 version_eq "$DALI_CUDA_MAJOR_VERSION" "12" && \
+test "$NVIDIA_SMI_DRIVER_VERSION" != "" && \
 version_lt "$NVIDIA_SMI_DRIVER_VERSION" "525.0" && \
 export LD_LIBRARY_PATH="/usr/local/cuda-12.0/compat:$LD_LIBRARY_PATH"
 
