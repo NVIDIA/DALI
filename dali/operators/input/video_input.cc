@@ -27,14 +27,14 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const Workspace &ws) {
   if (!valid_) {
     InputOperator<CPUBackend>::HandleDataAvailability();
-    TensorList<CPUBackend> encoded_videos;
-    encoded_videos.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
+    encoded_videos_.Reset();
+    encoded_videos_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
     frames_decoders_.resize(input_batch_size);
     auto &thread_pool = ws.GetThreadPool();
-    this->ForwardCurrentData(encoded_videos, thread_pool);
+    this->ForwardCurrentData(encoded_videos_, thread_pool);
 
     // Creating FramesDecoders
-    auto sample = encoded_videos[0];
+    auto sample = encoded_videos_[0];
     auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     size_t size = sample.shape().num_elements();
     frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, false);

@@ -188,6 +188,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
   /// Valid VideoInput is the one that has the encoded video loaded and will return decoded sequence
   bool valid_ = false;
+  TensorList<CPUBackend> encoded_videos_;
 
   /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;
