@@ -11,3 +11,7 @@ popd
 pushd ../TL0_python-self-test-operators
 bash -e ./test.sh
 popd
+
+pushd ../TL0_python-self-test-operators_b
+bash -e ./test.sh
+popd

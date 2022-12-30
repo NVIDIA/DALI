@@ -22,6 +22,10 @@ pushd ../TL0_python-self-test-operators
 bash -e ./test.sh
 popd
 
+pushd ../TL0_python-self-test-operators_b
+bash -e ./test.sh
+popd
+
 # restore old CUDA symlink, reinstall the latest CUDA wheels
 version_eq "$CUDA_VERSION_MAJOR" "11" && \
   rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda && \

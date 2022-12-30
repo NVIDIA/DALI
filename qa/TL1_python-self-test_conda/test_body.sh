@@ -6,6 +6,7 @@ test_py_with_framework() {
     done
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s operator
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s operator_b
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s reader
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s decoder
 }
