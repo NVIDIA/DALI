@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import os
-import unittest
 
 import numpy as np
 
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import get_dali_extra_path, np_type_to_dali, check_batch
-from nose_utils import assert_raises
 from nose2.tools import params
 
 from filter_test_utils import filter_img_baseline
@@ -51,6 +48,22 @@ def create_filter_anchor_source(shapes):
     return source
 
 
+def create_sample_source(shapes, dtype):
+    rng = np.random.default_rng(42)
+    if not np.issubdtype(dtype, np.integer):
+        low, high = 0, 1
+    else:
+        type_info = np.iinfo(dtype)
+        low, high = type_info.min, type_info.max
+
+    def source(sample_info):
+        shape_idx = sample_info.idx_in_batch % len(shapes)
+        shape = shapes[shape_idx]
+        return rng.uniform(low, high, shape)
+
+    return source
+
+
 @pipeline_def
 def images_pipeline(shapes, border, in_dtype):
     images, _ = fn.readers.file(name="Reader", file_root=images_dir, prefetch_queue_depth=2,
@@ -67,6 +80,21 @@ def images_pipeline(shapes, border, in_dtype):
     else:
         convolved = fn.experimental.filter(images, filters, anchor=anchors, border=border)
     return convolved, images, filters, anchors, fill_values
+
+
+@pipeline_def
+def sample_pipeline(sample_shapes, filter_shapes, border, in_dtype):
+    samples = fn.external_source(source=create_sample_source(sample_shapes), batch=False)
+    filters, anchors = fn.external_source(source=create_filter_anchor_source(filter_shapes),
+                                          batch=False, num_outputs=2)
+    fill_val_limit = 1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
+    fill_values = fn.random.uniform(range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype))
+    if border == "constant":
+        convolved = fn.experimental.filter(samples, filters, fill_values, anchor=anchors,
+                                           border=border)
+    else:
+        convolved = fn.experimental.filter(samples, filters, anchor=anchors, border=border)
+    return convolved, samples, filters, anchors, fill_values
 
 
 @params((np.uint8, 16, "101"), (np.uint8, 11, "clamp"), (np.uint8, 4, "constant"),
@@ -91,7 +119,10 @@ def test_image_pipeline(dtype, batch_size, border):
         assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
         baseline = [
             filter_img_baseline(img, kernel, anchor, border, fill_value)
-            for img, kernel, anchor, fill_value
-            in zip(imgs, kernels, anchors, fill_values)
+            for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
         ]
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
+
+
+def test_float16_images():
+    pass
