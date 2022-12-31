@@ -33,12 +33,15 @@ Sample can be an image, a video or volumetric (3D) data.
 Samples can contain channels: channel-first and channel-last layouts are supported.
 In case of video/sequences, the frame extent must preced the channels extent.
 For example, a video with ``"FCHW"`` layout is supported, but ``"CFHW"`` samples are not.
+Samples with the following types are supported:
+int8, int16, uint8, uint16, float16, float32.
+Please note that the intermediate type used for the computation is always float32.
 
 For inputs with two spatial dimensions (images or video), the filters must be 2D arrays
 (or a sequence of 2D arrays to be applied
 :func:`per-frame<nvidia.dali.fn.per_frame>` to a video input).
 For volumetric inputs, the filter must be a 3D array.
-The coefficients of filter must be floats.
+The filter values must have float32 type.
 
 If the optional third positional argument is specified, it must be a batch of scalars.
 If ``"border"`` is set to ``"constant"``, the input samples will be padded with
@@ -100,6 +103,11 @@ Supported values are: ``"reflect_101"``, ``"reflect_1001"``, ``"wrap"``,
                     "same")
     .AddOptionalTypeArg("dtype", R"code(Output data type.
 The output type can either be float or must be same as input type.
-If not set, the input type is used.)code");
+If not set, the input type is used.
+
+.. note::
+  The intermediate type used for actual computation is float32. If the output is of integral type,
+  the values will be clamped to the output type range.
+)code");
 
 }  // namespace dali
