@@ -59,7 +59,7 @@ def create_sample_source(shapes, dtype):
     def source(sample_info):
         shape_idx = sample_info.idx_in_batch % len(shapes)
         shape = shapes[shape_idx]
-        return rng.uniform(low, high, shape)
+        return dtype(rng.uniform(low, high, shape))
 
     return source
 
@@ -84,17 +84,22 @@ def images_pipeline(shapes, border, in_dtype, mode):
 
 
 @pipeline_def
-def sample_pipeline(sample_shapes, filter_shapes, border, in_dtype):
-    samples = fn.external_source(source=create_sample_source(sample_shapes), batch=False)
+def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtype, mode):
+    samples = fn.external_source(source=create_sample_source(sample_shapes, in_dtype), batch=False,
+                                 layout=sample_layout)
     filters, anchors = fn.external_source(source=create_filter_anchor_source(filter_shapes),
                                           batch=False, num_outputs=2)
     fill_val_limit = 1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
-    fill_values = fn.random.uniform(range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype))
+    rand_fill_dtype = in_dtype if in_dtype != np.float16 else np.float32
+    fill_values = fn.random.uniform(range=[0, fill_val_limit],
+                                    dtype=np_type_to_dali(rand_fill_dtype))
+    fill_values = fn.cast_like(fill_values, samples)
     if border == "constant":
-        convolved = fn.experimental.filter(samples, filters, fill_values, anchor=anchors,
-                                           border=border)
+        convolved = fn.experimental.filter(samples.gpu(), filters, fill_values, anchor=anchors,
+                                           border=border, mode=mode)
     else:
-        convolved = fn.experimental.filter(samples, filters, anchor=anchors, border=border)
+        convolved = fn.experimental.filter(samples.gpu(), filters, anchor=anchors, border=border,
+                                           mode=mode)
     return convolved, samples, filters, anchors, fill_values
 
 
@@ -134,5 +139,34 @@ def test_image_pipeline(dtype, batch_size, border, mode):
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
 
 
-def test_float16_images():
-    pass
+@params(
+    (np.float16, [(501, 127, 3), (600, 600, 1), (128, 256, 5),
+                  (200, 500, 2)], "HWC", [(3, 3), (8, 5), (10, 4), (70, 1),
+                                          (1, 70)], 8, "101", "same"), )
+def test_samples(dtype, sample_shapes, sample_layout, filter_shapes, batch_size, border, mode):
+    num_iters = 2
+
+    pipe = sample_pipeline(batch_size=batch_size, num_threads=4, device_id=0,
+                           sample_shapes=sample_shapes, sample_layout=sample_layout,
+                           filter_shapes=filter_shapes, border=border, in_dtype=dtype, mode=mode)
+    pipe.build()
+    if dtype == np.float32:
+        atol = 1e-5
+    elif dtype == np.float16:
+        atol = 1e-2
+    else:
+        assert np.issubdtype(dtype, np.integer)
+        atol = 1
+    for _ in range(num_iters):
+        filtered_imgs, imgs, kernels, anchors, fill_values = pipe.run()
+        filtered_imgs = [np.array(img) for img in filtered_imgs.as_cpu()]
+        imgs = [np.array(img) for img in imgs]
+        kernels = [np.array(kernel) for kernel in kernels]
+        anchors = [np.array(anchor) for anchor in anchors]
+        fill_values = [np.array(fv) for fv in fill_values]
+        assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
+        baseline = [
+            filter_img_baseline(img, kernel, anchor, border, fill_value, mode)
+            for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
+        ]
+        check_batch(filtered_imgs, baseline, max_allowed_error=atol)
