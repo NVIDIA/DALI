@@ -61,7 +61,7 @@ bool Filter<GPUBackend>::ShouldExpand(const Workspace& ws) {
 
 template <>
 template <typename Out, typename In, typename W>
-std::unique_ptr<OpImplBase<GPUBackend>> Filter<GPUBackend>::GetFilterImpl<Out, In, W>(
+std::unique_ptr<OpImplBase<GPUBackend>> Filter<GPUBackend>::GetFilterImpl(
     const OpSpec& spec, const filter::InputDesc& input_desc) {
   return filter::get_filter_gpu_op_impl<Out, In, W>(spec, input_desc);
 }
