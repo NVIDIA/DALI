@@ -32,6 +32,7 @@ leak:dali::mm::AsyncDeleter
 leak:ReleaseDevice
 leak:ReleasePinned
 leak:cudaGetDevice
+leak:nvjpegCreateEx
 leak:dali::optical_flow::OpticalFlowImpl::CreateOf
 leak:dali::kernels::DynamicScratchpad::~DynamicScratchpad
 leak:dali::kernels::DynamicScratchpad::AllocImpl
