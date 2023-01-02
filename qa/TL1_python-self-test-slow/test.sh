@@ -8,7 +8,8 @@ test_body() {
         ${python_invoke_test} --attr 'slow' ${test_script}
     done
 
-    ${python_new_invoke_test} --config unittest_slow.cfg -s operator
+    ${python_new_invoke_test} --config unittest_slow.cfg -s operator_1
+    ${python_new_invoke_test} --config unittest_slow.cfg -s operator_2
 }
 
 pushd ../..
