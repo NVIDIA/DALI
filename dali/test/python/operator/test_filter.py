@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ def create_sample_source(shapes, dtype):
 
 
 @pipeline_def
-def images_pipeline(shapes, border, in_dtype):
+def images_pipeline(shapes, border, in_dtype, mode):
     images, _ = fn.readers.file(name="Reader", file_root=images_dir, prefetch_queue_depth=2,
                                 random_shuffle=True, seed=42)
     images = fn.experimental.decoders.image(images, device="mixed", output_type=types.RGB,
@@ -76,9 +76,10 @@ def images_pipeline(shapes, border, in_dtype):
     fill_values = fn.random.uniform(range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype))
     if border == "constant":
         convolved = fn.experimental.filter(images, filters, fill_values, anchor=anchors,
-                                           border=border)
+                                           border=border, mode=mode)
     else:
-        convolved = fn.experimental.filter(images, filters, anchor=anchors, border=border)
+        convolved = fn.experimental.filter(images, filters, anchor=anchors, border=border,
+                                           mode=mode)
     return convolved, images, filters, anchors, fill_values
 
 
@@ -97,16 +98,25 @@ def sample_pipeline(sample_shapes, filter_shapes, border, in_dtype):
     return convolved, samples, filters, anchors, fill_values
 
 
-@params((np.uint8, 16, "101"), (np.uint8, 11, "clamp"), (np.uint8, 4, "constant"),
-        (np.int8, 7, "1001"), (np.int16, 8, "wrap"), (np.int16, 1, "constant"),
-        (np.float32, 11, "constant"), (np.float32, 13, "101"))
-def test_image_pipeline(dtype, batch_size, border):
+@params(
+    (np.uint8, 16, "101", "same"),
+    (np.uint8, 11, "clamp", "same"),
+    (np.uint8, 4, "constant", "same"),
+    (np.int8, 7, "1001", "same"),
+    (np.int16, 8, "wrap", "same"),
+    (np.int16, 1, "constant", "same"),
+    (np.float32, 11, "constant", "same"),
+    (np.float32, 13, "101", "same"),
+    (np.uint8, 4, "constant", "valid"),
+    (np.float32, 7, "101", "valid"),
+)
+def test_image_pipeline(dtype, batch_size, border, mode):
     shapes = [(3, 3), (8, 8), (31, 1), (1, 31), (1, 1), (51, 3), (3, 51), (2, 40), (2, 40), (2, 2),
               (27, 27)]
     num_iters = 2
 
     pipe = images_pipeline(batch_size=batch_size, num_threads=4, device_id=0, border=border,
-                           in_dtype=dtype, shapes=shapes)
+                           in_dtype=dtype, shapes=shapes, mode=mode)
     pipe.build()
     atol = 1 if np.issubdtype(dtype, np.integer) else 1e-5
     for _ in range(num_iters):
@@ -118,7 +128,7 @@ def test_image_pipeline(dtype, batch_size, border):
         fill_values = [np.array(fv) for fv in fill_values]
         assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
         baseline = [
-            filter_img_baseline(img, kernel, anchor, border, fill_value)
+            filter_img_baseline(img, kernel, anchor, border, fill_value, mode)
             for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
         ]
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
