@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1331,6 +1331,7 @@ excluded_methods = [
     "paste",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.debayer",  # not supported for CPU
+    "experimental.filter",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
     "experimental.remap",  # operator is GPU-only
 ]
