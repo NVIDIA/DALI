@@ -45,11 +45,10 @@ shift_pixel_origin_per_batch(T **data, const size_t *sample_sizes, size_t n_samp
 
 template<typename T>
 void
-invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samples, T shift_value,
-                        cudaStream_t stream) {
+invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samples,
+                        size_t max_sample_size, T shift_value, cudaStream_t stream) {
   static constexpr int kBlockSize = 1024;
   static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSize);
-  auto max_sample_size = *std::max_element(sample_sizes, sample_sizes + n_samples);
   auto max_blocks = static_cast<int>((max_sample_size + kBlockSize - 1) * kOneOverBlockSize);
   dim3 block_size(kBlockSize);
   dim3 grid_size(std::min(max_blocks, 64), std::min(n_samples, 64));
@@ -62,18 +61,16 @@ template<typename StorageBackend, typename T, int ndims>
 T **GetGpuAccessibleTensors(TensorListView <StorageBackend, T, ndims> tlv,
                             dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
   using DataType = T *;
-  auto data_size = tlv.num_samples() * sizeof(DataType);
-  DataType *ret = ds.template AllocatePinned<DataType>(data_size);
-  CUDA_CALL(cudaMemcpyAsync(ret, tlv.data.data(), data_size, cudaMemcpyDefault, stream));
+  DataType *tmp = ds.template ToPinned(tlv.data);
+  DataType *ret = ds.template ToGPU(stream, span<DataType>(tmp, tlv.num_samples()));
   return ret;
 }
 
 
 size_t *GetGpuAccessibleSampleSizes(size_t *sample_sizes, size_t n_samples,
                                     dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
-  auto data_size = n_samples * sizeof(size_t);
-  auto ret = ds.template AllocatePinned<size_t>(data_size);
-  CUDA_CALL(cudaMemcpyAsync(ret, sample_sizes, data_size, cudaMemcpyDefault, stream));
+  auto tmp = ds.template ToPinned(span<size_t>(sample_sizes, n_samples));
+  auto ret = ds.template ToGPU(stream, span<size_t>(tmp, n_samples));
   return ret;
 }
 
@@ -89,10 +86,11 @@ void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
   for (int i = 0; i < n_samples; i++) {
     sample_sizes_vec[i] = volume(tlv.template tensor_shape(i));
   }
+  auto max_sample_size = *std::max_element(sample_sizes_vec.begin(), sample_sizes_vec.end());
   invoke_kernel_per_batch(
           GetGpuAccessibleTensors(tlv, ds, stream),
           GetGpuAccessibleSampleSizes(sample_sizes_vec.data(), n_samples, ds, stream), n_samples,
-          value, stream);
+          max_sample_size, value, stream);
 }
 
 }  // namespace detail

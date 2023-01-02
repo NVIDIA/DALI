@@ -36,18 +36,18 @@ namespace {
 
 /**
  * Generates test data in the provided CPU TensorView and creates a cvMat
- * that references the same memory as the TensorView. All data correspond to a single test case.
+ * and copies the generated test data to it. All data correspond to a single test case.
  *
  * @tparam T Type of the test data.
  * @tparam ndims Number of dimensions in the generated data.
  * @tparam Generator Function, that suffices signature `T g();` and returns a random number.
  * @param tv TensorView for the test data
- * @param cv_mat_in cvMat that wraps up the memory in the provided TensorView
+ * @param cv_mat cvMat that is created based on the shape of tv
  * @param g Test data generator.
  * @return
  */
 template<typename T, int ndims, typename Generator>
-void fill_test_data(const TensorView<StorageCPU, T, ndims> &tv, cv::Mat &cv_mat_in, Generator g) {
+void fill_test_data(const TensorView<StorageCPU, T, ndims> &tv, cv::Mat &cv_mat, Generator g) {
   auto shape = tv.shape;
 
   using U = remove_const_t<T>;
@@ -56,8 +56,9 @@ void fill_test_data(const TensorView<StorageCPU, T, ndims> &tv, cv::Mat &cv_mat_
   generate(const_cast<U*>(tv.data), const_cast<U*>(tv.data) + tv.num_elements(), g);
 
   auto nchannels = shape.sample_dim() < 3 ? 1 : shape[2];
-  cv_mat_in = cv::Mat(shape[0], shape[1], CV_MAKETYPE(cv::DataDepth<U>::value, nchannels),
-                      const_cast<U*>(tv.data));
+  cv_mat = cv::Mat(shape[0], shape[1], CV_MAKETYPE(cv::DataDepth<U>::value, nchannels));
+  EXPECT_TRUE(cv_mat.isContinuous());
+  std::copy(tv.data, tv.data + cv_mat.total() * nchannels, cv_mat.ptr<U>());
 }
 
 /**
@@ -175,7 +176,8 @@ class NppRemapTest : public ::testing::Test {
                 this->mapx_cv_[unified ? 0 : sample_idx], this->mapy_cv_[unified ? 0 : sample_idx],
                 cv::INTER_NEAREST, cv::BORDER_CONSTANT, 0);
 
-      auto npp_remap = testing::tensor_to_mat(this->remap_out_ttv_.cpu(stream)[sample_idx], true, false);
+      auto npp_remap = testing::tensor_to_mat(this->remap_out_ttv_.cpu(stream)[sample_idx], true,
+                                              false);
       ASSERT_EQ(npp_remap.rows, this->height_);
       ASSERT_EQ(npp_remap.cols, this->width_);
       ASSERT_EQ(this->height_, remap_out_cv[sample_idx].rows);
