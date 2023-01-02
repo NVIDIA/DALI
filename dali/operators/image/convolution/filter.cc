@@ -12,14 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
-#include <string>
-#include <utility>
 #include <vector>
 
-#include "dali/core/static_switch.h"
 #include "dali/operators/image/convolution/filter.h"
-#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
@@ -31,8 +26,9 @@ The operator requires two positional arguments: the batch of samples and the bat
 
 Sample can be an image, a video or volumetric (3D) data.
 Samples can contain channels: channel-first and channel-last layouts are supported.
-In case of video/sequences, the frame extent must preced the channels extent.
-For example, a video with ``"FCHW"`` layout is supported, but ``"CFHW"`` samples are not.
+In case of video/sequences, the frame extent must preced the channels extent, i.e.,
+for example, a video with ``"FCHW"`` layout is supported, but ``"CFHW"`` samples are not.
+
 Samples with the following types are supported:
 int8, int16, uint8, uint16, float16, float32.
 Please note that the intermediate type used for the computation is always float32.

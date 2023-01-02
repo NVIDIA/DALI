@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1232,6 +1232,43 @@ def test_debayer():
     check_pipeline(batches, debayer_pipline, devices=['gpu'])
 
 
+def test_filter():
+
+    def filter_pipeline(max_batch_size, inputs, device):
+        batches = [list(zip(*batch)) for batch in inputs]
+        sample_batches = [list(inp_batch) for inp_batch, _, _ in batches]
+        filter_batches = [list(filt_batch) for _, filt_batch, _ in batches]
+        fill_value_bacthes = [list(fvs) for _, _, fvs in batches]
+
+        @pipeline_def
+        def piepline():
+            samples = fn.external_source(source=sample_batches, layout="HWC")
+            filters = fn.external_source(source=filter_batches)
+            fill_values = fn.external_source(source=fill_value_bacthes)
+            return fn.experimental.filter(samples.gpu(), filters, fill_values, border="constant")
+
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        rng = np.random.default_rng(seed=101)
+        sample_shapes = [(300, 600, 3), (100, 100, 3), (500, 1024, 1), (40, 40, 20)]
+        filter_shapes = [(5, 7), (3, 3), (60, 2)]
+        j = 0
+        while True:
+            sample_shape = sample_shapes[j % len(sample_shapes)]
+            filter_shape = filter_shapes[j % len(filter_shapes)]
+            sample = np.uint8(rng.uniform(0, 255, sample_shape))
+            filter = np.float32(rng.uniform(0, 255, filter_shape))
+            yield sample, filter, np.array([rng.uniform(0, 255)], dtype=np.uint8)
+            j += 1
+
+    sample = sample_gen()
+    batches = [[next(sample) for _ in range(5)], [next(sample) for _ in range(13)],
+               [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, filter_pipeline, devices=['gpu'])
+
+
 def test_cast_like():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1298,6 +1335,7 @@ tested_methods = [
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
     "experimental.decoders.video",
+    "experimental.filter",
     "experimental.inflate",
     "experimental.peek_image_shape",
     "experimental.remap",

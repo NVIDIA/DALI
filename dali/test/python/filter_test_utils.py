@@ -65,17 +65,51 @@ def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
     return out.astype(in_dtype)
 
 
-def filter_img_baseline(img, kernel, anchor, border, fill_value=None, mode="same"):
-    shape = img.shape
-    ndim = len(shape)
-    assert ndim in (2, 3), f"{ndim}"
+def filter_baseline(sample, kernel, anchor, border, fill_value=None, mode="same",
+                    has_channels=False):
     assert mode in ("same", "valid"), f"{mode}"
 
     def baseline_call(plane):
         return scipy_baseline_plane(plane, kernel, anchor, border, fill_value, mode)
 
-    if ndim == 2:
-        return baseline_call(img)
-    chw_img = img.transpose([2, 0, 1])
-    out = np.stack([baseline_call(plane) for plane in chw_img], axis=2)
+    ndim = len(sample.shape)
+    if not has_channels:
+        assert ndim in (2, 3)
+        return baseline_call(sample)
+    assert ndim in (3, 4)
+
+    ndim = len(sample.shape)
+    channel_dim = ndim - 1
+    channel_first = sample.transpose([channel_dim] + [i for i in range(channel_dim)])
+    out = np.stack([baseline_call(plane) for plane in channel_first], axis=channel_dim)
     return out
+
+
+def filter_baseline_layout(layout, sample, kernel, anchor, border, fill_value=None, mode="same"):
+    ndim = len(sample.shape)
+    if not layout:
+        assert ndim in (2, 3), f"{sample.shape}"
+        layout = "HW" if ndim == 2 else "DHW"
+    assert len(layout) == ndim, f"{layout}, {sample.shape}"
+    has_channels = layout[ndim - 1] == "C"
+
+    def baseline_call(plane):
+        return filter_baseline(plane, kernel, anchor, border, fill_value, mode,
+                               has_channels=has_channels)
+
+    def get_seq_ndim():
+        for i, c in enumerate(layout):
+            if c not in "FC":
+                return i
+        assert False
+
+    seq_ndim = get_seq_ndim()
+    if seq_ndim == 0:
+        return baseline_call(sample)
+    else:
+        seq_shape = sample.shape[:seq_ndim]
+        spatial_shape = sample.shape[seq_ndim:]
+        seq_vol = np.prod(seq_shape)
+        sample = sample.reshape((seq_vol,) + spatial_shape)
+        out = np.stack([baseline_call(plane) for plane in sample])
+        return out.reshape(seq_shape + out.shape[1:])

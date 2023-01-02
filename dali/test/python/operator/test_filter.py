@@ -20,7 +20,7 @@ from nvidia.dali import pipeline_def, fn, types
 from test_utils import get_dali_extra_path, np_type_to_dali, check_batch
 from nose2.tools import params
 
-from filter_test_utils import filter_img_baseline
+from filter_test_utils import filter_baseline, filter_baseline_layout
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -133,17 +133,51 @@ def test_image_pipeline(dtype, batch_size, border, mode):
         fill_values = [np.array(fv) for fv in fill_values]
         assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
         baseline = [
-            filter_img_baseline(img, kernel, anchor, border, fill_value, mode)
+            filter_baseline(img, kernel, anchor, border, fill_value, mode, has_channels=True)
             for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
         ]
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
 
 
 @params(
-    (np.float16, [(501, 127, 3), (600, 600, 1), (128, 256, 5),
-                  (200, 500, 2)], "HWC", [(3, 3), (8, 5), (10, 4), (70, 1),
-                                          (1, 70)], 8, "101", "same"), )
-def test_samples(dtype, sample_shapes, sample_layout, filter_shapes, batch_size, border, mode):
+    # test 2D
+    (np.float16, "HWC", [(501, 127, 3), (600, 600, 1), (128, 256, 5),
+                         (200, 500, 2)], [(3, 3), (8, 5), (10, 4), (70, 1),
+                                          (1, 70)], 8, "101", "same"),
+    (np.int8, "HWC", [(403, 201, 150), (128, 256, 5), (200, 500, 70)], [(3, 3), (31, 2), (2, 32),
+                                                                        (5, 5)], 4, "101", "same"),
+    (np.uint8, "HW", [(501, 127), (600, 600), (128, 256),
+                      (200, 500)], [(3, 3), (8, 5), (10, 4), (70, 1), (1, 70)], 8, "1001", "same"),
+    (np.float16, "CHW", [(3, 501, 127), (1, 600, 600), (10, 1026, 741),
+                         (7, 200, 500)], [(3, 3), (8, 5), (10, 4), (70, 1),
+                                          (1, 70)], 8, "wrap", "same"),
+    (np.uint8, "CHW", [(3, 501, 127), (1, 600, 600), (10, 1026, 741),
+                       (7, 200, 500)], [(3, 3), (8, 5), (10, 4), (70, 1),
+                                        (1, 70)], 8, "wrap", "valid"),
+    (np.uint16, "FCHW", [(4, 3, 501, 127), (5, 1, 600, 600),
+                         (2, 10, 1026, 741), (1, 7, 200, 500)], [(3, 3), (8, 5), (10, 4), (70, 1),
+                                                                 (1, 70)], 8, "clamp", "same"),
+    (np.int8, "HWC", [(501, 127, 3), (4096, 1, 3), (1, 4096, 2),
+                      (1, 1, 1)], [(3, 3), (8, 5), (10, 4), (70, 1), (1, 70)], 8, "wrap", "same"),
+    (np.float32, "HW", [(1024 * 1024, 1), (1, 1024 * 1024)], [(256, 1), (1, 256), (1, 257),
+                                                              (257, 1)], 4, "101", "same"),
+    # test 3D
+    (np.uint8, "DHWC", [(300, 300, 300, 3),
+                        (128, 256, 50, 1), (200, 500, 200, 2)], [(3, 3, 3), (31, 1, 1), (1, 31, 1),
+                                                                 (1, 1, 31)], 4, "101", "same"),
+    (np.float32, "CDHW", [(3, 300, 300, 300), (1, 128, 256, 50)], [(4, 3, 2),
+                                                                   (7, 1, 2)], 4, "1001", "same"),
+    (np.uint16, "DHW", [(300, 300, 300),
+                        (128, 256, 50), (200, 500, 200)], [(3, 3, 3), (31, 1, 1), (1, 31, 1),
+                                                           (1, 1, 31)], 4, "constant", "same"),
+    (np.float32, "DHW", [(1024 * 1024, 1, 1), (1, 1024 * 1024, 1),
+                         (1, 1, 1024 * 1024)], [(256, 1, 1), (1, 257, 1),
+                                                (1, 1, 258)], 3, "101", "same"),
+    (np.float32, "DHW", [(1024 * 1024, 1, 1), (1, 1024 * 1024, 1),
+                         (1, 1, 1024 * 1024)], [(1, 256, 1), (1, 1, 257),
+                                                (258, 1, 1)], 3, "101", "same"),
+)
+def test_samples(dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode):
     num_iters = 2
 
     pipe = sample_pipeline(batch_size=batch_size, num_threads=4, device_id=0,
@@ -158,15 +192,15 @@ def test_samples(dtype, sample_shapes, sample_layout, filter_shapes, batch_size,
         assert np.issubdtype(dtype, np.integer)
         atol = 1
     for _ in range(num_iters):
-        filtered_imgs, imgs, kernels, anchors, fill_values = pipe.run()
-        filtered_imgs = [np.array(img) for img in filtered_imgs.as_cpu()]
-        imgs = [np.array(img) for img in imgs]
+        flt_samples, samples, kernels, anchors, fill_values = pipe.run()
+        flt_samples = [np.array(img) for img in flt_samples.as_cpu()]
+        samples = [np.array(sample) for sample in samples]
         kernels = [np.array(kernel) for kernel in kernels]
         anchors = [np.array(anchor) for anchor in anchors]
         fill_values = [np.array(fv) for fv in fill_values]
-        assert len(filtered_imgs) == len(imgs) == len(kernels) == len(anchors) == len(fill_values)
+        assert len(flt_samples) == len(samples) == len(kernels) == len(anchors) == len(fill_values)
         baseline = [
-            filter_img_baseline(img, kernel, anchor, border, fill_value, mode)
-            for img, kernel, anchor, fill_value in zip(imgs, kernels, anchors, fill_values)
+            filter_baseline_layout(sample_layout, sample, kernel, anchor, border, fill_value, mode)
+            for sample, kernel, anchor, fill_value in zip(samples, kernels, anchors, fill_values)
         ]
-        check_batch(filtered_imgs, baseline, max_allowed_error=atol)
+        check_batch(flt_samples, baseline, max_allowed_error=atol)
