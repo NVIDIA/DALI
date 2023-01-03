@@ -1241,13 +1241,13 @@ def test_filter():
         fill_value_bacthes = [list(fvs) for _, _, fvs in batches]
 
         @pipeline_def
-        def piepline():
+        def pipeline():
             samples = fn.external_source(source=sample_batches, layout="HWC")
             filters = fn.external_source(source=filter_batches)
             fill_values = fn.external_source(source=fill_value_bacthes)
             return fn.experimental.filter(samples.gpu(), filters, fill_values, border="constant")
 
-        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        return pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
     def sample_gen():
         rng = np.random.default_rng(seed=101)

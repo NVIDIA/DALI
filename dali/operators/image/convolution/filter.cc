@@ -22,7 +22,16 @@ namespace dali {
 DALI_SCHEMA(experimental__Filter)
     .DocStr(R"code(Convolves the image with the provided filter.
 
-The operator requires two positional arguments: the batch of samples and the batch of filters.
+.. note::
+  In fact, the operator computes a correlation, not a convolution,
+  i.e. the order of filter elements is not flipped when computing the product of
+  the filter and the image.
+
+)code")
+    .NumInput(2, 3)
+    .NumOutput(1)
+    .AllowSequences()
+    .InputDox(0, "data", "TensorList", R"code(Batch of input samples.
 
 Sample can be an image, a video or volumetric (3D) data.
 Samples can contain channels: channel-first and channel-last layouts are supported.
@@ -31,32 +40,24 @@ for example, a video with ``"FCHW"`` layout is supported, but ``"CFHW"`` samples
 
 Samples with the following types are supported:
 int8, int16, uint8, uint16, float16, float32.
-Please note that the intermediate type used for the computation is always float32.
 
-For inputs with two spatial dimensions (images or video), the filters must be 2D arrays
+Please note that the intermediate type used for the computation is always float32.)code")
+    .InputDox(1, "filter", "TensorList", R"code(Batch of filters.
+
+For inputs with two spatial dimensions (images or video), each filter must be a 2D array
 (or a sequence of 2D arrays to be applied
 :func:`per-frame<nvidia.dali.fn.per_frame>` to a video input).
 For volumetric inputs, the filter must be a 3D array.
-The filter values must have float32 type.
+The filter values must have float32 type.)code")
+    .InputDox(2, "fill_value", "TensorList", R"code(Batch of scalars used for padding.
 
-If the optional third positional argument is specified, it must be a batch of scalars.
 If ``"border"`` is set to ``"constant"``, the input samples will be padded with
 the corresponding scalars when convolved with the filter.
 The scalars must be of the same type as the input samples.
 For video/sequence input, an array of scalars can be specified to be applied
-:func:`per-frame<nvidia.dali.fn.per_frame>`.
-
-.. note::
-  In fact, the operator computes a correlation, not a convolution,
-  i.e. the order of filter elements is not flipped when computing product of
-  the filter and the image.
-
-)code")
-    .NumInput(2, 3)
-    .NumOutput(1)
-    .AllowSequences()
+:func:`per-frame<nvidia.dali.fn.per_frame>`.)code")
     .AddOptionalArg("anchor",
-                    R"code(Specifies position of the filter over the input.
+                    R"code(Specifies the position of the filter over the input.
 
 If the filter size is ``(r, s)`` and the anchor is ``(a, b)``, the output
 at position ``(x, y)`` is a product of the filter and the input rectangle spanned between the
