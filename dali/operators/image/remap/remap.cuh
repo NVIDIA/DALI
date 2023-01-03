@@ -58,24 +58,6 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
 
 
 template<typename StorageBackend, typename T, int ndims>
-T **GetGpuAccessibleTensors(TensorListView <StorageBackend, T, ndims> tlv,
-                            dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
-  using DataType = T *;
-  DataType *tmp = ds.template ToPinned(tlv.data);
-  DataType *ret = ds.template ToGPU(stream, span<DataType>(tmp, tlv.num_samples()));
-  return ret;
-}
-
-
-size_t *GetGpuAccessibleSampleSizes(size_t *sample_sizes, size_t n_samples,
-                                    dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
-  auto tmp = ds.template ToPinned(span<size_t>(sample_sizes, n_samples));
-  auto ret = ds.template ToGPU(stream, span<size_t>(tmp, n_samples));
-  return ret;
-}
-
-
-template<typename StorageBackend, typename T, int ndims>
 void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
                       dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
   static_assert(std::is_floating_point<T>::value,
@@ -88,9 +70,9 @@ void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
   }
   auto max_sample_size = *std::max_element(sample_sizes_vec.begin(), sample_sizes_vec.end());
   invoke_kernel_per_batch(
-          GetGpuAccessibleTensors(tlv, ds, stream),
-          GetGpuAccessibleSampleSizes(sample_sizes_vec.data(), n_samples, ds, stream), n_samples,
-          max_sample_size, value, stream);
+          std::get<0>(ds.ToContiguousGPU(stream, tlv.data)),
+          std::get<0>(ds.ToContiguousGPU(stream, sample_sizes_vec)),
+          n_samples, max_sample_size, value, stream);
 }
 
 }  // namespace detail
