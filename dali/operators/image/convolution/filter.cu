@@ -21,33 +21,21 @@ namespace dali {
 
 namespace filter {
 
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<uint8_t, uint8_t, float>(const OpSpec&, const InputDesc&);
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, uint8_t, float>(const OpSpec&, const InputDesc&);
+#define EXTERN_FILTER_SPECIALIZATION(OUT, IN)                                                     \
+  extern template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<OUT, IN, float>( \
+      const OpSpec&, const InputDesc&);
 
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<int8_t, int8_t, float>(const OpSpec&, const InputDesc&);
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, int8_t, float>(const OpSpec&, const InputDesc&);
-
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<uint16_t, uint16_t, float>(const OpSpec&, const InputDesc&);
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, uint16_t, float>(const OpSpec&, const InputDesc&);
-
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<int16_t, int16_t, float>(const OpSpec&, const InputDesc&);
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, int16_t, float>(const OpSpec&, const InputDesc&);
-
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float16, float16, float>(const OpSpec&, const InputDesc&);
-extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, float16, float>(const OpSpec&, const InputDesc&);
-
-extern template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, float, float>(
-    const OpSpec&, const InputDesc&);
+EXTERN_FILTER_SPECIALIZATION(uint8_t, uint8_t)
+EXTERN_FILTER_SPECIALIZATION(float, uint8_t)
+EXTERN_FILTER_SPECIALIZATION(int8_t, int8_t)
+EXTERN_FILTER_SPECIALIZATION(float, int8_t)
+EXTERN_FILTER_SPECIALIZATION(uint16_t, uint16_t)
+EXTERN_FILTER_SPECIALIZATION(float, uint16_t)
+EXTERN_FILTER_SPECIALIZATION(int16_t, int16_t)
+EXTERN_FILTER_SPECIALIZATION(float, int16_t)
+EXTERN_FILTER_SPECIALIZATION(float16, float16)
+EXTERN_FILTER_SPECIALIZATION(float, float16)
+EXTERN_FILTER_SPECIALIZATION(float, float)
 
 }  // namespace filter
 
