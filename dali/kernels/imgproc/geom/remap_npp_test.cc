@@ -33,43 +33,33 @@ using namespace std;  // NOLINT
 
 namespace {
 
+
 /**
- * Allocate test data in managed memory (to be accessible both from CPU and GPU).
+ * Generates test data in the provided CPU TensorView and creates a cvMat
+ * and copies the generated test data to it. All data correspond to a single test case.
  *
- * Might be used to generate input data as well as remap parameters (i.e. maps).
- *
- * This function returns 3 entities:
- * 1. TensorView, that wraps a buffer (3.)
- * 2. cv::Mat, that wraps a buffer (3.)
- * 3. A buffer, which contains test data. The caller is responsible for calling `cudaFree`
- *    on this buffer.
- *
- * All three returned entities correspond to a single test case.
- *
- * @tparam Backend StorageBackend. Typically StorageUnified.
  * @tparam T Type of the test data.
  * @tparam ndims Number of dimensions in the generated data.
  * @tparam Generator Function, that suffices signature `T g();` and returns a random number.
- * @param shape Shape of the test data.
- * @param stream The stream, on which the copy will be conducted.
+ * @param tv TensorView for the test data
+ * @param cv_mat cvMat that is created based on the shape of tv
+ * @param g Test data generator.
  * @return
  */
-template<typename Backend = StorageUnified, typename T, int ndims, typename Generator>
-tuple<TensorView<Backend, T, ndims>, cv::Mat, T *>
-alloc_test_data(TensorShape<ndims> shape, Generator g, cudaStream_t stream = 0) {
-  using U = remove_const_t<T>;
-  vector<U> source_data(volume(shape));
-  generate(source_data.begin(), source_data.end(), g);
-  remove_const_t<U> *ret;
-  CUDA_CALL(cudaMallocManaged(&ret, volume(shape) * sizeof(T)));
-  CUDA_CALL(cudaMemcpyAsync(ret, source_data.data(), volume(shape) * sizeof(T), cudaMemcpyDefault,
-                            stream));
-  CUDA_CALL(cudaStreamSynchronize(stream));
-  auto nchannels = shape.sample_dim() < 3 ? 1 : shape[2];
-  cv::Mat cv_mat(shape[0], shape[1], CV_MAKETYPE(cv::DataDepth<U>::value, nchannels), ret);
-  return make_tuple(TensorView<Backend, T, ndims>(ret, shape), cv_mat, ret);
-}
+template<typename T, int ndims, typename Generator>
+void fill_test_data(const TensorView<StorageCPU, T, ndims> &tv, cv::Mat &cv_mat, Generator g) {
+  auto shape = tv.shape;
 
+  using U = remove_const_t<T>;
+
+  vector<U> source_data(volume(shape));
+  generate(const_cast<U*>(tv.data), const_cast<U*>(tv.data) + tv.num_elements(), g);
+
+  auto nchannels = shape.sample_dim() < 3 ? 1 : shape[2];
+  cv_mat = cv::Mat(shape[0], shape[1], CV_MAKETYPE(cv::DataDepth<U>::value, nchannels));
+  EXPECT_TRUE(cv_mat.isContinuous());
+  std::copy(tv.data, tv.data + cv_mat.total() * nchannels, cv_mat.ptr<U>());
+}
 
 /**
  * Function that counts outlying pixels. This function is used for verifying the remap result.
@@ -112,7 +102,6 @@ T pick_avoiding_halves(uniform_real_distribution<T> &dist, mt19937 &engine) {
 
 }  // namespace
 
-
 /**
  * Test of the NppRemapKernel.
  * @tparam InputT Type of the input data to the kernel.
@@ -121,7 +110,7 @@ T pick_avoiding_halves(uniform_real_distribution<T> &dist, mt19937 &engine) {
 template<typename InputT, int nchannels>
 class NppRemapTest : public ::testing::Test {
  protected:
-  using StorageType = StorageUnified;
+  using StorageType = StorageGPU;
   using Kernel = NppRemapKernel<StorageType, InputT>;
 
 
@@ -144,47 +133,22 @@ class NppRemapTest : public ::testing::Test {
     auto wrng = [&]() { return pick_avoiding_halves(wdist, mt_); };
     auto hrng = [&]() { return pick_avoiding_halves(hdist, mt_); };
 
+    remap_in_ttv_.reshape(uniform_list_shape<-1>(batch_size_, img_shape_));
+    remap_out_ttv_.reshape(uniform_list_shape<-1>(batch_size_, img_shape_));
+    mapx_ttv_.reshape(uniform_list_shape<2>(batch_size_, map_shape_));
+    mapy_ttv_.reshape(uniform_list_shape<2>(batch_size_, map_shape_));
+
     for (size_t sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
-      // Convenient aliases
-      auto &rit = remap_in_tv_[sample_idx];
       auto &ric = remap_in_cv_[sample_idx];
-      auto &rid = remap_in_data_[sample_idx];
-      auto &rot = remap_out_tv_[sample_idx];
-      auto &roc = remap_out_cv_[sample_idx];
-      auto &rod = remap_out_data_[sample_idx];
-      auto &mxt = mapx_tv_[sample_idx];
       auto &mxc = mapx_cv_[sample_idx];
-      auto &mxd = mapx_data_[sample_idx];
-      auto &myt = mapy_tv_[sample_idx];
       auto &myc = mapy_cv_[sample_idx];
-      auto &myd = mapy_data_[sample_idx];
 
-      // Allocating test data and returning the buffer together with the containers
-      tie(rit, ric, rid) = alloc_test_data<StorageType, const InputT, -1>(img_shape_, imgrng);
-      tie(rot, roc, rod) = alloc_test_data<StorageType, InputT, -1>(img_shape_, []() { return 0; });
-      tie(mxt, mxc, mxd) = alloc_test_data<StorageType, const MapType, 2>(map_shape_, wrng);
-      tie(myt, myc, myd) = alloc_test_data<StorageType, const MapType, 2>(map_shape_, hrng);
-
-      rit.shape = rot.shape = img_shape_;
-      mxt.shape = myt.shape = map_shape_;
+      fill_test_data(remap_in_ttv_.cpu()[sample_idx], ric, imgrng);
+      fill_test_data(mapx_ttv_.cpu()[sample_idx], mxc, wrng);
+      fill_test_data(mapy_ttv_.cpu()[sample_idx], myc, hrng);
     }
-
     ctx_.gpu.stream = 0;
   }
-
-
-  /**
-   * Clean up the test data.
-   */
-  void TearDown() final {
-    for (size_t sample_idx = 0; sample_idx < batch_size_; sample_idx++) {
-      cudaFree(const_cast<void *>(reinterpret_cast<const void *>(remap_in_data_[sample_idx])));
-      cudaFree(remap_out_data_[sample_idx]);
-      cudaFree(const_cast<void *>(reinterpret_cast<const void *>(mapx_data_[sample_idx])));
-      cudaFree(const_cast<void *>(reinterpret_cast<const void *>(mapy_data_[sample_idx])));
-    }
-  }
-
 
   /**
    * Function that conducts the test. It's extracted from the test body to
@@ -201,7 +165,9 @@ class NppRemapTest : public ::testing::Test {
     CUDA_CALL(cudaGetDevice(&device_id));
     Kernel kernel(device_id);
     invoke_kernel<unified>(kernel);
-    CUDA_CALL(cudaStreamSynchronize(this->ctx_.gpu.stream));
+    auto stream = this->ctx_.gpu.stream;
+    remap_out_ttv_.cpu(stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
 
     vector<cv::Mat> remap_out_cv(this->batch_size_);
 
@@ -210,7 +176,8 @@ class NppRemapTest : public ::testing::Test {
                 this->mapx_cv_[unified ? 0 : sample_idx], this->mapy_cv_[unified ? 0 : sample_idx],
                 cv::INTER_NEAREST, cv::BORDER_CONSTANT, 0);
 
-      auto npp_remap = testing::tensor_to_mat(this->remap_out_tv_[sample_idx], true, false);
+      auto npp_remap = testing::tensor_to_mat(this->remap_out_ttv_.cpu(stream)[sample_idx], true,
+                                              false);
       ASSERT_EQ(npp_remap.rows, this->height_);
       ASSERT_EQ(npp_remap.cols, this->width_);
       ASSERT_EQ(this->height_, remap_out_cv[sample_idx].rows);
@@ -225,15 +192,16 @@ class NppRemapTest : public ::testing::Test {
 
   template<bool unified>
   void invoke_kernel(Kernel &kernel) {
+    auto stream = this->ctx_.gpu.stream;
     if (unified) {
-      kernel.Run(this->ctx_, make_tensor_list(this->remap_out_tv_),
-                 make_tensor_list(this->remap_in_tv_), this->mapx_tv_[0], this->mapy_tv_[0], {}, {},
-                 DALI_INTERP_NN);
+      kernel.Run(this->ctx_, this->remap_out_ttv_.gpu(stream),
+                 this->remap_in_ttv_.gpu(stream), this->mapx_ttv_.gpu(stream)[0],
+                 this->mapy_ttv_.gpu(stream)[0], {}, {}, DALI_INTERP_NN);
     } else {
       vector<DALIInterpType> interps(this->batch_size_, DALI_INTERP_NN);
-      kernel.Run(this->ctx_, make_tensor_list(this->remap_out_tv_),
-                 make_tensor_list(this->remap_in_tv_), make_tensor_list(this->mapx_tv_),
-                 make_tensor_list(this->mapy_tv_), {}, {}, make_span(interps));
+      kernel.Run(this->ctx_, this->remap_out_ttv_.gpu(stream),
+                 this->remap_in_ttv_.gpu(stream), this->mapx_ttv_.gpu(stream),
+                 this->mapy_ttv_.gpu(stream), {}, {}, make_span(interps));
     }
   }
 
@@ -258,16 +226,15 @@ class NppRemapTest : public ::testing::Test {
   vector<const MapType *> mapx_data_{batch_size_}, mapy_data_{batch_size_};
 
   /**
-   * Containers (TensorViews and cv::Mats), that wrap the buffers with the test data.
-   * They are initialized after SetUp() call. `vector<TensorView<>>` is used instead of
-   * `TensorListView<>`, because the vector is more convenient to work together with cv::Mat
-   * and converting the vector to TensorListView is easy.
+   * Containers (TestTensorList and cv::Mats), that wrap the buffers with the test data.
+   * They are initialized after SetUp() call.
    */
-  vector<TensorView<StorageType, const InputT, -1>> remap_in_tv_{batch_size_};
-  vector<TensorView<StorageType, InputT, -1>> remap_out_tv_{batch_size_};
-  vector<TensorView<StorageType, const MapType, 2>> mapx_tv_{batch_size_};
-  vector<TensorView<StorageType, const MapType, 2>> mapy_tv_{batch_size_};
-  vector<cv::Mat> remap_in_cv_{batch_size_}, remap_out_cv_{batch_size_}, mapx_cv_{
+  TestTensorList<const InputT, -1> remap_in_ttv_;
+  TestTensorList<InputT, -1> remap_out_ttv_;
+  TestTensorList<const MapType, 2> mapx_ttv_;
+  TestTensorList<const MapType, 2> mapy_ttv_;
+
+  vector<cv::Mat> remap_in_cv_{batch_size_}, mapx_cv_{
           batch_size_}, mapy_cv_{batch_size_};
 
   mt19937 mt_;
