@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class DLL_PUBLIC TensorResizeAttr {
   vector<float> sizes_, sizes_arg_;
   vector<float> scales_, scales_arg_;
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;
-  vector<int> alignment_, alignment_arg_;
+  vector<float> alignment_, alignment_arg_;
   std::function<int(float)> scale_round_fn_;
 
   void SetFlagsAndMode(const OpSpec &spec);
