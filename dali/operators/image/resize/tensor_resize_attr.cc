@@ -18,6 +18,8 @@
 #include <vector>
 #include "dali/core/math_util.h"
 #include "dali/operators/image/resize/resize_attr.h"
+
+#include "dali/kernels/reduce/reduce_setup_utils.h"   // TODO(janton): #include "dali/kernels/common/utils.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
@@ -59,6 +61,8 @@ applied to all dimensions.)code",
         "axes",
         R"code(Indices of dimensions that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
 
+Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.
+
 By default, all dimensions are assumed.)code",
         std::vector<int>{})
     .AddOptionalArg<std::string>("size_rounding",
@@ -72,7 +76,7 @@ Possible values are:
     .AddParent("ResizeAttrBase");
 
 
-void TensorResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
+TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) {
   has_sizes_ = spec.ArgumentDefined("sizes");
   has_scales_ = spec.ArgumentDefined("scales");
   has_max_size_ = spec.ArgumentDefined("max_size");
@@ -96,11 +100,31 @@ void TensorResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
     mode_ = ResizeMode::Default;
   }
 
-  if (has_axes_)
-    axes_ = spec.GetRepeatedArgument<int>("axes");
-
   DALI_ENFORCE((mode_ != ResizeMode::NotSmaller && mode_ != ResizeMode::NotLarger) || !has_scales_,
                "Providing ``scales`` is incompatible with not-smaller or not-larger modes");
+
+  if (has_axes_) {
+    axes_ = spec.GetRepeatedArgument<int>("axes");
+  }
+
+  auto rounding = spec.GetArgument<std::string>("size_rounding");
+  if (rounding == "round") {
+    scale_round_fn_ = [](float x) {
+      return round_int(x);
+    };
+  } else if (rounding == "truncate") {
+    scale_round_fn_ = [](float x) {
+      return static_cast<int>(x);
+    };
+  } else if (rounding == "ceil") {
+    scale_round_fn_ = [](float x) {
+      return static_cast<int>(std::ceil(x));
+    };
+  } else {
+    DALI_FAIL(make_string(
+        "``rounding`` value ", rounding,
+        " is not supported. Supported values are \"round\", \"truncate\", or \"ceil\"."));
+  }
 }
 
 template <typename T>
@@ -125,8 +149,6 @@ void GetShapeLikeWithAxes(std::vector<T> &full, std::vector<T> &arg,
 
 void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                            const TensorListShape<> &input_shape) {
-  SetFlagsAndMode(spec);
-
   ndim_ = input_shape.sample_dim();
   if (ndim_ < 1)
     throw std::invalid_argument("Expected at least 1D inputs");
@@ -134,6 +156,10 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     axes_.resize(ndim_);
     std::iota(axes_.begin(), axes_.end(), 0);
   }
+  // TODO(janton): use utils
+  kernels::reduce_impl::CheckAxes(make_cspan(axes_), ndim_);
+  kernels::reduce_impl::AdjustAxes(make_span(axes_), ndim_);
+
   int nargs = axes_.size();
   int first_axis = ndim_;
   int last_axis = -1;

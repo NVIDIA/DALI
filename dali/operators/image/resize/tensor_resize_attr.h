@@ -26,31 +26,7 @@ namespace dali {
 
 class DLL_PUBLIC TensorResizeAttr {
  public:
-  explicit TensorResizeAttr(const OpSpec &spec) {
-    has_axes_ = spec.HasArgument("axes");
-    if (has_axes_) {
-      axes_ = spec.GetRepeatedArgument<int>("axes");
-    }
-
-    auto rounding = spec.GetArgument<std::string>("size_rounding");
-    if (rounding == "round") {
-      scale_round_fn_ = [](float x) {
-        return round_int(x);
-      };
-    } else if (rounding == "truncate") {
-      scale_round_fn_ = [](float x) {
-        return static_cast<int>(x);
-      };
-    } else if (rounding == "ceil") {
-      scale_round_fn_ = [](float x) {
-        return static_cast<int>(std::ceil(x));
-      };
-    } else {
-      DALI_FAIL(make_string(
-          "``rounding`` value ", rounding,
-          " is not supported. Supported values are \"round\", \"truncate\", or \"ceil\"."));
-    }
-  }
+  explicit TensorResizeAttr(const OpSpec &spec);
 
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                            const TensorListShape<> &input_shape);
@@ -103,8 +79,6 @@ class DLL_PUBLIC TensorResizeAttr {
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;
   vector<float> alignment_, alignment_arg_;
   std::function<int(float)> scale_round_fn_;
-
-  void SetFlagsAndMode(const OpSpec &spec);
 };
 
 }  // namespace dali
