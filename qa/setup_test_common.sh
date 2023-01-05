@@ -13,6 +13,10 @@ DALI_CUDA_MAJOR_VERSION=$(pip list | grep nvidia-dali.*-cuda | cut -d " " -f1) &
                         DALI_CUDA_MAJOR_VERSION=${DALI_CUDA_MAJOR_VERSION#*cuda} && \
                         DALI_CUDA_MAJOR_VERSION=${DALI_CUDA_MAJOR_VERSION:0:2}
 
+# if DALI is not present in the system just take CUDA_VERSION_MAJOR as we may just test DALI
+# compilation process
+test -z "${DALI_CUDA_MAJOR_VERSION}" && export DALI_CUDA_MAJOR_VERSION=${CUDA_VERSION_MAJOR}
+
 function version_gt() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" != "$1"; }
 function version_le() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" == "$1"; }
 function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" != "$1"; }
