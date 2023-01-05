@@ -74,6 +74,10 @@ class DLL_PUBLIC TensorResizeAttr {
   ResizeMode mode_ = ResizeMode::Stretch;
 
  private:
+  span<const int> PrepareAxes(const OpSpec &spec, int ndim);
+  const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
+  void TrimSpatialDims(const TensorListShape<> &input_shape);
+
   vector<float> sizes_, sizes_arg_;
   vector<float> scales_, scales_arg_;
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;

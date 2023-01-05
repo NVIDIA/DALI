@@ -262,3 +262,26 @@ def test_resize_downsample_sizes_cubic(device):
         return fn.experimental.tensor_resize(input_data, sizes=sizes, alignment=0,
                                              interp_type=types.INTERP_CUBIC, antialias=False)
     run_and_compare(expected, data, device, resize_fn)
+
+
+@params('cpu', 'gpu')
+def test_resize_upsample_resize_only_1d(device):
+    data = data_1x1x2x2
+    scales = np.array([1.0, 1.0, 1.0, 3.0], dtype=np.float32)
+    expected = np.array(
+        [[[[1., 1., 1., 2., 2., 2.],
+           [3., 3., 3., 4., 4., 4.]]]], dtype=np.float32)
+
+    def resize_fn(input_data):
+        return fn.experimental.tensor_resize(input_data, scales=scales, alignment=0,
+                                             interp_type=types.INTERP_NN)
+    run_and_compare(expected, data, device, resize_fn)
+
+@params('cpu', 'gpu')
+def test_resize_upsample_resize_only_noop(device):
+    data = data_1x1x2x2
+    scales = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+    def resize_fn(input_data):
+        return fn.experimental.tensor_resize(input_data, scales=scales, alignment=0,
+                                             interp_type=types.INTERP_NN)
+    run_and_compare(data, data, device, resize_fn)

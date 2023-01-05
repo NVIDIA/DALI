@@ -92,7 +92,6 @@ class TensorResize : public Operator<Backend>
 template <typename Backend>
 TensorResize<Backend>::TensorResize(const OpSpec &spec)
     : Operator<Backend>(spec), ResizeBase<Backend>(spec), resize_attr_(spec) {
-  resample_params_.resize(num_threads_);
   InitializeBackend();
 }
 
