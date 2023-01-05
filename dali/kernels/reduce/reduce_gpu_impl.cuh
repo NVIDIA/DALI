@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -408,11 +408,8 @@ class ReduceImplGPU {
     if (in_shape.sample_dim() > 64)
       throw std::range_error("Reduce supports up to 64 dimensions");
     reduce_batch_ = reduce_batch;
-    int ndim = in_shape.sample_dim();
-    CheckAxes(axes_arg, ndim);
     axes_.copy_assign(axes_arg.begin(), axes_arg.end());
     auto axes = make_span(axes_);
-    AdjustAxes(axes, ndim);
     if (reduce_batch)
       CheckBatchReduce(in_shape, axes);
     KernelRequirements req;
