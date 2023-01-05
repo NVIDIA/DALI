@@ -13,7 +13,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.8.0/local_ins
 
 RUN NVJPEG2K_VERSION=0.6.0.28-1 && \
     CUFILE_VERSION=1.4.0.31-1 && \
-    NVCOMP_VERSION=2.4 && \
+    NVCOMP_VERSION=2.5 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
@@ -27,7 +27,7 @@ RUN NVJPEG2K_VERSION=0.6.0.28-1 && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir nvcomp && \
     cd nvcomp && \
-    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_install_CUDA_11.x.tgz && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_${NVCOMP_VERSION}.0_x86_64_11.x.tgz && \
     tar -xvf nvcomp*.tgz && \
     cp -rv include/nvcomp* /usr/local/cuda/include/ && \
     cp -v lib/*.so /usr/local/cuda/lib64/ && \
