@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ class Cast : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
-    DALIDataType out_type = is_cast_like_ ?  ws.Input<Backend>(1).type() : dtype_arg_;
+    DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = out_type;

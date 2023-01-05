@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -180,14 +180,17 @@ def test_operator_cast_empty_volumes():
                            empty_volume_policy)
 
 
-@params(*itertools.product(('cpu', 'gpu'),
+@params(*itertools.product((('cpu', 'cpu'), ('gpu', 'cpu'), ('gpu', 'gpu')),
                            (np.uint8, np.int32, np.float32),
                            (np.uint8, np.int32, np.float32)))
-def test_cast_like(device, dtype_in, dtype_out):
+def test_cast_like(devices, dtype_in, dtype_out):
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
     def cast_pipe():
-        data0 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_in), device=device)
-        data1 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_out), device=device)
+        device_left, device_right = devices
+        data0 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_in),
+                                  device=device_left)
+        data1 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_out),
+                                  device=device_right)
         return fn.cast_like(data0, data1)
     p = cast_pipe()
     p.build()
