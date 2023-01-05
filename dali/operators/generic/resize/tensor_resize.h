@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,11 @@ class TensorResize : public Operator<Backend>
   void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape) {
     int nsamples = input_shape.num_samples();
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape);
+
+    // TODO(janton) : implement 1D
+    if (NumSpatialDims() == 1) {
+      throw std::invalid_argument("1D resizing is not yet implemented.");
+    }
 
     if (NumSpatialDims() < 1) {
       throw std::invalid_argument(

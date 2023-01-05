@@ -49,13 +49,13 @@ This parameter defines which relative point of the ROI should retain its positio
 
 This point is calculated as ``center = (1 - alignment) * roi_start + alignment * roi_end``.
 Alignment 0.0 denotes alignment with the start of the ROI, 0.5 with the center of the region, and 1.0 with the end.
-Note that when ROI is not specified, roi_start=0 and roi_end=size is assumed.
+Note that when ROI is not specified, roi_start=0 and roi_end=input_size is assumed.
 
 When using 0.5 (default), the resize operation has flip invariant properties (flipping after resizing is
 mathematically equivalent to resizing after flipping).
 
-Contains as many elements as dimensions provided for sizes/scales. If only one value is provided, it is
-applied to all dimensions.)code",
+The value of this argument contains as many elements as dimensions provided for
+sizes/scales. If only one value is provided, it is applied to all dimensions.)code",
                                    std::vector<float>{0.5}, true)
     .AddOptionalArg(
         "axes",
