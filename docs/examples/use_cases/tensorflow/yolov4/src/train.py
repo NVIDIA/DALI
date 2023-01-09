@@ -118,7 +118,7 @@ def train(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs)
     with strategy.scope():
         model = YOLOv4Model()
         model.compile(
-            optimizer=tf.keras.optimizers.SGD(learning_rate=lr_fn)
+            optimizer=tf.keras.optimizers.legacy.SGD(learning_rate=lr_fn)
         )
 
     if start_weights:

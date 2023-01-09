@@ -27,10 +27,10 @@ def get_optimizer(params, *args):
 
     if params["optimizer"].lower() == "sgd":
         logging.info("Use SGD optimizer")
-        optimizer = tf.keras.optimizers.SGD(learning_rate, momentum=params["momentum"])
+        optimizer = tf.keras.optimizers.legacy.SGD(learning_rate, momentum=params["momentum"])
     elif params["optimizer"].lower() == "adam":
         logging.info("Use Adam optimizer")
-        optimizer = tf.keras.optimizers.Adam(learning_rate)
+        optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
     else:
         raise ValueError("optimizers should be adam or sgd")
     return optimizer
