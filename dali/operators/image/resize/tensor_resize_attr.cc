@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include "dali/core/math_util.h"
+#include "dali/core/expand_dims.h"
 #include "dali/operators/image/resize/resize_attr.h"
 
 #include "dali/kernels/reduce/reduce_setup_utils.h"   // TODO(janton): #include "dali/kernels/common/utils.h"
@@ -127,27 +128,7 @@ TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) {
   }
 }
 
-template <typename T>
-void GetShapeLikeWithAxes(std::vector<T> &full, std::vector<T> &arg,
-                          const OpSpec& spec, const ArgumentWorkspace &ws,
-                          const std::string &arg_name, span<const int> axes,
-                          int nsamples, int spatial_ndim, int nargs,
-                          int first_spatial_dim) {
-  GetShapeLikeArgument<T>(arg, spec, arg_name, ws, nsamples, nargs);
-  full.resize(nsamples * spatial_ndim);
-  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    auto orig_arg = make_span(arg.data() + sample_idx * nargs, nargs);
-    auto full_arg = make_span(full.data() + sample_idx * spatial_ndim, spatial_ndim);
-    for (int i = 0; i < nargs; i++) {
-      int d = axes[i] - first_spatial_dim;
-      assert(d >= 0);
-      assert(d < spatial_ndim);
-      full_arg[d] = orig_arg[i];
-    }
-  }
-}
-
-span<const int> TensorResizeAttr::PrepareAxes(const OpSpec &spec, int ndim) {
+void TensorResizeAttr::PrepareAxes(const OpSpec &spec, int ndim) {
   if (!has_axes_) {
     axes_.resize(ndim);
     std::iota(axes_.begin(), axes_.end(), 0);
@@ -155,36 +136,6 @@ span<const int> TensorResizeAttr::PrepareAxes(const OpSpec &spec, int ndim) {
   // TODO(janton): use utils
   kernels::reduce_impl::CheckAxes(make_cspan(axes_), ndim);
   kernels::reduce_impl::AdjustAxes(make_span(axes_), ndim);
-
-  int first_axis = ndim;
-  int last_axis = -1;
-  for (int axis : axes_) {
-    if (axis < first_axis)
-      first_axis = axis;
-    if (axis > last_axis)
-      last_axis = axis;
-  }
-  spatial_ndim_ = last_axis - first_axis + 1;
-  first_spatial_dim_ = first_axis;
-  return make_cspan(axes_);
-}
-
-const float* TensorResizeAttr::PrepareMaxSize(const OpSpec &spec, span<const int> axes) {
-  max_size_.resize(spatial_ndim_,
-                   std::nextafter(static_cast<float>(std::numeric_limits<int>::max()), 0.0f));
-  const float *max_size = nullptr;
-  int nargs = axes.size();
-  if (has_max_size_) {
-    GetSingleOrRepeatedArg(spec, max_size_arg_, "max_size", nargs);
-    for (int i = 0; i < nargs; i++) {
-      int d = axes[i] - first_spatial_dim_;
-      assert(d >= 0);
-      assert(d < spatial_ndim_);
-      max_size_[d] = max_size_arg_[i];
-    }
-    max_size = max_size_.data();
-  }
-  return max_size;
 }
 
 void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
@@ -219,6 +170,9 @@ void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
   }
 
   int new_spatial_ndim = new_end_spatial_dim - new_first_spatial_dim;
+  if (first_spatial_dim_ == new_first_spatial_dim && spatial_ndim_ == new_spatial_ndim)
+    return;
+
   for (int s = 0; s < nsamples; s++) {
     auto &p = params_[s];
     for (int d = 0; d < new_spatial_ndim ; d++) {
@@ -237,76 +191,133 @@ void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
 
 void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                            const TensorListShape<> &input_shape) {
-  int nsamples = input_shape.num_samples();
-  ndim_ = input_shape.sample_dim();
+  input_shape_ = input_shape;
+  (void) input_shape;  // we are potentially modifying our copy for internal use
+  ndim_ = input_shape_.sample_dim();
   if (ndim_ < 1)
-    throw std::invalid_argument("Expected at least 1D inputs");
+    throw std::runtime_error("Input must be at least 1D");
+  PrepareAxes(spec, ndim_);  // sets axes_
+  first_spatial_dim_ = 0;
+  // We need spatial_ndim >= 2
+  add_leading_spatial_ndim_ = std::max(0, 2 - ndim_);
+  if (add_leading_spatial_ndim_ > 0) {
+    expand_dims(input_shape_, input_shape, first_spatial_dim_, ndim_ + add_leading_spatial_ndim_);
+    ndim_ = input_shape_.sample_dim();
+    for (int &a : axes_)  // adjust provided axes to skip the dummy dims
+      a += add_leading_spatial_ndim_;
+  }
+  auto axes = make_cspan(axes_);
+  spatial_ndim_ = ndim_;
+  assert(spatial_ndim_ >= 2);
 
-  auto axes = PrepareAxes(spec, ndim_);  // sets first_spatial_dim, spatial_ndim_, and axes_
+  int nsamples = input_shape_.num_samples();
   int nargs = axes.size();
 
+  auto set_values_axes = [&](std::vector<float>& values, const std::vector<float>& arg) {
+    for (int i = 0; i < nsamples; i++) {
+      for (int a = 0; a < nargs; a++) {
+        int d = axes[a];
+        values[d] = arg[i * nargs + a];
+      }
+    }
+  };
+
+  auto set_values_axes_default_const = [&](std::vector<float> &values,
+                                           const std::vector<float> &arg, float constant = 0.0f) {
+    values.resize(nsamples * spatial_ndim_, constant);
+    set_values_axes(values, arg);
+  };
+
+  auto set_values_axes_default_input_size = [&](std::vector<float> &values,
+                                                const std::vector<float> &arg) {
+    values.resize(nsamples * spatial_ndim_);
+    for (int i = 0; i < nsamples; i++) {
+      span<const int64_t> in_sample_shape = input_shape_.tensor_shape_span(i);
+      for (int d = 0; d < spatial_ndim_; d++) {
+        values[d] = in_sample_shape[d];
+      }
+    }
+    set_values_axes(values, arg);
+  };
+
   if (has_alignment_) {
-    GetShapeLikeWithAxes<float>(alignment_, alignment_arg_, spec, ws, "alignment", axes, nsamples,
-                                spatial_ndim_, nargs, first_spatial_dim_);
+    GetShapeLikeArgument<float>(alignment_arg_, spec, "alignment", ws, nsamples, nargs);
+    set_values_axes_default_const(alignment_, alignment_arg_, 0.0f);
   }
 
+  assert(has_sizes_ + has_scales_ == 1);
   if (has_sizes_) {
-    GetShapeLikeWithAxes<float>(sizes_, sizes_arg_, spec, ws, "sizes", axes, nsamples,
-                                spatial_ndim_, nargs, first_spatial_dim_);
-  } else if (has_scales_) {
-    GetShapeLikeWithAxes<float>(scales_, scales_arg_, spec, ws, "scales", axes, nsamples,
-                                spatial_ndim_, nargs, first_spatial_dim_);
-  } else {
-    assert(false);  // should not happen
+    GetShapeLikeArgument<float>(sizes_arg_, spec, "sizes", ws, nsamples, nargs);
+    set_values_axes_default_input_size(sizes_, sizes_arg_);
+  }
+  if (has_scales_) {
+    GetShapeLikeArgument<float>(scales_arg_, spec, "scales", ws, nsamples, nargs);
+    set_values_axes_default_const(scales_, scales_arg_, 1.0f);
   }
 
   if (has_roi_) {
-    GetShapeLikeWithAxes<float>(roi_start_, roi_start_arg_, spec, ws, "roi_start", axes, nsamples,
-                                spatial_ndim_, nargs, first_spatial_dim_);
-    GetShapeLikeWithAxes<float>(roi_end_, roi_end_arg_, spec, ws, "roi_end", axes, nsamples,
-                                spatial_ndim_, nargs, first_spatial_dim_);
+    GetShapeLikeArgument<float>(roi_start_arg_, spec, "roi_start", ws, nsamples, nargs);
+    set_values_axes_default_const(roi_start_, roi_start_arg_, 0.0f);
+
+    GetShapeLikeArgument<float>(roi_end_arg_, spec, "roi_end", ws, nsamples, nargs);
+    if (roi_relative_)
+      set_values_axes_default_const(roi_end_, roi_end_arg_, 1.0f);
+    else
+      set_values_axes_default_input_size(roi_end_, roi_end_arg_);
   }
+
+
+  const float *max_size = nullptr;
+  if (has_max_size_) {
+    max_size_.resize(spatial_ndim_,
+                     std::nextafter(static_cast<float>(std::numeric_limits<int>::max()), 0.0f));
+    GetSingleOrRepeatedArg(spec, max_size_arg_, "max_size", nargs);
+    for (int a = 0; a < nargs; a++) {
+      int d = axes[a];
+      max_size_[d] = max_size_arg_[a];
+    }
+    max_size = max_size_.data();
+  }
+
+  params_.resize(nsamples);
+  auto roi_start = make_cspan(roi_start_);
+  auto roi_end = make_cspan(roi_end_);
 
   SmallVector<float, 3> requested_size, in_lo, in_hi;
   requested_size.resize(spatial_ndim_);
   in_lo.resize(spatial_ndim_);
   in_hi.resize(spatial_ndim_);
 
-  params_.resize(nsamples);
-  assert(has_sizes_ + has_scales_ == 1);
-
-  auto max_size = PrepareMaxSize(spec, axes);
-  auto roi_start = make_cspan(roi_start_);
-  auto roi_end = make_cspan(roi_end_);
-
   for (int i = 0; i < nsamples; i++) {
-    auto in_sample_shape = input_shape.tensor_shape_span(i);
+    auto in_sample_shape = input_shape_.tensor_shape_span(i);
+
     if (has_sizes_) {
       for (int d = 0; d < spatial_ndim_; d++) {
-        requested_size[d] = sizes_[i * ndim_ + first_spatial_dim_ + d];
+        requested_size[d] = sizes_[i * spatial_ndim_ + d];
       }
     } else {
       assert(has_scales_);
-      for (int d = 0; d < ndim_; d++) {
-        requested_size[d] = scales_[i * ndim_ + first_spatial_dim_ + d] * in_sample_shape[d];
+      for (int d = 0; d < spatial_ndim_; d++) {
+        requested_size[d] = scales_[i * spatial_ndim_ + d] * in_sample_shape[d];
       }
     }
 
-    bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
+    bool empty_input = volume(input_shape_.tensor_shape_span(i)) == 0;
     CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start, roi_end,
-                      input_shape, i, spatial_ndim_, first_spatial_dim_);
+                      input_shape_, i, spatial_ndim_, first_spatial_dim_);
 
     span<const float> alignment;
     if (has_alignment_)
-      alignment = {alignment_.data() + i * spatial_ndim_, spatial_ndim_};
+      alignment = {alignment_arg_.data() + i * spatial_ndim_, spatial_ndim_};
     assert(subpixel_scale_ || !has_alignment_);
     CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                           spatial_ndim_, mode_, max_size, alignment, scale_round_fn_);
   }
 
   // Modify first_spatial_dim_ and spatial_ndim_ so that we ignore dimensions that are not resized
-  // (e.g. scale 1, or requested same output size as input)
-  TrimSpatialDims(input_shape);
+  // (e.g. scale 1, or requested same output size as input), but at the same time make sure we keep
+  // at least 2 spatial dims
+  TrimSpatialDims(input_shape_);
 }
 
 }  // namespace dali

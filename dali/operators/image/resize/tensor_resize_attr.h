@@ -47,6 +47,14 @@ class DLL_PUBLIC TensorResizeAttr {
     }
   }
 
+  TensorListShape<> ExpandedInputShape() const {
+    return input_shape_;
+  }
+
+  int LeadingDummyDims() const {
+    return add_leading_spatial_ndim_;
+  }
+
   vector<ResizeParams> params_;
 
   vector<int> axes_;
@@ -74,7 +82,7 @@ class DLL_PUBLIC TensorResizeAttr {
   ResizeMode mode_ = ResizeMode::Stretch;
 
  private:
-  span<const int> PrepareAxes(const OpSpec &spec, int ndim);
+  void PrepareAxes(const OpSpec &spec, int ndim);
   const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
   void TrimSpatialDims(const TensorListShape<> &input_shape);
 
@@ -83,6 +91,9 @@ class DLL_PUBLIC TensorResizeAttr {
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;
   vector<float> alignment_, alignment_arg_;
   std::function<int(float)> scale_round_fn_;
+
+  TensorListShape<> input_shape_;
+  int add_leading_spatial_ndim_ = 0;
 };
 
 }  // namespace dali

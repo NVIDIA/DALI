@@ -277,11 +277,25 @@ def test_resize_upsample_resize_only_1d(device):
                                              interp_type=types.INTERP_NN)
     run_and_compare(expected, data, device, resize_fn)
 
+
 @params('cpu', 'gpu')
 def test_resize_upsample_resize_only_noop(device):
     data = data_1x1x2x2
     scales = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+
     def resize_fn(input_data):
         return fn.experimental.tensor_resize(input_data, scales=scales, alignment=0,
                                              interp_type=types.INTERP_NN)
     run_and_compare(data, data, device, resize_fn)
+
+
+@params('cpu', 'gpu')
+def test_resize_upsample_1d(device):
+    data = np.array([1.0, 2.0], dtype=np.float32)
+    scales = np.array([3.0], dtype=np.float32)
+    expected = np.array([1., 1., 1., 2., 2., 2.], dtype=np.float32)
+
+    def resize_fn(input_data):
+        return fn.experimental.tensor_resize(input_data, scales=scales, alignment=0,
+                                             interp_type=types.INTERP_NN)
+    run_and_compare(expected, data, device, resize_fn)

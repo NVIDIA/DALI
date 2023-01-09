@@ -18,6 +18,7 @@
 #include <cassert>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/tensor_resize_attr.h"
@@ -48,9 +49,9 @@ class TensorResize : public Operator<Backend>
     int nsamples = input_shape.num_samples();
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape);
 
-    // TODO(janton) : implement 1D
-    if (NumSpatialDims() == 1) {
-      throw std::invalid_argument("1D resizing is not yet implemented.");
+    if (NumSpatialDims() < 2) {
+      // PrepareResizeParams should expand to at least
+      throw std::logic_error("1D resizing is not supported");
     }
 
     if (NumSpatialDims() < 1) {
@@ -71,7 +72,7 @@ class TensorResize : public Operator<Backend>
           resize_attr_.first_spatial_dim_));
     }
 
-    assert(NumSpatialDims() >= 1 && NumSpatialDims() <= 3);
+    assert(NumSpatialDims() >= 2 && NumSpatialDims() <= 3);
     assert(FirstSpatialDim() >= 0);
     resample_params_.resize(nsamples * NumSpatialDims());
     resampling_attr_.PrepareFilterParams(spec_, ws, nsamples);
@@ -100,18 +101,23 @@ bool TensorResize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                       const Workspace &ws) {
   output_desc.resize(1);
   auto &input = ws.Input<Backend>(0);
-
-  const auto &in_shape = input.shape();
   auto in_type = input.type();
-  int N = in_shape.num_samples();
 
-  PrepareParams(ws, in_shape);
-
+  PrepareParams(ws, input.shape());
+  auto expanded_in_shape = resize_attr_.ExpandedInputShape();
+  int leading_dummy_ndim = resize_attr_.LeadingDummyDims();
+  int N = expanded_in_shape.num_samples();
   auto out_type = resampling_attr_.GetOutputType(in_type);
 
   output_desc[0].type = out_type;
-  this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
+  this->SetupResize(output_desc[0].shape, out_type, expanded_in_shape, in_type,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
+
+  if (leading_dummy_ndim > 0) {
+    using shape_blocks_t = SmallVector<std::pair<int, int>, 6>;
+    auto groups_dim = shape_blocks_t{{0, leading_dummy_ndim + 1}};
+    output_desc[0].shape = collapse_dims(output_desc[0].shape, make_cspan(groups_dim));
+  }
   return true;
 }
 
