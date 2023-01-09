@@ -28,6 +28,4 @@ python train.py                                                                 
     --ckpt_dir .                                                                                    \
     --output_filename out_weights_1.h5  2>&1 | tee $LOG
 
-popd
-
 CLEAN_AND_EXIT ${PIPESTATUS[0]}

@@ -19,16 +19,13 @@ from nvutils import common
 from distutils.version import StrictVersion
 
 import tensorflow as tf
-import tensorflow.keras as keras
+import keras
 import os
 import time
 import re
-import numpy as np
 import horovod.tensorflow.keras as hvd
 
-from tensorflow.python.keras.optimizer_v2 import (gradient_descent as
-                                                  gradient_descent_v2)
-from tensorflow.python.keras import backend
+from keras import backend
 print(tf.__version__)
 if StrictVersion(tf.__version__) > StrictVersion("2.1.0"):
   if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
