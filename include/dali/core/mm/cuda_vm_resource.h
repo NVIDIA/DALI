@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@
 #define DALI_CORE_MM_CUDA_VM_RESOURCE_H_
 
 #include <algorithm>
-#include <mutex>
+#include <cassert>
 #include <condition_variable>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -140,6 +141,49 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
           "\n");
       }
     }
+  }
+
+  void release_unused() {
+    std::vector<cuvm::CUMem> blocks_to_free;
+    {
+      lock_guard pool_guard(pool_lock_);
+      mem_lock_guard mem_guard(mem_lock_);
+
+      ptrdiff_t num_blocks_to_free = 0;
+      for (auto &region : va_regions_) {
+        ptrdiff_t start = 0, end = 0;
+        for (;; start = end + 1) {
+          start = region.available.find(true, start);
+          end = region.available.find(false, start + 1);
+          if (end <= start)
+            break;
+          num_blocks_to_free += end - start;
+        }
+      }
+      blocks_to_free.reserve(num_blocks_to_free);
+
+      [&]() noexcept {  // this code mustn't throw!
+        for (auto &region : va_regions_) {
+          ptrdiff_t start = 0, end = 0;
+          for (;; start = end + 1) {
+            start = region.available.find(true, start);
+            end = region.available.find(false, start + 1);
+            if (end <= start)
+              break;
+            auto *start_ptr = region.block_ptr<char>(start);
+            auto *end_ptr = region.block_ptr<char>(end);
+            for (ptrdiff_t i = start; i < end; i++) {
+              blocks_to_free.push_back(region.unmap_block(i));
+              stat_.total_unmaps++;
+            }
+            free_mapped_.get_specific_block(start_ptr, end_ptr);
+          }
+        }
+      }();
+      assert(static_cast<ptrdiff_t>(blocks_to_free.size()) == num_blocks_to_free);
+      stat_.allocated_blocks -= blocks_to_free.size();
+    }
+    blocks_to_free.clear();  // free the physical memory
   }
 
  protected:

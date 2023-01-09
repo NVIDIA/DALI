@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -135,6 +135,12 @@ class pool_resource_base : public memory_resource<Kind> {
     return options_;
   }
 
+  void release_unused() {
+    upstream_lock_guard uguard(upstream_lock_);
+
+    release_unused_impl();
+  }
+
  protected:
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (!bytes)
@@ -207,29 +213,8 @@ class pool_resource_base : public memory_resource<Kind> {
           // (the free list covers them completely), we can try to return them
           // to the upstream, with the hope that it will reorganize and succeed in
           // the subsequent allocation attempt.
-          int blocks_freed = 0;
-          SmallVector<bool, 32> removed;
-          removed.resize(blocks_.size(), false);
-          {
-            lock_guard guard(lock_);
-            for (int i = 0; i < static_cast<int>(blocks_.size()); i++) {
-              UpstreamBlock blk = blocks_[i];
-              removed[i] = free_list_.remove_if_in_list(blk.ptr, blk.bytes);
-              if (removed[i])
-                blocks_freed++;
-            }
-          }
-
-          if (!blocks_freed)
-            throw;  // we freed nothing, so there's no point in retrying to allocate
-
-          for (int i = blocks_.size() - 1; i >= 0; i--) {
-            if (removed[i]) {
-              UpstreamBlock blk = blocks_[i];
-              upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
-              blocks_.erase_at(i);
-            }
-          }
+          if (!release_unused_impl())
+            throw;
           // mark that we've tried, so we can fail fast the next time
           tried_return_to_upstream = true;
         }
@@ -247,6 +232,36 @@ class pool_resource_base : public memory_resource<Kind> {
       throw;
     }
     return new_block;
+  }
+
+  int release_unused_impl() {
+    // go over blocks and find ones that are completely covered by free regions
+    // - we can free such blocks.
+    int blocks_freed = 0;
+    SmallVector<bool, 32> removed;
+    removed.resize(blocks_.size(), false);
+    {
+      lock_guard guard(lock_);
+      for (int i = 0; i < static_cast<int>(blocks_.size()); i++) {
+        UpstreamBlock blk = blocks_[i];
+        removed[i] = free_list_.remove_if_in_list(blk.ptr, blk.bytes);
+        if (removed[i])
+          blocks_freed++;
+      }
+    }
+
+    if (!blocks_freed)
+      return 0;  // nothing to free
+
+    // Go backwards, so we free in reverse order of allocation from upstream.
+    for (int i = blocks_.size() - 1; i >= 0; i--) {
+      if (removed[i]) {
+        UpstreamBlock blk = blocks_[i];
+        upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
+        blocks_.erase_at(i);
+      }
+    }
+    return blocks_freed;
   }
 
   size_t next_block_size(size_t upcoming_allocation_size) {

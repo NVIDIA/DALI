@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,6 +145,9 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
   int max_hogs = sync_dist(rng);
   CUDAEvent event = CUDAEvent::Create();
   for (int i = 0; i < max_iters; i++) {
+    if (i == max_iters / 2)
+      pool.release_unused();
+
     if (use_hog && hog_dist(rng)) {
       if (hogs++ > max_hogs) {
         CUDA_CALL(cudaStreamSynchronize(stream));
