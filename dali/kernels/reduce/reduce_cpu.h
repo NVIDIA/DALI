@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,18 +236,13 @@ struct ReduceBaseCPU {
   }
 
   void InitAxes(span<const int> _axes) {
-    for (int axis : _axes) {
-      if (axis < -ndim() || axis >= ndim()) {
-        throw std::range_error(make_string("Axis index out of range: ", axis, " not in range [",
-                                           -ndim(), "..", ndim() - 1, "]"));
-      }
-    }
-
     axes.copy_assign(_axes.begin(), _axes.end());
-    reduce_impl::CheckAxes(make_cspan(axes), ndim());
-    reduce_impl::AdjustAxes(make_span(axes), ndim());
     axis_mask = 0;
     for (int axis : axes) {
+      if (axis < 0 || axis >= ndim()) {
+        throw std::range_error(
+            make_string("Axis index out of range: ", axis, " not in range [0, ", ndim() - 1, "]"));
+      }
       axis_mask |= 1_u64 << axis;
     }
   }
