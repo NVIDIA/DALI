@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -828,23 +828,11 @@ Parameters
         if not self._py_pool_started:
             self._start_py_workers()
 
-    def build(self, define_graph=None):
+    def build(self):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
         Framework-specific plugins handle this step automatically.
-
-        Parameters
-        ----------
-        define_graph : callable
-            If specified, this function will be used instead of member :meth:`define_graph`.
-            This parameter must not be set, if the pipeline outputs are specified with
-            :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
-
-            .. note::
-
-                This method of defining the processing graph cannot be used with parallel
-                ``ExternalSource``.
         """
         if self._built:
             return
