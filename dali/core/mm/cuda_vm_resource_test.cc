@@ -213,27 +213,35 @@ class VMResourceTest : public ::testing::Test {
     cuda_vm_resource res;
     size_t block_size = 4 << 20;  // 4 MiB;
     res.block_size_ = block_size;
-    void *p1 = res.allocate(block_size);  // allocate one block
-    void *p2 = res.allocate(block_size);  // allocate another block
-    EXPECT_EQ(res.stat_.allocated_blocks, 2);
-    res.deallocate(p1, block_size);       // now free the first block
+    void *p1 = res.allocate(block_size / 2);    // allocate half block
+    void *p2 = res.allocate(block_size / 2);    // allocate another half of a block
+    void *p3 = res.allocate(block_size);        // allocate another block
     auto &region = res.va_regions_[0];
+    EXPECT_EQ(res.stat_.allocated_blocks, 2);
+    res.deallocate(p1, block_size / 2);         // now free the first half-block
+    EXPECT_EQ(region.available_blocks, 0);      // only half block was freed
+    res.release_unused();
+    EXPECT_EQ(res.stat_.total_unmaps, 0);       // cannot unmap a partially occupied block
+
+    res.deallocate(p2, block_size / 2);         // free the other half of the block
+
     EXPECT_EQ(region.available_blocks, 1);
     EXPECT_EQ(region.mapped.find(false), 2);    // 2 mapped blocks
     EXPECT_EQ(region.available.find(true), 0);  // of which the first is available
     res.release_unused();
-    EXPECT_EQ(region.available_blocks, 0);
-    EXPECT_EQ(region.mapped.find(false), 0);  // the block was unmapped
-    EXPECT_EQ(region.mapped.find(true), 1);   // but the next one wasn't
+    EXPECT_EQ(res.stat_.total_unmaps, 1);       // the 1st block should be unmapped
+    EXPECT_EQ(region.available_blocks, 0);      // after unmapping, it shouldn't be available
+    EXPECT_EQ(region.mapped.find(false), 0);    // the block was unmapped
+    EXPECT_EQ(region.mapped.find(true), 1);     // but the next one wasn't
     EXPECT_EQ(res.stat_.allocated_blocks, 1);
     EXPECT_EQ(res.stat_.peak_allocated_blocks, 2);
 
-    void *p3 = res.allocate(block_size);  // allocate one block
+    void *p4 = res.allocate(block_size);  // allocate one block
     EXPECT_EQ(res.stat_.allocated_blocks, 2);
 
-    EXPECT_EQ(p1, p3);
-    res.deallocate(p1, block_size);
-    res.deallocate(p2, block_size);
+    EXPECT_EQ(p1, p4);
+    res.deallocate(p4, block_size);
+    res.deallocate(p3, block_size);
     EXPECT_EQ(region.available_blocks, 2);
     res.release_unused();
     EXPECT_EQ(region.available_blocks, 0);

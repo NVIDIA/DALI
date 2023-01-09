@@ -135,6 +135,12 @@ class pool_resource_base : public memory_resource<Kind> {
     return options_;
   }
 
+  /**
+   * @brief Releases unused memory to the upstream resource
+   *
+   * If there are completely free upstream blocks, they are returned to upstream.
+   * Partially used blocks remain allocated.
+   */
   void release_unused() {
     upstream_lock_guard uguard(upstream_lock_);
 

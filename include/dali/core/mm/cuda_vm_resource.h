@@ -143,6 +143,11 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     }
   }
 
+  /**
+   * @brief Releases unused physical blocks
+   *
+   * Releases physical blocks that are currently allocated, but fully available.
+   */
   void release_unused() {
     std::vector<cuvm::CUMem> blocks_to_free;
     {

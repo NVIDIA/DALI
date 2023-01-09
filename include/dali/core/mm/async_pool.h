@@ -102,6 +102,12 @@ class async_pool_resource : public async_memory_resource<Kind> {
     synchronize_impl(true);
   }
 
+  /**
+   * @brief Releases unused upstream memory
+   *
+   * Releases any ready per-stream blocks to the global pool and
+   * calls `release_unused` on it.
+   */
   void release_unused() {
     std::lock_guard<std::mutex> guard(lock_);
     synchronize_impl(false);
