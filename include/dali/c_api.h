@@ -33,8 +33,9 @@ extern "C" {
 typedef struct {
   void *pipe;
   void *ws;
-  void *batch_size_map;     /// @see batch_size_map_t
+  void *batch_size_map;      /// @see batch_size_map_t
   cudaStream_t copy_stream;  /// Stream to perform copy operations on
+  void *data_id_map;         /// @see data_id_map_t
 } daliPipelineHandle;
 
 typedef enum {
@@ -219,6 +220,22 @@ DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
                                               int batch_size);
+
+/**
+ * Set the data_id for the upcoming call to `daliSetExternalInput*(...)`.
+ *
+ * The operator_name accepts the name of an input operator. Input operators are the operators,
+ * that can work with `daliSetExternalInput*(...)` functions, e.g. fn.external_source or
+ * fn.inputs.video.
+ *
+ * @param operator_name The name of the input operator to be fed.
+ * @param data_id data_id which will be assigned during upcoming `daliSetExternalInput*(...)` call.
+ */
+DLL_PUBLIC void
+daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
+                           const char *data_id);
+
+
 /** @} */
 
 /**

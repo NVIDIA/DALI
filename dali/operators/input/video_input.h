@@ -43,7 +43,9 @@ namespace detail {
  * @param num_frames How many frames the video has.
  * @param frames_per_sequence How many frames per sequence user requested.
  * @param batch_size How many sequences make up a single batch.
- * @return
+ * @return Tuple: [Number of full batches,
+ *                 Number of full sequences in the last batch,
+ *                 Number of frames in the last (incomplete) sequence]
  */
 auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_size) {
   assert(frames_per_sequence > 0);
@@ -67,6 +69,7 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
 
 }  // namespace detail
 
+
 template<typename Backend>
 using frames_decoder_t =
         std::conditional_t<
@@ -74,6 +77,9 @@ using frames_decoder_t =
                 FramesDecoder,
                 FramesDecoderGpu
         >;
+
+static const std::string next_output_data_id_trace_name_ = "next_output_data_id";  // NOLINT
+
 
 template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
 class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
@@ -106,13 +112,19 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-
   void RunImpl(Workspace &ws) override;
 
  private:
   void Invalidate() {
-    valid_ = false;
+    initialized_ = false;
+    needs_data_load_ = true;
+    data_id_ = std::nullopt;
   }
+
+
+  void LoadDataFromInputOperator(ThreadPool &thread_pool);
+
+  void SetNextDataIdTrace(Workspace &ws, std::string next_data_id);
 
 
   /**
@@ -186,9 +198,14 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   const int batch_size_ = {};
   const std::string last_sequence_policy_;
 
-  /// Valid VideoInput is the one that has the encoded video loaded and will return decoded sequence
-  bool valid_ = false;
-  TensorList<CPUBackend> encoded_videos_;
+  /// VideoInput is initialized, when it's ready to return decoded sequences using given input.
+  bool initialized_ = false;
+  /// VideoInput needs data load, if the current input has been depleted.
+  bool needs_data_load_ = true;
+  /// Input to the VideoInput. It's a single encoded video file.
+  TensorList<CPUBackend> encoded_video_;
+  /// DataId property of the input. @see daliSetExternalInputDataId
+  std::optional<std::string> data_id_;
 
   /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;

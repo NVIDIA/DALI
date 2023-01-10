@@ -48,13 +48,15 @@ and bandwidth.
 
 template<>
 void InputOperator<CPUBackend>::ForwardCurrentData(
-        TensorList<CPUBackend> &target, ThreadPool &thread_pool) {
+        TensorList<CPUBackend> &target, std::optional<std::string> &target_data_id, ThreadPool &thread_pool) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
     state_.pop_front();
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     const auto &shapes = tensor_list_elm.front()->shape();
@@ -84,7 +86,7 @@ void InputOperator<CPUBackend>::ForwardCurrentData(
 
 template<>
 void InputOperator<GPUBackend>::ForwardCurrentData(
-        TensorList<GPUBackend> &target, cudaStream_t stream) {
+        TensorList<GPUBackend> &target, std::optional<std::string> &target_data_id, cudaStream_t stream) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   InputSourceState state_info;
@@ -103,6 +105,8 @@ void InputOperator<GPUBackend>::ForwardCurrentData(
   if (!state_info.no_copy || state_info.copied_shared_data) {
     CUDA_CALL(cudaStreamWaitEvent(stream, *internal_copy_to_storage.front(), 0));
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
 
   std::swap(target, *tensor_list_elm.front());
   target.set_order(stream, false);

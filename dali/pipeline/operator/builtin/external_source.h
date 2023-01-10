@@ -175,6 +175,7 @@ class ExternalSource : public InputOperator<Backend> {
   DALIDataType previous_dtype_ = DALI_NO_TYPE;
   int ndim_;
   TensorLayout layout_;
+  std::optional<std::string> data_id_ = std::nullopt;
 };
 
 }  // namespace dali

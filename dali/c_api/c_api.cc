@@ -50,6 +50,14 @@ bool dali_initialized = false;
  */
 using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* batch_size */>;
 
+/**
+ * Maps operator name to the data_id set prior to daliSetExternal... call.
+ * Usually the operator with given `op_name` will be an InputOperator.
+ * Typical usage:
+ * auto *data_id_map = reinterpret_cast<data_id_map_t *>(handle->data_id_map);
+ */
+using data_id_map_t = std::unordered_map<std::string /* op_name */, std::string /* data_id */>;
+
 
 int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
                      const std::string &op_name) {
@@ -86,6 +94,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
                       const char *layout_str, cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
+  auto *data_id_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -111,10 +120,12 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
                  tl_shape.num_elements() * elem_sizeof, flags & DALI_ext_pinned, tl_shape, type_id,
                  device_id, order);
   data.SetLayout(layout);
-  pipeline->SetExternalInput(name, data, order,
-                             flags & DALI_ext_force_sync,
-                             flags & DALI_use_copy_kernel,
-                             GetExternalSourceCopyMode(flags));
+
+  auto data_id = data_id_map->extract(name);
+
+  pipeline->SetExternalInput(name, data, order, flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel, GetExternalSourceCopyMode(flags),
+                             data_id ? std::make_optional(data_id.mapped()) : std::nullopt);
 }
 
 
@@ -125,6 +136,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                              cudaStream_t stream = 0, unsigned int flags = 0) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
+  auto *data_id_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -161,10 +173,12 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     data.SetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
                    tl_shape[i], type_id, device_id, order, layout);
   }
-  pipeline->SetExternalInput(name, data, order,
-                             flags & DALI_ext_force_sync,
-                             flags & DALI_use_copy_kernel,
-                             GetExternalSourceCopyMode(flags));
+
+  auto data_id = data_id_map->extract(name);
+
+  pipeline->SetExternalInput(name, data, order, flags & DALI_ext_force_sync,
+                             flags & DALI_use_copy_kernel, GetExternalSourceCopyMode(flags),
+                             data_id ? std::make_optional(data_id.mapped()) : std::nullopt);
 }
 
 inline dali::mm::memory_kind_id GetMemKind(device_type_t device_type, bool is_pinned) {
@@ -223,11 +237,13 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
     stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
   auto bs_map = std::make_unique<batch_size_map_t>();
+  auto di_map = std::make_unique<data_id_map_t>();
 
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
+  pipe_handle->data_id_map = di_map.release();
 }
 
 
@@ -241,10 +257,12 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
   }
   auto ws = std::make_unique<dali::Workspace>();
   auto bs_map = std::make_unique<batch_size_map_t>();
+  auto di_map = std::make_unique<data_id_map_t>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
+  pipe_handle->data_id_map = di_map.release();
 }
 
 
@@ -286,6 +304,13 @@ void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *
                                    int batch_size) {
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   (*bs_map)[name] = batch_size;
+}
+
+
+void daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
+                                const char *data_id) {
+  auto di_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
+  (*di_map)[operator_name] = data_id;
 }
 
 
