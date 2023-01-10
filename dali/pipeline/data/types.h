@@ -398,7 +398,7 @@ class DLL_PUBLIC TypeInfo {
 
   DALIDataType id_ = DALI_NO_TYPE;
   size_t type_size_ = 0;
-  string name_{to_string(DALI_NO_TYPE)};
+  string name_{to_string(DALIDataType::DALI_NO_TYPE)};
 };
 
 template <typename T>
