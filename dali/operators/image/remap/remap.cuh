@@ -27,7 +27,7 @@ namespace remap {
 namespace detail {
 
 template<typename T>
-std::enable_if_t <std::is_floating_point<T>::value>
+std::enable_if_t <std::is_floating_point_v<T>>
 __global__
 shift_pixel_origin_per_batch(T **data, const size_t *sample_sizes, size_t n_samples,
                              T shift_value) {
@@ -60,7 +60,7 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
 template<typename StorageBackend, typename T, int ndims>
 void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
                       dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
-  static_assert(std::is_floating_point<T>::value,
+  static_assert(std::is_floating_point_v<T>,
                 "Shifting should be conducted on floating point data.");
   static_assert(is_gpu_accessible<StorageBackend>::value, "Data must be GPU-accessible.");
   auto n_samples = tlv.num_samples();
