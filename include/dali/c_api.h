@@ -33,7 +33,8 @@ extern "C" {
 typedef struct {
   void *pipe;
   void *ws;
-  void *batch_size_map;     /// @see batch_size_map_t
+  void *batch_size_map;      /// @see batch_size_map_t
+  void *data_id_map;         /// @see data_id_map_t
   cudaStream_t copy_stream;  /// Stream to perform copy operations on
 } daliPipelineHandle;
 
@@ -219,6 +220,18 @@ DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
                                               int batch_size);
+
+/**
+ * TODO(mszolucha)
+ * @param pipe_handle
+ * @param operator_name
+ * @param data_id
+ */
+DLL_PUBLIC void
+daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
+                           const char *data_id);
+
+
 /** @} */
 
 /**
