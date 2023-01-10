@@ -56,12 +56,24 @@ class DLL_PUBLIC TensorResizeAttr {
     return add_leading_spatial_ndim_;
   }
 
+  int NumSpatialDims() const {
+    return spatial_ndim_;
+  }
+
+  int FirstSpatialDim() const {
+    return first_spatial_dim_;
+  }
+
+  span<const ResizeParams> Params() const {
+    return make_cspan(params_);
+  }
+
+ private:
+  void PrepareAxes(const OpSpec &spec, int ndim);
+  const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
+  void TrimSpatialDims(const TensorListShape<> &input_shape);
+
   AxesHelper axes_helper_;
-  vector<ResizeParams> params_;
-
-  // Maximum size - used together with with mode NotSmaller to limit the size for very thin images
-  vector<float> max_size_, max_size_arg_;
-
   bool has_sizes_ = false;
   bool has_scales_ = false;
   bool has_max_size_ = false;
@@ -69,27 +81,20 @@ class DLL_PUBLIC TensorResizeAttr {
   bool has_roi_ = false;
   bool has_alignment_ = false;
   bool roi_relative_ = false;
-
-  int ndim_ = -1;
-  int spatial_ndim_ = -1;
-  int first_spatial_dim_ = -1;
   bool subpixel_scale_ = true;
-
   ResizeMode mode_ = ResizeMode::Stretch;
-
- private:
-  void PrepareAxes(const OpSpec &spec, int ndim);
-  const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
-  void TrimSpatialDims(const TensorListShape<> &input_shape);
-
   vector<float> sizes_, sizes_arg_;
   vector<float> scales_, scales_arg_;
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;
   vector<float> alignment_, alignment_arg_;
+  vector<float> max_size_, max_size_arg_;
   std::function<int(float)> scale_round_fn_;
-
   TensorListShape<> input_shape_;
+  int ndim_ = -1;
+  int spatial_ndim_ = -1;
+  int first_spatial_dim_ = -1;
   int add_leading_spatial_ndim_ = 0;
+  vector<ResizeParams> params_;
 };
 
 }  // namespace dali

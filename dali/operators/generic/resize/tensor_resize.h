@@ -36,8 +36,8 @@ class TensorResize : public Operator<Backend>
   explicit TensorResize(const OpSpec &spec);
 
  protected:
-  int NumSpatialDims() const { return resize_attr_.spatial_ndim_; }
-  int FirstSpatialDim() const { return resize_attr_.first_spatial_dim_; }
+  int NumSpatialDims() const { return resize_attr_.NumSpatialDims(); }
+  int FirstSpatialDim() const { return resize_attr_.FirstSpatialDim(); }
 
   bool CanInferOutputs() const override { return true; }
 
@@ -69,8 +69,8 @@ class TensorResize : public Operator<Backend>
           "Example 2: Input shape (2, 2, 4, 3, 2), Output shape (2, 3, 4, 5, 2). Only the 2nd and "
           "4th dimensions are resized, but we can only consider a block of consecutive dimensions "
           "so we include the 3rd dimension as well (3 spatial dimensions).\n\nGot: ",
-          resize_attr_.spatial_ndim_, " spatial dimensions starting at dim ",
-          resize_attr_.first_spatial_dim_));
+          NumSpatialDims(), " spatial dimensions starting at dim ",
+          FirstSpatialDim()));
     }
 
     assert(NumSpatialDims() >= 2 && NumSpatialDims() <= 3);
@@ -78,7 +78,7 @@ class TensorResize : public Operator<Backend>
     resample_params_.resize(nsamples * NumSpatialDims());
     resampling_attr_.PrepareFilterParams(spec_, ws, nsamples);
     resampling_attr_.GetResamplingParams(make_span(resample_params_),
-                                         make_cspan(resize_attr_.params_));
+                                         resize_attr_.Params());
   }
 
   void InitializeBackend();
