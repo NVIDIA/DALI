@@ -132,15 +132,15 @@ class DLL_PUBLIC Pipeline {
 
 
   template<typename T, typename OperatorBackend>
-  void
-  SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
-                      InputOperatorSettingMode in_op_setting_mode = {}) {
+  void SetDataSourceHelper(const string &name, const T &tl, std::optional<std::string> data_id,
+                           OperatorBase *op_ptr, AccessOrder order = {},
+                           InputOperatorSettingMode in_op_setting_mode = {}) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an InputOperator.");
-    source->SetDataSource(tl, order, in_op_setting_mode);
+    source->SetDataSource(tl, order, in_op_setting_mode, std::move(data_id));
   }
 
   /**
@@ -154,8 +154,9 @@ class DLL_PUBLIC Pipeline {
    *                        of setting the data.
    */
   template<typename TL>
-  void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
-                              InputOperatorSettingMode ext_src_setting_mode = {}) {
+  void
+  SetExternalInputHelper(const string &name, const TL &tl, std::optional<std::string> data_id,
+                         AccessOrder order = {}, InputOperatorSettingMode in_op_setting_mode = {}) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -176,9 +177,11 @@ class DLL_PUBLIC Pipeline {
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
     if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+      SetDataSourceHelper<TL, CPUBackend>(
+              name, tl, std::move(data_id), op_ptr, order, in_op_setting_mode);
     } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+      SetDataSourceHelper<TL, GPUBackend>(
+              name, tl, std::move(data_id), op_ptr, order, in_op_setting_mode);
     }
   }
 
@@ -198,8 +201,10 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void
   SetExternalInput(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
                    bool sync = false, bool use_copy_kernel = false,
-                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT) {
-    SetExternalInputHelper(name, tl, order, {sync, use_copy_kernel, no_copy_mode});
+                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT,
+                   std::optional<std::string> data_id = std::nullopt) {
+    SetExternalInputHelper(
+            name, tl, std::move(data_id), order, {sync, use_copy_kernel, no_copy_mode});
   }
 
 

@@ -17,7 +17,9 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
@@ -33,6 +35,68 @@ namespace detail {
 
 struct CudaEventWrapper : CUDAEvent {
   CudaEventWrapper() : CUDAEvent(CUDAEvent::Create()) {}
+};
+
+
+/**
+ * Custom structure to hold the input data inside the CachingList.
+ * Apart from holding a pointer to the data, it can also contain other data associated with the
+ * input data, e.g. name, flavour, colour, etc.
+ * @tparam Backend
+ */
+template<typename Backend>
+struct named_pointer_to_tensor_list_t {
+  using element_type = TensorList<Backend>;
+  std::unique_ptr<element_type> data = nullptr;
+  std::optional<std::string> data_id = std::nullopt;
+
+
+  named_pointer_to_tensor_list_t(std::unique_ptr<element_type> data) :  // NOLINT
+          data(std::move(data)) {}
+
+  ~named_pointer_to_tensor_list_t() = default;
+
+  named_pointer_to_tensor_list_t(const named_pointer_to_tensor_list_t &) = delete;
+
+  named_pointer_to_tensor_list_t &operator=(const named_pointer_to_tensor_list_t &) = delete;
+
+
+  named_pointer_to_tensor_list_t &operator=(named_pointer_to_tensor_list_t &&other) noexcept {
+    data = std::move(other.data);
+    data_id = std::move(other.data_id);
+    other.data = nullptr;
+    other.data_id = std::nullopt;
+  }
+
+
+  named_pointer_to_tensor_list_t(named_pointer_to_tensor_list_t &&other) noexcept {
+    *this = std::move(other);
+  }
+
+
+  const auto &operator*() const noexcept {
+    return *data;
+  }
+
+
+  auto &operator*() noexcept {
+    return *data;
+  }
+
+
+  const auto &operator->() const noexcept {
+    return data;
+  }
+
+
+  auto &operator->() noexcept {
+    return data;
+  }
+
+
+  void set_id(std::string id) noexcept {
+    data_id = std::move(id);
+  }
 };
 
 }  // namespace detail
@@ -108,7 +172,7 @@ struct InputOperatorSettingMode {
  */
 template<typename Backend>
 class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider {
-  using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
+  using uptr_tl_type = detail::named_pointer_to_tensor_list_t<Backend>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
  public:
@@ -136,10 +200,13 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
+   *
+   * @param data_id Arbitrary ID of the data passed to the function. Can be any string.
    */
   template<typename SrcBackend>
   void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors, AccessOrder order = {},
-                     InputOperatorSettingMode ext_src_setting_mode = {}) {
+                     InputOperatorSettingMode ext_src_setting_mode = {},
+                     std::optional<std::string> data_id = std::nullopt) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][InputOperator] SetDataSource", DomainTimeRange::kViolet);
     DALI_ENFORCE(vect_of_tensors.size() > 0, "Provided batch cannot be empty.");
@@ -148,23 +215,34 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     for (int i = 0; i < tl.num_samples(); ++i) {
       tl.SetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tl, order, ext_src_setting_mode);
+    SetDataSourceHelper(tl, std::move(data_id), order, ext_src_setting_mode);
   }
 
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
+   *
+   * @param data_id Arbitrary ID of the data passed to the function. Can be any string.
    */
   template<typename SrcBackend>
   void SetDataSource(const TensorList<SrcBackend> &tl, AccessOrder order = {},
-                     InputOperatorSettingMode ext_src_setting_mode = {}) {
+                     InputOperatorSettingMode ext_src_setting_mode = {},
+                     std::optional<std::string> data_id = std::nullopt) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][InputOperator] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tl, order, ext_src_setting_mode);
+    SetDataSourceHelper(tl, std::move(data_id), order, ext_src_setting_mode);
   }
 
 
  protected:
+  /**
+   * Checks if there is more data in queue to be loaded.
+   */
+  bool HasDataInQueue() const {
+    return !state_.empty();
+  }
+
+
   /**
    * Checks if the data is available. If it's not, either blocks or throws an error,
    * depending on ``blocking`` operator argument.
@@ -183,6 +261,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     }
   }
 
+
   ///@{
   /**
    * Injects current data portion into the provided TensorList and recycles
@@ -192,11 +271,17 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * however it might not always be possible.
    *
    * @param target Where the data shall be injected.
+   * @param target_data_id Where the ID of the current data shall be injected.
+   *                       @see named_pointer_to_tensor_list_t.
    * @param tp TheadPool used to copy the data.
    */
-  void DLL_PUBLIC ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+  void DLL_PUBLIC
+  ForwardCurrentData(TensorList<CPUBackend> &target, std::optional<std::string> &target_data_id,
+                     ThreadPool &tp);
 
-  void DLL_PUBLIC ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
+  void DLL_PUBLIC
+  ForwardCurrentData(TensorList<GPUBackend> &target, std::optional<std::string> &target_data_id,
+                     cudaStream_t stream = nullptr);
   ///@}
 
 
@@ -243,8 +328,8 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
   template<typename SrcBackend>
   std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
-  ShareUserData(const TensorList<SrcBackend> &t, AccessOrder /* order = {}*/,
-                bool /* use_copy_kernel */) {
+  ShareUserData(const TensorList<SrcBackend> &t, std::optional<std::string> /* data_id */,
+                AccessOrder /* order = {}*/, bool /* use_copy_kernel */) {
     DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
                           "as operator. Received: ",
                           std::is_same<SrcBackend, CPUBackend>::value ? "CPU" : "GPU",
@@ -257,11 +342,11 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   template<typename SrcBackend>
   std::enable_if_t<
           std::is_same<SrcBackend, Backend>::value && std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder /* order = {}*/,
-                bool /*use_copy_kernel = false*/) {
+  ShareUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
+                AccessOrder /* order = {}*/, bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
-    auto tl_elm = GetEmptyOutputBatch();
+    auto tl_elm = GetEmptyOutputBatch(std::move(data_id));
     // set pinned if needed
     if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
       tl_elm.front()->Reset();
@@ -280,6 +365,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * @remarks Mixing contiguous and non-contiguous inputs in subsequents calls
    *        is not supported and could lead to data corruption.
    * @param batch source data
+   * @param data_id Arbitrary ID of the data passed to the function. Can be any string.
    * @param order CUDA stream use to schedule the copy (or host order to make the copy
    *              host-syncrhonous)
    * @param use_copy_kernel If true, a copy kernel will be used to make a
@@ -288,10 +374,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   template<typename SrcBackend>
   std::enable_if_t<
           std::is_same<SrcBackend, Backend>::value && std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder order = {},
-                bool use_copy_kernel = false) {
+  ShareUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
+                AccessOrder order = {}, bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    auto tl_elm = GetEmptyOutputBatch();
+    auto tl_elm = GetEmptyOutputBatch(std::move(data_id));
     bool copied_shared_data = false;
 
     if (batch.IsContiguous()) {
@@ -321,12 +407,12 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
   template<typename SrcBackend, typename B = Backend>
   std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const TensorList<SrcBackend> &batch, AccessOrder order, bool /* sync */,
-               bool /* use_copy_kernel */) {
+  CopyUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
+               AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
     std::list<uptr_tl_type> tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = GetEmptyOutputBatch();
+      tl_elm = GetEmptyOutputBatch(std::move(data_id));
     }
     // set pinned if needed
     tl_elm.front()->set_order(AccessOrder::host());
@@ -349,13 +435,13 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
   template<typename SrcBackend, typename B = Backend>
   std::enable_if_t<std::is_same<B, GPUBackend>::value>
-  CopyUserData(const TensorList<SrcBackend> &batch, AccessOrder order, bool sync,
-               bool use_copy_kernel) {
+  CopyUserData(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
+               AccessOrder order, bool sync, bool use_copy_kernel) {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     std::list<uptr_tl_type> tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = GetEmptyOutputBatch();
+      tl_elm = GetEmptyOutputBatch(std::move(data_id));
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
     // If we got a host order we most probably got it via FeedPipeline and we are trying to pass the
@@ -382,7 +468,8 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   template<typename SrcBackend>
-  void SetDataSourceHelper(const TensorList<SrcBackend> &batch, AccessOrder order = {},
+  void SetDataSourceHelper(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
+                           AccessOrder order = {},
                            InputOperatorSettingMode ext_src_setting_mode = {}) {
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
@@ -402,9 +489,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     }
 
     if (actual_no_copy) {
-      ShareUserData(batch, order, ext_src_setting_mode.use_copy_kernel);
+      ShareUserData(batch, std::move(data_id), order, ext_src_setting_mode.use_copy_kernel);
     } else {
-      CopyUserData(batch, order, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
+      CopyUserData(batch, std::move(data_id), order, ext_src_setting_mode.sync,
+                   ext_src_setting_mode.use_copy_kernel);
     }
     cv_.notify_one();
   }
@@ -413,10 +501,15 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   /**
    * @brief Get the empty output batch from tl_data_, first assigning the correct order to it.
    * @warning User is responsible for holding busy_m_ mutex when calling this function.
+   *
+   * @param data_id Arbitrary ID of the data. Can be any string.
    */
-  std::list<uptr_tl_type> GetEmptyOutputBatch() {
+  std::list<uptr_tl_type> GetEmptyOutputBatch(std::optional<std::string> data_id) {
     auto result = tl_data_.GetEmpty();
     result.front()->set_order(internal_copy_order_);
+    if (data_id.has_value()) {
+      result.front().set_id(std::move(data_id.value()));
+    }
     return result;
   }
 
