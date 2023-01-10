@@ -45,9 +45,10 @@ class TensorResize : public Operator<Backend>
 
   void RunImpl(Workspace &ws) override;
 
-  void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape) {
+  void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape,
+                     const TensorLayout &layout) {
     int nsamples = input_shape.num_samples();
-    resize_attr_.PrepareResizeParams(spec_, ws, input_shape);
+    resize_attr_.PrepareResizeParams(spec_, ws, input_shape, layout);
 
     if (NumSpatialDims() < 2) {
       // PrepareResizeParams should expand to at least
@@ -102,8 +103,7 @@ bool TensorResize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   output_desc.resize(1);
   auto &input = ws.Input<Backend>(0);
   auto in_type = input.type();
-
-  PrepareParams(ws, input.shape());
+  PrepareParams(ws, input.shape(), input.GetLayout());
   auto expanded_in_shape = resize_attr_.ExpandedInputShape();
   int leading_dummy_ndim = resize_attr_.LeadingDummyDims();
   int N = expanded_in_shape.num_samples();

@@ -16,11 +16,10 @@
 #include <limits>
 #include <string>
 #include <vector>
-#include "dali/core/math_util.h"
 #include "dali/core/expand_dims.h"
+#include "dali/core/math_util.h"
 #include "dali/operators/image/resize/resize_attr.h"
-
-#include "dali/kernels/reduce/reduce_setup_utils.h"   // TODO(janton): #include "dali/kernels/common/utils.h"
+#include "dali/operators/util/axes_utils.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
@@ -58,14 +57,20 @@ mathematically equivalent to resizing after flipping).
 The value of this argument contains as many elements as dimensions provided for
 sizes/scales. If only one value is provided, it is applied to all dimensions.)code",
                                    std::vector<float>{0.5}, true)
-    .AddOptionalArg(
+    .AddOptionalArg<std::vector<int>>(
         "axes",
         R"code(Indices of dimensions that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
 
 Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.
 
-By default, all dimensions are assumed.)code",
-        std::vector<int>{})
+By default, all dimensions are assumed. The ``axis_names`` and ``axes`` arguments are mutually exclusive.)code",
+        nullptr)
+    .AddOptionalArg<TensorLayout>(
+        "axis_names",
+        R"code(Names of the axes that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
+
+By default, all dimensions are assumed. The ``axis_names`` and ``axes`` arguments are mutually exclusive.)code",
+        nullptr)
     .AddOptionalArg<std::string>("size_rounding",
                                  R"code(Determines the rounding policy when using scales.
 
@@ -77,12 +82,11 @@ Possible values are:
     .AddParent("ResizeAttrBase");
 
 
-TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) {
+TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) : axes_helper_(spec) {
   has_sizes_ = spec.ArgumentDefined("sizes");
   has_scales_ = spec.ArgumentDefined("scales");
   has_max_size_ = spec.ArgumentDefined("max_size");
   has_mode_ = spec.ArgumentDefined("mode");
-  has_axes_ = spec.ArgumentDefined("axes");
   has_alignment_ = spec.ArgumentDefined("alignment");
   subpixel_scale_ = spec.GetArgument<bool>("subpixel_scale");
 
@@ -104,10 +108,6 @@ TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) {
   DALI_ENFORCE((mode_ != ResizeMode::NotSmaller && mode_ != ResizeMode::NotLarger) || !has_scales_,
                "Providing ``scales`` is incompatible with not-smaller or not-larger modes");
 
-  if (has_axes_) {
-    axes_ = spec.GetRepeatedArgument<int>("axes");
-  }
-
   auto rounding = spec.GetArgument<std::string>("size_rounding");
   if (rounding == "round") {
     scale_round_fn_ = [](float x) {
@@ -126,16 +126,6 @@ TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) {
         "``rounding`` value ", rounding,
         " is not supported. Supported values are \"round\", \"truncate\", or \"ceil\"."));
   }
-}
-
-void TensorResizeAttr::PrepareAxes(const OpSpec &spec, int ndim) {
-  if (!has_axes_) {
-    axes_.resize(ndim);
-    std::iota(axes_.begin(), axes_.end(), 0);
-  }
-  // TODO(janton): use utils
-  kernels::reduce_impl::CheckAxes(make_cspan(axes_), ndim);
-  kernels::reduce_impl::AdjustAxes(make_span(axes_), ndim);
 }
 
 void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
@@ -190,23 +180,24 @@ void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
 }
 
 void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                                           const TensorListShape<> &input_shape) {
+                                           const TensorListShape<> &input_shape,
+                                           const TensorLayout &layout) {
   input_shape_ = input_shape;
   (void) input_shape;  // we are potentially modifying our copy for internal use
   ndim_ = input_shape_.sample_dim();
   if (ndim_ < 1)
     throw std::runtime_error("Input must be at least 1D");
-  PrepareAxes(spec, ndim_);  // sets axes_
+  axes_helper_.PrepareAxes(layout, ndim_);
+  span<int> axes = axes_helper_.Axes();
   first_spatial_dim_ = 0;
   // We need spatial_ndim >= 2
   add_leading_spatial_ndim_ = std::max(0, 2 - ndim_);
   if (add_leading_spatial_ndim_ > 0) {
     expand_dims(input_shape_, input_shape, first_spatial_dim_, ndim_ + add_leading_spatial_ndim_);
     ndim_ = input_shape_.sample_dim();
-    for (int &a : axes_)  // adjust provided axes to skip the dummy dims
+    for (int &a : axes)  // skip dummy dims
       a += add_leading_spatial_ndim_;
   }
-  auto axes = make_cspan(axes_);
   spatial_ndim_ = ndim_;
   assert(spatial_ndim_ >= 2);
 

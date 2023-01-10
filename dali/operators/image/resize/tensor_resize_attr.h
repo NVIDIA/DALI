@@ -20,6 +20,7 @@
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/image/resize/resize_attr_base.h"
+#include "dali/operators/util/axes_utils.h"
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
@@ -29,7 +30,7 @@ class DLL_PUBLIC TensorResizeAttr {
   explicit TensorResizeAttr(const OpSpec &spec);
 
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                           const TensorListShape<> &input_shape);
+                           const TensorListShape<> &input_shape, const TensorLayout &layout);
 
   /**
    * @brief Gets the shape after resizing.
@@ -55,14 +56,10 @@ class DLL_PUBLIC TensorResizeAttr {
     return add_leading_spatial_ndim_;
   }
 
+  AxesHelper axes_helper_;
   vector<ResizeParams> params_;
 
-  vector<int> axes_;
-
-  /**
-   * Maximum size - used together with with mode NotSmaller to limit the size for
-   * very thin images
-   */
+  // Maximum size - used together with with mode NotSmaller to limit the size for very thin images
   vector<float> max_size_, max_size_arg_;
 
   bool has_sizes_ = false;
@@ -70,7 +67,6 @@ class DLL_PUBLIC TensorResizeAttr {
   bool has_max_size_ = false;
   bool has_mode_ = false;
   bool has_roi_ = false;
-  bool has_axes_ = false;
   bool has_alignment_ = false;
   bool roi_relative_ = false;
 
