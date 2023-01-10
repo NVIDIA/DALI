@@ -78,6 +78,7 @@ std::string LoadTestFile(const std::string &test_file_path) {
 }  // namespace
 
 
+template<typename VideoInputBackend>
 class VideoInputNextOutputDataIdTest : public ::testing::Test {
  protected:
   struct TestFileDescriptor {
@@ -85,6 +86,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
     int n_frames;           /// Number of frames in the file.
     std::string data_id;    /// DataId used for this file.
   };
+
+  static constexpr bool is_cpu = std::is_same_v<VideoInputBackend, CPUBackend>;
 
 
   void SetUp() final {
@@ -133,15 +136,18 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
 
   void CreateAndSerializePipeline() {
     auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_);
-    pipeline->AddOperator(OpSpec("experimental__inputs__Video")
-                                  .AddArg("sequence_length", frames_per_sequence_)
-                                  .AddArg("device", "cpu")
-                                  .AddArg("name", video_input_name_)
-                                  .AddOutput(video_input_name_, "cpu"),
-                          video_input_name_);
+    pipeline->AddOperator(
+            OpSpec("experimental__inputs__Video")
+                    .AddArg("sequence_length", frames_per_sequence_)
+                    .AddArg("device",
+                            std::string{is_cpu ? "cpu" : "mixed"})
+                    .AddArg("name", video_input_name_)
+                    .AddOutput(video_input_name_,
+                               std::string{is_cpu ? "cpu" : "gpu"}),
+            video_input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
-            {video_input_name_, "cpu"},
+            {video_input_name_, is_cpu ? "cpu" : "gpu"},
     };
 
     pipeline->SetOutputDescs(outputs);
@@ -216,15 +222,19 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
 };
 
 
+using VideoInputTestTypes = ::testing::Types<CPUBackend, MixedBackend>;
+TYPED_TEST_SUITE(VideoInputNextOutputDataIdTest, VideoInputTestTypes);
+
+
 /**
  * Tests the situation, when user provides only one file at the input to VideoInput.
  * The test file will not be split uniformly across output batches.
  */
-TEST_F(VideoInputNextOutputDataIdTest, VideoInputNextOutputDataIdTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, VideoInputNextOutputDataIdTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 0);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 0);
   daliDeletePipeline(&h);
 }
 
@@ -233,11 +243,11 @@ TEST_F(VideoInputNextOutputDataIdTest, VideoInputNextOutputDataIdTest) {
  * Tests the situation, when user provides only one file at the input to VideoInput.
  * The test file will be split uniformly across output batches.
  */
-TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 1);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 1);
   daliDeletePipeline(&h);
 }
 
@@ -247,11 +257,11 @@ TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyTest) {
  * The test file will be split uniformly across output batches.
  * The test file does not have data_id assigned.
  */
-TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyNoDataIdTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyNoDataIdTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 2);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 2);
   daliDeletePipeline(&h);
 }
 
@@ -259,12 +269,12 @@ TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyNoDataIdTest) {
 /**
  * Tests the situation, when user provides sequentially two files at the input to VideoInput.
  */
-TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 0);
-  DoTest(&h, 2);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 0);
+  this->DoTest(&h, 2);
   daliDeletePipeline(&h);
 }
 
@@ -272,12 +282,12 @@ TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest) {
 /**
  * Tests the situation, when user provides sequentially two files at the input to VideoInput.
  */
-TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest2) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest2) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 2);
-  DoTest(&h, 1);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 2);
+  this->DoTest(&h, 1);
   daliDeletePipeline(&h);
 }
 
@@ -285,15 +295,15 @@ TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest2) {
 /**
  * Tests the situation, when user provides multiple files. Some have data_id, some don't.
  */
-TEST_F(VideoInputNextOutputDataIdTest, MultipleFilesSeparatedTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, MultipleFilesSeparatedTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
-  DoTest(&h, 2);
-  DoTest(&h, 1);
-  DoTest(&h, 2);
-  DoTest(&h, 0);
-  DoTest(&h, 2);
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+  this->DoTest(&h, 2);
+  this->DoTest(&h, 1);
+  this->DoTest(&h, 2);
+  this->DoTest(&h, 0);
+  this->DoTest(&h, 2);
   daliDeletePipeline(&h);
 }
 
@@ -301,26 +311,27 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleFilesSeparatedTest) {
 /**
  * Tests the situation, when user provides multiple files to the input and then runs all of them.
  */
-TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
+TYPED_TEST(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
-                         static_cast<int>(serialized_pipeline_.length()));
+  daliDeserializeDefault(&h, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
 
   std::vector<int> test_files_order = {2, 1, 2, 0, 2};
-  std::vector<int> num_iterations_per_input(test_files_.size());
+  std::vector<int> num_iterations_per_input(this->test_files_.size());
 
   // Determine the number of iteration for every test file.
-  for (size_t i = 0; i < test_files_.size(); i++) {
+  for (size_t i = 0; i < this->test_files_.size(); i++) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
-            detail::DetermineBatchOutline(test_files_[i].n_frames, frames_per_sequence_,
-                                          batch_size_);
+            detail::DetermineBatchOutline(this->test_files_[i].n_frames, this->frames_per_sequence_,
+                                          this->batch_size_);
     num_iterations_per_input[i] =
             num_full_batches + (num_full_sequences > 0 || frames_in_last_sequence > 0 ? 1 : 0);
   }
 
   // Feed the pipeline with the test files.
   for (const auto &tf : test_files_order) {
-    FeedExternalInput(&h, LoadTestFile(test_files_[tf].file_name), test_files_[tf].data_id);
+    this->FeedExternalInput(&h, LoadTestFile(this->test_files_[tf].file_name),
+                            this->test_files_[tf].data_id);
   }
 
   // Run test or almost all the test files (except the last one).
@@ -331,13 +342,15 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
          iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
       daliRun(&h);
       daliOutput(&h);
-      DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
-      IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
+      this->DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
+      this->IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
     }
     daliRun(&h);
     daliOutput(&h);
-    DoesOperatorTraceExist(&h, num_iterations_per_input[test_file_idx] - 1, next_test_file_idx);
-    IsOperatorTraceCorrect(&h, num_iterations_per_input[test_file_idx] - 1, next_test_file_idx);
+    this->DoesOperatorTraceExist(&h, num_iterations_per_input[test_file_idx] - 1,
+                                 next_test_file_idx);
+    this->IsOperatorTraceCorrect(&h, num_iterations_per_input[test_file_idx] - 1,
+                                 next_test_file_idx);
   }
   // The last test file should just clear the "next_output_data_id" trace after it's done.
   auto test_file_idx = test_files_order.back();
@@ -345,12 +358,13 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
        iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
     daliRun(&h);
     daliOutput(&h);
-    DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
-    IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
+    this->DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
+    this->IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
   }
   daliRun(&h);
   daliOutput(&h);
-  EXPECT_EQ(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
+  EXPECT_EQ(daliHasOperatorTrace(&h, this->video_input_name_.c_str(), this->trace_name_.c_str()),
+            0);
   daliDeletePipeline(&h);
 }
 

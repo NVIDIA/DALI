@@ -15,6 +15,8 @@
 #ifndef DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 #define DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include <deque>
 #include <string>
 #include <vector>
@@ -67,6 +69,58 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
   return std::make_tuple(num_full_batches, num_full_sequences, frames_in_last_sequence);
 }
 
+
+/**
+ * Helper structure to handle Pad frames.
+ *
+ * Pad frame is a frame, which will be used for padding incomplete sequences.
+ *
+ * This structure, given the value and shape, generates a pad frame on a proper device.
+ *
+ * @tparam OutBackend Backend, on which the pad frame will be allocated.
+ * @tparam PadType Type of the pad value.
+ */
+template<typename OutBackend, typename PadType>
+struct PadFrameCreator {
+  static constexpr bool is_cpu = std::is_same_v<OutBackend, CPUBackend>;
+
+  template<typename T>
+  using container_type =
+          std::conditional_t<is_cpu, thrust::host_vector<T>, thrust::device_vector<T>>;
+
+  PadFrameCreator() = default;
+
+
+  PadFrameCreator(PadType value, TensorShape<3> frame_shape,
+                  std::optional<cudaStream_t> stream = std::nullopt) {
+    Initialize(value, frame_shape, stream);
+  }
+
+
+  void Initialize(PadType value, TensorShape<3> frame_shape,
+                  std::optional<cudaStream_t> stream = std::nullopt) {
+    pad_frame_data_ = std::vector<PadType>(frame_shape.num_elements(), value);
+    pad_frame_.Resize(frame_shape, TypeTable::GetTypeId<PadType>());
+    if (stream) {
+      pad_frame_.Copy(pad_frame_data_, *stream);
+    } else {
+      pad_frame_.Copy(pad_frame_data_);
+    }
+  }
+
+
+  /// Buffer with the data used for padding.
+  std::vector<PadType> pad_frame_data_;
+  /// Pad frame.
+  Tensor<OutBackend> pad_frame_;
+
+
+  SampleView<OutBackend> GetPadFrame() {
+    return sample_view(pad_frame_);
+  }
+};
+
+
 }  // namespace detail
 
 
@@ -84,6 +138,16 @@ static const std::string next_output_data_id_trace_name_ = "next_output_data_id"
 template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
 class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
  public:
+  static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
+  using InBackend = CPUBackend;
+  using OutBackend = std::conditional_t<is_cpu, CPUBackend, GPUBackend>;
+  static_assert((is_cpu && std::is_same_v<FramesDecoder, dali::FramesDecoder>) ||
+                (!is_cpu && std::is_same_v<FramesDecoder, FramesDecoderGpu>),
+                "Incompatible FramesDecoder to a given Backend");
+
+  using VideoDecoderBase<Backend, FramesDecoder>::frames_decoders_;
+
+
   explicit VideoInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
           sequence_length_(spec.GetArgument<int>("sequence_length")),
@@ -93,6 +157,10 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     DALI_ENFORCE(last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
                  make_string("Provided `last_sequence_policy` is not supported: ",
                              last_sequence_policy_));
+    if constexpr (!is_cpu) {
+      thread_pool_.emplace(this->num_threads_, spec.GetArgument<int>("device_id"),
+                           spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
+    }
   }
 
 
@@ -112,7 +180,12 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(Workspace &ws) override;
+  /**
+   * Awkward RunImpl function for VideoInput operator.
+   * @see VideoInputCpu & VideoInputMixed for more information.
+   */
+  void VideoInputRunImpl(Workspace &ws);
+
 
  private:
   void Invalidate() {
@@ -125,6 +198,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   void LoadDataFromInputOperator(ThreadPool &thread_pool);
 
   void SetNextDataIdTrace(Workspace &ws, std::string next_data_id);
+
+  void CreateDecoder(const Workspace &ws);
 
 
   /**
@@ -163,14 +238,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  void InitializePadValue(uint8_t value) {
-    pad_frame_shape_ = GetFrameShape(0);
-    pad_value_data_ = std::vector<uint8_t>(pad_frame_shape_.num_elements(), value);
-  }
-
-
-  SampleView<Backend> GetPadFrame() {
-    return {pad_value_data_.data(), pad_frame_shape_};
+  void InitializePadValue(uint8_t value, std::optional<cudaStream_t> stream) {
+    pad_frame_creator_ = {value, GetFrameShape(0), stream};
   }
 
 
@@ -193,6 +262,16 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
+  ThreadPool &GetThreadPool(const Workspace &ws) {
+    if constexpr (is_cpu) {
+      return ws.GetThreadPool();
+    } else {
+      assert(thread_pool_.has_value());
+      return *thread_pool_;
+    }
+  }
+
+
   const int sequence_length_ = {};
   const int device_id_ = {};
   const int batch_size_ = {};
@@ -203,17 +282,38 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   /// VideoInput needs data load, if the current input has been depleted.
   bool needs_data_load_ = true;
   /// Input to the VideoInput. It's a single encoded video file.
-  TensorList<CPUBackend> encoded_video_;
+  TensorList<InBackend> encoded_video_;
   /// DataId property of the input. @see daliSetExternalInputDataId
   std::optional<std::string> data_id_;
 
   /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;
 
-  /// Buffer with the data used for padding incomplete sequences.
-  std::vector<uint8_t> pad_value_data_ = {};
-  /// Shape of pad frame.
-  TensorShape<3> pad_frame_shape_ = {};
+  /// Used for padding incomplete sequences.
+  detail::PadFrameCreator<OutBackend, uint8_t> pad_frame_creator_;
+
+  /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
+  std::optional<ThreadPool> thread_pool_ = std::nullopt;
+};
+
+
+/*
+ * These two awkward classes originate from an API inconsistency between
+ * Operator<CPUBackend> and Operator<MixedBackend>. Operator<CPUBackend> has a `RunImpl` function
+ * to be overriden, while Operator<MixedBackend> has `Run` function to be overriden.
+ * Can't sort it out using SFINAE, since these are virtual functions.
+ */
+
+class VideoInputCpu : public VideoInput<CPUBackend> {
+ public:
+  explicit VideoInputCpu(const OpSpec &spec) : VideoInput<CPUBackend>(spec) {}
+  void RunImpl(Workspace &ws) override { VideoInputRunImpl(ws); }
+};
+
+class VideoInputMixed : public VideoInput<MixedBackend> {
+ public:
+  explicit VideoInputMixed(const OpSpec &spec) : VideoInput<MixedBackend>(spec) {}
+  void Run(Workspace &ws) override { VideoInputRunImpl(ws); }
 };
 
 
