@@ -50,16 +50,6 @@ class TensorResize : public Operator<Backend>
     int nsamples = input_shape.num_samples();
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape, layout);
 
-    if (NumSpatialDims() < 2) {
-      // PrepareResizeParams should expand to at least
-      throw std::logic_error("1D resizing is not supported");
-    }
-
-    if (NumSpatialDims() < 1) {
-      throw std::invalid_argument(
-          "TensorResize expects at least one spatial dimension to be resized");
-    }
-
     if (NumSpatialDims() > 3) {
       throw std::invalid_argument(make_string(
           "TensorResize can not resize more than 3 consecutive spatial dimensions. "
@@ -73,6 +63,7 @@ class TensorResize : public Operator<Backend>
           FirstSpatialDim()));
     }
 
+    // PrepareResizeParams should expand to at least 2D
     assert(NumSpatialDims() >= 2 && NumSpatialDims() <= 3);
     assert(FirstSpatialDim() >= 0);
     resample_params_.resize(nsamples * NumSpatialDims());

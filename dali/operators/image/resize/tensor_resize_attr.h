@@ -69,7 +69,6 @@ class DLL_PUBLIC TensorResizeAttr {
   }
 
  private:
-  void PrepareAxes(const OpSpec &spec, int ndim);
   const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
   void TrimSpatialDims(const TensorListShape<> &input_shape);
 
