@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -181,7 +181,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
     static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
 
     using resource_type = mm::async_pool_resource<mm::memory_kind::device,
-            pool_resource_base<memory_kind::device, coalescing_free_tree, spinlock>>;
+            pool_resource<memory_kind::device, coalescing_free_tree, spinlock>>;
     auto rsrc = std::make_shared<resource_type>(upstream.get());
     return make_shared_composite_resource(std::move(rsrc), upstream);
   }
@@ -194,7 +194,7 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   }
   static auto upstream = std::make_shared<pinned_malloc_memory_resource>();
   using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
-      pool_resource_base<memory_kind::pinned, coalescing_free_tree, spinlock>>;
+      pool_resource<memory_kind::pinned, coalescing_free_tree, spinlock>>;
   auto rsrc = std::make_shared<resource_type>(upstream.get());
   return make_shared_composite_resource(std::move(rsrc), upstream);
 }
@@ -362,6 +362,23 @@ std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id)
 DLL_PUBLIC
 device_async_resource *GetDefaultDeviceResource(int device_id) {
   return ShareDefaultDeviceResourceImpl(device_id).get();
+}
+
+DLL_PUBLIC
+void ReleaseUnusedMemory() {
+  if (auto *devs = g_resources.device.get()) {
+    for (int i = 0, n = g_resources.num_devices; i < n; i++) {
+      auto *dev = devs[i].get();
+      if (auto *pool = dynamic_cast<mm::pool_resource_base<mm::memory_kind::device>*>(dev)) {
+        pool->release_unused();
+      }
+    }
+  }
+
+  if (auto *pinned = g_resources.pinned_async.get())
+    if (auto *pool = dynamic_cast<mm::pool_resource_base<mm::memory_kind::pinned>*>(pinned)) {
+      pool->release_unused();
+    }
 }
 
 }  // namespace mm

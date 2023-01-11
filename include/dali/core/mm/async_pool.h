@@ -36,10 +36,11 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = pool_resource_base<Kind, coalescing_free_tree, spinlock>,
+    typename GlobalPool = pool_resource<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
-class async_pool_resource : public async_memory_resource<Kind> {
+class async_pool_resource : public virtual async_memory_resource<Kind>,
+                            public virtual pool_resource_base<Kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
@@ -108,12 +109,17 @@ class async_pool_resource : public async_memory_resource<Kind> {
    * Releases any ready per-stream blocks to the global pool and
    * calls `release_unused` on it.
    */
-  void release_unused() {
+  void release_unused() override {
     std::lock_guard<std::mutex> guard(lock_);
     synchronize_impl(false);
     for (auto &kv : stream_free_)
       free_ready(kv.second);
     global_pool_.release_unused();
+  }
+
+  void *try_allocate_from_free(size_t size, size_t alignment) override {
+    std::lock_guard<std::mutex> guard(lock_);
+    return global_pool_.try_allocate_from_free(size, alignment);
   }
 
  private:
@@ -584,7 +590,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
    *
    * In general, `memory_resource` requires that the a pointer being deallocated
    * was returned from a previous allocation on the same resource, with the same size.
-   * However, a specific implementation of a memory resource (i.e. pool_resource_base with
+   * However, a specific implementation of a memory resource (i.e. pool_resource with
    * certain FreeList types) can concatenate the deallocated memory segments.
    * This property is used for partial recycling of stream-bound free blocks - we might
    * reuse a part of the block on the same stream and return the rest to the global pool, with

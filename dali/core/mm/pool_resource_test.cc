@@ -33,7 +33,7 @@ void TestPoolResource(int num_iter) {
   {
     auto opt = default_host_pool_opts();
     opt.max_upstream_alignment = 32;  // force the use of overaligned upstream allocations
-    pool_resource_base<memory_kind::host, FreeList, detail::dummy_lock>
+    pool_resource<memory_kind::host, FreeList, detail::dummy_lock>
       pool(&upstream, opt);
     std::mt19937_64 rng(12345);
     std::bernoulli_distribution is_free(0.4);
@@ -99,7 +99,7 @@ TEST(MMPoolResource, ReturnToUpstream) {
   }
   test_device_resource upstream;
   {
-    pool_resource_base<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
+    pool_resource<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream);
     size_t size = 1<<28;  // 256M
     for (;;) {

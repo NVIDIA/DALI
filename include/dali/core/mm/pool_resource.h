@@ -18,6 +18,7 @@
 #include <mutex>
 #include <condition_variable>
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/pool_resource_base.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/device_guard.h"
@@ -85,18 +86,18 @@ constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
 }
 
 template <typename Kind, class FreeList, class LockType>
-class pool_resource_base : public memory_resource<Kind> {
+class pool_resource : public pool_resource_base<memory_resource<Kind>> {
  public:
-  explicit pool_resource_base(memory_resource<Kind> *upstream = nullptr,
+  explicit pool_resource(memory_resource<Kind> *upstream = nullptr,
                               const pool_options &opt = default_pool_opts<Kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
 
-  pool_resource_base(const pool_resource_base &) = delete;
-  pool_resource_base(pool_resource_base &&) = delete;
+  pool_resource(const pool_resource &) = delete;
+  pool_resource(pool_resource &&) = delete;
 
-  ~pool_resource_base() {
+  ~pool_resource() {
     free_all();
   }
 
@@ -121,7 +122,7 @@ class pool_resource_base : public memory_resource<Kind> {
    * the size or alignment requirements is not found, the function returns
    * nullptr withoug allocating from upstream.
    */
-  void *try_allocate_from_free(size_t bytes, size_t alignment) {
+  void *try_allocate_from_free(size_t bytes, size_t alignment) override {
     if (!bytes)
       return nullptr;
 
@@ -141,7 +142,7 @@ class pool_resource_base : public memory_resource<Kind> {
    * If there are completely free upstream blocks, they are returned to upstream.
    * Partially used blocks remain allocated.
    */
-  void release_unused() {
+  void release_unused() override {
     upstream_lock_guard uguard(upstream_lock_);
 
     release_unused_impl();
@@ -312,7 +313,7 @@ class pool_resource_base : public memory_resource<Kind> {
 namespace detail {
 
 template <typename Kind, class FreeList, class LockType>
-struct can_merge<pool_resource_base<Kind, FreeList, LockType>> : can_merge<FreeList> {};
+struct can_merge<pool_resource<Kind, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 

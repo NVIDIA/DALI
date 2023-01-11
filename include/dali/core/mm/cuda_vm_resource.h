@@ -31,6 +31,7 @@
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/free_list.h"
+#include "dali/core/mm/pool_resource_base.h"
 #include "dali/core/small_vector.h"
 
 namespace dali {
@@ -40,7 +41,7 @@ namespace test {
 class VMResourceTest;
 }  // namespace test
 
-class cuda_vm_resource : public memory_resource<memory_kind::device> {
+class cuda_vm_resource : public pool_resource_base<memory_resource<memory_kind::device>> {
  public:
   explicit cuda_vm_resource(int device_ordinal = -1,
                             size_t block_size = 0,
@@ -59,7 +60,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     purge();
   }
 
-  void *try_allocate_from_free(size_t size, size_t alignment) {
+  void *try_allocate_from_free(size_t size, size_t alignment) override {
     if (size == 0)
       return nullptr;
     adjust_params(size, alignment, true);
@@ -148,7 +149,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
    *
    * Releases physical blocks that are currently allocated, but fully available.
    */
-  void release_unused() {
+  void release_unused() override {
     std::vector<cuvm::CUMem> blocks_to_free;
     {
       lock_guard pool_guard(pool_lock_);
