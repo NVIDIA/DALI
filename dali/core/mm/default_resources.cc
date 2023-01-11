@@ -375,10 +375,11 @@ void ReleaseUnusedMemory() {
     }
   }
 
-  if (auto *pinned = g_resources.pinned_async.get())
+  if (auto *pinned = g_resources.pinned_async.get()) {
     if (auto *pool = dynamic_cast<mm::pool_resource_base<mm::memory_kind::pinned>*>(pinned)) {
       pool->release_unused();
     }
+  }
 }
 
 DLL_PUBLIC

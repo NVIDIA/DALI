@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -294,6 +294,38 @@ TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiGPU) {
   }
   EXPECT_THROW(GetDefaultDeviceResource(ndev), std::out_of_range);
   EXPECT_THROW(GetDefaultDeviceResource(ndev+100), std::out_of_range);
+}
+
+TEST(MMDefaultResource, ReleaseUnused) {
+  auto *dev = mm::GetDefaultDeviceResource(0);
+  auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
+
+  mm::ReleaseUnusedMemory();
+
+  size_t free0 = 0;  // before allocation
+  size_t free1 = 0;  // after allocation
+  size_t free2 = 0;  // ReleaseUnused called before deallocation
+  size_t free3 = 0;  // ReleaseUnused called after deallocation
+  size_t total = 0;
+
+  size_t size = 256_uz << 20;  // 256 MiB
+  cudaMemGetInfo(&free0, &total);
+
+  void *mem_dev = dev->allocate(size);
+  void *mem_pinned = pinned->allocate(size);
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free2, &total));
+  EXPECT_EQ(free2, free1);
+
+  dev->deallocate(mem_dev, size);
+  pinned->deallocate(mem_pinned, size);
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free3, &total));
+  EXPECT_GT(free3, free2);
+  EXPECT_EQ(free3, free0);
 }
 
 }  // namespace test
