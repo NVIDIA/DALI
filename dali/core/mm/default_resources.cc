@@ -381,5 +381,19 @@ void ReleaseUnusedMemory() {
     }
 }
 
+DLL_PUBLIC
+void PreallocateDeviceMemory(size_t bytes, int device_id) {
+  auto res = ShareDefaultDeviceResource(device_id);
+  void *mem = res->allocate(bytes);
+  res->deallocate(mem, bytes);
+}
+
+DLL_PUBLIC
+void PreallocatePinnedMemory(size_t bytes) {
+  auto res = ShareDefaultResource<mm::memory_kind::pinned>();
+  void *mem = res->allocate(bytes);
+  res->deallocate(mem, bytes);
+}
+
 }  // namespace mm
 }  // namespace dali
