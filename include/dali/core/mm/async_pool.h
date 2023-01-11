@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,6 +100,20 @@ class async_pool_resource : public async_memory_resource<Kind> {
    */
   void synchronize() {
     synchronize_impl(true);
+  }
+
+  /**
+   * @brief Releases unused upstream memory
+   *
+   * Releases any ready per-stream blocks to the global pool and
+   * calls `release_unused` on it.
+   */
+  void release_unused() {
+    std::lock_guard<std::mutex> guard(lock_);
+    synchronize_impl(false);
+    for (auto &kv : stream_free_)
+      free_ready(kv.second);
+    global_pool_.release_unused();
   }
 
  private:

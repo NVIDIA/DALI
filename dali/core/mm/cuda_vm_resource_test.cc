@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -208,6 +208,49 @@ class VMResourceTest : public ::testing::Test {
     EXPECT_EQ(region.available_blocks, 3);
   }
 
+
+  void TestReleaseUnused() {
+    cuda_vm_resource res;
+    size_t block_size = 4 << 20;  // 4 MiB;
+    res.block_size_ = block_size;
+    void *p1 = res.allocate(block_size / 2);    // allocate half block
+    void *p2 = res.allocate(block_size / 2);    // allocate another half of a block
+    void *p3 = res.allocate(block_size);        // allocate another block
+    auto &region = res.va_regions_[0];
+    EXPECT_EQ(res.stat_.allocated_blocks, 2);
+    res.deallocate(p1, block_size / 2);         // now free the first half-block
+    EXPECT_EQ(region.available_blocks, 0);      // only half block was freed
+    res.release_unused();
+    EXPECT_EQ(res.stat_.total_unmaps, 0);       // cannot unmap a partially occupied block
+
+    res.deallocate(p2, block_size / 2);         // free the other half of the block
+
+    EXPECT_EQ(region.available_blocks, 1);
+    EXPECT_EQ(region.mapped.find(false), 2);    // 2 mapped blocks
+    EXPECT_EQ(region.available.find(true), 0);  // of which the first is available
+    res.release_unused();
+    EXPECT_EQ(res.stat_.total_unmaps, 1);       // the 1st block should be unmapped
+    EXPECT_EQ(region.available_blocks, 0);      // after unmapping, it shouldn't be available
+    EXPECT_EQ(region.mapped.find(false), 0);    // the block was unmapped
+    EXPECT_EQ(region.mapped.find(true), 1);     // but the next one wasn't
+    EXPECT_EQ(res.stat_.allocated_blocks, 1);
+    EXPECT_EQ(res.stat_.peak_allocated_blocks, 2);
+
+    void *p4 = res.allocate(block_size);  // allocate one block
+    EXPECT_EQ(res.stat_.allocated_blocks, 2);
+
+    EXPECT_EQ(p1, p4);
+    res.deallocate(p4, block_size);
+    res.deallocate(p3, block_size);
+    EXPECT_EQ(region.available_blocks, 2);
+    res.release_unused();
+    EXPECT_EQ(region.available_blocks, 0);
+    EXPECT_EQ(region.mapped.find(true), region.mapped.ssize());  // no mapped blocks
+    EXPECT_EQ(res.stat_.allocated_blocks, 0);
+    EXPECT_EQ(res.stat_.peak_allocated_blocks, 2);
+  }
+
+
   void TestExceptionSafety() {
     cudaDeviceProp device_prop;
     CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
@@ -291,6 +334,12 @@ TEST_F(VMResourceTest, PartialMap) {
   this->TestPartialMap();
 }
 
+TEST_F(VMResourceTest, ReleaseUnused) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+  this->TestReleaseUnused();
+}
+
 std::string format_size(size_t bytes) {
   std::stringstream ss;
   print(ss, bytes, " bytes");
@@ -347,6 +396,83 @@ TEST_F(VMResourceTest, RandomAllocations) {
       allocation a;
       a.size = std::max(1, std::min(size_dist(rng), 256 << 20));  // Limit to 256 MiB
       a.alignment = 1 << align_dist(rng);
+      auto t0 = perfclock::now();
+      a.ptr = pool.allocate(a.size, a.alignment);
+      auto t1 = perfclock::now();
+      alloc_time += t1 - t0;
+      ASSERT_TRUE(detail::is_aligned(a.ptr, a.alignment));
+      CUDA_CALL(cudaMemset(a.ptr, 0, a.size));
+      CUDA_CALL(cudaDeviceSynchronize());  // wait now so the deallocation timing is not affected
+      allocs.push_back(a);
+    }
+  }
+
+  for (auto &a : allocs) {
+    auto t0 = perfclock::now();
+    pool.deallocate(a.ptr, a.size, a.alignment);
+    auto t1 = perfclock::now();
+    dealloc_time += t1 - t0;
+  }
+  allocs.clear();
+
+  auto stat = pool.get_stat();
+  print(std::cerr,
+    "Total allocations:     ", stat.total_allocations, "\n"
+    "Peak allocations:      ", stat.peak_allocations, "\n"
+    "Average time to allocate:   ", microseconds(alloc_time) / stat.total_allocations, " us\n"
+    "Average time to deallocate: ", microseconds(dealloc_time) / stat.total_deallocations, " us\n"
+    "Peak allocations size: ", format_size(stat.peak_allocated), "\n\n"
+    "Peak allocated blocks: ", stat.peak_allocated_blocks, "\n"
+    "Peak allocated physical size: ", format_size(stat.peak_allocated_blocks * pool.block_size()),
+    "\n"
+    "Unmap operations: ", stat.total_unmaps, "\n"
+    "VA size: ", format_size(stat.allocated_va), "\n");
+
+  EXPECT_EQ(stat.curr_allocated, 0u);
+  EXPECT_EQ(stat.curr_allocations, 0u);
+  EXPECT_EQ(stat.total_allocations, stat.total_deallocations);
+}
+
+
+TEST_F(VMResourceTest, RandomAllocationsWithReleaseUnused) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+
+  cuda_vm_resource pool(-1, 4 << 20);  // use small 4 MiB blocks
+  std::mt19937_64 rng(12345);
+  std::bernoulli_distribution is_free(0.5);
+  auto size_dist = [&](auto &rng)->int {  // 1 to 4 blocks
+    return std::uniform_int_distribution<int>(1, 4)(rng) * pool.block_size();
+  };
+  struct allocation {
+    void *ptr;
+    size_t size, alignment;
+  };
+  std::vector<allocation> allocs;
+
+  int num_iter = 10000;
+
+  std::map<uintptr_t, size_t> allocated;
+
+  perfclock::duration alloc_time = {};
+  perfclock::duration dealloc_time = {};
+
+  for (int i = 0; i < num_iter; i++) {
+    if (i == num_iter / 2)
+      pool.release_unused();
+    if (is_free(rng) && !allocs.empty()) {
+      auto idx = rng() % allocs.size();
+      allocation a = allocs[idx];
+      auto t0 = perfclock::now();
+      pool.deallocate(a.ptr, a.size, a.alignment);
+      auto t1 = perfclock::now();
+      dealloc_time += t1 - t0;
+      std::swap(allocs[idx], allocs.back());
+      allocs.pop_back();
+    } else {
+      allocation a;
+      a.size = std::max(1, std::min(size_dist(rng), 256 << 20));  // Limit to 256 MiB
+      a.alignment = alignof(std::max_align_t);
       auto t0 = perfclock::now();
       a.ptr = pool.allocate(a.size, a.alignment);
       auto t1 = perfclock::now();
