@@ -33,13 +33,13 @@ struct SampleDesc {
   uint8_t *out;
   const uint8_t *in;
   const uint8_t *lut;
-  int width;
-  fast_div<uint32_t> num_channels;
+  uint64_t num_elements;
+  fast_div<uint64_t> num_channels;
 };
 
 struct LookupKernelGpu {
-  static constexpr unsigned int kBlockSize = 256;
-  static constexpr unsigned int kMaxGridSize = 1024;
+  static constexpr int64_t kBlockSize = 256;
+  static constexpr int64_t kMaxGridSize = 1024;
 
   DLL_PUBLIC void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &out,
                       const TensorListView<StorageGPU, const uint8_t, 2> &in,

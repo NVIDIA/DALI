@@ -52,7 +52,7 @@ struct EqualizeKernelGpu {
     int batch_size = in_shape.num_samples();
     TensorListShape<2> tls(batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-      int num_channels = in_shape[sample_idx][1];
+      auto num_channels = in_shape[sample_idx][1];
       tls.set_tensor_shape(sample_idx, TensorShape<2>{num_channels, hist_range});
     }
     return tls;
