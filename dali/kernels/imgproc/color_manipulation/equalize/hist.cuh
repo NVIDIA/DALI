@@ -21,12 +21,10 @@
 #include "include/dali/core/backend_tags.h"
 #include "include/dali/core/tensor_view.h"
 
-#include "dali/npp/npp.h"
-
-
 namespace dali {
 namespace kernels {
-namespace equalize_hist {
+namespace equalize {
+namespace hist {
 
 struct SampleDesc {
   static constexpr int range_size = 256;
@@ -65,8 +63,6 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
   }
 }
 
-}  // namespace equalize_hist
-
 struct HistogramKernelGpu {
   static constexpr unsigned int kBlockSize = 256;
   static constexpr unsigned int kMaxGridSize = 128;
@@ -89,20 +85,22 @@ struct HistogramKernelGpu {
       sample_descs_.push_back({out.data[sample_idx], in.data[sample_idx], width, num_channels});
     }
     max_num_blocks = std::min(max_num_blocks, kMaxGridSize);
-    equalize_hist::SampleDesc *samples_desc_dev;
+    SampleDesc *samples_desc_dev;
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
     dim3 zero_grid{max_num_channels, static_cast<unsigned int>(batch_size)};
-    equalize_hist::ZeroMem<<<zero_grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+    ZeroMem<<<zero_grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
     dim3 hist_grid{max_num_blocks, static_cast<unsigned int>(batch_size)};
-    int workspace_size = max_num_channels * equalize_hist::SampleDesc::range_size * sizeof(int32_t);
-    equalize_hist::Histogram<<<hist_grid, kBlockSize, workspace_size, ctx.gpu.stream>>>(
+    int workspace_size = max_num_channels * SampleDesc::range_size * sizeof(int32_t);
+    Histogram<<<hist_grid, kBlockSize, workspace_size, ctx.gpu.stream>>>(
         samples_desc_dev);
   }
 
  protected:
-  std::vector<equalize_hist::SampleDesc> sample_descs_;
+  std::vector<SampleDesc> sample_descs_;
 };
 
+}  // namespace hist
+}  // namespace equalize
 }  // namespace kernels
 }  // namespace dali
 

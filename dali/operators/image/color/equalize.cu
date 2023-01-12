@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <npp.h>
 #include <vector>
-#include "dali/core/static_switch.h"
+
 #include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/kernels/imgproc/color_manipulation/equalize/equalized_lut.cuh"
-#include "dali/kernels/imgproc/color_manipulation/equalize/hist.cuh"
-#include "dali/kernels/imgproc/color_manipulation/equalize/lut_lookup.cuh"
+#include "dali/kernels/imgproc/color_manipulation/equalize/equalize.cuh"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/color/equalize.h"
 
@@ -27,57 +24,53 @@ namespace dali {
 namespace equalize {
 
 class EqualizeGPU : public Equalize<GPUBackend> {
+  using Kernel = kernels::equalize::EqualizeKernelGpu;
+
  public:
   explicit EqualizeGPU(const OpSpec &spec) : Equalize<GPUBackend>(spec) {
-    histogram_dev_.set_type<int32_t>();
-    lut_dev_.set_type<uint8_t>();
+    kmgr_.Resize<Kernel>(1);
   }
 
  protected:
   void RunImpl(Workspace &ws) override {
-    auto input_type = ws.GetInputDataType(0);
-    auto layout = GetInputLayout(ws, 0);
-    // this could be an assert as it should be set by the executor
-    DALI_ENFORCE(layout.size(), "The input of the equalize operator cannot have an empty layout");
-    bool has_channels = layout[layout.size() - 1];
-    TYPE_SWITCH(input_type, type2id, In, EQUALIZE_SUPPORTED_TYPES, (
-      BOOL_SWITCH(has_channels, HasChannels, (
-        RunImplTyped<In, HasChannels>(ws);
-      ));
-    ), DALI_FAIL(make_string("Unsupported input type: ", input_type, ".")));  // NOLINT
-  }
-
-  template <typename In, bool has_channels>
-  void RunImplTyped(Workspace &ws) {
-    static_assert(std::is_same<In, uint8>::value);
-    DALI_ENFORCE(has_channels);
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
-    output.SetLayout(input.GetLayout());
-    histogram_dev_.Resize(uniform_list_shape<>(input.num_samples(), {3, 256}));
-    lut_dev_.Resize(uniform_list_shape<>(input.num_samples(), {3, 256}));
+    auto input_type = input.type();
+    auto layout = input.GetLayout();
+    DALI_ENFORCE(input_type == type2id<uint8_t>::value,
+                 make_string("Unsupported input type for equalize operator: ", input_type,
+                             ". Expected input type: `uint8_t`."));
+    // enforced by the layouts specified in operator schema
+    assert(layout.size() == 2 || layout.size() == 3);
+    output.SetLayout(layout);
     kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = ws.stream();
-    ctx.scratchpad = &scratchpad;
+    ctx_.gpu.stream = ws.stream();
+    ctx_.scratchpad = &scratchpad;
     auto out_view = view<uint8_t>(output);
     auto in_view = view<const uint8_t>(input);
-    auto out_shape = collapse_dims<2>(out_view.shape, {{0, out_view.sample_dim() - 1}});
-    auto in_shape = collapse_dims<2>(in_view.shape, {{0, in_view.sample_dim() - 1}});
+    auto out_shape = GetFlattenedShape(out_view.shape);
+    auto in_shape = GetFlattenedShape(in_view.shape);
     TensorListView<StorageGPU, uint8_t, 2> out_view_flat{out_view.data, out_shape};
     TensorListView<StorageGPU, const uint8_t, 2> in_view_flat{in_view.data, in_shape};
-    auto hist_view = view<int32_t, 2>(histogram_dev_);
-    auto lut_view = view<uint8_t, 2>(lut_dev_);
-    hist_kernel_.Run(ctx, hist_view, in_view_flat);
-    lut_kernel_.Run(ctx, lut_view, hist_view);
-    lookup_kernel_.Run(ctx, out_view_flat, in_view_flat, lut_view);
+    kmgr_.Run<Kernel>(0, ctx_, out_view_flat, in_view_flat);
   }
 
-  TensorList<GPUBackend> histogram_dev_;
-  TensorList<GPUBackend> lut_dev_;
-  kernels::HistogramKernelGpu hist_kernel_;
-  kernels::EqualizedLutKernelGpu lut_kernel_;
-  kernels::LutLookupKernelGpu lookup_kernel_;
+  template <int ndim>
+  TensorListShape<2> GetFlattenedShape(TensorListShape<ndim> shape) {
+    if (shape.sample_dim() == 3) {  // has_channels
+      return collapse_dims<2>(shape, {{0, shape.sample_dim() - 1}});
+    } else {
+      int batch_size = shape.num_samples();
+      TensorListShape<2> ret{batch_size};
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        ret.set_tensor_shape(sample_idx, TensorShape<2>(shape[sample_idx].num_elements(), 1));
+      }
+      return ret;
+    }
+  }
+
+  kernels::KernelManager kmgr_;
+  kernels::KernelContext ctx_;
 };
 
 }  // namespace equalize

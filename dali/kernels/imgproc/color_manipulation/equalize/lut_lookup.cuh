@@ -26,7 +26,9 @@
 
 namespace dali {
 namespace kernels {
-namespace equalize_lookup {
+namespace equalize {
+namespace lookup {
+
 struct SampleDesc {
   static constexpr int range_size = 256;
   uint8_t *out;
@@ -48,9 +50,7 @@ __global__ void Lookup(const SampleDesc *sample_descs) {
   }
 }
 
-}  // namespace equalize_lookup
-
-struct LutLookupKernelGpu {
+struct LookupKernelGpu {
   static constexpr unsigned int kBlockSize = 256;
   static constexpr unsigned int kMaxGridSize = 1024;
 
@@ -74,16 +74,18 @@ struct LutLookupKernelGpu {
           {out.data[sample_idx], in.data[sample_idx], lut.data[sample_idx], width, num_channels});
     }
     max_num_blocks = std::min(max_num_blocks, kMaxGridSize);
-    equalize_lookup::SampleDesc *samples_desc_dev;
+    SampleDesc *samples_desc_dev;
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
     dim3 grid{max_num_blocks, static_cast<unsigned int>(batch_size)};
-    equalize_lookup::Lookup<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+    Lookup<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
   }
 
  protected:
-  std::vector<equalize_lookup::SampleDesc> sample_descs_;
+  std::vector<SampleDesc> sample_descs_;
 };
 
+}  // namespace lookup
+}  // namespace equalize
 }  // namespace kernels
 }  // namespace dali
 

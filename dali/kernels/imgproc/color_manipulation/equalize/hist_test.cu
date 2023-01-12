@@ -18,8 +18,10 @@
 
 namespace dali {
 namespace kernels {
-namespace equalize_hist {
+namespace equalize {
+namespace hist {
 namespace test {}  // namespace test
-}  // namespace equalize_hist
+}  // namespace hist
+}  // namespace equalize
 }  // namespace kernels
 }  // namespace dali

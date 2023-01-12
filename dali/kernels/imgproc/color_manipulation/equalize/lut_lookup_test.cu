@@ -18,8 +18,10 @@
 
 namespace dali {
 namespace kernels {
-namespace equalize_lookup {
+namespace equalize {
+namespace lookup {
 namespace test {}  // namespace test
-}  // namespace equalize_lookup
+}  // namespace lookup
+}  // namespace equalize
 }  // namespace kernels
 }  // namespace dali

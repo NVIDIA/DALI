@@ -26,7 +26,8 @@
 
 namespace dali {
 namespace kernels {
-namespace equalize_lut {
+namespace equalize {
+namespace lut {
 struct SampleDesc {
   static constexpr int range_size = 256;
   static constexpr int range_size_log2 = 8;
@@ -75,7 +76,7 @@ DALI_DEVICE DALI_FORCEINLINE int32_t FirstNonZero(int32_t *workspace) {
   return end;
 }
 
-__global__ void PrepareLut(const SampleDesc *sample_descs) {
+__global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
   __shared__ int32_t workspace[SampleDesc::range_size];
   auto sample_desc = sample_descs[blockIdx.x];
   PrefixSum(sample_desc.in, workspace);
@@ -85,9 +86,8 @@ __global__ void PrepareLut(const SampleDesc *sample_descs) {
   float factor = (SampleDesc::range_size - 1.f) / (total - first_val);
   sample_desc.out[threadIdx.x] = ConvertSat<uint8_t>((workspace[threadIdx.x] - first_val) * factor);
 }
-}  // namespace equalize_lut
 
-struct EqualizedLutKernelGpu {
+struct LutKernelGpu {
   static constexpr int kBlockSize = 256;
 
   void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
@@ -95,6 +95,7 @@ struct EqualizedLutKernelGpu {
     assert(equalized.num_samples() == histogram.num_samples());
     sample_descs_.clear();
     for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {
+      // TODO(ktokarski) use combined range as we have cpp17 now
       auto equalized_channels = sequence_utils::unfolded_view_range<1>(lut[sample_idx]);
       auto hist_channels = sequence_utils::unfolded_view_range<1>(histogram[sample_idx]);
       for (int chunk_idx = 0; chunk_idx < equalized_channels.NumSlices(); chunk_idx++) {
@@ -102,15 +103,16 @@ struct EqualizedLutKernelGpu {
             {equalized_channels[chunk_idx].data, hist_channels[chunk_idx].data});
       }
     }
-    equalize_lut::SampleDesc *samples_desc_dev;
+    SampleDesc *samples_desc_dev;
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
-    equalize_lut::PrepareLut<<<sample_descs_.size(), kBlockSize, 0, ctx.gpu.stream>>>(
-        samples_desc_dev);
+    PrepareLookupTable<<<sample_descs_.size(), kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
   }
 
-  std::vector<equalize_lut::SampleDesc> sample_descs_;
+  std::vector<SampleDesc> sample_descs_;
 };
 
+}  // namespace lut
+}  // namespace equalize
 }  // namespace kernels
 }  // namespace dali
 
