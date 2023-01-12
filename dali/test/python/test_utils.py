@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,6 +48,17 @@ def is_mulit_gpu():
         print("Python bindings for NVML not found")
 
     return is_mulit_gpu_var
+
+
+def get_device_memory_info(device_id = 0):
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        return pynvml.nvmlDeviceGetMemoryInfo(handle)
+    except ModuleNotFoundError:
+        print("Python bindings for NVML not found")
+        return None
 
 
 def get_dali_extra_path():

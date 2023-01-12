@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/os/shared_mem.h"
 #endif
 #include "dali/core/python_util.h"
+#include "dali/core/mm/default_resources.h"
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
@@ -1424,6 +1425,9 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
+  m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory);
+  m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory);
+  m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory);
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {

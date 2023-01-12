@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,9 +20,24 @@ from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
 from nvidia.dali.backend_impl import types as types_
+import nvidia.dali as dali
 
 from nose_utils import assert_raises
-from test_utils import dali_type_to_np, py_buffer_from_address
+from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
+
+
+def test_preallocation():
+    dali.backend.PreallocateDeviceMemory(0, 0)  # initialize the context
+    dali.backend.ReleaseUnusedMemory()
+    free_before = get_device_memory_info().free
+    size = 256 << 20
+    block_size = 64 << 20
+    dali.backend.PreallocateDeviceMemory(size, 0)
+    free_after = get_device_memory_info().free
+    assert(free_after <= free_before - size + block_size)
+    dali.backend.ReleaseUnusedMemory()
+    free_after_release = get_device_memory_info().free
+    assert free_after_release == free_before
 
 
 def test_create_tensor():

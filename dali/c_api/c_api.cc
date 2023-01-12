@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/mm/default_resources.h"
 #include "dali/pipeline/init.h"
 
 #include "dali/pipeline/pipeline.h"
@@ -725,4 +726,26 @@ void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta, size_t operat
     free(operator_meta[i].max_reserved);
   }
   free(operator_meta);
+}
+
+void daliReleaseUnusedMemory() {
+  dali::mm::ReleaseUnusedMemory();
+}
+
+int daliPreallocateDeviceMemory(size_t bytes, int device_id) {
+  try {
+    dali::mm::PreallocateDeviceMemory(bytes, device_id);
+    return 0;
+  } catch (const std::bad_alloc &) {
+    return -1;
+  }
+}
+
+int daliPreallocatePinnedMemory(size_t bytes) {
+  try {
+    dali::mm::PreallocatePinnedMemory(bytes);
+    return 0;
+  } catch (const std::bad_alloc &) {
+    return -1;
+  }
 }

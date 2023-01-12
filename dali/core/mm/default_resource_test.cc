@@ -328,6 +328,35 @@ TEST(MMDefaultResource, ReleaseUnused) {
   EXPECT_EQ(free3, free0);
 }
 
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  int device_id = num_devices > 1 ? 1 : 0;
+  DeviceGuard dg(device_id);
+  mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
+  size_t free0 = 0;  // before preallocation
+  size_t free1 = 0;  // after preallocation
+  size_t free2 = 0;  // after releasing
+  size_t total = 0;
+
+  size_t size = 256_uz << 20;  // 256 MiB
+
+  CUDA_CALL(cudaMemGetInfo(&free0, &total));
+  CUDA_CALL(cudaSetDevice(0));
+  mm::PreallocateDeviceMemory(size, device_id);  // use explicit non-current device id
+  CUDA_CALL(cudaSetDevice(device_id));
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+
+  size_t max_block_size =  64_uz >> 20;  // 64 MiB - max block size for CUDA VM resource
+  EXPECT_LT(free1, free0 - size + max_block_size);
+  EXPECT_GE(free1, free0 - size - max_block_size);
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free2, &total));
+  EXPECT_EQ(free2, free0);  // there were no allocations, so we should land exactly where we were
+                            // after the initial call to ReleaseUnused
+}
+
 }  // namespace test
 }  // namespace mm
 }  // namespace dali

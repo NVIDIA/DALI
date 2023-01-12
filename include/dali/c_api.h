@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -572,6 +572,41 @@ DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
  */
 DLL_PUBLIC void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta,
                                          size_t operator_meta_num);
+
+/**
+ * @brief Frees unused memory from memory pools.
+ *
+ * The function frees memory from all devices and host pinned memory.
+ * Memory blocks that are still (even partially) used are not freed.
+ */
+DLL_PUBLIC void daliReleaseUnusedMemory();
+
+/**
+ * @brief Preallocates device memory
+ *
+ * @param device_id The ordinal number of the device to allocate the memory on. If negative,
+ *                  the current device as indicated by cudaGetDevice is used.
+ *
+ * @return Zero, if the allocation was successful, otherwise nonzero
+ *
+ * @note The function works by allocating and then freeing the requested number of bytes.
+ *       Any outstanding allocations are not taken into account - that is, the peak amount
+ *       of memory allocated will be the sum of pre-existing allocation and the amount given
+ *       in `bytes`.
+ */
+DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
+
+/**
+ * @brief Preallocates host pinned memory
+ *
+ * @return Zero, if the allocation was successful, otherwise nonzero
+ *
+ * @note The function works by allocating and then freeing the requested number of bytes.
+ *       Any outstanding allocations are not taken into account - that is, the peak amount
+ *       of memory allocated will be the sum of pre-existing allocation and the amount given
+ *       in `bytes`.
+ */
+DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
 
 #ifdef __cplusplus
 }
