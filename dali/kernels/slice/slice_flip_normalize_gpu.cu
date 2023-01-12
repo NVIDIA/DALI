@@ -14,6 +14,7 @@
 
 #include <cuda_runtime.h>
 #include <tuple>
+#include "dali/core/float16.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu_impl.cuh"
@@ -23,8 +24,8 @@ namespace kernels {
 
 namespace slice_flip_normalize {
 
-template <typename Out, typename In, int spatial_ndim, int channel_dim>
-SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::~SliceFlipNormalizeGPU() = default;
+// template <typename Out, typename In, int spatial_ndim, int channel_dim>
+// SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::~SliceFlipNormalizeGPU() = default;
 
 template <typename Out, typename In, int spatial_ndim, int channel_dim>
 int SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::GetNumChannels(
@@ -157,7 +158,7 @@ void SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Run(
   Out *fill_values_gpu = nullptr;
   std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = SetupParams(ctx, args);
 
-  bool need_pad = false;
+  bool need_pad = out_nchannels_ != nchannels_;
   for (int i = 0; i < nsamples; i++) {
     auto &sample_args = args.sample_args[i];
     auto &sample = samples_cpu[i];
@@ -235,25 +236,25 @@ void SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Run(
   CUDA_CALL(cudaGetLastError());
 }
 
-#define INSTANTIATE_IMPL(OutType, InType, spatial_ndim, channel_dim) \
-  template class SliceFlipNormalizeGPU<OutType, InType, spatial_ndim, channel_dim>
+#define INSTANTIATE_IMPL(Out, In, SpatialDims, ChannelDim)                                    \
+  template class DLL_PUBLIC SliceFlipNormalizeGPU<Out, In, SpatialDims, ChannelDim>;
 
-#define INSTANTIATE_IMPL_FOREACH_INTYPE(OutType, spatial_ndim, channel_dim) \
-  INSTANTIATE_IMPL(OutType, uint8_t, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL(OutType, int16_t, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL(OutType, uint16_t, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL(OutType, int32_t, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL(OutType, float, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL(OutType, float16, spatial_ndim, channel_dim);
+#define INSTANTIATE_FOREACH_INTYPE(Out, spatial_ndim, channel_dim)  \
+  INSTANTIATE_IMPL(Out, uint8_t, spatial_ndim, channel_dim);  \
+  INSTANTIATE_IMPL(Out, int16_t, spatial_ndim, channel_dim);  \
+  INSTANTIATE_IMPL(Out, uint16_t, spatial_ndim, channel_dim); \
+  INSTANTIATE_IMPL(Out, int32_t, spatial_ndim, channel_dim);  \
+  INSTANTIATE_IMPL(Out, float, spatial_ndim, channel_dim);    \
+  INSTANTIATE_IMPL(Out, dali::float16, spatial_ndim, channel_dim);
 
-#define INSTANTIATE_IMPL_FOREACH_OUTTYPE(spatial_ndim, channel_dim) \
-  INSTANTIATE_IMPL_FOREACH_INTYPE(float, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL_FOREACH_INTYPE(float16, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL_FOREACH_INTYPE(uint8_t, spatial_ndim, channel_dim); \
-  INSTANTIATE_IMPL_FOREACH_INTYPE(int8_t, spatial_ndim, channel_dim);
+#define INSTANTIATE_FOREACH_OUTTYPE(spatial_ndim, channel_dim)    \
+  INSTANTIATE_FOREACH_INTYPE(float, spatial_ndim, channel_dim);   \
+  INSTANTIATE_FOREACH_INTYPE(dali::float16, spatial_ndim, channel_dim); \
+  INSTANTIATE_FOREACH_INTYPE(uint8_t, spatial_ndim, channel_dim); \
+  INSTANTIATE_FOREACH_INTYPE(int8_t, spatial_ndim, channel_dim);
 
-INSTANTIATE_IMPL_FOREACH_OUTTYPE(2, 2);  // HWC
-INSTANTIATE_IMPL_FOREACH_OUTTYPE(2, 0);  // CHW
+INSTANTIATE_FOREACH_OUTTYPE(2, 0);
+INSTANTIATE_FOREACH_OUTTYPE(2, 2);
 
 }  // namespace slice_flip_normalize
 

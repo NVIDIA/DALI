@@ -107,18 +107,19 @@ class DLL_PUBLIC SliceFlipNormalizeGPU {
   std::tuple<float *, float *, Out *> SetupParams(KernelContext &ctx, const Args &args);
 
  public:
-  DLL_PUBLIC ~SliceFlipNormalizeGPU();
+  ~SliceFlipNormalizeGPU() = default;
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &ctx, const TensorListShape<ndim> &sh,
-                                      const Args &args);
+  KernelRequirements Setup(KernelContext &ctx, const TensorListShape<ndim> &sh,
+                           const Args &args);
 
-  DLL_PUBLIC void Run(KernelContext &ctx, const OutListGPU<Out, ndim> &out,
-                      const InListGPU<In, ndim> &in, const Args &args);
+  void Run(KernelContext &ctx, const OutListGPU<Out, ndim> &out,
+           const InListGPU<In, ndim> &in, const Args &args);
 };
 
 }  // namespace slice_flip_normalize
 
 }  // namespace kernels
 }  // namespace dali
+
 
 #endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_GPU_H_
