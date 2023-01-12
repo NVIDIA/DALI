@@ -28,7 +28,6 @@ class pool_resource_base : public virtual memory_resource<Kind> {
   virtual void *try_allocate_from_free(size_t bytes, size_t alignment) {
     return nullptr;
   }
-
 };
 
 }  // namespace mm
