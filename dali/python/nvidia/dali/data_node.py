@@ -68,9 +68,6 @@ class DataNode(object):
 
     __repr__ = __str__
 
-    def __hash__(self) -> int:
-        return hash(str(self) + str(self.source))
-
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph

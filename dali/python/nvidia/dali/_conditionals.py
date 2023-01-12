@@ -44,6 +44,10 @@ from contextlib import contextmanager
 from enum import Enum
 
 
+def _data_node_repr(data_node):
+    return f"DataNode(name={data_node.name}, device={data_node.device}, source={data_node.source})"
+
+
 class _Branch(Enum):
     TrueBranch = 0
     FalseBranch = 1
@@ -93,12 +97,12 @@ class _StackEntry:
     def add_produced(self, data_node):
         """Add the DataNode or DataNodes to produced in the scope of currently selected branch."""
         if isinstance(data_node, _DataNode):
-            self.produced |= {hash(data_node)}
+            self.produced |= {_data_node_repr(data_node)}
         elif isinstance(data_node, list):
             if not data_node:
                 return
             if isinstance(data_node[0], _DataNode):
-                self.produced |= set(hash(dn) for dn in data_node)
+                self.produced |= set(_data_node_repr(dn) for dn in data_node)
             elif isinstance(data_node[0], list):
                 flat_list = [item for sublist in data_node for item in sublist]
                 self.add_produced(flat_list)
@@ -121,11 +125,11 @@ class _StackEntry:
         false_node : DataNode
             False branch split
         """
-        self.splits[hash(source_data_node)] = (true_node, false_node)
+        self.splits[_data_node_repr(source_data_node)] = (true_node, false_node)
         # Record the direct preceding node as the producer:
-        self.splits[hash(producer_node)] = (true_node, false_node)
-        self.produced_true |= {hash(true_node)}
-        self.produced_false |= {hash(false_node)}
+        self.splits[_data_node_repr(producer_node)] = (true_node, false_node)
+        self.produced_true |= {_data_node_repr(true_node)}
+        self.produced_false |= {_data_node_repr(false_node)}
 
     def __str__(self):
         return (f"StackEntry: pred={self.predicate}, branch={self.branch}, splits={self.splits},"
@@ -134,9 +138,9 @@ class _StackEntry:
     def has(self, data_node):
         """Check if this DataNode was either produced in this scope or already split for this scope.
         """
-        if hash(data_node) in self.produced:
+        if _data_node_repr(data_node) in self.produced:
             return True
-        elif hash(data_node) in self.splits:
+        elif _data_node_repr(data_node) in self.splits:
             return True
         else:
             return False
@@ -146,11 +150,11 @@ class _StackEntry:
         that was created for accessing the `data_node` in this scope.
         """
         assert self.has(data_node)
-        if hash(data_node) in self.produced:
+        if _data_node_repr(data_node) in self.produced:
             return data_node
         else:
             assert self.branch in {_Branch.TrueBranch, _Branch.FalseBranch}
-            return self.splits[hash(data_node)][self.branch.value]
+            return self.splits[_data_node_repr(data_node)][self.branch.value]
 
 
 class _ConditionStack:
