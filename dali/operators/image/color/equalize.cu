@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/kernels/imgproc/color_manipulation/equalize/equalize.cuh"
+#include "dali/kernels/imgproc/color_manipulation/equalize/equalize.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/color/equalize.h"
 

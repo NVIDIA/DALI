@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-#include "dali/kernels/imgproc/color_manipulation/equalize/equalize.cuh"
+#include "dali/kernels/imgproc/color_manipulation/equalize/equalize.h"
 
 namespace dali {
 namespace kernels {

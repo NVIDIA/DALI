@@ -14,14 +14,14 @@
 
 #include <gtest/gtest.h>
 
-#include "dali/kernels/imgproc/color_manipulation/equalize/equalized_lut.cuh"
+#include "dali/kernels/imgproc/color_manipulation/equalize/lookup.h"
 
 namespace dali {
 namespace kernels {
 namespace equalize {
-namespace lut {
+namespace lookup {
 namespace test {}  // namespace test
-}  // namespace lut
+}  // namespace lookup
 }  // namespace equalize
 }  // namespace kernels
 }  // namespace dali

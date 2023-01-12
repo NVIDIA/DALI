@@ -12,28 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZED_LUT_CUH_
-#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZED_LUT_CUH_
-
 #include <vector>
 
-#include "dali/core/common.h"
-#include "dali/core/convert.h"
-#include "dali/kernels/kernel.h"
+#include "dali/kernels/imgproc/color_manipulation/equalize/lut.h"
 #include "dali/pipeline/data/sequence_utils.h"
-#include "include/dali/core/backend_tags.h"
-#include "include/dali/core/tensor_view.h"
 
 namespace dali {
 namespace kernels {
 namespace equalize {
 namespace lut {
-struct SampleDesc {
-  static constexpr int range_size = 256;
-  static constexpr int range_size_log2 = 8;
-  uint8_t *out;
-  const int32_t *in;
-};
 
 DALI_DEVICE DALI_FORCEINLINE void PrefixSum(const int32_t *__restrict__ in, int32_t *workspace) {
   // load the histogram into shm workspace
@@ -87,33 +74,24 @@ __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
   sample_desc.out[threadIdx.x] = ConvertSat<uint8_t>((workspace[threadIdx.x] - first_val) * factor);
 }
 
-struct LutKernelGpu {
-  static constexpr int kBlockSize = 256;
-
-  void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
-           const TensorListView<StorageGPU, const int32_t, 2> &histogram) {
-    assert(equalized.num_samples() == histogram.num_samples());
-    sample_descs_.clear();
-    for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {
-      // TODO(ktokarski) use combined range as we have cpp17 now
-      auto equalized_channels = sequence_utils::unfolded_view_range<1>(lut[sample_idx]);
-      auto hist_channels = sequence_utils::unfolded_view_range<1>(histogram[sample_idx]);
-      for (int chunk_idx = 0; chunk_idx < equalized_channels.NumSlices(); chunk_idx++) {
-        sample_descs_.push_back(
-            {equalized_channels[chunk_idx].data, hist_channels[chunk_idx].data});
-      }
+void LutKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
+                       const TensorListView<StorageGPU, const int32_t, 2> &histogram) {
+  assert(equalized.num_samples() == histogram.num_samples());
+  sample_descs_.clear();
+  for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {
+    // TODO(ktokarski) use combined range as we have cpp17 now
+    auto equalized_channels = sequence_utils::unfolded_view_range<1>(lut[sample_idx]);
+    auto hist_channels = sequence_utils::unfolded_view_range<1>(histogram[sample_idx]);
+    for (int chunk_idx = 0; chunk_idx < equalized_channels.NumSlices(); chunk_idx++) {
+      sample_descs_.push_back({equalized_channels[chunk_idx].data, hist_channels[chunk_idx].data});
     }
-    SampleDesc *samples_desc_dev;
-    std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
-    PrepareLookupTable<<<sample_descs_.size(), kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
   }
-
-  std::vector<SampleDesc> sample_descs_;
-};
+  SampleDesc *samples_desc_dev;
+  std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
+  PrepareLookupTable<<<sample_descs_.size(), kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+}
 
 }  // namespace lut
 }  // namespace equalize
 }  // namespace kernels
 }  // namespace dali
-
-#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZED_LUT_CUH_

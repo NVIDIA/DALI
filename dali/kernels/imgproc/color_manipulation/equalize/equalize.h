@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_CUH_
-#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_CUH_
+#ifndef DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZE_H_
+#define DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZE_H_
 
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/kernels/imgproc/color_manipulation/equalize/equalized_lut.cuh"
-#include "dali/kernels/imgproc/color_manipulation/equalize/hist.cuh"
-#include "dali/kernels/imgproc/color_manipulation/equalize/lut_lookup.cuh"
+#include "dali/kernels/imgproc/color_manipulation/equalize/lut.h"
+#include "dali/kernels/imgproc/color_manipulation/equalize/hist.h"
+#include "dali/kernels/imgproc/color_manipulation/equalize/lookup.h"
 #include "dali/kernels/kernel.h"
 #include "include/dali/core/backend_tags.h"
 #include "include/dali/core/tensor_view.h"
@@ -67,4 +67,4 @@ struct EqualizeKernelGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_CUH_
+#endif  // DALI_KERNELS_IMGPROC_COLOR_MANIPULATION_EQUALIZE_EQUALIZE_H_
