@@ -40,7 +40,7 @@
 namespace dali {
 
 class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
-  public:
+ public:
   explicit inline NewCropMirrorNormalizeGPU(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
         fallback_(spec),
@@ -70,9 +70,10 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     const auto &input = ws.Input<GPUBackend>(0);
     auto in_shape = input.shape();
 
-    using Kernel = kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
+    using Kernel =
+        kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
     if (!kernel_args_.has_value())
-    kernel_args_ = typename Kernel::Args{};
+      kernel_args_ = typename Kernel::Args{};
     auto &args = any_cast<typename Kernel::Args&>(kernel_args_);
 
     int h_dim = input_layout_.find('H');
@@ -116,10 +117,10 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
       span<const float> std_arg(std_arg_[sample_idx].data, std_arg_[sample_idx].num_elements());
       int nchannels = sample_sh[channel_dim];
       auto nargs = std::max(mean_arg.size(), std_arg.size());
-      DALI_ENFORCE(
-          mean_arg.size() == std_arg.size() || mean_arg.size() == 1 || std_arg.size() == 1,
-          "``mean`` and ``std`` must either be of the same size, be scalars, or one of them can be a "
-          "vector and the other a scalar.");
+      DALI_ENFORCE(mean_arg.size() == std_arg.size() || mean_arg.size() == 1 || std_arg.size() == 1,
+                   "``mean`` and ``std`` must either be of the same size, be scalars, or one of "
+                   "them can be a "
+                   "vector and the other a scalar.");
       a.mean.resize(nchannels);
       a.inv_stddev.resize(nchannels);
       for (int c = 0; c < nchannels; c++) {
@@ -175,9 +176,13 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     assert(channel_dim_idx_ >= 0);
 
     // TODO(janton): remove fallback
+    static bool cmn_legacy = []() {
+      const char *env = std::getenv("DALI_CMN_LEGACY");
+      return !env || atoi(env);
+    }();
     use_fallback_ = spatial_ndim_ != 2 || ndim != 3 ||
-                    (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_);// ||
-                    //pad_output_;
+                    (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_) ||
+                    cmn_legacy;
 
     if (use_fallback_)
       return fallback_.Setup(output_desc, ws);
@@ -191,8 +196,8 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     TYPE_SWITCH(input_type_, type2id, InputType, IN_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, OUT_TYPES, (
         VALUE_SWITCH(spatial_ndim_, SpatialNdim, SPATIAL_NDIMS, (
-          VALUE_SWITCH(channel_dim_idx_, ChannelDimIndex, CHANNEL_DIMS, (
-            return SetupImplTyped<OutputType, InputType, SpatialNdim, ChannelDimIndex>(output_desc, ws);
+          VALUE_SWITCH(channel_dim_idx_, ChannelDim, CHANNEL_DIMS, (
+            return SetupImplTyped<OutputType, InputType, SpatialNdim, ChannelDim>(output_desc, ws);
           ), DALI_FAIL(make_string("Not supported channel dimension:", channel_dim_idx_)););  // NOLINT
         ), DALI_FAIL(make_string("Not supported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
       ), DALI_FAIL(make_string("Not supported output type:", output_type_)););  // NOLINT
@@ -202,8 +207,9 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
   template <typename Out, typename In, int spatial_ndim, int channel_dim>
   void RunImplTyped(const Workspace &ws) override {
     static constexpr int ndim = spatial_ndim + 1;
-    using Kernel = kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
-    auto &args = any_cast<typename Kernel::Args&>(kernel_args_);
+    using Kernel =
+        kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
+    auto &args = any_cast<typename Kernel::Args &>(kernel_args_);
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(output_layout_);
@@ -223,8 +229,8 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     TYPE_SWITCH(input_type_, type2id, InputType, IN_TYPES, (
       TYPE_SWITCH(output_type_, type2id, OutputType, OUT_TYPES, (
         VALUE_SWITCH(spatial_ndim_, SpatialNdim, SPATIAL_NDIMS, (
-          VALUE_SWITCH(channel_dim_idx_, ChannelDimIndex, CHANNEL_DIMS, (
-            RunImplTyped<OutputType, InputType, SpatialNdim, ChannelDimIndex>(ws);
+          VALUE_SWITCH(channel_dim_idx_, ChannelDim, CHANNEL_DIMS, (
+            RunImplTyped<OutputType, InputType, SpatialNdim, ChannelDim>(ws);
           ), DALI_FAIL(make_string("Not supported channel dimension:", channel_dim_idx_)););  // NOLINT
         ), DALI_FAIL(make_string("Not supported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
       ), DALI_FAIL(make_string("Not supported output type:", output_type_)););  // NOLINT
