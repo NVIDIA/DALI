@@ -50,7 +50,7 @@ def is_mulit_gpu():
     return is_mulit_gpu_var
 
 
-def get_device_memory_info(device_id = 0):
+def get_device_memory_info(device_id=0):
     try:
         import pynvml
         pynvml.nvmlInit()

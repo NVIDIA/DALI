@@ -34,7 +34,7 @@ def test_preallocation():
     block_size = 64 << 20
     dali.backend.PreallocateDeviceMemory(size, 0)
     free_after = get_device_memory_info().free
-    assert(free_after <= free_before - size + block_size)
+    assert free_after <= free_before - size + block_size
     dali.backend.ReleaseUnusedMemory()
     free_after_release = get_device_memory_info().free
     assert free_after_release == free_before
