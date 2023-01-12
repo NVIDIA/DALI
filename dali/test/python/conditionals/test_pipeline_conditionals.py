@@ -50,7 +50,7 @@ def test_condition_stack():
     assert test_stack._find_closest(pred_nested) == 0
     # First predicate, no splitting required, as this is the first nesting level
     first_level = test_stack.push_predicate(pred_node)
-    assert hash(pred_node) == hash(first_level)
+    assert _conditionals._data_node_repr(pred_node) == _conditionals._data_node_repr(first_level)
 
     test_stack.track_true_branch()
     test_stack.register_data_nodes(some_op)
@@ -62,7 +62,7 @@ def test_condition_stack():
     true_split = test_stack._realize_split(pred_nested, 0)
     second_level = test_stack.push_predicate(pred_nested)
     # Second predicate require splitting
-    assert hash(true_split) == hash(second_level)
+    assert _conditionals._data_node_repr(true_split) == _conditionals._data_node_repr(second_level)
     test_stack.track_true_branch()
     test_stack.register_data_nodes(some_nested_op)
     assert test_stack._find_closest(some_nested_op) == 2
@@ -70,13 +70,14 @@ def test_condition_stack():
     # It's already on this level
     assert len(test_stack.top().produced) == 1
     preprocessed = test_stack.preprocess_input(some_nested_op)
-    assert hash(some_nested_op) == hash(preprocessed)
+    assert (_conditionals._data_node_repr(some_nested_op)
+            == _conditionals._data_node_repr(preprocessed))
     assert len(test_stack.top().produced) == 1
 
     # This one is not
     assert len(test_stack.top().produced) == 1
     preprocessed = test_stack.preprocess_input(some_op)
-    assert hash(some_op) != hash(some_nested_op)
+    assert _conditionals._data_node_repr(some_op) != _conditionals._data_node_repr(some_nested_op)
     assert len(test_stack.top().produced) == 2
 
     test_stack.pop()

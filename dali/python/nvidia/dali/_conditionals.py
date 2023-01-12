@@ -252,13 +252,16 @@ class _ConditionStack:
                             f" at {self.stack_depth() -1}:"
                             f" split({produced_data_node}, predicate={predicate}."))
             self._is_registration_allowed = False
-            true, false = fn._conditional.split(produced_data_node, predicate=predicate)
+            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate)
             self._is_registration_allowed = True
 
             # Record the result of splitting the `data_node` that we are trying to look up
             # (short-cut for consecutive lookups)
-            current_entry.add_split(data_node, produced_data_node, true, false)
-            produced_data_node = true if current_entry.branch == _Branch.TrueBranch else false
+            current_entry.add_split(data_node, produced_data_node, true_node, false_node)
+            if current_entry.branch == _Branch.TrueBranch:
+                produced_data_node = true_node
+            else:
+                produced_data_node = false_node
             self._stack.append(current_entry)
         return produced_data_node
 
