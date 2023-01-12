@@ -137,9 +137,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  DLL_PUBLIC void RunCPUImpl();
-  DLL_PUBLIC void RunMixedImpl();
-  DLL_PUBLIC void RunGPUImpl();
+  DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
+  DLL_PUBLIC void RunMixedImpl(size_t iteration_id);
+  DLL_PUBLIC void RunGPUImpl(size_t iteration_id);
   DLL_PUBLIC void SyncDevice();
 
   template <typename T>
@@ -343,8 +343,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   WorkspacePolicy ws_policy_;
 
+  std::vector<IterationData> iteration_data_;
+  size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
+
  private:
-  void RunHelper(OpNode &op_node, Workspace &ws);
+  void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
   void RethrowError() const {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -371,6 +374,29 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   int InferBatchSize(const std::vector<BatchSizeProvider *> &batch_size_providers) const;
 
   void PreRun();
+
+  /**
+   * TODO
+   * @return
+   */
+  virtual size_t CalcIterationDataSize() const {
+    return 2;
+  }
+
+  /**
+   * TODO
+   */
+  void InitIterationData() {
+    cpu_iteration_id_=0;
+    mixed_iteration_id_=0;
+    gpu_iteration_id_=0;
+    size_t iteration_data_size = CalcIterationDataSize();
+    iteration_data_.resize(iteration_data_size);
+  }
+
+  virtual IterationData& GetCurrentIterationData(size_t iteration_id, OpType op_type) {
+    return iteration_data_[iteration_id % 2];
+  }
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -442,6 +468,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   SetupOutputQueuesForGraph();
 
   DiscoverBatchSizeProviders();
+
+  InitIterationData();
 }
 
 

@@ -25,6 +25,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/executor/iteration_data.h"
 
 namespace dali {
 
@@ -113,7 +114,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   using DataObjectPtr = ptr_t<DataObject<Backend>>;
 
-  WorkspaceBase() {}
+  WorkspaceBase() = default;
   ~WorkspaceBase() override = default;
 
   /**
@@ -540,6 +541,50 @@ class WorkspaceBase : public ArgumentWorkspace {
     return 0;
   }
 
+  ///@{
+  /**
+   * TODO(mszolucha)
+   * @param operator_trace_map
+   */
+  void InjectOperatorTraces(std::shared_ptr<operator_trace_map_t> operator_trace_map) {
+    operator_traces_ = std::move(operator_trace_map);
+  }
+
+
+  /**
+   * TODO(mszolucha)
+   * @param operator_name
+   * @param event_key
+   * @param event_value
+   */
+  DLL_PUBLIC void SetOperatorTrace(const std::string &operator_name,
+                                   const std::string &trace_key,
+                                   std::string trace_value) {
+    (*operator_traces_)[operator_name][trace_key] = std::move(trace_value);
+  }
+
+  /**
+   * TODO(mszolucha)
+   * @param operator_name
+   * @return
+   */
+  DLL_PUBLIC const auto &GetOperatorTraces(const std::string &operator_name) const {
+    return operator_traces_->at(operator_name);
+  }
+
+  /**
+   * TODO(mszolucha)
+   *
+   * @see operator_trace_map_t
+   *
+   * @return
+   */
+  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
+    return *operator_traces_;
+  }
+  ///@}
+
+
  protected:
   struct InOutMeta {
     // Storage device of given Input/Output
@@ -684,10 +729,13 @@ class WorkspaceBase : public ArgumentWorkspace {
     return index_map[idx];
   }
 
+
   AccessOrder output_order_ = AccessOrder::host();
   ThreadPool *thread_pool_ = nullptr;
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
+
+  std::shared_ptr<operator_trace_map_t> operator_traces_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};

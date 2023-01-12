@@ -539,6 +539,7 @@ const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id) {
   return pipeline->output_name(id).c_str();
 }
 
+
 device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   if (pipeline->output_device(id) == "gpu") {
@@ -546,6 +547,21 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
   }
   return device_type_t::CPU;
 }
+
+
+int daliGetNumOperatorTraces(daliPipelineHandle *pipe_handle, const char *operator_name) {
+  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  return static_cast<int>(ws->GetOperatorTraces(operator_name).size());
+}
+
+
+const char *
+daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                     const char *event_name) {
+  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  return ws->GetOperatorTraces(operator_name).at(event_name).c_str();
+}
+
 
 void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
                     device_type_t dst_type, cudaStream_t stream, unsigned int flags) {

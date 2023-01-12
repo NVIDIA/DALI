@@ -484,6 +484,25 @@ DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
 
 /**
+ * TODO(mszolucha)
+ * @param pipe_handle
+ * @param operator_name
+ * @return
+ */
+DLL_PUBLIC int daliGetNumOperatorTraces(daliPipelineHandle *pipe_handle, const char *operator_name);
+
+/**
+ * TODO(mszolucha)
+ * @param pipe_handle
+ * @param operator_name
+ * @param event_id
+ * @return
+ */
+DLL_PUBLIC const char *
+daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                     const char *event_name);
+
+/**
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.
  * @remarks If the pipeline output is TensorList then it needs to be dense
  * @param pipe_handle Pointer to pipeline handle

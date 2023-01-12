@@ -65,7 +65,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
   PreRun();
   const char placement_error[] =
       "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
@@ -111,7 +111,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
     DomainTimeRange tr("[DALI][CPU op] " + op_node.instance_name, DomainTimeRange::kBlue1);
 
     try {
-      RunHelper(op_node, ws);
+      RunHelper(op_node, ws, iteration_id);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
       HandleError("CPU", op_node, e.what());
@@ -126,7 +126,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
   DomainTimeRange tr("[DALI][Executor] RunMixed");
   DeviceGuard g(device_id_);
 
@@ -154,7 +154,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
       ws.SetBatchSizes(batch_size);
 
       DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name, DomainTimeRange::kOrange);
-      RunHelper(op_node, ws);
+      RunHelper(op_node, ws, iteration_id);
       FillStats(mixed_memory_stats_, ws, "MIXED_" + op_node.instance_name,
                 mixed_memory_stats_mutex_);
       if (device_id_ != CPU_ONLY_DEVICE_ID) {
@@ -186,7 +186,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
+void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
   DomainTimeRange tr("[DALI][Executor] RunGPU");
 
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
@@ -225,7 +225,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
       }
 
       DomainTimeRange tr("[DALI][GPU op] " + op_node.instance_name, DomainTimeRange::knvGreen);
-      RunHelper(op_node, ws);
+      RunHelper(op_node, ws, iteration_id);
       FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
@@ -258,7 +258,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   try {
-    RunCPUImpl();
+    RunCPUImpl(cpu_iteration_id_++);
   } catch (std::exception &e) {
     HandleError(make_string("Exception in CPU stage: ", e.what()));
   } catch (...) {
@@ -269,7 +269,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   try {
-    RunMixedImpl();
+    RunMixedImpl(mixed_iteration_id_++);
   } catch (std::exception &e) {
     HandleError(make_string("Exception in mixed stage: ", e.what()));
   } catch (...) {
@@ -280,7 +280,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   try {
-    RunGPUImpl();
+    RunGPUImpl(gpu_iteration_id_++);
   } catch (std::exception &e) {
     HandleError(make_string("Exception in GPU stage: ", e.what()));
   } catch (...) {
@@ -289,7 +289,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws) {
+void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id) {
   auto &output_desc = op_node.output_desc;
   auto &op = *op_node.op;
   output_desc.clear();
@@ -297,6 +297,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+  ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id, op_node.op_type).operator_traces);
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
 
