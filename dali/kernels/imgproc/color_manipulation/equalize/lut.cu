@@ -76,14 +76,12 @@ __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
 
 void LutKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
                        const TensorListView<StorageGPU, const int32_t, 2> &histogram) {
-  assert(equalized.num_samples() == histogram.num_samples());
+  assert(lut.num_samples() == histogram.num_samples());
   sample_descs_.clear();
   for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {
-    // TODO(ktokarski) use combined range as we have cpp17 now
-    auto equalized_channels = sequence_utils::unfolded_view_range<1>(lut[sample_idx]);
-    auto hist_channels = sequence_utils::unfolded_view_range<1>(histogram[sample_idx]);
-    for (int chunk_idx = 0; chunk_idx < equalized_channels.NumSlices(); chunk_idx++) {
-      sample_descs_.push_back({equalized_channels[chunk_idx].data, hist_channels[chunk_idx].data});
+    auto ranges = sequence_utils::unfolded_views_range<1>(lut[sample_idx], histogram[sample_idx]);
+    for (auto &&[lut, hist] : ranges) {
+      sample_descs_.push_back({lut.data, hist.data});
     }
   }
   SampleDesc *samples_desc_dev;
