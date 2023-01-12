@@ -1402,7 +1402,8 @@ def _discriminate_args(func, **func_kwargs):
     if 'debug' not in func_argspec.args and 'debug' not in func_argspec.kwonlyargs:
         func_kwargs.pop('debug', False)
 
-    if 'enable_conditionals' not in func_argspec.args and 'enable_conditionals' not in func_argspec.kwonlyargs:
+    if ('enable_conditionals' not in func_argspec.args
+            and 'enable_conditionals' not in func_argspec.kwonlyargs):
         func_kwargs.pop('enable_conditionals', False)
 
     ctor_args = {}
@@ -1549,7 +1550,7 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
             if debug_mode_on:
                 # TODO(klecki): cross-validate conditionals with eager mode
                 if conditionals_on:
-                    raise NotImplemented("Conditionals are not supported in debug mode yet.")
+                    raise NotImplementedError("Conditionals are not supported in debug mode yet.")
                 pipe = _PipelineDebug(functools.partial(pipe_func, *args, **fn_kwargs),
                                       **pipeline_args)
             else:

@@ -17,7 +17,6 @@ import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
-from nvidia.dali import _conditionals
 
 _special_case_mapping = {
     "b_box": "bbox",

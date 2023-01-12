@@ -21,7 +21,6 @@ from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInte
 # TODO: Handle forwarding imports from backend_impl
 from nvidia.dali.backend_impl.types import *        # noqa: F401, F403
 
-from nvidia.dali import _conditionals
 
 try:
     from nvidia.dali import tfrecord as tfrec

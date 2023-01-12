@@ -439,7 +439,7 @@ def _verify_branch_outputs(outputs, symbol_names, branch_name):
                                f" in the `{branch_name}` branch.")
         if isinstance(output, variables.UndefinedReturnValue):
             raise RuntimeError(f"{common_explanation} The `{branch_name}` branch must also have"
-                                " a return statement.")
+                               f" a return statement.")
 
 
 class DaliOperatorOverload(_autograph.OperatorBase):
