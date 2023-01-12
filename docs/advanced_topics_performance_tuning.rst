@@ -39,6 +39,8 @@ and thread 4 to the CPU ID that is returned by nvmlDeviceGetCpuAffinity.
 Memory Consumption
 ------------------
 
+.. currentmodule:: nvidia.dali.backend
+
 DALI uses the following memory types:
 
 - Host
@@ -80,6 +82,28 @@ environmental variables and with the `nvidia.dali.backend.SetHostBufferGrowthFac
 For convenience, the DALI_BUFFER_GROWTH_FACTOR environment variable and the
 `nvidia.dali.backend.SetBufferGrowthFactor` Python function can be used to set the same
 growth factor for the host and the GPU buffers.
+
+Memory Pool Preallocation
+-------------------------
+
+DALI uses several memory pools - one for each CUDA device plus one global pool for pinned host
+memory. Normally these pools grow on demand. The growth can result in temporary drop in throughput.
+In performance-critical applications, this can be avoided by preallocating the pools.
+
+.. autofunction:: PreallocateDeviceMemory
+.. autofunction:: PreallocatePinnedMemory
+
+
+Freeing Memory Pools
+--------------------
+
+The memory pools used by DALI are global and shared between pipelines. The destruction
+of a pipeline doesn't cause the memory to be returned to the operating system - it's kept
+for future pipelines. To release memory that's not currently in use, you can call
+:func:`nvidia.dali.backend.ReleaseUnusedMemory`
+
+.. autofunction:: ReleaseUnusedMemory
+
 
 Operator Buffer Presizing
 -------------------------

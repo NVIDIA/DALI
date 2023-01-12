@@ -1425,9 +1425,25 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
-  m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory);
-  m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory);
-  m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory);
+
+  m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
+R"(Preallocate memory on given device
+
+This function operates by allocating and then freeing the amount of memory given in the argument.
+If the allocation fails, an error is raised.
+)", "bytes"_a, "device_id"_a);
+  m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory,
+R"(Preallocate non-pageable (pinned) host memory
+
+This function operates by allocating and then freeing the amount of memory given in the argument.
+If the allocation fails, an error is raised.
+)", "bytes"_a);
+
+  m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory,
+R"(Frees unused blocks from memory pools.
+
+Only blocks that are completely free are released. The function frees the memory from all device
+pools as well as from the host pinned memory pool.)");
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
