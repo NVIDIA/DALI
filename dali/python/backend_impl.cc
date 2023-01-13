@@ -1429,21 +1429,31 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
 R"(Preallocate memory on given device
 
-This function operates by allocating and then freeing the amount of memory given in the argument.
-If the allocation fails, an error is raised.
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
 )", "bytes"_a, "device_id"_a);
   m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory,
 R"(Preallocate non-pageable (pinned) host memory
 
-This function operates by allocating and then freeing the amount of memory given in the argument.
-If the allocation fails, an error is raised.
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
 )", "bytes"_a);
 
   m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory,
 R"(Frees unused blocks from memory pools.
 
 Only blocks that are completely free are released. The function frees the memory from all device
-pools as well as from the host pinned memory pool.)");
+pools as well as from the host pinned memory pool.
+
+This function is safe to use while DALI pipelines are running.)");
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/mm/pool_resource.h"
+#include "dali/core/mm/with_upstream.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
@@ -39,8 +40,9 @@ template <typename Kind,
     typename GlobalPool = pool_resource<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
-class async_pool_resource : public virtual async_memory_resource<Kind>,
-                            public virtual pool_resource_base<Kind> {
+class async_pool_resource : public async_memory_resource<Kind>,
+                            public pool_resource_base<Kind>,
+                            public with_upstream<Kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
@@ -120,6 +122,11 @@ class async_pool_resource : public virtual async_memory_resource<Kind>,
   void *try_allocate_from_free(size_t size, size_t alignment) override {
     std::lock_guard<std::mutex> guard(lock_);
     return global_pool_.try_allocate_from_free(size, alignment);
+  }
+
+  GlobalPool *upstream() const override {
+    // ugly WAR - the global pool may be the "upstream" we really care about here
+    return const_cast<GlobalPool *>(&global_pool_);
   }
 
  private:

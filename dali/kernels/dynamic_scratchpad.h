@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -194,9 +194,9 @@ class DynamicScratchpad
       return nullptr;  // do not initialize the resource in case of 0-sized allocation
 
     auto &r = resource<Kind>();
-    if (!r.get_upstream()) {
+    if (!r.upstream()) {
       InitResource(type_tag<Kind>());
-      assert(r.get_upstream() != nullptr);
+      assert(r.upstream() != nullptr);
     }
     return r.allocate(bytes, alignment);
   }

@@ -41,7 +41,8 @@ namespace test {
 class VMResourceTest;
 }  // namespace test
 
-class cuda_vm_resource : public pool_resource_base<memory_resource<memory_kind::device>> {
+class cuda_vm_resource : public memory_resource<memory_kind::device>,
+                         public pool_resource_base<memory_kind::device> {
  public:
   explicit cuda_vm_resource(int device_ordinal = -1,
                             size_t block_size = 0,

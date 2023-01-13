@@ -21,7 +21,7 @@ namespace dali {
 namespace mm {
 
 template <typename Kind>
-class pool_resource_base : public virtual memory_resource<Kind> {
+class pool_resource_base {
  public:
   virtual void release_unused() {}
 

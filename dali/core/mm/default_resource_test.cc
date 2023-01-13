@@ -308,19 +308,34 @@ TEST(MMDefaultResource, ReleaseUnused) {
   size_t free3 = 0;  // ReleaseUnused called after deallocation
   size_t total = 0;
 
-  size_t size = 256_uz << 20;  // 256 MiB
   cudaMemGetInfo(&free0, &total);
+  ssize_t min_dev_size = 256;
+  ssize_t dev_size = free0 - (64_z << 20);  // all free memory - 64 MiB
+  ssize_t pinned_size = 256_z << 20;  // 256 MiB
+  ASSERT_GE(dev_size, min_dev_size);
 
-  void *mem_dev = dev->allocate(size);
-  void *mem_pinned = pinned->allocate(size);
+
+
+  mm::uptr<void> mem_dev;
+  while (dev_size >= min_dev_size) {
+    try {
+      mem_dev = mm::alloc_raw_unique<char>(dev, dev_size);
+      break;
+    } catch (const std::bad_alloc &) {
+      dev_size >>= 1;
+    }
+  }
+  ASSERT_NE(mem_dev, nullptr) << "Couldn't allocate any device memory - cannot continue testing";
+
+  mm::uptr<void> mem_pinned = mm::alloc_raw_unique<char>(pinned, pinned_size);
   CUDA_CALL(cudaMemGetInfo(&free1, &total));
 
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free2, &total));
   EXPECT_EQ(free2, free1);
 
-  dev->deallocate(mem_dev, size);
-  pinned->deallocate(mem_pinned, size);
+  mem_dev.reset();
+  mem_pinned.reset();
 
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free3, &total));
@@ -333,6 +348,7 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   int device_id = num_devices > 1 ? 1 : 0;
   DeviceGuard dg(device_id);
+  mm::PreallocateDeviceMemory(64_uz << 20, device_id);  // force context initialization
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
   size_t free0 = 0;  // before preallocation
   size_t free1 = 0;  // after preallocation
@@ -347,7 +363,7 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
   CUDA_CALL(cudaSetDevice(device_id));
   CUDA_CALL(cudaMemGetInfo(&free1, &total));
 
-  size_t max_block_size =  64_uz >> 20;  // 64 MiB - max block size for CUDA VM resource
+  size_t max_block_size =  64_uz << 20;  // 64 MiB - max block size for CUDA VM resource
   EXPECT_LT(free1, free0 - size + max_block_size);
   EXPECT_GE(free1, free0 - size - max_block_size);
 

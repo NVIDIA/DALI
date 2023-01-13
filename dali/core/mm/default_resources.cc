@@ -364,21 +364,32 @@ device_async_resource *GetDefaultDeviceResource(int device_id) {
   return ShareDefaultDeviceResourceImpl(device_id).get();
 }
 
+template <typename Kind>
+mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
+  while (mr) {
+    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
+      return pool;
+    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+      mr = up->upstream();
+    } else {
+      break;
+    }
+  }
+  return nullptr;
+}
+
 DLL_PUBLIC
 void ReleaseUnusedMemory() {
   if (auto *devs = g_resources.device.get()) {
     for (int i = 0, n = g_resources.num_devices; i < n; i++) {
-      auto *dev = devs[i].get();
-      if (auto *pool = dynamic_cast<mm::pool_resource_base<mm::memory_kind::device>*>(dev)) {
+      if (auto *pool = GetPoolInterface(devs[i].get())) {
         pool->release_unused();
       }
     }
   }
 
-  if (auto *pinned = g_resources.pinned_async.get()) {
-    if (auto *pool = dynamic_cast<mm::pool_resource_base<mm::memory_kind::pinned>*>(pinned)) {
-      pool->release_unused();
-    }
+  if (auto *pool = GetPoolInterface(g_resources.pinned_async.get())) {
+    pool->release_unused();
   }
 }
 

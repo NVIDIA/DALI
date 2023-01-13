@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 #ifndef DALI_CORE_MM_FIXED_ORDER_RESOURCE_H_
 #define DALI_CORE_MM_FIXED_ORDER_RESOURCE_H_
 
-#include <dali/core/mm/memory_resource.h>
-#include <dali/core/access_order.h>
+#include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/with_upstream.h"
+#include "dali/core/access_order.h"
 
 namespace dali {
 namespace mm {
@@ -34,7 +35,8 @@ namespace mm {
  *       - it does not attempt to access the memory in order other than specified
  */
 template <typename MemoryKind, typename Upstream = async_memory_resource<MemoryKind> >
-class fixed_order_resource final : public memory_resource<MemoryKind> {
+class fixed_order_resource final : public memory_resource<MemoryKind>,
+                                   public with_upstream<MemoryKind> {
  public:
   fixed_order_resource() = default;
 
@@ -46,6 +48,10 @@ class fixed_order_resource final : public memory_resource<MemoryKind> {
 
   AccessOrder alloc_order() const { return alloc_order_; }
   AccessOrder dealloc_order() const { return dealloc_order_; }
+
+  Upstream *upstream() const override {
+    return upstream_;
+  }
 
  private:
   void *do_allocate(size_t size, size_t alignment) final {
