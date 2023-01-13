@@ -763,8 +763,10 @@ class WorkspaceBase : public ArgumentWorkspace {
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
 
+  /// Name of the instance of the operator, to which this Workspace belongs.
   std::string operator_id_;
 
+  /// Traces of the operators corresponding to all operators in the current iteration.
   std::shared_ptr<operator_trace_map_t> operator_traces_;
 };
 

@@ -520,16 +520,19 @@ DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char 
                                     const char *trace_name);
 
 /**
- * TODO(mszolucha)
+ * Returns the traces of the given operator in the DALI Pipeline.
+ *
+ * Operator Traces is a communication mechanism with particular operators in the pipeline. For
+ * more information @see operator_trace_map_t.
  *
  * User does not own the returned value. In a situation, when changing of this value is necessary,
  * user shall copy it to his own memory. The lifetime of this value ends, when the
  * daliOutputRelease() is called.
  *
- * User shall check, if the trace with given name exists. If it does not,
- * the result of this function is undefined.
+ * User shall check, if the trace with given name exists (@see daliHasOperatorTrace). If it does
+ * not, the result of this function is undefined. Specifying the name of non-existing operator is
+ * also an undefined behaviour.
  *
- * @param pipe_handle
  * @param operator_name Name of the operator, which trace shall be returned.
  * @param trace_name Name of the requested trace.
  * @return Operator trace.
