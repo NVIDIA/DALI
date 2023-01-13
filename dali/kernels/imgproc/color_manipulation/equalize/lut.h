@@ -30,7 +30,6 @@ namespace lut {
 
 struct SampleDesc {
   static constexpr int range_size = 256;
-  static constexpr int range_size_log2 = 8;
   uint8_t *out;
   const int32_t *in;
 };

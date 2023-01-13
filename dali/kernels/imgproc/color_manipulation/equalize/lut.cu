@@ -22,7 +22,7 @@ namespace kernels {
 namespace equalize {
 namespace lut {
 
-DALI_DEVICE DALI_FORCEINLINE void PrefixSum(const int32_t *__restrict__ in, int32_t *workspace) {
+DALI_DEVICE DALI_FORCEINLINE void PrefixSum(int32_t *workspace, const int32_t *__restrict__ in) {
   // load the histogram into shm workspace
   workspace[threadIdx.x] = in[threadIdx.x];
   __syncthreads();
@@ -66,12 +66,17 @@ DALI_DEVICE DALI_FORCEINLINE int32_t FirstNonZero(int32_t *workspace) {
 __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
   __shared__ int32_t workspace[SampleDesc::range_size];
   auto sample_desc = sample_descs[blockIdx.x];
-  PrefixSum(sample_desc.in, workspace);
+  PrefixSum(workspace, sample_desc.in);
   int32_t first_idx = FirstNonZero(workspace);
   int32_t first_val = workspace[first_idx];
   int32_t total = workspace[SampleDesc::range_size - 1];
-  float factor = (SampleDesc::range_size - 1.f) / (total - first_val);
-  sample_desc.out[threadIdx.x] = ConvertSat<uint8_t>((workspace[threadIdx.x] - first_val) * factor);
+  if (first_val == total) {
+    sample_desc.out[threadIdx.x] = threadIdx.x;
+  } else {
+    float factor = (SampleDesc::range_size - 1.f) / (total - first_val);
+    sample_desc.out[threadIdx.x] =
+        ConvertSat<uint8_t>((workspace[threadIdx.x] - first_val) * factor);
+  }
 }
 
 void LutKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
