@@ -31,14 +31,14 @@ namespace lut {
 struct SampleDesc {
   static constexpr int range_size = 256;
   uint8_t *out;
-  const int32_t *in;
+  const uint64_t *in;
 };
 
 struct LutKernelGpu {
   static constexpr int kBlockSize = 256;
 
   DLL_PUBLIC void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
-                      const TensorListView<StorageGPU, const int32_t, 2> &histogram);
+                      const TensorListView<StorageGPU, const uint64_t, 2> &histogram);
 
   std::vector<SampleDesc> sample_descs_;
 };

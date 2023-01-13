@@ -30,11 +30,12 @@ __global__ void ZeroMem(const SampleDesc *sample_descs) {
 }
 
 __global__ void Histogram(const SampleDesc *sample_descs) {
+  static_assert(sizeof(unsigned long long int) == sizeof(uint64_t));
   extern __shared__ char shm[];
-  auto *workspace = reinterpret_cast<int32_t *>(shm);
+  auto *workspace = reinterpret_cast<unsigned long long int *>(shm);
   auto sample_desc = sample_descs[blockIdx.y];
   const uint8_t *in = sample_desc.in;
-  int32_t *out = sample_desc.out;
+  auto *out = reinterpret_cast<unsigned long long int *>(sample_desc.out);
   for (int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
        idx += blockDim.x) {
     workspace[idx] = 0;
@@ -52,7 +53,7 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
   }
 }
 
-void HistogramKernelGpu::Run(KernelContext &ctx, TensorListView<StorageGPU, int32_t, 2> &out,
+void HistogramKernelGpu::Run(KernelContext &ctx, TensorListView<StorageGPU, uint64_t, 2> &out,
                              const TensorListView<StorageGPU, const uint8_t, 2> &in) {
   int batch_size = out.num_samples();
   assert(in.num_samples() == batch_size);

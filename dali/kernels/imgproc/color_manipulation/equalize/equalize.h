@@ -38,7 +38,7 @@ struct EqualizeKernelGpu {
     assert(in.num_samples() == batch_size);
     auto hist_shape = GetHistogramShape(in.shape);
     auto hist_num_elements = hist_shape.num_elements();
-    int32_t *hist_dev_raw = ctx.scratchpad->AllocateGPU<int32_t>(hist_num_elements);
+    uint64_t *hist_dev_raw = ctx.scratchpad->AllocateGPU<uint64_t>(hist_num_elements);
     uint8_t *lut_dev_raw = ctx.scratchpad->AllocateGPU<uint8_t>(hist_num_elements);
     auto hist_view = make_tensor_list_gpu(hist_dev_raw, hist_shape);
     auto lut_view = make_tensor_list_gpu(lut_dev_raw, hist_shape);

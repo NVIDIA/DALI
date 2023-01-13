@@ -88,6 +88,7 @@ class EqualizeLookupGpuTest : public ::testing::Test {
     auto lut_view = lut_.gpu(cuda_stream);
     kernel.Run(ctx, out_view, in_view, lut_view);
     auto out_view_cpu = out_.cpu(cuda_stream);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     Check(out_view_cpu, baseline_.cpu());
   }
 

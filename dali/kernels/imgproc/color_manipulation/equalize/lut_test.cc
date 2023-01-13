@@ -33,9 +33,9 @@ namespace test {
 constexpr cudaStream_t cuda_stream = 0;
 
 class EqualizeLutGpuTest : public ::testing::Test {
+ protected:
   static constexpr int range_size = 256;
 
- protected:
   void Run() {
     PrepareBaseline();
     LutKernelGpu kernel;
@@ -47,7 +47,9 @@ class EqualizeLutGpuTest : public ::testing::Test {
     auto in_view = in_.gpu(cuda_stream);
     kernel.Run(ctx, out_view, in_view);
     auto out_view_cpu = out_.cpu(cuda_stream);
-    Check(out_view_cpu, baseline_.cpu());
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    auto baseline_view = baseline_.cpu();
+    Check(out_view_cpu, baseline_view);
   }
 
   void RandomUniformHist(std::vector<std::vector<int>> num_leading_zeros_per_channel) {
@@ -58,9 +60,6 @@ class EqualizeLutGpuTest : public ::testing::Test {
       int num_channels = desc.size();
       batch_shape.set_tensor_shape(sample_idx, {num_channels, range_size});
     }
-    baseline_.reshape(batch_shape);
-    intermediate_.reshape(batch_shape);
-    out_.reshape(batch_shape);
     in_.reshape(batch_shape);
     auto in_view = in_.cpu();
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
@@ -86,6 +85,9 @@ class EqualizeLutGpuTest : public ::testing::Test {
 
   void PrepareBaseline() {
     auto in_view = in_.cpu();
+    baseline_.reshape(in_view.shape);
+    intermediate_.reshape(in_view.shape);
+    out_.reshape(in_view.shape);
     auto intermediate_view = intermediate_.cpu();
     auto baseline_view = baseline_.cpu();
     for (int sample_idx = 0; sample_idx < baseline_view.shape.num_samples(); sample_idx++) {
@@ -108,7 +110,9 @@ class EqualizeLutGpuTest : public ::testing::Test {
         } else {
           auto first_val = workspace.data[first_non_zero];
           for (int i = 0; i < first_non_zero; i++) {
-            baseline.data[i] = 0;
+            // those values are irrelevant and arbitrary - they are not present in the
+            // data that histogram was computed on, so they won't be ever used in the lookup
+            baseline.data[i] = 255;
           }
           float scale = (range_size - 1.f) / (total - first_val);
           for (int i = first_non_zero; i < range_size; i++) {
@@ -119,13 +123,11 @@ class EqualizeLutGpuTest : public ::testing::Test {
     }
   }
 
-  TestTensorList<int32_t, 2> in_, intermediate_;
+  TestTensorList<uint64_t, 2> in_, intermediate_;
   TestTensorList<uint8_t, 2> baseline_, out_;
   std::mt19937_64 rng_{12345};
-  // std::uniform_int_distribution<int32_t> dist1_{1, 1024 * 1024 * 1024};
-  // std::uniform_int_distribution<int32_t> dist0_{0, 1024 * 1024 * 1024};
-  std::uniform_int_distribution<int32_t> dist1_{1, 1024};
-  std::uniform_int_distribution<int32_t> dist0_{0, 1024};
+  std::uniform_int_distribution<uint64_t> dist1_{1, 1024_i64 * 1024 * 1024 * 1024};
+  std::uniform_int_distribution<uint64_t> dist0_{0, 1024_i64 * 1024 * 1024 * 1024};
 };
 
 TEST_F(EqualizeLutGpuTest, Channel3Batch5) {
@@ -139,25 +141,32 @@ TEST_F(EqualizeLutGpuTest, VarChannelsBatch7) {
   this->Run();
 }
 
-// TEST_F(EqualizeLutGpuTest, VarChannelsBatch11) {
-//   this->RandomUniformHist({});
-// }
+TEST_F(EqualizeLutGpuTest, AllTheSame) {
+  TensorListShape<2> batch_shape{
+      {{4, range_size}, {3, range_size}, {2, range_size}, {1, range_size}}};
+  in_.reshape(batch_shape);
+  auto in_view = in_.cpu();
+  for (int sample_idx = 0; sample_idx < batch_shape.num_samples(); sample_idx++) {
+    for (int i = 0; i < batch_shape[sample_idx].num_elements(); i++) {
+      in_view[sample_idx].data[i] = sample_idx * 51;
+    }
+  }
+  this->Run();
+}
 
-// TEST_F(EqualizeLutGpuTest, Uniform) {
-// // all zeros
-// }
-
-// TEST_F(EqualizeLutGpuTest, Uniform) {
-// // var num channels, hist has the same but differet values everywhere 1, 2, 3
-// }
-
-// TEST_F(EqualizeLutGpuTest, Centered) {
-// // totally only one point
-// }
-
-// TEST_F(EqualizeLutGpuTest, AllOnes) {
-
-// }
+TEST_F(EqualizeLutGpuTest, SinglePoint) {
+  TensorListShape<2> batch_shape{
+      {{2, range_size}, {5, range_size}, {4, range_size}, {1, range_size}}};
+  in_.reshape(batch_shape);
+  auto in_view = in_.cpu();
+  for (int sample_idx = 0; sample_idx < batch_shape.num_samples(); sample_idx++) {
+    for (int channel_idx = 0; channel_idx < batch_shape[sample_idx][0]; channel_idx++) {
+      in_view[sample_idx].data[channel_idx * range_size + sample_idx * 71 + channel_idx] =
+          123 * channel_idx + sample_idx;
+    }
+  }
+  this->Run();
+}
 
 }  // namespace test
 }  // namespace lut

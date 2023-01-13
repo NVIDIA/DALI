@@ -22,7 +22,7 @@ namespace kernels {
 namespace equalize {
 namespace lut {
 
-DALI_DEVICE DALI_FORCEINLINE void PrefixSum(int32_t *workspace, const int32_t *__restrict__ in) {
+DALI_DEVICE DALI_FORCEINLINE void PrefixSum(uint64_t *workspace, const uint64_t *__restrict__ in) {
   // load the histogram into shm workspace
   workspace[threadIdx.x] = in[threadIdx.x];
   __syncthreads();
@@ -50,7 +50,7 @@ DALI_DEVICE DALI_FORCEINLINE void PrefixSum(int32_t *workspace, const int32_t *_
   }
 }
 
-DALI_DEVICE DALI_FORCEINLINE int32_t FirstNonZero(int32_t *workspace) {
+DALI_DEVICE DALI_FORCEINLINE int32_t FirstNonZero(uint64_t *workspace) {
   int32_t begin = 0, end = SampleDesc::range_size - 1;
   while (begin < end) {
     int32_t mid = (begin + end) >> 1;
@@ -64,12 +64,12 @@ DALI_DEVICE DALI_FORCEINLINE int32_t FirstNonZero(int32_t *workspace) {
 }
 
 __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
-  __shared__ int32_t workspace[SampleDesc::range_size];
+  __shared__ uint64_t workspace[SampleDesc::range_size];
   auto sample_desc = sample_descs[blockIdx.x];
   PrefixSum(workspace, sample_desc.in);
   int32_t first_idx = FirstNonZero(workspace);
-  int32_t first_val = workspace[first_idx];
-  int32_t total = workspace[SampleDesc::range_size - 1];
+  uint64_t first_val = workspace[first_idx];
+  uint64_t total = workspace[SampleDesc::range_size - 1];
   if (first_val == total) {
     sample_desc.out[threadIdx.x] = threadIdx.x;
   } else {
@@ -80,7 +80,7 @@ __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
 }
 
 void LutKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
-                       const TensorListView<StorageGPU, const int32_t, 2> &histogram) {
+                       const TensorListView<StorageGPU, const uint64_t, 2> &histogram) {
   assert(lut.num_samples() == histogram.num_samples());
   sample_descs_.clear();
   for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {

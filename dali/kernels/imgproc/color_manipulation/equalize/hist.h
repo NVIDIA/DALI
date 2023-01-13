@@ -31,7 +31,7 @@ namespace hist {
 
 struct SampleDesc {
   static constexpr int range_size = 256;
-  int32_t *out;
+  uint64_t *out;
   const uint8_t *in;
   uint64_t num_elements;
   fast_div<uint64_t> num_channels;
@@ -40,11 +40,11 @@ struct SampleDesc {
 struct HistogramKernelGpu {
   static constexpr int64_t kBlockSize = 256;
   static constexpr int64_t kMaxGridSize = 128;
-  static constexpr int64_t kShmPerChannelSize = SampleDesc::range_size * sizeof(int32_t);
+  static constexpr int64_t kShmPerChannelSize = SampleDesc::range_size * sizeof(uint64_t);
 
   HistogramKernelGpu() : shared_mem_limit_{GetSharedMemPerBlock()}, sample_descs_{} {}
 
-  DLL_PUBLIC void Run(KernelContext &ctx, TensorListView<StorageGPU, int32_t, 2> &out,
+  DLL_PUBLIC void Run(KernelContext &ctx, TensorListView<StorageGPU, uint64_t, 2> &out,
                       const TensorListView<StorageGPU, const uint8_t, 2> &in);
 
  protected:
