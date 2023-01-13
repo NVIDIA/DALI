@@ -22,7 +22,7 @@
 #include "dali/core/unique_handle.h"
 #include "dali/core/format.h"
 
-#if WITH_DYNAMIC_CUDA_TOOLKIT_ENABLED
+#if WITH_DYNAMIC_CUFFT_ENABLED
   bool cufftIsSymbolAvailable(const char *name);
 #else
   #define cufftIsSymbolAvailable(T) (true)

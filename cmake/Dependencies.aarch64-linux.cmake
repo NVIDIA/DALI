@@ -29,7 +29,7 @@ CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPPC library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_NPP)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppig_LIBRARY nppig_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
@@ -42,7 +42,7 @@ if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
 endif ()
 
 # cuFFT library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_CUFFT)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
   list(APPEND DALI_EXCLUDES libcufft_static.a)
 endif ()

@@ -173,6 +173,9 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_NVCOMP=${BUILD_NVCOMP}              \
                                         LINK_DRIVER=${LINK_DRIVER}                \
                                         WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
+                                        WITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON} \
+                                        WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON} \
+                                        WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}  \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
@@ -216,6 +219,9 @@ else
                                    --build-arg "BUILD_NVCOMP=${BUILD_NVCOMP}"              \
                                    --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
                                    --build-arg "WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT}"\
+                                   --build-arg "WITH_DYNAMIC_NVJPEG"=${WITH_DYNAMIC_NVJPEG:-ON} \
+                                   --build-arg "WITH_DYNAMIC_CUFFT"=${WITH_DYNAMIC_CUFFT:-ON} \
+                                   --build-arg "WITH_DYNAMIC_NPP"=${WITH_DYNAMIC_NPP:-ON}  \
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
