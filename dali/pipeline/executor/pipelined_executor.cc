@@ -23,11 +23,8 @@
 namespace dali {
 template<typename WorkspacePolicy, typename QueuePolicy>
 size_t PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::CalcIterationDataSize() const {
-  // TODO
-  DALI_ENFORCE(this->queue_sizes_.cpu_size == this->queue_sizes_.gpu_size);
-  return this->queue_sizes_.cpu_size+1;
-//  return this->queue_sizes_.cpu_size + this->queue_sizes_.gpu_size +
-//         this->queue_sizes_.gpu_size /* mixed_size is equal to gpu_size */;
+  // TODO(mszolucha): Implement for PipelinedExecutor.
+  return 2;
 }
 
 
@@ -35,21 +32,9 @@ template<typename WorkspacePolicy, typename QueuePolicy>
 IterationData &
 PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(
         size_t iteration_id, OpType op_type) {
-  // TODO
-//  assert(op_type == OpType::CPU || op_type == OpType::GPU || op_type == OpType::MIXED);
-//  switch(op_type) {
-//    case OpType::CPU:
-//      return this->iteration_data_[iteration_id % (this->queue_sizes_.cpu_size + 1)];
-//    case OpType::MIXED:
-//      return 9;
-//    case OpType::GPU:
-//      return 0;
-//    default:
-//      DALI_FAIL("This part of code should be unreachable.");
-//  }
-  return this->iteration_data_[iteration_id %
-                               (op_type == OpType::CPU ? this->queue_sizes_.cpu_size
-                                                       : this->queue_sizes_.gpu_size)];
+  assert(false);  // Iteration data mechanism is implemented only for SimpleExecutor.
+  // TODO(mszolucha): Implement for PipelinedExecutor.
+  return this->iteration_data_.front();
 }
 
 

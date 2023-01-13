@@ -562,8 +562,12 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   ///@{
   /**
-   * TODO(mszolucha)
-   * @param operator_trace_map
+   * Set the whole operator trace map in this workspace.
+   *
+   * Sets the operator trace map that corresponds to all operators in the current iteration.
+   *
+   * Typically, this function shall be called by the Executor, when assigning the Workspace to
+   * the Operator.
    */
   void InjectOperatorTraces(std::shared_ptr<operator_trace_map_t> operator_trace_map) {
     operator_traces_ = std::move(operator_trace_map);
@@ -571,35 +575,39 @@ class WorkspaceBase : public ArgumentWorkspace {
 
 
   /**
-   * TODO(mszolucha)
-   * @param operator_name
-   * @param event_key
-   * @param event_value
+   * Set the trace value for the current operator.
+   *
+   * Typically, this function shall be called by an operator in RunImpl or SetupImpl.
+   *
+   * @see operator_trace_map_t
    */
-  DLL_PUBLIC void SetOperatorTrace(std::string trace_key, std::string trace_value) {
-    (*operator_traces_)[GetOperatorId()].emplace(
-            std::make_pair(std::move(trace_key), std::move(trace_value)));
+  DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
+    (*operator_traces_)[GetOperatorId()].insert_or_assign(trace_key, std::move(trace_value));
   }
 
 
 
   /**
-   * TODO(mszolucha)
-   * @param operator_name
-   * @return
+   * Get the trace map for a given operator.
+   *
+   * Returns a map, that maps an trace key to a trace value: `ret_value[trace_key] = trace_value`.
+   *
+   * Typically, this function will be called when the traces shall be read.
+   *
+   * @see operator_trace_map_t
+   *
+   * @param operator_name Name (ID) of the operator.
    */
   DLL_PUBLIC const auto &GetOperatorTraces(const std::string &operator_name) const {
     return operator_traces_->at(operator_name);
   }
 
   /**
-   * TODO(mszolucha)
+   * Get the operator trace map for all operators in the pipeline.
    *
    * @see operator_trace_map_t
-   *
-   * @return
    */
-  DLL_PUBLIC const auto &GetOperatorTraceMap() const{
+  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
     return *operator_traces_;
   }
   ///@}

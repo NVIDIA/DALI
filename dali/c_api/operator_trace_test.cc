@@ -23,34 +23,38 @@ namespace dali::test {
 using namespace dali;  // NOLINT
 
 struct OperatorTraceTestParam {
-  int prefetch_queue_depth;
-  bool exec_pipelined;
+  int cpu_queue_depth, gpu_queue_depth;
   bool exec_async;
 };
 
 OperatorTraceTestParam operator_trace_test_params_simple_executor[] = {
-        {1, false, false},
+        {1, 1, false},
 };
 
 
-OperatorTraceTestParam operator_trace_test_params_pipelined_executor[] = {
-        {7, true,  false},
-        {7, false, true},
-        {7, true,  true}
-};
+//OperatorTraceTestParam operator_trace_test_params_pipelined_executor[] = {
+//        {7, true,  false},
+//        {7, false, true},
+//        {7, true,  true}
+//};
 
 
 class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam> {
  protected:
   void SetUp() final {
     auto parameters = GetParam();
-    prefetch_queue_depth_ = parameters.prefetch_queue_depth;
-    auto exec_async = parameters.exec_async;
-    auto exec_pipelined = parameters.exec_pipelined;
-    cout << "TEST: prefetch_queue_depth=" << prefetch_queue_depth_ << ", exec_async="
-         << std::boolalpha << exec_async << ", exec_pipelined=" << exec_pipelined << endl;
+    cpu_queue_depth_ = parameters.cpu_queue_depth;
+    gpu_queue_depth_ = parameters.gpu_queue_depth;
+    exec_async_ = parameters.exec_async;
+    exec_pipelined_ = cpu_queue_depth_ > 1 || gpu_queue_depth_ > 1;
+    exec_separated_ = cpu_queue_depth_ != gpu_queue_depth_;
+    cout << "TEST: cpu_queue_depth=" << cpu_queue_depth_ << ", gpu_queue_depth=" << gpu_queue_depth_
+         << ", exec_async=" << std::boolalpha << exec_async_ << ", exec_pipelined="
+         << exec_pipelined_ << endl;
     pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
-                                           exec_pipelined, prefetch_queue_depth_, exec_async);
+                                           exec_pipelined_, cpu_queue_depth_, exec_async_);
+
+    pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
 
     std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
     std::string file_list = file_root + "image_list.txt";
@@ -65,15 +69,15 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
                                    .AddInput("compressed_images", "cpu")
                                    .AddOutput("PT_CPU", "cpu"),
                            "PassthroughCpu");
-    pipeline_->AddOperator(OpSpec("PassthroughOp")
-                                   .AddArg("device", "gpu")
-                                   .AddInput("compressed_images", "gpu")
-                                   .AddOutput("PT_GPU", "gpu"),
-                           "PassthroughGpu");
+//    pipeline_->AddOperator(OpSpec("PassthroughOp")
+//                                   .AddArg("device", "gpu")
+//                                   .AddInput("compressed_images", "gpu")
+//                                   .AddOutput("PT_GPU", "gpu"),
+//                           "PassthroughGpu");
 
     std::vector<std::pair<std::string, std::string>> outputs = {
             {"PT_CPU", "cpu"},
-            {"PT_GPU", "gpu"}
+//            {"PT_GPU", "gpu"}
     };
 
     pipeline_->SetOutputDescs(outputs);
@@ -86,10 +90,11 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
   int num_threads_ = 2;
   int device_id_ = 0;
   std::string output_name_ = "OUTPUT";
-  int prefetch_queue_depth_ = 1;
   int n_iterations_ = 50;
   std::unique_ptr<Pipeline> pipeline_;
 
+  bool exec_pipelined_, exec_async_, exec_separated_;
+  int cpu_queue_depth_, gpu_queue_depth_;
   std::string serialized_pipeline_;
 };
 
@@ -97,13 +102,18 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
 TEST_P(OperatorTraceTest, OperatorTraceTest) {
   daliPipelineHandle h;
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(), serialized_pipeline_.size());
+  daliCreatePipeline2(&h, serialized_pipeline_.c_str(), serialized_pipeline_.length(), batch_size_,
+                      num_threads_, device_id_, exec_pipelined_ ? 0 : 1, exec_async_ ? 0 : 1,
+                      exec_separated_ ? 0 : 1, cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_,
+                      0);
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
-    daliPrefetchUniform(&h, prefetch_queue_depth_);
-    for (int i = 0; i < prefetch_queue_depth_; i++) {
+    daliPrefetchUniform(&h, cpu_queue_depth_);
+    for (int i = 0; i < cpu_queue_depth_; i++) {
       daliShareOutput(&h);
-      ASSERT_EQ(daliGetNumOperatorTraces(&h, "PassthroughCpu"), 1);
+      EXPECT_NE(daliHasOperatorTrace(&h, "PassthroughCpu", "this_trace_does_not_exist"), 0);
+      ASSERT_EQ(daliHasOperatorTrace(&h, "PassthroughCpu", "test_trace"), 0);
       EXPECT_EQ(std::string(daliGetOperatorTrace(&h, "PassthroughCpu", "test_trace")),
-                make_string("test_value", iteration * prefetch_queue_depth_ + i));
+                make_string("test_value", iteration * cpu_queue_depth_ + i));
       daliOutputRelease(&h);
     }
   }
