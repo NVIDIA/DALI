@@ -77,18 +77,9 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
   using Executor<WorkspacePolicy, QueuePolicy>::stage_queue_depths_;
 
  private:
-  size_t CalcIterationDataSize() const override {
-    return this->queue_sizes_.cpu_size + this->queue_sizes_.gpu_size +
-           this->queue_sizes_.gpu_size /* mixed_size is equal to gpu_size */;
-  }
+  size_t CalcIterationDataSize() const override;
 
-
-  virtual IterationData &GetCurrentIterationData(size_t iteration_id, OpType op_type) {
-    assert(op_type == OpType::CPU || op_type == OpType::GPU || op_type == OpType::MIXED);
-    return this->iteration_data_[iteration_id %
-                                 (op_type == OpType::CPU ? this->queue_sizes_.cpu_size
-                                                         : this->queue_sizes_.gpu_size)];
-  }
+  IterationData &GetCurrentIterationData(size_t iteration_id, OpType op_type) override;
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
