@@ -81,11 +81,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
    * @see Executor::CalcIterationDataSize
    */
   size_t CalcIterationDataSize() const override;
-
-  /**
-   * @see Executor::GetCurrentIterationData
-   */
-  IterationData &GetCurrentIterationData(size_t iteration_id, OpType stage) override;
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>

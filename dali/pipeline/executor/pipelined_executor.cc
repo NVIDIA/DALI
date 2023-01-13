@@ -12,33 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
+
 template<typename WorkspacePolicy, typename QueuePolicy>
 size_t PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::CalcIterationDataSize() const {
-  // TODO(mszolucha): Implement for PipelinedExecutor.
-  return 2;
+  return this->queue_sizes_.cpu_size + this->queue_sizes_.gpu_size +
+         this->queue_sizes_.gpu_size /* mixed_queue_size */;
 }
 
 
-template<typename WorkspacePolicy, typename QueuePolicy>
-IterationData &
-PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(
-        size_t iteration_id, OpType op_type) {
-  assert(false);  // Iteration data mechanism is implemented only for SimpleExecutor.
-  // TODO(mszolucha): Implement for PipelinedExecutor.
-  return this->iteration_data_.front();
-}
-
-
-template class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+template
+class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+template
+class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali

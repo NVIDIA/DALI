@@ -32,11 +32,23 @@ OperatorTraceTestParam operator_trace_test_params_simple_executor[] = {
 };
 
 
-//OperatorTraceTestParam operator_trace_test_params_pipelined_executor[] = {
-//        {7, true,  false},
-//        {7, false, true},
-//        {7, true,  true}
-//};
+OperatorTraceTestParam operator_trace_test_params_pipelined_executor_uniform_queue[] = {
+        {2, 2, false},
+        {7, 7, false},
+        {2, 2, true},
+        {7, 7, true},
+};
+
+OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_queue[] = {
+        {2, 3, false},
+        {7, 5, false},
+        {2, 3, true},
+        {7, 5, true},
+};
+
+std::array<std::string, 2> operator_under_test_names = {
+        "PassthroughCpu", "PassthroughGpu"
+};
 
 
 class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam> {
@@ -68,16 +80,16 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
                                    .AddArg("device", "cpu")
                                    .AddInput("compressed_images", "cpu")
                                    .AddOutput("PT_CPU", "cpu"),
-                           "PassthroughCpu");
-//    pipeline_->AddOperator(OpSpec("PassthroughOp")
-//                                   .AddArg("device", "gpu")
-//                                   .AddInput("compressed_images", "gpu")
-//                                   .AddOutput("PT_GPU", "gpu"),
-//                           "PassthroughGpu");
+                           operator_under_test_names[0]);
+    pipeline_->AddOperator(OpSpec("PassthroughOp")
+                                   .AddArg("device", "gpu")
+                                   .AddInput("compressed_images", "gpu")
+                                   .AddOutput("PT_GPU", "gpu"),
+                           operator_under_test_names[1]);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
             {"PT_CPU", "cpu"},
-//            {"PT_GPU", "gpu"}
+            {"PT_GPU", "gpu"}
     };
 
     pipeline_->SetOutputDescs(outputs);
@@ -107,13 +119,19 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
                       exec_separated_ ? 0 : 1, cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_,
                       0);
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
-    daliPrefetchUniform(&h, cpu_queue_depth_);
-    for (int i = 0; i < cpu_queue_depth_; i++) {
+    auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
+    daliPrefetchUniform(&h, prefetch_depth);
+    for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
-      EXPECT_NE(daliHasOperatorTrace(&h, "PassthroughCpu", "this_trace_does_not_exist"), 0);
-      ASSERT_EQ(daliHasOperatorTrace(&h, "PassthroughCpu", "test_trace"), 0);
-      EXPECT_EQ(std::string(daliGetOperatorTrace(&h, "PassthroughCpu", "test_trace")),
-                make_string("test_value", iteration * cpu_queue_depth_ + i));
+
+      for (const auto & operator_name : operator_under_test_names) {
+        EXPECT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
+        ASSERT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
+
+        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name.c_str(), "test_trace")),
+                  make_string("test_value", iteration * prefetch_depth + i));
+      }
+
       daliOutputRelease(&h);
     }
   }
@@ -121,7 +139,16 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
 
 
 INSTANTIATE_TEST_SUITE_P(OperatorTraceTestSimpleExecutor, OperatorTraceTest,
-                         ::testing::ValuesIn(operator_trace_test_params_simple_executor));
+                         ::testing::ValuesIn(
+                                 operator_trace_test_params_simple_executor));
+
+INSTANTIATE_TEST_SUITE_P(OperatorTraceTestPipelinedExecutorUniformQueue, OperatorTraceTest,
+                         ::testing::ValuesIn(
+                                 operator_trace_test_params_pipelined_executor_uniform_queue));
+
+INSTANTIATE_TEST_SUITE_P(OperatorTraceTestPipelinedExecutorSeparateQueue, OperatorTraceTest,
+                         ::testing::ValuesIn(
+                                 operator_trace_test_params_pipelined_executor_separate_queue));
 
 
 }  // namespace dali::test

@@ -38,7 +38,6 @@ class PassthroughOp : public Operator<Backend> {
 
   void RunImpl(Workspace &ws) override {
     ws.Output<Backend>(0).ShareData(ws.Input<Backend>(0));
-    cout<<"ASSIGNING "<<make_string("test_value", iteration_id)<<endl;
     ws.SetOperatorTrace("test_trace", make_string("test_value", iteration_id++));
   }
 

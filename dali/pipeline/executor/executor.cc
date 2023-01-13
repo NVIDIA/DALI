@@ -301,7 +301,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   ws.SetOperatorId(op_node.instance_name);
 
-  ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id, op_node.op_type).operator_traces);
+  ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
 
@@ -468,7 +468,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, siz
         auto stage_output_idx = output_idx[op_type_static];
         ws->AddOutput(queue[stage_output_idx]);
         ws->InjectOperatorTraces(std::make_shared<operator_trace_map_t>(
-                *GetCurrentIterationData(iteration_id, op_type_static).operator_traces));
+                *GetCurrentIterationData(iteration_id).operator_traces));
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
@@ -543,9 +543,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
 
 
 template<typename WorkspacePolicy, typename QueuePolicy>
-IterationData &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(
-        size_t iteration_id, OpType /* stage */) {
-  return iteration_data_[iteration_id % 2];
+IterationData &
+Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(size_t iteration_id) {
+  return iteration_data_[iteration_id % iteration_data_.size()];
 }
 
 

@@ -392,7 +392,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   /**
    * Returns the iteration data for given iteration ID and stage.
    */
-  virtual IterationData& GetCurrentIterationData(size_t iteration_id, OpType stage);
+  virtual IterationData& GetCurrentIterationData(size_t iteration_id);
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
