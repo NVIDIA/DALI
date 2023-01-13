@@ -35,10 +35,15 @@ class PassthroughOp : public Operator<Backend> {
     return false;
   }
 
+
   void RunImpl(Workspace &ws) override {
     ws.Output<Backend>(0).ShareData(ws.Input<Backend>(0));
-    ws.SetOperatorTrace(this->spec_.name(), "test_trace", "test_value");
+    ws.SetOperatorTrace("test_trace", make_string("test_value", iteration_id++));
   }
+
+
+ private:
+  size_t iteration_id = 0;
 };
 
 }  // namespace dali

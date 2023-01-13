@@ -527,19 +527,38 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
- * @brief Returns the index of the sample that this workspace stores
- * in the input/output batch.
- */
+   * @brief Returns the index of the sample that this workspace stores
+   * in the input/output batch.
+   */
   DLL_PUBLIC virtual inline int data_idx() const {
     return 0;
   }
 
   /**
- * @brief Returns the index of the thread that will process this data.
- */
+   * @brief Returns the index of the thread that will process this data.
+   */
   DLL_PUBLIC virtual inline int thread_idx() const {
     return 0;
   }
+
+
+  /// @{
+  /**
+   * Sets the operator ID that this Workspace belongs to.
+   */
+  void SetOperatorId(std::string operator_id) {
+    operator_id_ = std::move(operator_id);
+  }
+
+
+  /**
+   * Returns the operator ID that this Workspace belongs to.
+   */
+  const std::string &GetOperatorId() const {
+    return operator_id_;
+  }
+  /// @}
+
 
   ///@{
   /**
@@ -557,11 +576,12 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @param event_key
    * @param event_value
    */
-  DLL_PUBLIC void SetOperatorTrace(const std::string &operator_name,
-                                   const std::string &trace_key,
-                                   std::string trace_value) {
-    (*operator_traces_)[operator_name][trace_key] = std::move(trace_value);
+  DLL_PUBLIC void SetOperatorTrace(std::string trace_key, std::string trace_value) {
+    (*operator_traces_)[GetOperatorId()].emplace(
+            std::make_pair(std::move(trace_key), std::move(trace_value)));
   }
+
+
 
   /**
    * TODO(mszolucha)
@@ -579,7 +599,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @return
    */
-  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
+  DLL_PUBLIC const auto &GetOperatorTraceMap() const{
     return *operator_traces_;
   }
   ///@}
@@ -734,6 +754,8 @@ class WorkspaceBase : public ArgumentWorkspace {
   ThreadPool *thread_pool_ = nullptr;
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
+
+  std::string operator_id_;
 
   std::shared_ptr<operator_trace_map_t> operator_traces_;
 };

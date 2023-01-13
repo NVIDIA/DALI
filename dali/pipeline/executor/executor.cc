@@ -288,14 +288,18 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id) {
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws,
+                                                       size_t iteration_id) {
   auto &output_desc = op_node.output_desc;
   auto &op = *op_node.op;
   output_desc.clear();
   const auto &spec = op.GetSpec();
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
+
+  ws.SetOperatorId(op_node.instance_name);
 
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id, op_node.op_type).operator_traces);
 
@@ -438,6 +442,67 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, size_t iteration_id) {
+  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
+  DeviceGuard g(device_id_);
+  ws->Clear();
+
+  if (exec_error_ || QueuePolicy::IsStopSignaled())
+    RethrowError();
+
+  auto output_idx = QueuePolicy::UseOutputIdxs();
+
+  if (exec_error_ || QueuePolicy::IsStopSignaled())
+    RethrowError();
+
+  // We need to fill the output workspace with pointers to appropriate output buffers.
+  for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
+    auto out_tensor_id = pipeline_outputs_[i];
+    auto &out_tensor = graph_->Tensor(out_tensor_id);
+    auto op_type = graph_->Node(out_tensor.producer.node).op_type;
+    auto storage_dev = out_tensor.producer.storage_device;
+    VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU), (
+      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU), (
+        auto &queue =
+               get_queue<op_type_static, storage_dev_static>(tensor_to_store_queue_[out_tensor_id]);
+        auto stage_output_idx = output_idx[op_type_static];
+        ws->AddOutput(queue[stage_output_idx]);
+        ws->InjectOperatorTraces(std::make_shared<operator_trace_map_t>(
+                *GetCurrentIterationData(iteration_id, op_type_static).operator_traces));
+      ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
+    ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
+  }
+
+
+  // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
+  for (int i = 0; i < ws->NumOutput(); i++) {
+    const char *error_msg =
+            "DALI internal error: all outputs from the Pipeline must be contiguous after being "
+            "processed by MakeContiguous operator.";
+    if (ws->OutputIsType<CPUBackend>(i)) {
+      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);
+    } else {
+      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(), error_msg);
+    }
+  }
+
+  // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
+  // If the output event list is not empty, it means that there are outputs on GPU that we
+  // have to wait for.
+  AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
+
+  if (!mixed_output_events_.empty()) {
+    auto queue_idx = output_idx[OpType::MIXED];
+    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
+  }
+  if (!gpu_output_events_.empty()) {
+    auto queue_idx = output_idx[OpType::GPU];
+    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
+  }
+}
+
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
     const std::vector<BatchSizeProvider *> &bsps) const {
   if (bsps.empty()) {
@@ -461,6 +526,34 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
   }
   return batch_size;
 }
+
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
+  cpu_iteration_id_ = 0;
+  mixed_iteration_id_ = 0;
+  gpu_iteration_id_ = 0;
+  output_iteration_id_ = 0;
+  size_t iteration_data_size = CalcIterationDataSize();
+  iteration_data_.resize(iteration_data_size);
+  for (auto& id : iteration_data_) {
+    id.operator_traces = std::make_shared<operator_trace_map_t>();
+  }
+}
+
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+IterationData &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(
+        size_t iteration_id, OpType op_type) {
+  return iteration_data_[iteration_id % 2];
+}
+
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+size_t Executor<WorkspacePolicy, QueuePolicy>::CalcIterationDataSize() const {
+  return 2;
+}
+
 
 template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
 template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
