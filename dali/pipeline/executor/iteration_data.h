@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_ITERATION_DATA_H
-#define DALI_ITERATION_DATA_H
+#ifndef DALI_PIPELINE_EXECUTOR_ITERATION_DATA_H_
+#define DALI_PIPELINE_EXECUTOR_ITERATION_DATA_H_
 
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 namespace dali {
@@ -49,4 +50,4 @@ struct IterationData {
 
 }  // namespace dali
 
-#endif //DALI_ITERATION_DATA_H
+#endif  // DALI_PIPELINE_EXECUTOR_ITERATION_DATA_H_
