@@ -544,7 +544,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 IterationData &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(
-        size_t iteration_id, OpType op_type) {
+        size_t iteration_id, OpType /* stage */) {
   return iteration_data_[iteration_id % 2];
 }
 

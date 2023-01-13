@@ -549,9 +549,11 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
 }
 
 
-int daliGetNumOperatorTraces(daliPipelineHandle *pipe_handle, const char *operator_name) {
+int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                         const char *trace_name) {
   auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  return static_cast<int>(ws->GetOperatorTraces(operator_name).size());
+  auto traces = ws->GetOperatorTraces(operator_name);
+  return traces.find(trace_name) != traces.end() ? 0 : 1;
 }
 
 

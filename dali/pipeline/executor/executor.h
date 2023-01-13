@@ -378,17 +378,21 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   void PreRun();
 
   /**
-   * TODO
-   * @return
+   * Calculates, what shall be the size of the iteration_data_ vector. This size will vary
+   * depending on the type of the Executor used.
+   * @return The size of iteration_data_ vector.
    */
   virtual size_t CalcIterationDataSize() const;
 
   /**
-   * TODO
+   * Initializes structures that track the iteration data.
    */
   void InitIterationData();
 
-  virtual IterationData& GetCurrentIterationData(size_t iteration_id, OpType op_type);
+  /**
+   * Returns the iteration data for given iteration ID and stage.
+   */
+  virtual IterationData& GetCurrentIterationData(size_t iteration_id, OpType stage);
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>

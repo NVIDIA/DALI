@@ -15,21 +15,38 @@
 #ifndef DALI_ITERATION_DATA_H
 #define DALI_ITERATION_DATA_H
 
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
 
 namespace dali {
 
-/// Maps operator name to the Operator Traces
+/**
+ * Operator Traces is a mechanism, where an Operator can provide any arbitrary information to
+ * the end user. Under `trace_name` key, the Operator assigns `trace_value` as the information
+ * mentioned above. Using the provided API, user will be able to retrieve this information after
+ * the iteration ends - at the same time when he's able to access outputs from the pipeline.
+ *
+ * @see daliGetOperatorTrace, daliGetNumOperatorTraces
+ *
+ * Here are few examples of these traces, but essentially sky is the limit:
+ *   - "execution_time" -> "432 sec"
+ *   - "number_of_unprocessed_samples" -> "100"
+ *   - "next_batch_ready" -> "true"
+ */
 using operator_trace_map_t = std::unordered_map<
         std::string /* op_name */,
         std::unordered_map<std::string /* trace_name */, std::string /* trace_value */>
 >;
 
+
+/**
+ * Contains the data of an iteration. This data is shared across all Workspaces, that belong to
+ * a single iteration.
+ */
 struct IterationData {
   std::shared_ptr<operator_trace_map_t> operator_traces;
 };
 
-}
+}  // namespace dali
 
 #endif //DALI_ITERATION_DATA_H

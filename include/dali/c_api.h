@@ -484,23 +484,31 @@ DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
 
 /**
- * TODO(mszolucha)
- * @param pipe_handle
- * @param operator_name
- * @return
+ * Checks, if given operator produced a trace with given name.
+ *
+ * @return 0, if the trace with given name exists.
  */
-DLL_PUBLIC int daliGetNumOperatorTraces(daliPipelineHandle *pipe_handle, const char *operator_name);
+DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                                    const char *trace_name);
 
 /**
  * TODO(mszolucha)
+ *
+ * User does not own the returned value. In a situation, when changing of this value is necessary,
+ * user shall copy it to his own memory. The lifetime of this value ends, when the
+ * daliOutputRelease() is called.
+ *
+ * User shall check, if the trace with given name exists. If it does not,
+ * the result of this function is undefined.
+ *
  * @param pipe_handle
- * @param operator_name
- * @param event_id
- * @return
+ * @param operator_name Name of the operator, which trace shall be returned.
+ * @param trace_name Name of the requested trace.
+ * @return Operator trace.
  */
 DLL_PUBLIC const char *
 daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
-                     const char *event_name);
+                     const char *trace_name);
 
 /**
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.
