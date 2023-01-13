@@ -511,6 +511,11 @@ DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id
  */
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
 
+
+/**
+ * @name Operator traces
+ * @{
+ */
 /**
  * Checks, if given operator produced a trace with given name.
  *
@@ -540,6 +545,8 @@ DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char 
 DLL_PUBLIC const char *
 daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
                      const char *trace_name);
+/** @} */
+
 
 /**
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.
