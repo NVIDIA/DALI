@@ -113,7 +113,6 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
 
 TEST_P(OperatorTraceTest, OperatorTraceTest) {
   daliPipelineHandle h;
-  daliDeserializeDefault(&h, serialized_pipeline_.c_str(), serialized_pipeline_.size());
   daliCreatePipeline2(&h, serialized_pipeline_.c_str(), serialized_pipeline_.length(), batch_size_,
                       num_threads_, device_id_, exec_pipelined_ ? 0 : 1, exec_async_ ? 0 : 1,
                       exec_separated_ ? 0 : 1, cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_,

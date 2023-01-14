@@ -567,16 +567,24 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
 int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
                          const char *trace_name) {
   auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  auto traces = ws->GetOperatorTraces(operator_name);
-  return traces.find(trace_name) != traces.end() ? 0 : 1;
+  try {
+    auto traces = ws->GetOperatorTraces(operator_name);
+    return traces.find(trace_name) != traces.end() ? 0 : 1;
+  } catch (std::out_of_range&) {
+    return -1;
+  }
 }
 
 
 const char *
 daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
-                     const char *event_name) {
+                     const char *trace_name) {
   auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  return ws->GetOperatorTraces(operator_name).at(event_name).c_str();
+  try {
+    return ws->GetOperatorTraces(operator_name).at(trace_name).c_str();
+  } catch (std::out_of_range &) {
+    return nullptr;
+  }
 }
 
 

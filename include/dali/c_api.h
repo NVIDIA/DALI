@@ -519,6 +519,9 @@ DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, in
 /**
  * Checks, if given operator produced a trace with given name.
  *
+ * In case the name of non-existing operator is provided,
+ * the behaviour of this function is undefined.
+ *
  * @return 0, if the trace with given name exists.
  */
 DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
@@ -534,9 +537,9 @@ DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char 
  * user shall copy it to his own memory. The lifetime of this value ends, when the
  * daliOutputRelease() is called.
  *
- * User shall check, if the trace with given name exists (@see daliHasOperatorTrace). If it does
- * not, the result of this function is undefined. Specifying the name of non-existing operator is
- * also an undefined behaviour.
+ * User shall check, if the trace with given name exists (@see daliHasOperatorTrace). In case the
+ * name of non-existing operator or non-existing trace is provided, the behaviour of this function
+ * is undefined.
  *
  * @param operator_name Name of the operator, which trace shall be returned.
  * @param trace_name Name of the requested trace.
