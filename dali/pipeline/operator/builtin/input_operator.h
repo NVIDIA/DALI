@@ -233,6 +233,14 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
  protected:
   /**
+   * Checks if there is more data in queue to be loaded.
+   */
+  bool HasDataInQueue() const {
+    return !state_.empty();
+  }
+
+
+  /**
    * Checks if the data is available. If it's not, either blocks or throws an error,
    * depending on ``blocking`` operator argument.
    *
@@ -250,6 +258,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     }
   }
 
+
   ///@{
   /**
    * Injects current data portion into the provided TensorList and recycles
@@ -259,11 +268,17 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * however it might not always be possible.
    *
    * @param target Where the data shall be injected.
+   * @param target_data_id Where the ID of the current data shall be injected.
+   *                       @see named_pointer_to_tensor_list_t.
    * @param tp TheadPool used to copy the data.
    */
-  void DLL_PUBLIC ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+  void DLL_PUBLIC
+  ForwardCurrentData(TensorList<CPUBackend> &target, std::optional<std::string> &target_data_id,
+                     ThreadPool &tp);
 
-  void DLL_PUBLIC ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
+  void DLL_PUBLIC
+  ForwardCurrentData(TensorList<GPUBackend> &target, std::optional<std::string> &target_data_id,
+                     cudaStream_t stream = nullptr);
   ///@}
 
 

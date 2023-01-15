@@ -112,6 +112,20 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
  private:
   void Invalidate() {
     valid_ = false;
+    needs_data_load_=false;
+  }
+
+
+  void LoadDataFromInputOperator(ThreadPool& thread_pool) {
+    // By definition, the input batch size of this Operator is always 1.
+    static constexpr int input_batch_size = 1;
+    assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
+    assert(this->HasDataInQueue());  // Data shall not be loaded if there's no data in queue.
+    encoded_videos_.Reset();
+    encoded_videos_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
+    this->frames_decoders_.resize(input_batch_size);
+    this->ForwardCurrentData(encoded_videos_, data_id_, thread_pool);
+    needs_data_load_=false;
   }
 
 
@@ -186,9 +200,12 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   const int batch_size_ = {};
   const std::string last_sequence_policy_;
 
-  /// Valid VideoInput is the one that has the encoded video loaded and will return decoded sequence
+  /// VideoInput is initialized, when it's ready to return decoded sequences. TODO name
   bool valid_ = false;
+  /// VideoInput needs data load, if it does
+  bool needs_data_load_ = true;
   TensorList<CPUBackend> encoded_videos_;
+  std::optional<std::string> data_id_;
 
   /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;

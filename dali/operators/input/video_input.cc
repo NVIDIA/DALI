@@ -18,20 +18,17 @@
 
 namespace dali {
 
-/// By definition, the input batch size of this Operator is always 1.
-constexpr int input_batch_size = 1;
+
 
 
 template<>
 bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const Workspace &ws) {
   if (!valid_) {
-    InputOperator<CPUBackend>::HandleDataAvailability();
-    encoded_videos_.Reset();
-    encoded_videos_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
-    frames_decoders_.resize(input_batch_size);
-    auto &thread_pool = ws.GetThreadPool();
-    this->ForwardCurrentData(encoded_videos_, thread_pool);
+    if (needs_data_load_) {
+      InputOperator<CPUBackend>::HandleDataAvailability();
+      LoadDataFromInputOperator(ws.GetThreadPool());
+    }
 
     // Creating FramesDecoders
     auto sample = encoded_videos_[0];
@@ -72,6 +69,9 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
   }
   if (!full_sequence || frames_decoders_[0]->NextFrameIdx() == -1) {
     Invalidate();
+    if (HasDataInQueue()) {
+      LoadDataFromInputOperator(ws.GetThreadPool());
+    }
   }
 }
 
