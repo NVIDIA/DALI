@@ -28,6 +28,8 @@ struct BatchOutlineTestData {
 };
 std::vector<BatchOutlineTestData> test_data{
         {60,  7,  1,  8, 0, 4},
+        {60,  4,  3,  5, 0, 0},
+        {50,  4,  3,  4, 0, 2},
         {40,  7,  3,  1, 2, 5},
         {100, 50, 2,  1, 0, 0},
         {100, 49, 2,  1, 0, 2},
@@ -59,6 +61,9 @@ TEST(VideoInputTest, DetermineBatchOutlineTest) {
 
 namespace {
 
+/**
+ * Load the test file as a binary string.
+ */
 std::string LoadTestFile(const std::string &test_file_path) {
   std::ifstream fin(test_file_path, std::ios::binary);
   if (!fin)
@@ -71,8 +76,7 @@ std::string LoadTestFile(const std::string &test_file_path) {
 }  // namespace
 
 
-class VideoInputNextOutputDataIdTest
-        : public ::testing::Test {  // TODO(mszolucha) figure out a better name than DataId
+class VideoInputNextOutputDataIdTest : public ::testing::Test {
  protected:
   struct TestFileDescriptor {
     std::string file_name;  /// Full path of the file.
@@ -86,19 +90,38 @@ class VideoInputNextOutputDataIdTest
   }
 
 
+  /**
+   * Performs a test on a single test file.
+   * @params test_file_idx @see TestFileDescriptor
+   */
   void DoTest(daliPipelineHandle *h, int test_file_idx) {
+    // First, load the data to the pipeline.
     FeedExternalInput(h, LoadTestFile(test_files_[test_file_idx].file_name),
                       test_files_[test_file_idx].data_id);
+
+    // Determine, how many iterations the input test file should produce.
+    auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
+            detail::DetermineBatchOutline(
+                    test_files_[test_file_idx].n_frames, frames_per_sequence_, batch_size_);
+    auto num_iterations_per_input =
+            num_full_batches + (num_full_sequences > 0 || frames_in_last_sequence > 0 ? 1 : 0);
+
+    // Run the pipeline to test it.
     for (int i = 0;
-         i < test_files_[test_file_idx].n_frames / frames_per_sequence_ / batch_size_;
+         // `-1`, since the last iteration will carry different result,
+         // so it will be checked outside the loop.
+         i < num_iterations_per_input - 1;
          i++) {
+
       daliRun(h);
       daliOutput(h);
-      ASSERT_EQ(daliHasOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()), 0);
-      EXPECT_STREQ(
-              daliGetOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()),
-              test_files_[test_file_idx].data_id.c_str());
+
+      DoesOperatorTraceExist(h, i, test_file_idx);
+      IsOperatorTraceCorrect(h, i, test_file_idx);
     }
+    // The last iteration of the pipeline shall carry a different result.
+    // Since this function tests a single file, after the last iteration there shouldn't
+    // be a "next_output_data_id" trace available.
     daliRun(h);
     daliOutput(h);
     EXPECT_NE(daliHasOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()), 0);
@@ -108,13 +131,14 @@ class VideoInputNextOutputDataIdTest
   void CreateAndSerializePipeline() {
     auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_);
     pipeline->AddOperator(OpSpec("experimental__inputs__Video")
-                                  .AddArg("sequence_length", 5)
+                                  .AddArg("sequence_length", frames_per_sequence_)
                                   .AddArg("device", "cpu")
-                                  .AddOutput("VIDEO_OUTPUT", "cpu"),
+                                  .AddArg("name", video_input_name_)
+                                  .AddOutput(video_input_name_, "cpu"),
                           video_input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
-            {"VIDEO_OUTPUT", "cpu"},
+            {video_input_name_, "cpu"},
     };
 
     pipeline->SetOutputDescs(outputs);
@@ -125,19 +149,47 @@ class VideoInputNextOutputDataIdTest
 
   void FeedExternalInput(daliPipelineHandle *h, const std::string &encoded_video,
                          const std::string &data_id) {
-    if (data_id.empty()) {
+    daliSetExternalInputBatchSize(h, video_input_name_.c_str(), 1);
+    if (!data_id.empty()) {
       daliSetExternalInputDataId(h, video_input_name_.c_str(), data_id.data());
     }
     int64_t shapes[] = {static_cast<int64_t>(encoded_video.length())};
     daliSetExternalInput(h, video_input_name_.c_str(), device_type_t::CPU, encoded_video.data(),
-                         dali_data_type_t::DALI_UINT8, shapes, 1, nullptr, DALI_ext_default);
+                         dali_data_type_t::DALI_UINT8, shapes, 1, nullptr, DALI_ext_force_copy);
+  }
+
+
+  /**
+   * Check, if the "next_output_data_id" trace exists, provided it should.
+   */
+  void DoesOperatorTraceExist(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
+    bool has_data_id =
+            daliHasOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()) == 0;
+    ASSERT_EQ(
+            has_data_id,
+            !test_files_[test_file_idx].data_id.empty()
+    ) << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
+  }
+
+
+  /**
+   * Verify, if the operator trace has a correct value (provided it should exist).
+   */
+  void IsOperatorTraceCorrect(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
+    bool has_data_id =
+            daliHasOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()) == 0;
+    if (has_data_id) {
+      EXPECT_STREQ(
+              daliGetOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()),
+              test_files_[test_file_idx].data_id.c_str()
+      ) << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
+    }
   }
 
 
   const int batch_size_ = 3;
   const int num_threads_ = 2;
   const int device_id_ = 0;
-  const int n_iterations_ = 50;
   const std::string video_input_name_ = "VIDEO_INPUT";
   const std::vector<TestFileDescriptor> test_files_ = {
           {
@@ -150,6 +202,11 @@ class VideoInputNextOutputDataIdTest
                   60,
                   "cake is a lie"
           },
+          {
+                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4"),
+                  60,
+                  ""  // No data_id for this file.
+          },
   };
   const int frames_per_sequence_ = 4;
   const std::string trace_name_ = "next_output_data_id";
@@ -160,12 +217,38 @@ class VideoInputNextOutputDataIdTest
 
 /**
  * Tests the situation, when user provides only one file at the input to VideoInput.
+ * The test file will not be split uniformly across output batches.
  */
-TEST_F(VideoInputNextOutputDataIdTest, OneInputFileTest) {
+TEST_F(VideoInputNextOutputDataIdTest, VideoInputNextOutputDataIdTest) {
   daliPipelineHandle h;
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 0);
+}
+
+
+/**
+ * Tests the situation, when user provides only one file at the input to VideoInput.
+ * The test file will be split uniformly across output batches.
+ */
+TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyTest) {
+  daliPipelineHandle h;
+  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
+                         static_cast<int>(serialized_pipeline_.length()));
+  DoTest(&h, 1);
+}
+
+
+/**
+ * Tests the situation, when user provides only one file at the input to VideoInput.
+ * The test file will be split uniformly across output batches.
+ * The test file does not have data_id assigned.
+ */
+TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyNoDataIdTest) {
+  daliPipelineHandle h;
+  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
+                         static_cast<int>(serialized_pipeline_.length()));
+  DoTest(&h, 2);
 }
 
 
@@ -177,38 +260,89 @@ TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest) {
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 0);
+  DoTest(&h, 2);
+}
+
+
+/**
+ * Tests the situation, when user provides sequentially two files at the input to VideoInput.
+ */
+TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest2) {
+  daliPipelineHandle h;
+  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
+                         static_cast<int>(serialized_pipeline_.length()));
+  DoTest(&h, 2);
   DoTest(&h, 1);
 }
 
 
 /**
- * Tests the situation, when user provides two files in parallel at the input to VideoInput.
+ * Tests the situation, when user provides multiple files. Some have data_id, some don't.
  */
-TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesParallelTest) {
+TEST_F(VideoInputNextOutputDataIdTest, MultipleFilesSeparatedTest) {
   daliPipelineHandle h;
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
-  FeedExternalInput(&h, LoadTestFile(test_files_[0].file_name), test_files_[0].data_id);
-  FeedExternalInput(&h, LoadTestFile(test_files_[1].file_name), test_files_[1].data_id);
-  for (int i = 0; i < test_files_[0].n_frames / frames_per_sequence_ / batch_size_; i++) {
+  DoTest(&h, 2);
+  DoTest(&h, 1);
+  DoTest(&h, 2);
+  DoTest(&h, 0);
+  DoTest(&h, 2);
+}
+
+
+/**
+ * Tests the situation, when user provides multiple files to the input and then runs all of them.
+ */
+TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
+  daliPipelineHandle h;
+  daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
+                         static_cast<int>(serialized_pipeline_.length()));
+
+  std::vector<int> test_files_order = {2, 1, 2, 0, 2};
+  std::vector<int> num_iterations_per_input(test_files_.size());
+
+  // Determine the number of iteration for every test file.
+  for (size_t i = 0; i < test_files_.size(); i++) {
+    auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
+            detail::DetermineBatchOutline(test_files_[i].n_frames, frames_per_sequence_,
+                                          batch_size_);
+    num_iterations_per_input[i] =
+            num_full_batches + (num_full_sequences > 0 || frames_in_last_sequence > 0 ? 1 : 0);
+  }
+
+  // Feed the pipeline with the test files.
+  for (const auto &tf: test_files_order) {
+    FeedExternalInput(&h, LoadTestFile(test_files_[tf].file_name), test_files_[tf].data_id);
+  }
+
+  // Run test or almost all the test files (except the last one).
+  for (int i = 0; i < test_files_order.size() - 1; i++) {
+    const auto &test_file_idx = test_files_order[i];
+    const auto &next_test_file_idx = test_files_order[i + 1];
+    for (int iteration_idx = 0;
+         iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
+      daliRun(&h);
+      daliOutput(&h);
+      DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
+      IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
+    }
     daliRun(&h);
     daliOutput(&h);
-    ASSERT_EQ(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
-    EXPECT_STREQ(daliGetOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()),
-                 test_files_[0].data_id.c_str());
+    DoesOperatorTraceExist(&h, num_iterations_per_input[test_file_idx] - 1, next_test_file_idx);
+    IsOperatorTraceCorrect(&h, num_iterations_per_input[test_file_idx] - 1, next_test_file_idx);
+  }
+  // The last test file should just clear the "next_output_data_id" trace after it's done.
+  auto test_file_idx = test_files_order.back();
+  for (int iteration_idx = 0;
+       iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
+    daliRun(&h);
+    daliOutput(&h);
+    DoesOperatorTraceExist(&h, iteration_idx, test_file_idx);
+    IsOperatorTraceCorrect(&h, iteration_idx, test_file_idx);
   }
   daliRun(&h);
   daliOutput(&h);
-  ASSERT_EQ(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
-  EXPECT_STREQ(daliGetOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()),
-               test_files_[1].data_id.c_str());
-  for (int i = 0; i < test_files_[1].n_frames / frames_per_sequence_ / batch_size_; i++) {
-    daliRun(&h);
-    daliOutput(&h);
-    ASSERT_EQ(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
-    EXPECT_STREQ(daliGetOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()),
-                 test_files_[1].data_id.c_str());
-  }
   EXPECT_NE(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
 }
 

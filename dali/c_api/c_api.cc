@@ -120,12 +120,11 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
                  device_id, order);
   data.SetLayout(layout);
 
-  auto data_id_it = data_id_map->find(name);
+  auto data_id = data_id_map->extract(name);
 
   pipeline->SetExternalInput(name, data, order, flags & DALI_ext_force_sync,
                              flags & DALI_use_copy_kernel, GetExternalSourceCopyMode(flags),
-                             (data_id_it != data_id_map->end()) ?
-                             std::make_optional(std::move(data_id_it->second)) : std::nullopt);
+                             data_id ? std::make_optional(data_id.mapped()) : std::nullopt);
 }
 
 
@@ -234,11 +233,13 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
     stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
   auto bs_map = std::make_unique<batch_size_map_t>();
+  auto di_map = std::make_unique<data_id_map_t>();
 
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
+  pipe_handle->data_id_map = di_map.release();
 }
 
 
@@ -252,10 +253,12 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
   }
   auto ws = std::make_unique<dali::Workspace>();
   auto bs_map = std::make_unique<batch_size_map_t>();
+  auto di_map = std::make_unique<data_id_map_t>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release().release();
   pipe_handle->pipe = pipeline.release();
   pipe_handle->batch_size_map = bs_map.release();
+  pipe_handle->data_id_map = di_map.release();
 }
 
 

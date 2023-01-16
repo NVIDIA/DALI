@@ -18,20 +18,44 @@
 
 namespace dali {
 
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
+  // By definition, the input batch size of this Operator is always 1.
+  static constexpr int input_batch_size = 1;
+  assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
+  assert(this->HasDataInQueue());  // Data shall not be loaded if there's no data in queue.
+  encoded_video_.Reset();
+  encoded_video_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
+  this->frames_decoders_.resize(input_batch_size);
+  this->ForwardCurrentData(encoded_video_, data_id_, thread_pool);
+  needs_data_load_ = false;
+}
 
+
+template<typename Backend, typename FramesDecoder>
+void
+VideoInput<Backend, FramesDecoder>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
+  ws.SetOperatorTrace(next_output_data_id_trace_name_, std::move(next_data_id));
+}
+
+
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::EraseNextDataIdTrace(Workspace &ws) {
+  ws.EraseOperatorTrace(next_output_data_id_trace_name_);
+}
 
 
 template<>
 bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const Workspace &ws) {
-  if (!valid_) {
+  if (!initialized_) {
     if (needs_data_load_) {
       InputOperator<CPUBackend>::HandleDataAvailability();
       LoadDataFromInputOperator(ws.GetThreadPool());
     }
 
     // Creating FramesDecoders
-    auto sample = encoded_videos_[0];
+    auto sample = encoded_video_[0];
     auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     size_t size = sample.shape().num_elements();
     frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, false);
@@ -44,7 +68,7 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       InitializePadValue(0);
     }
 
-    valid_ = true;
+    initialized_ = true;
   }
   output_desc.resize(1);
   output_desc[0] = output_descs_.front();
@@ -57,6 +81,7 @@ template<>
 void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout("FHWC");
+
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
     auto pad_value =
@@ -67,11 +92,24 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
       break;
     }
   }
-  if (!full_sequence || frames_decoders_[0]->NextFrameIdx() == -1) {
+
+  // There won't be any more output using the current input.
+  bool input_sample_depleted = !full_sequence || frames_decoders_[0]->NextFrameIdx() == -1;
+
+  if (input_sample_depleted) {
     Invalidate();
     if (HasDataInQueue()) {
+      // Loading the next input (if available).
+      // Instead of doing this in Setup, it's done in Run so that operator can assign
+      // proper "next_output_data_id" trace.
       LoadDataFromInputOperator(ws.GetThreadPool());
     }
+  }
+
+  if (data_id_) {
+    SetNextDataIdTrace(ws, *data_id_);
+  } else {
+    EraseNextDataIdTrace(ws);
   }
 }
 

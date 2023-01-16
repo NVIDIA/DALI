@@ -38,16 +38,16 @@ OperatorTraceTestParam operator_trace_test_params_simple_executor[] = {
 
 OperatorTraceTestParam operator_trace_test_params_pipelined_executor_uniform_queue[] = {
         {2, 2, false},
-        {7, 7, false},
+        {3, 3, false},
         {2, 2, true},
-        {7, 7, true},
+        {3, 3, true},
 };
 
 OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_queue[] = {
         {2, 3, false},
-        {7, 5, false},
+        {3, 2, false},
         {2, 3, true},
-        {7, 5, true},
+        {3, 2, true},
 };
 
 std::array<std::string, 2> operator_under_test_names = {
@@ -233,7 +233,7 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
 
     // Feed CPU input data.
     for (int i = 0; i < prefetch_depth * batch_size_; i++) {
-      size_t sample_size = 42;
+      size_t sample_size = 5;
       auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(sample_size, 42);
       daliSetExternalInput(&h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.data(),
@@ -243,12 +243,12 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
 
     // Feed GPU input data.
     for (int i = 0; i < prefetch_depth * batch_size_; i++) {
-      int sample_size = 42;
+      int sample_size = 5;
       auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes{sample_size, 42};
       daliSetExternalInput(&h, "OP_TRACE_IN_GPU", device_type_t::GPU,
                            thrust::raw_pointer_cast(in_data.data()), dali_data_type_t::DALI_UINT8,
-                           shapes.data(), 1, nullptr, DALI_ext_default);
+                           shapes.data(), 1, nullptr, DALI_use_copy_kernel | DALI_ext_force_copy);
     }
 
     daliPrefetchUniform(&h, prefetch_depth);

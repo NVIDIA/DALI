@@ -57,6 +57,7 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
     state_.pop_front();
   }
   target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     const auto &shapes = tensor_list_elm.front()->shape();
@@ -108,6 +109,7 @@ InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
     CUDA_CALL(cudaStreamWaitEvent(stream, *internal_copy_to_storage.front(), 0));
   }
   target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
 
   std::swap(target, *tensor_list_elm.front());
   target.set_order(stream, false);

@@ -586,6 +586,17 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
 
+  /**
+   * Erase the trace value for the current operator.
+   *
+   * Typically, this function shall be called by an operator in RunImpl or SetupImpl.
+   *
+   * @see operator_trace_map_t
+   */
+  DLL_PUBLIC void EraseOperatorTrace(const std::string &trace_key) {
+    (*operator_traces_)[GetOperatorId()].erase(trace_key);
+  }
+
 
   /**
    * Get the trace map for a given operator.
