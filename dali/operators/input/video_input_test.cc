@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <memory>
+#include <utility>
 #include <vector>
 #include "dali/c_api.h"
 #include "dali/operators/input/video_input.h"
@@ -49,7 +51,7 @@ std::ostream &operator<<(std::ostream &os, const BatchOutlineTestData &td) {
 
 
 TEST(VideoInputTest, DetermineBatchOutlineTest) {
-  for (auto &td: test_data) {
+  for (auto &td : test_data) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
             detail::DetermineBatchOutline(td.num_frames, td.frames_per_sequence, td.batch_size);
     EXPECT_EQ(num_full_batches, td.num_full_batches) << "Error in data: " << td;
@@ -112,7 +114,6 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
          // so it will be checked outside the loop.
          i < num_iterations_per_input - 1;
          i++) {
-
       daliRun(h);
       daliOutput(h);
 
@@ -167,8 +168,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
             daliHasOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()) == 0;
     ASSERT_EQ(
             has_data_id,
-            !test_files_[test_file_idx].data_id.empty()
-    ) << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
+            !test_files_[test_file_idx].data_id.empty())
+            << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
   }
 
 
@@ -181,8 +182,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
     if (has_data_id) {
       EXPECT_STREQ(
               daliGetOperatorTrace(h, video_input_name_.c_str(), trace_name_.c_str()),
-              test_files_[test_file_idx].data_id.c_str()
-      ) << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
+              test_files_[test_file_idx].data_id.c_str())
+              << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
     }
   }
 
@@ -312,7 +313,7 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
   }
 
   // Feed the pipeline with the test files.
-  for (const auto &tf: test_files_order) {
+  for (const auto &tf : test_files_order) {
     FeedExternalInput(&h, LoadTestFile(test_files_[tf].file_name), test_files_[tf].data_id);
   }
 

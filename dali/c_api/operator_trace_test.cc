@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <memory>
-#include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <memory>
 #include "dali/c_api.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
@@ -255,7 +255,7 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
-      for (const auto &operator_name: operator_under_test_names) {
+      for (const auto &operator_name : operator_under_test_names) {
         EXPECT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
         ASSERT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
 

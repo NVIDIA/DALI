@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
