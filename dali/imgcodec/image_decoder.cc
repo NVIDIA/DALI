@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -665,33 +665,33 @@ void ImageDecoder::InitWorkers(bool lazy_init) {
 void ImageDecoder::move_to_fallback(ScheduledWork *fb,
                                     ScheduledWork &work,
                                     const vector<bool> &keep) {
-    int moved = 0;
+  int moved = 0;
 
-    int n = work.sources.size();
+  int n = work.sources.size();
 
-    for (int i = 0; i < n; i++) {
-      if (keep[i]) {
-        if (moved) {
-          // compact
-          if (!work.cpu_outputs.empty())
-            work.cpu_outputs[i - moved] = std::move(work.cpu_outputs[i]);
-          if (!work.gpu_outputs.empty())
-            work.gpu_outputs[i - moved] = std::move(work.gpu_outputs[i]);
-          if (!work.temp_buffers.empty())
-            work.temp_buffers[i - moved] = std::move(work.temp_buffers[i]);
-          if (!work.rois[i])
-            work.rois[i - moved] = std::move(work.rois[i]);
-          work.sources[i - moved] = work.sources[i];
-          work.indices[i - moved] = work.indices[i];
-        }
-      } else {
-        if (fb)
-          fb->move_entry(work, i);
-        moved++;
+  for (int i = 0; i < n; i++) {
+    if (keep[i]) {
+      if (moved) {
+        // compact
+        if (!work.cpu_outputs.empty())
+          work.cpu_outputs[i - moved] = std::move(work.cpu_outputs[i]);
+        if (!work.gpu_outputs.empty())
+          work.gpu_outputs[i - moved] = std::move(work.gpu_outputs[i]);
+        if (!work.temp_buffers.empty())
+          work.temp_buffers[i - moved] = std::move(work.temp_buffers[i]);
+        if (!work.rois[i])
+          work.rois[i - moved] = std::move(work.rois[i]);
+        work.sources[i - moved] = work.sources[i];
+        work.indices[i - moved] = work.indices[i];
       }
+    } else {
+      if (fb)
+        fb->move_entry(work, i);
+      moved++;
     }
-    if (fb)
-      fb->resize(fb->num_samples() - moved);
+  }
+  if (moved)
+    work.resize(n - moved);
 }
 
 
