@@ -37,6 +37,15 @@ struct SampleDesc {
 struct LutKernelGpu {
   static constexpr int kBlockSize = 256;
 
+  /**
+   * @brief Computes per-channel lookup tables for sample equalization based on the sample
+   * histograms.
+   *
+   * @param ctx Kernel context
+   * @param out The per-channel lookup table remapping the uint8 range to uint8 range, stored in
+   * channel-first manner
+   * @param in The per-channel histogram with 256 equal bins, stored in channel-first manner.
+   */
   DLL_PUBLIC void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &lut,
                       const TensorListView<StorageGPU, const uint64_t, 2> &histogram);
 

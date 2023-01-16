@@ -66,7 +66,7 @@ void HistogramKernelGpu::Run(KernelContext &ctx, TensorListView<StorageGPU, uint
   for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
     int64_t num_channels = in.shape[sample_idx][1];
     int64_t num_elements = in.shape[sample_idx].num_elements();
-    assert(num_channels == out.shape[sample_idx][1]);
+    assert(num_channels == out.shape[sample_idx][0]);
     int64_t num_blocks = div_ceil(num_elements, kBlockSize);
     max_num_blocks = std::max(max_num_blocks, num_blocks);
     max_num_channels = std::max(max_num_channels, num_channels);

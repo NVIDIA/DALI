@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/kernels/imgproc/color_manipulation/equalize/lut.h"
 #include "dali/kernels/imgproc/color_manipulation/equalize/hist.h"
 #include "dali/kernels/imgproc/color_manipulation/equalize/lookup.h"
+#include "dali/kernels/imgproc/color_manipulation/equalize/lut.h"
 #include "dali/kernels/kernel.h"
 #include "include/dali/core/backend_tags.h"
 #include "include/dali/core/tensor_view.h"
@@ -32,6 +32,12 @@ namespace equalize {
 struct EqualizeKernelGpu {
   static constexpr int hist_range = 256;
 
+  /**
+   * @brief Performs per-channel equalization.
+   *
+   * The input and output samples are flattened: the first extent is all but the channel extent
+   * together and the second extent represent channels.
+   */
   void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &out,
            const TensorListView<StorageGPU, const uint8_t, 2> &in) {
     int batch_size = out.num_samples();

@@ -36,16 +36,14 @@ void LookupKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, u
                           const TensorListView<StorageGPU, const uint8_t, 2> &in,
                           const TensorListView<StorageGPU, const uint8_t, 2> &lut) {
   int batch_size = out.num_samples();
-  assert(in.num_samples() == batch_size);
-  assert(lut.num_samples() == batch_size);
+  assert(in.num_samples() == batch_size && lut.num_samples() == batch_size);
   sample_descs_.clear();
   sample_descs_.reserve(batch_size);
   int64_t max_num_blocks = 0;
   for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
     int64_t num_channels = in.shape[sample_idx][1];
     int64_t num_elements = in.shape[sample_idx].num_elements();
-    assert(num_channels == lut.shape[sample_idx][0]);
-    assert(num_channels == out.shape[sample_idx][1]);
+    assert(num_channels == lut.shape[sample_idx][0] && num_channels == out.shape[sample_idx][1]);
     int64_t num_blocks = div_ceil(num_elements, kBlockSize);
     max_num_blocks = std::max(max_num_blocks, num_blocks);
     sample_descs_.push_back({out.data[sample_idx], in.data[sample_idx], lut.data[sample_idx],
