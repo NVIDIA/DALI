@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -323,7 +323,10 @@ void ImgcodecHostDecoder::RunImpl(Workspace &ws) {
   auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
-      std::rethrow_exception(result.exception);
+      if (result.exception)
+        std::rethrow_exception(result.exception);
+      else
+        DALI_FAIL(make_string("Unknown error while decoding ", src_ptrs_[0]->SourceInfo()));
     }
   }
 }
@@ -357,7 +360,10 @@ void ImgcodecMixedDecoder::Run(Workspace &ws) {
   auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
-      std::rethrow_exception(result.exception);
+      if (result.exception)
+        std::rethrow_exception(result.exception);
+      else
+        DALI_FAIL(make_string("Unknown error while decoding ", src_ptrs_[0]->SourceInfo()));
     }
   }
 }
