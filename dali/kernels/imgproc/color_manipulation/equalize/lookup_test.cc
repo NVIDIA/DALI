@@ -48,7 +48,7 @@ class EqualizeLookupGpuTest : public ::testing::Test {
     int batch_size = batch_shape.num_samples();
     TensorListShape<2> ret(batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-      int num_channels = batch_shape[sample_idx][1];
+      auto num_channels = batch_shape[sample_idx][1];
       ret.set_tensor_shape(sample_idx, {num_channels, range_size});
     }
     return ret;
@@ -65,7 +65,7 @@ class EqualizeLookupGpuTest : public ::testing::Test {
       auto sample_lut = lut_view[sample_idx];
       auto sample_baseline = baseline_view[sample_idx];
       int width = sample_in.shape[0];
-      int num_channels = sample_in.shape[1];
+      auto num_channels = sample_in.shape[1];
       for (int64_t pixel_idx = 0; pixel_idx < width; pixel_idx++) {
         for (int64_t channel_idx = 0; channel_idx < num_channels; channel_idx++) {
           int64_t idx = pixel_idx * num_channels + channel_idx;
