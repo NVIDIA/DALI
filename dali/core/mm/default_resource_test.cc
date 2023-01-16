@@ -350,18 +350,26 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   int device_id = num_devices > 1 ? 1 : 0;
   DeviceGuard dg(device_id);
-  mm::PreallocateDeviceMemory(64_uz << 20, device_id);  // force context initialization
+  CUDA_CALL(cudaFree(0));
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
   size_t free0 = 0;  // before preallocation
   size_t free1 = 0;  // after preallocation
   size_t free2 = 0;  // after releasing
   size_t total = 0;
 
-  size_t size = 256_uz << 20;  // 256 MiB
-
   CUDA_CALL(cudaMemGetInfo(&free0, &total));
+
   CUDA_CALL(cudaSetDevice(0));
-  mm::PreallocateDeviceMemory(size, device_id);  // use explicit non-current device id
+
+  size_t size = prev_pow2(free0);
+  for (; size >= 256; size >>= 1) {
+    try {
+      mm::PreallocateDeviceMemory(size, device_id);  // use explicit non-current device id
+      break;
+    } catch (const std::bad_alloc &) {
+      continue;
+    }
+  }
   CUDA_CALL(cudaSetDevice(device_id));
   CUDA_CALL(cudaMemGetInfo(&free1, &total));
 
@@ -371,8 +379,7 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
 
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free2, &total));
-  EXPECT_EQ(free2, free0);  // there were no allocations, so we should land exactly where we were
-                            // after the initial call to ReleaseUnused
+  EXPECT_GE(free2, free0);  // it can be more if some managed memory was reclaimed
 }
 
 }  // namespace test
