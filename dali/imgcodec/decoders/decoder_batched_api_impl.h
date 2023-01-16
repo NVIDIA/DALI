@@ -37,11 +37,6 @@ class DLL_PUBLIC BatchedApiDecoderImpl : public ImageDecoderImpl {
   explicit BatchedApiDecoderImpl(int device_id, const std::map<std::string, any> &params)
       : ImageDecoderImpl(device_id, params) {}
 
-  using ImageDecoderImpl::CanDecode;
-  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
-    return false;  // TODO(janton): implement
-  }
-
   using ImageDecoderImpl::Decode;
   std::vector<DecodeResult> Decode(DecodeContext ctx,
                                    span<SampleView<CPUBackend>> out,
@@ -88,18 +83,7 @@ class DLL_PUBLIC BatchedApiDecoderImpl : public ImageDecoderImpl {
                                      cspan<ImageSource *> in,
                                      DecodeParams opts,
                                      cspan<ROI> rois = {}) override {
-    int nsamples = in.size();
-    assert(out.size() == nsamples);
-    assert(rois.empty() || rois.size() == nsamples);
-    assert(ctx.tp != nullptr);
-    DecodeResultsPromise promise(nsamples);
-    try {
-      auto res = DecodeImplBatch(out, in, opts, rois);
-      SetPromise(promise, res);
-    } catch (...) {
-      SetPromise(promise, DecodeResult::Failure(std::current_exception()));
-    }
-    return promise.get_future();
+    throw std::logic_error("Backend not supported");
   }
 
   FutureDecodeResults ScheduleDecode(DecodeContext ctx,
@@ -107,69 +91,8 @@ class DLL_PUBLIC BatchedApiDecoderImpl : public ImageDecoderImpl {
                                      cspan<ImageSource *> in,
                                      DecodeParams opts,
                                      cspan<ROI> rois = {}) override {
-    int nsamples = in.size();
-    assert(out.size() == nsamples);
-    assert(rois.empty() || rois.size() == nsamples);
-    assert(ctx.tp != nullptr);
-    DecodeResultsPromise promise(nsamples);
-    try {
-      std::cout << "ScheduleDecode shape " << out[0].shape()[0] << "x" <<  out[0].shape()[1] << "\n";
-      auto res = DecodeImplBatch(ctx.stream, out, in, opts, rois);
-      SetPromise(promise, res);
-    } catch (...) {
-      SetPromise(promise, DecodeResult::Failure(std::current_exception()));
-    }
-    return promise.get_future();
-  }
-
-  /**
-   * @brief Batch image decode CPU implementation
-   *
-   * @param out output sample view
-   * @param in encoded image source
-   * @param opts decoding parameters
-   * @param roi region-of-interest
-   * @return std::vector<DecodeResult>
-   */
-  virtual DecodeResult DecodeImplBatch(span<SampleView<CPUBackend>> out,
-                                       cspan<ImageSource *> in,
-                                       DecodeParams opts,
-                                       cspan<ROI> rois) {
     throw std::logic_error("Backend not supported");
   }
-
-  /**
-   * @brief Batch image decode GPU implementation
-   *
-   * @param stream CUDA stream
-   * @param out output sample view
-   * @param in encoded image source
-   * @param opts decoding parameters
-   * @param roi region-of-interest
-   * @return std::vector<DecodeResult>
-   */
-  virtual DecodeResult DecodeImplBatch(cudaStream_t stream,
-                                       span<SampleView<GPUBackend>> out,
-                                       cspan<ImageSource *> in,
-                                       DecodeParams opts,
-                                       cspan<ROI> rois) {
-    throw std::logic_error("Backend not supported");
-  }
-
- private:
-  template <typename Backend>
-  int64_t TotalVolume(span<SampleView<Backend>> out) const {
-    int64_t vol = 0;
-    for (auto &o : out) {
-      vol += volume(o.shape());
-    }
-    return vol;
-  };
-
-  void SetPromise(DecodeResultsPromise& promise, DecodeResult result) {
-    for (int i = 0; i < promise.num_samples(); i++)
-      promise.set(i, result);
-  };
 };
 
 }  // namespace imgcodec
