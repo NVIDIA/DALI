@@ -41,6 +41,16 @@ struct LookupKernelGpu {
   static constexpr int64_t kBlockSize = 256;
   static constexpr int64_t kMaxGridSize = 1024;
 
+  /**
+   * @brief Performs per-channel remap using the lookup table.
+   *
+   * The operation simply is `out[i] = lut[i % num_channels][in[i]]`.
+   *
+   * @param ctx Kernel context
+   * @param out The remapped sample, stored in channel-last manner.
+   * @param in The input sample, stored in channel-last manner.
+   * @param lut The per-channel lut, stored in channel-first manner.
+   */
   DLL_PUBLIC void Run(KernelContext &ctx, const TensorListView<StorageGPU, uint8_t, 2> &out,
                       const TensorListView<StorageGPU, const uint8_t, 2> &in,
                       const TensorListView<StorageGPU, const uint8_t, 2> &lut);

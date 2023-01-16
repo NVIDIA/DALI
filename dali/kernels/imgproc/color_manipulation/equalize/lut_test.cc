@@ -114,7 +114,7 @@ class EqualizeLutGpuTest : public ::testing::Test {
             // data that histogram was computed on, so they won't be ever used in the lookup
             baseline.data[i] = 255;
           }
-          float scale = (range_size - 1.f) / (total - first_val);
+          double scale = (range_size - 1.) / (total - first_val);
           for (int i = first_non_zero; i < range_size; i++) {
             baseline.data[i] = ConvertSat<uint8_t>((workspace.data[i] - first_val) * scale);
           }

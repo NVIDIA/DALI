@@ -64,7 +64,7 @@ class EqualizeLookupGpuTest : public ::testing::Test {
       auto sample_in = in_view[sample_idx];
       auto sample_lut = lut_view[sample_idx];
       auto sample_baseline = baseline_view[sample_idx];
-      int width = sample_in.shape[0];
+      auto width = sample_in.shape[0];
       auto num_channels = sample_in.shape[1];
       for (int64_t pixel_idx = 0; pixel_idx < width; pixel_idx++) {
         for (int64_t channel_idx = 0; channel_idx < num_channels; channel_idx++) {

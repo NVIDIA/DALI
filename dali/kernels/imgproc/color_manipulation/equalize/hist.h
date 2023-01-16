@@ -44,6 +44,13 @@ struct HistogramKernelGpu {
 
   HistogramKernelGpu() : shared_mem_limit_{GetSharedMemPerBlock()}, sample_descs_{} {}
 
+  /**
+   * @brief Computes the per-channel histograms.
+   *
+   * @param ctx Kernel context
+   * @param out The per-channel histogram with 256 equal bins, stored in channel-first manner.
+   * @param in The flattened sample, stored in channel-last manner.
+   */
   DLL_PUBLIC void Run(KernelContext &ctx, TensorListView<StorageGPU, uint64_t, 2> &out,
                       const TensorListView<StorageGPU, const uint8_t, 2> &in);
 
