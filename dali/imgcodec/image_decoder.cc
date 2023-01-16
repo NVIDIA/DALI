@@ -290,6 +290,7 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
   assert(work->num_samples() > 0);
   {
     std::lock_guard guard(mtx_);
+    std::cout << "add_work " << work->gpu_outputs[0].shape()[0] << "x" << work->gpu_outputs[0].shape()[1] << "\n";
     assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
            (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||
            (work->cpu_outputs.size() == work->sources.size() &&
@@ -317,10 +318,12 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
   assert(work->rois.empty() || work->rois.size() == work->sources.size());
   assert(work->temp_buffers.empty() || work->temp_buffers.size() == work->cpu_outputs.size());
 
+  std::cout << "process_batch " << work->gpu_outputs[0].shape()[0] << "x" << work->gpu_outputs[0].shape()[1] << "\n";
   auto mask = decoder_->CanDecode(work->ctx,
                                   make_span(work->sources),
                                   work->params,
                                   make_span(work->rois));
+  std::cout << "process_batch 2 " << work->gpu_outputs[0].shape()[0] << "x" << work->gpu_outputs[0].shape()[1] << "\n";
 
   std::unique_ptr<ScheduledWork> fallback_work;
   if (fallback_) {
@@ -343,6 +346,7 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
       work->alloc_temp_cpu_outputs();
     }
 
+    std::cout << "process_batch 3 " << work->gpu_outputs[0].shape()[0] << "x" << work->gpu_outputs[0].shape()[1] << "\n";
     auto future = decode_to_gpu
       ? decoder_->ScheduleDecode(work->ctx,
                                  make_span(work->gpu_outputs),
