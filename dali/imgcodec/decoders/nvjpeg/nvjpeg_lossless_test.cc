@@ -86,20 +86,8 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
   }
 
   void RunSingleTest(const ROI& roi = {}) {
-    //ImageBuffer image("/home/janton/git/jp92/jpeg/1114565395.dcm.jpg");
-    //ImageBuffer image(from_dali_extra("db/single/jpeg_lossless/1638449989856916629.jpg"));
-    // std::cout << "encoded stream:";
-    // for (auto & out : image.buffer) {
-    //   std::cout << " " <<  std::hex << (int) out;
-    // }
-    // std::cout << "\n";
-
     ImageBuffer image(from_dali_extra("db/single/jpeg_lossless/1/dicom_2294x1914_16bit.jpg"));
-    //ImageBuffer image(from_dali_extra("db/single/jpeg_lossless/1638449989856916629.jpg"));
     auto decoded = this->Decode(&image.src, this->GetParams(), roi);
-    // auto ref = this->ReadReferenceFrom(
-    //   from_dali_extra("db/single/reference/jpeg_lossless/synthetic_0.npy"));
-    // AssertSimilar(decoded, ref);
   }
 
   void RunBatchTest() {
@@ -109,11 +97,6 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
     buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/dicom_5928x4728_16bit.jpg"));
     buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/lj92_12bit_2channel.jpg"));
 
-    // std::vector<Tensor<CPUBackend>> ref;
-    // ref.emplace_back(this->ReadReferenceFrom(from_dali_extra("db/single/reference/jpeg_lossless/synthetic_0.npy")));
-    // ref.emplace_back(this->ReadReferenceFrom(from_dali_extra("db/single/reference/jpeg_lossless/synthetic_1.npy")));
-    // ref.emplace_back(this->ReadReferenceFrom(from_dali_extra("db/single/reference/jpeg_lossless/synthetic_2.npy")));
-
     std::vector<ImageSource*> sources;
     for (auto &buff : buffers)
       sources.push_back(&buff.src);
@@ -121,9 +104,6 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
     const size_t batch_size = sources.size();
     auto decoded = this->Decode(make_cspan(sources), this->GetParams());
     assert(decoded.size() == static_cast<int>(sources.size()));
-    // for (int i = 0; i < decoded.size(); i++) {
-    //   AssertSimilar(decoded[i], ref[i]);
-    // }
   }
 };
 

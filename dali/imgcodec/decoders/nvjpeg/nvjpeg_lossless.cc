@@ -45,23 +45,20 @@ NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
   CUDA_CALL(nvjpegDestroy(nvjpeg_handle_));
 }
 
-bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) {
+bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts,
+                                              const ROI &roi) {
   if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY) {
     return false;
   }
 
   try {
-    CUDA_CALL(nvjpegJpegStreamParseHeader(nvjpeg_handle_, in->RawData<unsigned char>(), in->Size(), jpeg_stream_));
+    CUDA_CALL(nvjpegJpegStreamParseHeader(nvjpeg_handle_, in->RawData<unsigned char>(), in->Size(),
+                                          jpeg_stream_));
 
     int is_supported = 0;  // 0 means yes
     CUDA_CALL(nvjpegDecodeBatchedSupported(nvjpeg_handle_, jpeg_stream_, &is_supported));
-    if (is_supported != 0)
-      return false;
-
-    unsigned int precision;
-    CUDA_CALL(nvjpegJpegStreamGetSamplePrecision(jpeg_stream_, &precision));
-    return precision > 8;  // this backend only supports U16
-  } catch(...) {
+    return is_supported == 0;
+  } catch (...) {
     return false;
   }
 }
