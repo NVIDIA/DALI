@@ -584,27 +584,33 @@ DLL_PUBLIC void daliReleaseUnusedMemory();
 /**
  * @brief Preallocates device memory
  *
+ * The function ensures that after the call, the amount of memory given in `bytes` can be
+ * allocated from the pool (without further requests to the OS).
+ *
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
  * @param device_id The ordinal number of the device to allocate the memory on. If negative,
  *                  the current device as indicated by cudaGetDevice is used.
  *
  * @return Zero, if the allocation was successful, otherwise nonzero
- *
- * @note The function works by allocating and then freeing the requested number of bytes.
- *       Any outstanding allocations are not taken into account - that is, the peak amount
- *       of memory allocated will be the sum of pre-existing allocation and the amount given
- *       in `bytes`.
  */
 DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
 
 /**
  * @brief Preallocates host pinned memory
  *
- * @return Zero, if the allocation was successful, otherwise nonzero
+ * The function ensures that after the call, the amount of memory given in `bytes` can be
+ * allocated from the pool (without further requests to the OS).
  *
- * @note The function works by allocating and then freeing the requested number of bytes.
- *       Any outstanding allocations are not taken into account - that is, the peak amount
- *       of memory allocated will be the sum of pre-existing allocation and the amount given
- *       in `bytes`.
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
+ * @return Zero, if the allocation was successful, otherwise nonzero
  */
 DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
 

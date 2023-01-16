@@ -117,6 +117,9 @@ void SetDefaultDeviceResource(int device_id, std::shared_ptr<device_async_resour
  *
  * The memory pools hold memory for future use. This function will attempt to free that memory.
  * Note that memory blocks that are partially used cannot be released.
+ *
+ * @note If the relevant memory resource doesn't expose pool-like interface or none if its
+ *       accessible upstream resources exposes such an interface, then this function is a no-op.
  */
 DLL_PUBLIC
 void ReleaseUnusedMemory();
@@ -124,10 +127,15 @@ void ReleaseUnusedMemory();
 /**
  * @brief Preallocates device memory
  *
- * @note The function works by allocating and then freeing the requested number of bytes.
- *       Any outstanding allocations are not taken into account - that is, the peak amount
- *       of memory allocated will be the sum of pre-existing allocation and the amount given
- *       in `bytes`.
+ * The function ensures that after the call, the amount of memory given in `bytes` can be
+ * allocated from the pool (without further requests to the OS).
+ *
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
+ * @throws std::bad_alloc
  */
 DLL_PUBLIC
 void PreallocateDeviceMemory(size_t bytes, int device_id = -1);
@@ -135,10 +143,15 @@ void PreallocateDeviceMemory(size_t bytes, int device_id = -1);
 /**
  * @brief Preallocates host pinned memory
  *
- * @note The function works by allocating and then freeing the requested number of bytes.
- *       Any outstanding allocations are not taken into account - that is, the peak amount
- *       of memory allocated will be the sum of pre-existing allocation and the amount given
- *       in `bytes`.
+ * The function ensures that after the call, the amount of memory given in `bytes` can be allocated
+ * from the pool (without further requests to the OS).
+ *
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
+ * @throws std::bad_alloc
  */
 DLL_PUBLIC
 void PreallocatePinnedMemory(size_t bytes);
