@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_lossless.h"
 #include <map>
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_lossless.h"
-#include "dali/imgcodec/registry.h"
 #include "dali/imgcodec/parsers/jpeg.h"
+#include "dali/imgcodec/registry.h"
+#include "dali/imgcodec/util/convert_gpu.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace imgcodec {
@@ -44,10 +46,7 @@ NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
 }
 
 bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) {
-  if (opts.dtype != DALI_UINT16 ||
-      opts.format != DALI_ANY_DATA ||
-      opts.planar == true ||
-      opts.use_orientation == true) {
+  if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY) {
     return false;
   }
 
@@ -67,45 +66,106 @@ bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in
   }
 }
 
-DecodeResult NvJpegLosslessDecoderInstance::DecodeImplBatch(cudaStream_t stream,
-                                                            span<SampleView<GPUBackend>> out,
-                                                            cspan<ImageSource *> in,
-                                                            DecodeParams opts, cspan<ROI> rois) {
-  if (opts.dtype != DALI_UINT16)
-    throw std::invalid_argument("Only uint16 is supported.");
-  if (opts.format != DALI_ANY_DATA)
-    throw std::invalid_argument("Only ANY_DATA is supported.");
-
+FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext ctx,
+                                                                  span<SampleView<GPUBackend>> out,
+                                                                  cspan<ImageSource *> in,
+                                                                  DecodeParams opts,
+                                                                  cspan<ROI> rois) {
   int nsamples = in.size();
   assert(out.size() == nsamples);
-  std::vector<DecodeResult> ret(nsamples, {false, nullptr});
-  encoded_.clear();
-  encoded_.reserve(nsamples);
-  encoded_len_.clear();
-  encoded_len_.reserve(nsamples);
-  output_imgs_.clear();
-  output_imgs_.reserve(nsamples);
+  assert(rois.empty() || rois.size() == nsamples);
+  assert(ctx.tp != nullptr);
 
-  for (auto* sample : in) {
-    assert(sample->Kind() == InputKind::HostMemory);
-    auto* data_ptr = sample->RawData<unsigned char>();
-    auto data_size = sample->Size();
-    encoded_.push_back(data_ptr);
-    encoded_len_.push_back(data_size);
-  }
-  for (auto& out_sample : out) {
-    output_imgs_.emplace_back();
-    auto &o =  output_imgs_.back();
-    auto sh = out_sample.shape();
-    o.channel[0] = static_cast<uint8_t*>(out_sample.raw_mutable_data());
-    o.pitch[0] = sh[1] * sh[2] * sizeof(uint16_t);
-    std::cout << "Pitch " << sh[1] << " x " << sh[2] << " x " << sizeof(uint16_t) << "\n";
-    std::cout << "Out shape :" << sh.num_elements() * sizeof(uint16_t) << "\n";
+  DecodeResultsPromise promise(nsamples);
+  auto set_promise = [&](DecodeResult result) {
+    for (int i = 0; i < nsamples; i++)
+      promise.set(i, result);
+  };
+
+  try {
+    if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY)
+      throw std::invalid_argument("Only ANY_DATA and GRAY are supported.");
+
+    sample_data_.clear();
+    sample_data_.resize(nsamples);
+    encoded_.clear();
+    encoded_.resize(nsamples);
+    encoded_len_.clear();
+    encoded_len_.resize(nsamples);
+    decoded_.clear();
+    decoded_.resize(nsamples);
+    kernels::DynamicScratchpad s({}, ctx.stream);
+    for (int i = 0; i < nsamples; i++) {
+      auto *sample = in[i];
+      auto &out_sample = out[i];
+      assert(sample->Kind() == InputKind::HostMemory);
+      auto *data_ptr = sample->RawData<unsigned char>();
+      auto data_size = sample->Size();
+      encoded_[i] = data_ptr;
+      encoded_len_[i] = data_size;
+      sample_data_[i].needs_processing = opts.dtype != DALI_UINT16;
+      if (!rois.empty() && rois[i].use_roi()) {
+        sample_data_[i].needs_processing = true;
+      }
+      if (opts.use_orientation) {
+        auto &ori = sample_data_[i].orientation = JpegParser().GetInfo(in[i]).orientation;
+        if (ori.rotate || ori.flip_x || ori.flip_y)
+          sample_data_[i].needs_processing = true;
+      }
+
+      CUDA_CALL(nvjpegJpegStreamParseHeader(nvjpeg_handle_, sample->RawData<unsigned char>(),
+                                            sample->Size(), jpeg_stream_));
+      unsigned int precision;
+      CUDA_CALL(nvjpegJpegStreamGetSamplePrecision(jpeg_stream_, &precision));
+      sample_data_[i].dyn_range_multiplier = DynamicRangeMultiplier(precision, DALI_UINT16);
+
+      auto &o = decoded_[i];
+      auto sh = out_sample.shape();
+      o.pitch[0] = sh[1] * sh[2] * sizeof(uint16_t);
+      if (sample_data_[i].needs_processing) {
+        o.channel[0] = s.Allocate<mm::memory_kind::device, uint8_t>(o.pitch[0]);
+      } else {
+        o.channel[0] = static_cast<uint8_t *>(out_sample.raw_mutable_data());
+      }
+    }
+
+    CUDA_CALL(nvjpegDecodeBatchedInitialize(nvjpeg_handle_, state_, nsamples, 1,
+                                            NVJPEG_OUTPUT_UNCHANGEDI_U16));
+    CUDA_CALL(nvjpegDecodeBatched(nvjpeg_handle_, state_, encoded_.data(), encoded_len_.data(),
+                                  decoded_.data(), ctx.stream));
+  } catch (...) {
+    set_promise({false, std::current_exception()});
+    return promise.get_future();
   }
 
-  CUDA_CALL(nvjpegDecodeBatchedInitialize(nvjpeg_handle_, state_, nsamples, 1, NVJPEG_OUTPUT_UNCHANGEDI_U16));
-  CUDA_CALL(nvjpegDecodeBatched(nvjpeg_handle_, state_, encoded_.data(), encoded_len_.data(), output_imgs_.data(), stream));
-  return {true, nullptr};
+  Postprocess(promise, ctx, out, opts, rois);
+  return promise.get_future();
+}
+
+void NvJpegLosslessDecoderInstance::Postprocess(DecodeResultsPromise &promise, DecodeContext ctx,
+                                                span<SampleView<GPUBackend>> out, DecodeParams opts,
+                                                cspan<ROI> rois) {
+  int nsamples = out.size();
+  for (int i = 0; i < nsamples; i++) {
+    if (!sample_data_[i].needs_processing) {
+      promise.set(i, {true, nullptr});
+      continue;
+    }
+    auto sh = out[i].shape();
+    SampleView<GPUBackend> decoded_view(decoded_[i].channel[0], sh, DALI_UINT16);
+    DALIImageType decoded_format = sh[2] == 1 ? DALI_GRAY : DALI_ANY_DATA;
+    ctx.tp->AddWork([=](int tid) mutable {
+      try {
+        Convert(out[i], "HWC", opts.format, decoded_view, "HWC", decoded_format,
+                ctx.stream, rois.empty() ? ROI{} : rois[i], sample_data_[i].orientation,
+                sample_data_[i].dyn_range_multiplier);
+        promise.set(i, {true, nullptr});
+      } catch (...) {
+        promise.set(i, {false, std::current_exception()});
+      }
+    }, volume(out[i].shape()));
+  }
+  ctx.tp->RunAll(false);
 }
 
 REGISTER_DECODER("JPEG", NvJpegLosslessDecoderFactory, CUDADecoderPriority - 1);

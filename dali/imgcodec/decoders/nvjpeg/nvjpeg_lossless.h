@@ -37,22 +37,37 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
   using ImageDecoderImpl::CanDecode;
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override;
 
-  DecodeResult DecodeImplBatch(cudaStream_t stream,
-                               span<SampleView<GPUBackend>> out,
-                               cspan<ImageSource *> in,
-                               DecodeParams opts,
-                               cspan<ROI> rois) override;
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx, span<SampleView<GPUBackend>> out,
+                                     cspan<ImageSource *> in, DecodeParams opts,
+                                     cspan<ROI> rois = {}) override;
 
  private:
+  void Postprocess(DecodeResultsPromise &promise, DecodeContext ctx,
+                   span<SampleView<GPUBackend>> out, DecodeParams opts, cspan<ROI> rois);
+
+  float DynamicRangeMultiplier(int input_bpp, DALIDataType out_pixel_type) {
+    int type_bits = CHAR_BIT * dali::TypeTable::GetTypeInfo(out_pixel_type).size();
+    float input_max_value = (1 << input_bpp) - 1;
+    float expected_max_value = (1 << type_bits) - 1;
+    return expected_max_value / input_max_value;
+  }
   nvjpegHandle_t nvjpeg_handle_;
   nvjpegJpegStream_t jpeg_stream_;
   CUDAStreamLease stream_;
   CUDAEvent event_;
   nvjpegJpegState_t state_;
 
+  struct SampleData {
+    bool needs_processing;
+    Orientation orientation;
+    float dyn_range_multiplier;
+  };
+
+
+  std::vector<SampleData> sample_data_;
   std::vector<const unsigned char*> encoded_;
   std::vector<size_t> encoded_len_;
-  std::vector<nvjpegImage_t> output_imgs_;
+  std::vector<nvjpegImage_t> decoded_;
 };
 
 class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
