@@ -30,12 +30,14 @@ __global__ void ZeroMem(const SampleDesc *sample_descs) {
 }
 
 __global__ void Histogram(const SampleDesc *sample_descs) {
-  static_assert(sizeof(unsigned long long int) == sizeof(uint64_t));
+  // cuda headers do not provide atomicAdd for uint64_t, but they do for unsigned long long int
+  using ull_t = unsigned long long int;  // NOLINT(runtime/int)
+  static_assert(sizeof(ull_t) == sizeof(uint64_t));
   extern __shared__ char shm[];
-  auto *workspace = reinterpret_cast<unsigned long long int *>(shm);
+  auto *workspace = reinterpret_cast<ull_t *>(shm);
   auto sample_desc = sample_descs[blockIdx.y];
   const uint8_t *in = sample_desc.in;
-  auto *out = reinterpret_cast<unsigned long long int *>(sample_desc.out);
+  auto *out = reinterpret_cast<ull_t *>(sample_desc.out);
   for (int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
        idx += blockDim.x) {
     workspace[idx] = 0;
