@@ -169,8 +169,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   int device_id = 0;
   CUDA_CALL(cudaGetDevice(&device_id));
   if (!UseDeviceMemoryPool()) {
-    static auto rsrc = std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
-    return rsrc;
+    return std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
   }
   #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported() && UseVMM()) {
@@ -180,12 +179,12 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   }
   #endif  // DALI_USE_CUDA_VM_MAP
   {
-    static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
+    auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
 
     using resource_type = mm::async_pool_resource<mm::memory_kind::device,
             pool_resource<memory_kind::device, coalescing_free_tree, spinlock>>;
     auto rsrc = std::make_shared<resource_type>(upstream.get());
-    return make_shared_composite_resource(std::move(rsrc), upstream);
+    return make_shared_composite_resource(std::move(rsrc), std::move(upstream));
   }
 }
 
