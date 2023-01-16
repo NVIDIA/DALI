@@ -73,7 +73,7 @@ __global__ void PrepareLookupTable(const SampleDesc *sample_descs) {
   if (first_val == total) {
     sample_desc.out[threadIdx.x] = threadIdx.x;
   } else {
-    float factor = (SampleDesc::range_size - 1.f) / (total - first_val);
+    double factor = (SampleDesc::range_size - 1.) / (total - first_val);
     sample_desc.out[threadIdx.x] =
         ConvertSat<uint8_t>((workspace[threadIdx.x] - first_val) * factor);
   }
