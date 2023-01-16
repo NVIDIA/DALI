@@ -38,7 +38,7 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
   auto sample_desc = sample_descs[blockIdx.y];
   const uint8_t *in = sample_desc.in;
   auto *out = reinterpret_cast<ull_t *>(sample_desc.out);
-  for (int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
+  for (unsigned int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
        idx += blockDim.x) {
     workspace[idx] = 0;
   }
@@ -49,7 +49,7 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
     atomicAdd(workspace + channel_idx * SampleDesc::range_size + in[idx], 1);
   }
   __syncthreads();
-  for (int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
+  for (unsigned int idx = threadIdx.x; idx < SampleDesc::range_size * sample_desc.num_channels;
        idx += blockDim.x) {
     atomicAdd(out + idx, workspace[idx]);
   }
