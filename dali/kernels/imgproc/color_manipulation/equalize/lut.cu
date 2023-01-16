@@ -30,7 +30,7 @@ DALI_DEVICE DALI_FORCEINLINE void PrefixSum(uint64_t *workspace, const uint64_t 
   int stride = 1;
   // prepare partial sums as in-place binary tree
 #pragma unroll
-  for (int num_active = SampleDesc::range_size >> 1; num_active >= 1; num_active >>= 1) {
+  for (unsigned int num_active = SampleDesc::range_size >> 1; num_active >= 1; num_active >>= 1) {
     if (threadIdx.x < num_active) {
       int idx = stride * (2 * threadIdx.x + 1) - 1;
       workspace[idx + stride] += workspace[idx];
@@ -40,7 +40,7 @@ DALI_DEVICE DALI_FORCEINLINE void PrefixSum(uint64_t *workspace, const uint64_t 
   }
 
 #pragma unroll
-  for (int pow2 = 2; pow2 <= SampleDesc::range_size >> 1; pow2 <<= 1) {
+  for (unsigned int pow2 = 2; pow2 <= SampleDesc::range_size >> 1; pow2 <<= 1) {
     stride >>= 1;
     if (threadIdx.x < pow2 - 1) {
       int idx = stride * (threadIdx.x + 1) - 1;
