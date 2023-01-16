@@ -300,6 +300,7 @@ TEST(MMDefaultResource, ReleaseUnused) {
   auto *dev = mm::GetDefaultDeviceResource(0);
   auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
 
+  CUDA_CALL(cudaDeviceSynchronize());
   mm::ReleaseUnusedMemory();
 
   size_t free0 = 0;  // before allocation
@@ -308,7 +309,7 @@ TEST(MMDefaultResource, ReleaseUnused) {
   size_t free3 = 0;  // ReleaseUnused called after deallocation
   size_t total = 0;
 
-  cudaMemGetInfo(&free0, &total);
+  CUDA_CALL(cudaMemGetInfo(&free0, &total));
   ssize_t min_dev_size = 256;
   ssize_t dev_size = free0 - (64_z << 20);  // all free memory - 64 MiB
   ssize_t pinned_size = 256_z << 20;  // 256 MiB
@@ -332,7 +333,7 @@ TEST(MMDefaultResource, ReleaseUnused) {
 
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free2, &total));
-  EXPECT_EQ(free2, free1);
+  EXPECT_EQ(free2, free1) << "Nothing should have been released.";
 
   mem_dev.reset();
   mem_pinned.reset();
@@ -340,7 +341,8 @@ TEST(MMDefaultResource, ReleaseUnused) {
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free3, &total));
   EXPECT_GT(free3, free2);
-  EXPECT_EQ(free3, free0);
+  // GE, because we might actually get more memory if some Managed Memory has been reclaimed
+  EXPECT_GE(free3, free0);
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory) {
