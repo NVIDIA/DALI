@@ -404,17 +404,3 @@ def test_peek_shape():
         'tiff/0/kitty-2948404_640.tiff', (433, 640, 1), types.GRAY, True
     yield _testimpl_image_decoder_peek_shape, \
         'bmp/0/cat-111793_640_grayscale.bmp', (426, 640, 3), types.RGB, True
-
-def test_lossless():
-    @pipeline_def
-    def my_pipe():
-        files, _ = fn.readers.file(file_root="/home/michalz/Projects/work/lossless_jpeg",
-                                   files=[
-                                        "dicom_2294x1914_16bit.jpg",
-                                        "dicom_3328x4096.jpg",
-                                        "dicom_5928x4728_16bit.jpg"])
-        return fn.experimental.decoders.image(files, device="mixed")
-
-    pipe = my_pipe(batch_size=1, num_threads=1, device_id=0)
-    pipe.build()
-    pipe.run()
