@@ -24,6 +24,9 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
 
+#include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/mm/with_upstream.h"
+
 namespace dali {
 namespace mm {
 
@@ -296,7 +299,18 @@ TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiGPU) {
   EXPECT_THROW(GetDefaultDeviceResource(ndev+100), std::out_of_range);
 }
 
-TEST(MMDefaultResource, ReleaseUnused) {
+inline bool UseVMM() {
+  static const bool use_vmm = []() {
+    auto *res = mm::GetDefaultDeviceResource();
+    if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+      return dynamic_cast<mm::cuda_vm_resource*>(up->upstream()) != nullptr;
+    }
+    return false;
+  }();
+  return use_vmm;
+}
+
+static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
   auto *dev = mm::GetDefaultDeviceResource(0);
   auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
 
@@ -311,11 +325,9 @@ TEST(MMDefaultResource, ReleaseUnused) {
 
   CUDA_CALL(cudaMemGetInfo(&free0, &total));
   ssize_t min_dev_size = 256;
-  ssize_t dev_size = free0 - (64_z << 20);  // all free memory - 64 MiB
+  ssize_t dev_size = std::min<ssize_t>(free0 - (64_z << 20), max_alloc_size);
   ssize_t pinned_size = 256_z << 20;  // 256 MiB
   ASSERT_GE(dev_size, min_dev_size);
-
-
 
   mm::uptr<void> mem_dev;
   while (dev_size >= min_dev_size) {
@@ -345,7 +357,24 @@ TEST(MMDefaultResource, ReleaseUnused) {
   EXPECT_GE(free3, free0);
 }
 
-TEST(MMDefaultResource, PreallocateDeviceMemory) {
+TEST(MMDefaultResource, ReleaseUnusedBasic) {
+  ReleaseUnusedTestImpl(256 << 20);
+}
+
+TEST(MMDefaultResource, ReleaseUnusedMaxMem) {
+  if (!UseVMM())
+    GTEST_SKIP() << "Cannot reliably test ReleaseUnused with max mem usage without VMM support";
+
+  ReleaseUnusedTestImpl();
+}
+
+// This can be run manually - it can still work, but it's not reliable when run
+// alongside other tests.
+TEST(MMDefaultResource, DISABLED_ReleaseUnusedMaxMem) {
+  ReleaseUnusedTestImpl();
+}
+
+static void PreallocateTestImpl() {
   int num_devices = 0;
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   int device_id = num_devices > 1 ? 1 : 0;
@@ -380,6 +409,19 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free2, &total));
   EXPECT_GE(free2, free0);  // it can be more if some managed memory was reclaimed
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
+  if (!UseVMM())
+    GTEST_SKIP() << "Cannot reliably test device memory preallocation without VMM support";
+
+  PreallocateTestImpl();
+}
+
+// This can be run manually - it can still work, but it's not reliable when run
+// alongside other tests.
+TEST(MMDefaultResource, DISABLED_PreallocateDeviceMemory) {
+  PreallocateTestImpl();
 }
 
 }  // namespace test
