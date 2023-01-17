@@ -29,7 +29,6 @@ namespace imgcodec {
 NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
     int device_id, const std::map<std::string, any> &params)
     : BatchedApiDecoderImpl(device_id, params),
-      stream_(CUDAStreamPool::instance().Get(device_id)),
       event_(CUDAEvent::Create(device_id)) {
   DeviceGuard dg(device_id_);
   CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_LOSSLESS_JPEG, NULL, NULL, 0, &nvjpeg_handle_));
@@ -39,7 +38,7 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
 
 NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
   DeviceGuard dg(device_id_);
-  CUDA_CALL(cudaStreamSynchronize(stream_));
+  CUDA_CALL(cudaEventSynchronize(event_));
   CUDA_CALL(nvjpegJpegStreamDestroy(jpeg_stream_));
   CUDA_CALL(nvjpegJpegStateDestroy(state_));
   CUDA_CALL(nvjpegDestroy(nvjpeg_handle_));
@@ -79,6 +78,7 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
       promise.set(i, result);
   };
 
+  kernels::DynamicScratchpad s({}, ctx.stream);
   try {
     if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY)
       throw std::invalid_argument("Only ANY_DATA and GRAY are supported.");
@@ -91,7 +91,7 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
     encoded_len_.resize(nsamples);
     decoded_.clear();
     decoded_.resize(nsamples);
-    kernels::DynamicScratchpad s({}, ctx.stream);
+
     for (int i = 0; i < nsamples; i++) {
       auto *sample = in[i];
       auto &out_sample = out[i];
@@ -120,7 +120,8 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
       auto sh = out_sample.shape();
       o.pitch[0] = sh[1] * sh[2] * sizeof(uint16_t);
       if (sample_data_[i].needs_processing) {
-        o.channel[0] = s.Allocate<mm::memory_kind::device, uint8_t>(o.pitch[0]);
+        int64_t nbytes = volume(sh) * sizeof(uint16_t);
+        o.channel[0] = s.Allocate<mm::memory_kind::device, uint8_t>(nbytes);
       } else {
         o.channel[0] = static_cast<uint8_t *>(out_sample.raw_mutable_data());
       }
@@ -136,6 +137,7 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
   }
 
   Postprocess(promise, ctx, out, opts, rois);
+  CUDA_CALL(cudaEventRecord(event_, ctx.stream));
   return promise.get_future();
 }
 
@@ -151,18 +153,15 @@ void NvJpegLosslessDecoderInstance::Postprocess(DecodeResultsPromise &promise, D
     auto sh = out[i].shape();
     SampleView<GPUBackend> decoded_view(decoded_[i].channel[0], sh, DALI_UINT16);
     DALIImageType decoded_format = sh[2] == 1 ? DALI_GRAY : DALI_ANY_DATA;
-    ctx.tp->AddWork([=](int tid) mutable {
-      try {
-        Convert(out[i], "HWC", opts.format, decoded_view, "HWC", decoded_format,
-                ctx.stream, rois.empty() ? ROI{} : rois[i], sample_data_[i].orientation,
-                sample_data_[i].dyn_range_multiplier);
-        promise.set(i, {true, nullptr});
-      } catch (...) {
-        promise.set(i, {false, std::current_exception()});
-      }
-    }, volume(out[i].shape()));
+    try {
+      Convert(out[i], "HWC", opts.format, decoded_view, "HWC", decoded_format,
+              ctx.stream, rois.empty() ? ROI{} : rois[i], sample_data_[i].orientation,
+              sample_data_[i].dyn_range_multiplier);
+      promise.set(i, {true, nullptr});
+    } catch (...) {
+      promise.set(i, {false, std::current_exception()});
+    }
   }
-  ctx.tp->RunAll(false);
 }
 
 REGISTER_DECODER("JPEG", NvJpegLosslessDecoderFactory, CUDADecoderPriority - 1);
