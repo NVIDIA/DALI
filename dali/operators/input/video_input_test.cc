@@ -318,7 +318,7 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
   }
 
   // Run test or almost all the test files (except the last one).
-  for (int i = 0; i < test_files_order.size() - 1; i++) {
+  for (size_t i = 0; i < test_files_order.size() - 1; i++) {
     const auto &test_file_idx = test_files_order[i];
     const auto &next_test_file_idx = test_files_order[i + 1];
     for (int iteration_idx = 0;
