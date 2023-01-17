@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -166,9 +166,10 @@ bool UseVMM() {
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
   CUDAEventPool::instance();
+  int device_id = 0;
+  CUDA_CALL(cudaGetDevice(&device_id));
   if (!UseDeviceMemoryPool()) {
-    static auto rsrc = std::make_shared<mm::cuda_malloc_memory_resource>();
-    return rsrc;
+    return std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
   }
   #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported() && UseVMM()) {
@@ -178,12 +179,12 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   }
   #endif  // DALI_USE_CUDA_VM_MAP
   {
-    static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
+    auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
 
     using resource_type = mm::async_pool_resource<mm::memory_kind::device,
-            pool_resource_base<memory_kind::device, coalescing_free_tree, spinlock>>;
+            pool_resource<memory_kind::device, coalescing_free_tree, spinlock>>;
     auto rsrc = std::make_shared<resource_type>(upstream.get());
-    return make_shared_composite_resource(std::move(rsrc), upstream);
+    return make_shared_composite_resource(std::move(rsrc), std::move(upstream));
   }
 }
 
@@ -194,7 +195,7 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
   }
   static auto upstream = std::make_shared<pinned_malloc_memory_resource>();
   using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
-      pool_resource_base<memory_kind::pinned, coalescing_free_tree, spinlock>>;
+      pool_resource<memory_kind::pinned, coalescing_free_tree, spinlock>>;
   auto rsrc = std::make_shared<resource_type>(upstream.get());
   return make_shared_composite_resource(std::move(rsrc), upstream);
 }
@@ -362,6 +363,49 @@ std::shared_ptr<device_async_resource> ShareDefaultDeviceResource(int device_id)
 DLL_PUBLIC
 device_async_resource *GetDefaultDeviceResource(int device_id) {
   return ShareDefaultDeviceResourceImpl(device_id).get();
+}
+
+template <typename Kind>
+mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
+  while (mr) {
+    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
+      return pool;
+    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+      mr = up->upstream();
+    } else {
+      break;
+    }
+  }
+  return nullptr;
+}
+
+DLL_PUBLIC
+void ReleaseUnusedMemory() {
+  if (auto *devs = g_resources.device.get()) {
+    for (int i = 0, n = g_resources.num_devices; i < n; i++) {
+      if (auto *pool = GetPoolInterface(devs[i].get())) {
+        pool->release_unused();
+      }
+    }
+  }
+
+  if (auto *pool = GetPoolInterface(g_resources.pinned_async.get())) {
+    pool->release_unused();
+  }
+}
+
+DLL_PUBLIC
+void PreallocateDeviceMemory(size_t bytes, int device_id) {
+  auto res = ShareDefaultDeviceResource(device_id);
+  void *mem = res->allocate(bytes);
+  res->deallocate(mem, bytes);
+}
+
+DLL_PUBLIC
+void PreallocatePinnedMemory(size_t bytes) {
+  auto res = ShareDefaultResource<mm::memory_kind::pinned>();
+  void *mem = res->allocate(bytes);
+  res->deallocate(mem, bytes);
 }
 
 }  // namespace mm

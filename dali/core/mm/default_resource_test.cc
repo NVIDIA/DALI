@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
+
+#include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/mm/with_upstream.h"
 
 namespace dali {
 namespace mm {
@@ -294,6 +297,131 @@ TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiGPU) {
   }
   EXPECT_THROW(GetDefaultDeviceResource(ndev), std::out_of_range);
   EXPECT_THROW(GetDefaultDeviceResource(ndev+100), std::out_of_range);
+}
+
+inline bool UseVMM() {
+  static const bool use_vmm = []() {
+    auto *res = mm::GetDefaultDeviceResource();
+    if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+      return dynamic_cast<mm::cuda_vm_resource*>(up->upstream()) != nullptr;
+    }
+    return false;
+  }();
+  return use_vmm;
+}
+
+static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
+  auto *dev = mm::GetDefaultDeviceResource(0);
+  auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
+
+  CUDA_CALL(cudaDeviceSynchronize());
+  mm::ReleaseUnusedMemory();
+
+  size_t free0 = 0;  // before allocation
+  size_t free1 = 0;  // after allocation
+  size_t free2 = 0;  // ReleaseUnused called before deallocation
+  size_t free3 = 0;  // ReleaseUnused called after deallocation
+  size_t total = 0;
+
+  CUDA_CALL(cudaMemGetInfo(&free0, &total));
+  ssize_t min_dev_size = 256;
+  ssize_t dev_size = std::min<ssize_t>(free0 - (64_z << 20), max_alloc_size);
+  ssize_t pinned_size = 256_z << 20;  // 256 MiB
+  ASSERT_GE(dev_size, min_dev_size);
+
+  mm::uptr<void> mem_dev;
+  while (dev_size >= min_dev_size) {
+    try {
+      mem_dev = mm::alloc_raw_unique<char>(dev, dev_size);
+      break;
+    } catch (const std::bad_alloc &) {
+      dev_size >>= 1;
+    }
+  }
+  ASSERT_NE(mem_dev, nullptr) << "Couldn't allocate any device memory - cannot continue testing";
+
+  mm::uptr<void> mem_pinned = mm::alloc_raw_unique<char>(pinned, pinned_size);
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free2, &total));
+  EXPECT_EQ(free2, free1) << "Nothing should have been released.";
+
+  mem_dev.reset();
+  mem_pinned.reset();
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free3, &total));
+  EXPECT_GT(free3, free2);
+  // GE, because we might actually get more memory if some Managed Memory has been reclaimed
+  EXPECT_GE(free3, free0);
+}
+
+TEST(MMDefaultResource, ReleaseUnusedBasic) {
+  ReleaseUnusedTestImpl(256 << 20);
+}
+
+TEST(MMDefaultResource, ReleaseUnusedMaxMem) {
+  if (!UseVMM())
+    GTEST_SKIP() << "Cannot reliably test ReleaseUnused with max mem usage without VMM support";
+
+  ReleaseUnusedTestImpl();
+}
+
+// This can be run manually - it can still work, but it's not reliable when run
+// alongside other tests.
+TEST(MMDefaultResource, DISABLED_ReleaseUnusedMaxMem) {
+  ReleaseUnusedTestImpl();
+}
+
+static void PreallocateTestImpl() {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  int device_id = num_devices > 1 ? 1 : 0;
+  DeviceGuard dg(device_id);
+  CUDA_CALL(cudaFree(0));
+  mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
+  size_t free0 = 0;  // before preallocation
+  size_t free1 = 0;  // after preallocation
+  size_t free2 = 0;  // after releasing
+  size_t total = 0;
+
+  CUDA_CALL(cudaMemGetInfo(&free0, &total));
+
+  CUDA_CALL(cudaSetDevice(0));
+
+  size_t size = prev_pow2(free0);
+  for (; size >= 256; size >>= 1) {
+    try {
+      mm::PreallocateDeviceMemory(size, device_id);  // use explicit non-current device id
+      break;
+    } catch (const std::bad_alloc &) {
+      continue;
+    }
+  }
+  CUDA_CALL(cudaSetDevice(device_id));
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+
+  size_t max_block_size =  64_uz << 20;  // 64 MiB - max block size for CUDA VM resource
+  EXPECT_LT(free1, free0 - size + max_block_size);
+  EXPECT_GE(free1, free0 - size - max_block_size);
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free2, &total));
+  EXPECT_GE(free2, free0);  // it can be more if some managed memory was reclaimed
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
+  if (!UseVMM())
+    GTEST_SKIP() << "Cannot reliably test device memory preallocation without VMM support";
+
+  PreallocateTestImpl();
+}
+
+// This can be run manually - it can still work, but it's not reliable when run
+// alongside other tests.
+TEST(MMDefaultResource, DISABLED_PreallocateDeviceMemory) {
+  PreallocateTestImpl();
 }
 
 }  // namespace test

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace mm {
@@ -56,9 +57,25 @@ class malloc_memory_resource : public host_memory_resource {
  * @brief A memory resource that directly calls cudaMalloc and cudaFree.
  */
 class cuda_malloc_memory_resource : public device_async_resource {
+ public:
+  /**
+   * @param device_id The device identifier. If it's negative, then the resource
+   *                  will use the current resource _in every call to allocate_,
+   *                  - that's in contrast to checking the active device at construction.
+   */
+  explicit cuda_malloc_memory_resource(int device_id = -1) : device_id_(device_id) {
+  }
+
+  static cuda_malloc_memory_resource &instance() {
+    static cuda_malloc_memory_resource inst;
+    return inst;
+  }
+
+ private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
+    DeviceGuard dg(device_id_);
     void *mem = nullptr;
     if (alignment > 256)
       throw dali::CUDABadAlloc();
@@ -84,11 +101,7 @@ class cuda_malloc_memory_resource : public device_async_resource {
     return dynamic_cast<const cuda_malloc_memory_resource*>(&other) != nullptr;
   }
 
- public:
-  static cuda_malloc_memory_resource &instance() {
-    static cuda_malloc_memory_resource inst;
-    return inst;
-  }
+  int device_id_ = -1;
 };
 
 

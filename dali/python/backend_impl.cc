@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/os/shared_mem.h"
 #endif
 #include "dali/core/python_util.h"
+#include "dali/core/mm/default_resources.h"
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
@@ -1424,6 +1425,35 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
+
+  m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
+R"(Preallocate memory on given device
+
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
+)", "bytes"_a, "device_id"_a);
+  m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory,
+R"(Preallocate non-pageable (pinned) host memory
+
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
+)", "bytes"_a);
+
+  m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory,
+R"(Frees unused blocks from memory pools.
+
+Only blocks that are completely free are released. The function frees the memory from all device
+pools as well as from the host pinned memory pool.
+
+This function is safe to use while DALI pipelines are running.)");
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
