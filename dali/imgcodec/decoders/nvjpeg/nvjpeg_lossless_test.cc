@@ -81,41 +81,61 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
     opts.dtype = dtype;
     opts.format = DALI_ANY_DATA;
     opts.planar = false;
-    opts.use_orientation = false;
+    opts.use_orientation = true;
     return opts;
-  }
-
-  void RunSingleTest(const ROI& roi = {}) {
-    ImageBuffer image(from_dali_extra("db/single/jpeg_lossless/1/dicom_2294x1914_16bit.jpg"));
-    auto decoded = this->Decode(&image.src, this->GetParams(), roi);
-  }
-
-  void RunBatchTest() {
-    std::vector<ImageBuffer> buffers;
-    buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/dicom_2294x1914_16bit.jpg"));
-    buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/dicom_3328x4096.jpg"));
-    buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/dicom_5928x4728_16bit.jpg"));
-    buffers.emplace_back(from_dali_extra("db/single/jpeg_lossless/1/lj92_12bit_2channel.jpg"));
-
-    std::vector<ImageSource*> sources;
-    for (auto &buff : buffers)
-      sources.push_back(&buff.src);
-
-    const size_t batch_size = sources.size();
-    auto decoded = this->Decode(make_cspan(sources), this->GetParams());
-    assert(decoded.size() == static_cast<int>(sources.size()));
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint16_t>;
-TYPED_TEST_SUITE(NvJpegLosslessDecoderTest, DecodeOutputTypes);
+class NvJpegLosslessDecoder16bitTest : public NvJpegLosslessDecoderTest<uint16_t> {};
+class NvJpegLosslessDecoder8bitTest : public NvJpegLosslessDecoderTest<uint8_t> {};
 
-TYPED_TEST(NvJpegLosslessDecoderTest, DecodeSingle) {
-  this->RunSingleTest();
+TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle) {
+  ImageBuffer image(
+      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_16bit.jpg"));
+  auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
+
+  auto ref = this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_16bit.npy"));
+  AssertSimilar(decoded, ref);
 }
 
-TYPED_TEST(NvJpegLosslessDecoderTest, DecodeBatch) {
-  this->RunBatchTest();
+TEST_F(NvJpegLosslessDecoder8bitTest, DecodeSingle) {
+  ImageBuffer image(
+      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_8bit.jpg"));
+  auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
+
+  auto ref = this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_8bit.npy"));
+  AssertSimilar(decoded, ref);
+}
+
+TEST_F(NvJpegLosslessDecoder16bitTest, DecodeBatch) {
+  std::vector<ImageBuffer> buffers;
+  buffers.emplace_back(
+      from_dali_extra("db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"));
+  buffers.emplace_back(
+      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_16bit.jpg"));
+  buffers.emplace_back(
+      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_12bit.jpg"));
+
+  std::vector<Tensor<CPUBackend>> reference;
+  reference.push_back(this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg_lossless/cat-1245673_640_grayscale_16bit.npy")));
+  reference.push_back(this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_16bit.npy")));
+  reference.push_back(this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_12bit.npy")));
+
+  std::vector<ImageSource *> sources;
+  for (auto &buff : buffers)
+    sources.push_back(&buff.src);
+
+  int nsamples = sources.size();
+  auto decoded = this->Decode(make_cspan(sources), this->GetParams());
+  assert(decoded.size() == nsamples);
+  for (int i = 0; i < nsamples; i++) {
+    AssertSimilar(decoded[i], reference[i]);
+  }
 }
 
 }  // namespace test
