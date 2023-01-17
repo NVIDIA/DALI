@@ -32,7 +32,7 @@ popd
 
 # restore old CUDA symlink, reinstall the latest CUDA wheels
 version_eq "$DALI_CUDA_MAJOR_VERSION" "11" && \
-  rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda_bak
+  rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda
 version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
   pip install nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
               nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
