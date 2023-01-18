@@ -32,6 +32,10 @@ def check_env_compatibility():
         raise SkipTest()
     if cuda.runtime.get_version() > cuda.driver.driver.get_version():
         raise SkipTest()
+    drv_ver_str = '.'.join(str(i) for i in cuda.driver.driver.get_version())
+    if LooseVersion(drv_ver_str) >= LooseVersion('12.0') and \
+            LooseVersion(numba.__version__) < LooseVersion('0.56.4'):
+        raise SkipTest()
 
 
 test_data_root = get_dali_extra_path()
@@ -117,7 +121,7 @@ def test_numba_func():
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, \
             setup_fn, batch_processing, expected_out in args:
         yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, \
-              ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
+            ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
 
 
 @with_setup(check_env_compatibility)
