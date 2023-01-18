@@ -2,7 +2,7 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ "main", "release_v0.1", "release_v0.2", "release_v0.3", "release_v0.4", "release_v0.5", "release_v0.6", "release_v0.6.1", "release_v0.7", "release_v0.8", "release_v0.9", "release_v0.10", "release_v0.11", "release_v0.12", "release_v0.13", "release_v0.14", "release_v0.15", "release_v0.16", "release_v0.17", "release_v0.18", "release_v0.19", "release_v0.20", "release_v0.21", "release_v0.22", "release_v0.23", "release_v0.24", "release_v0.25", "release_v0.26", "release_v0.27", "release_v0.28", "release_v0.29", "release_v0.30", "release_v0.31", "release_v1.0", "release_v1.1", "release_v1.2", "release_v1.3", "release_v1.4", "release_v1.5", "release_v1.6", "release_v1.7", "release_v1.8", "release_v1.9", "release_v1.10", "release_v1.11", "release_v1.12", "release_v1.13", "release_v1.14", "release_v1.15", "release_v1.16", "release_v1.17", "release_v1.18", "release_v1.19" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   schedule:
