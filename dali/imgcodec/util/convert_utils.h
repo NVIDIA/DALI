@@ -20,13 +20,25 @@
 namespace dali {
 namespace imgcodec {
 
+inline int PositiveBits(DALIDataType dtype) {
+  assert(IsIntegral(dtype));
+  int positive_bits = 8 * TypeTable::GetTypeInfo(dtype).size() - IsSigned(dtype);
+  return positive_bits;
+}
+
 /**
  * @brief Expected maximum value for a given type
  */
 inline double MaxValue(DALIDataType dtype) {
   if (!IsIntegral(dtype)) return 1.0;
-  int positive_bits = 8 * TypeTable::GetTypeInfo(dtype).size() - IsSigned(dtype);
-  return (1_u64 << positive_bits) - 1;
+  return (1_u64 << PositiveBits(dtype)) - 1;
+}
+
+/**
+ * @brief Whether given precision needs scaling to use the full width of the type
+ */
+inline bool NeedDynamicRangeScaling(int precision, DALIDataType dtype) {
+  return PositiveBits(dtype) != precision;
 }
 
 /**

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -406,6 +406,31 @@ def dali_type(t):
         return types.UINT32
     if t is np.int32:
         return types.INT32
+    raise TypeError("Unsupported type: " + str(t))
+
+
+def numpy_type(t):
+    import_numpy()
+    if t is None:
+        return None
+    if t is types.FLOAT16:
+        return np.float16
+    if t is types.FLOAT:
+        return np.float32
+    if t is types.UINT8:
+        return np.uint8
+    if t is types.INT8:
+        return np.int8
+    if t is types.UINT16:
+        return np.uint16
+    if t is types.INT16:
+        return np.int16
+    if t is types.INT16:
+        return np.int16
+    if t is types.UINT32:
+        return np.uint32
+    if t is types.INT32:
+        return np.int32
     raise TypeError("Unsupported type: " + str(t))
 
 

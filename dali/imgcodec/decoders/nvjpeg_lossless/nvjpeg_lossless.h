@@ -70,7 +70,6 @@ class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
     props.supported_input_kinds = InputKind::HostMemory;
     props.gpu_output = true;
     props.fallback = true;
-
     return props;
   }
 

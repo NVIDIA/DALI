@@ -26,6 +26,7 @@ from nose_utils import assert_raises
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
+from test_utils import numpy_type
 from nose2.tools import params
 
 
@@ -409,13 +410,13 @@ def test_peek_shape():
 
 
 @params(
-        ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16),
-        ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16),
-        ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.UINT16),
-        ('cat-3449999_640_grayscale_16bit', types.GRAY, types.UINT16),
-        ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8),
+        ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.UINT16, 12),
+        ('cat-3449999_640_grayscale_16bit', types.GRAY, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8, 8),
 )
-def test_image_decoder_lossless_jpeg(img_name, output_type, dtype):
+def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
     data_dir = os.path.join(test_data_root, "db/single/jpeg_lossless/0")
     ref_data_dir = os.path.join(test_data_root, "db/single/reference/jpeg_lossless")
 
@@ -426,16 +427,31 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype):
                 encoded, device='mixed', dtype=dtype, output_type=output_type)
         return decoded
 
-    def run(file):
-        p = pipe(file)
-        p.build()
-        out, = p.run()
-        return np.array(out[0].as_cpu())
+    p = pipe(data_dir + f'/{img_name}.jpg')
+    p.build()
+    out, = p.run()
+    result = np.array(out[0].as_cpu())
 
-    result = run(data_dir + f'/{img_name}.jpg')
     ref = np.load(ref_data_dir + f'/{img_name}.npy')
     kwargs = {}
-    # account for rounding errors when comparing to the reference (generated)
-    if '12bit' in img_name:
-        kwargs['atol'] = 1
+    np_dtype = numpy_type(dtype)
+    need_scaling = np.iinfo(np_dtype).max != np_dtype(2**precision-1)
+    if need_scaling:
+        multiplier = np.iinfo(np_dtype).max / (2**precision-1)
+        ref = (ref * multiplier)
+        kwargs['atol'] = 0.5
     np.testing.assert_allclose(ref, result, **kwargs)
+
+
+def test_image_decoder_lossless_jpeg_cpu_not_supported():
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(file):
+        encoded, _ = fn.readers.file(files=[file])
+        decoded = fn.experimental.decoders.image(
+                encoded, device='cpu', dtype=types.UINT16, output_type=types.ANY_DATA)
+        return decoded
+
+    imgfile = "db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"
+    p = pipe(os.path.join(test_data_root, imgfile))
+    p.build()
+    assert_raises(RuntimeError, p.run, glob='*')  # Add glob pattern when we have a meaningful error
