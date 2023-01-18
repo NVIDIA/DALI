@@ -48,9 +48,6 @@ if(NVJPEG_FOUND)
   check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
   check_cxx_symbol_exists("nvjpegDecodeBatchedPreAllocate" "nvjpeg.h" NVJPEG_PREALLOCATE_API)
 
-  set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
-  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_OLD})
-
   include(CheckCXXSourceCompiles)
   check_cxx_source_compiles(
           "#include <nvjpeg.h>
@@ -58,6 +55,9 @@ if(NVJPEG_FOUND)
             return NVJPEG_BACKEND_LOSSLESS_JPEG != 6;
           }"
           NVJPEG_LOSSLESS_SUPPORTED)
+
+  set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
+  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_OLD})
 
   mark_as_advanced(NVJPEG_ROOT_DIR NVJPEG_LIBRARY_RELEASE NVJPEG_LIBRARY_DEBUG)
   message("nvJPEG found in ${NVJPEG_INCLUDE_DIR}")
