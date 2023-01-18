@@ -27,20 +27,6 @@
 
 namespace dali {
 
-const TypeInfo& TypeFromCfitsCode(const int fitsDataType) {
-  if (fitsDataType == TBYTE)
-    return TypeTable::GetTypeInfo<uint8_t>();
-  if (fitsDataType == TSHORT)
-    return TypeTable::GetTypeInfo<uint8_t>();
-  if (fitsDataType == TINT)
-    return TypeTable::GetTypeInfo<uint32_t>();
-  if (fitsDataType == TFLOAT)
-    return TypeTable::GetTypeInfo<float>();
-  if (fitsDataType == TDOUBLE)
-    return TypeTable::GetTypeInfo<double>();
-  DALI_FAIL("Unknown fits image type code");
-}
-
 void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto filename = files_[current_index_++];
   fitsfile* infptr;
@@ -62,6 +48,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto path = filesystem::join_path(file_root_, filename);
   std::string processed_uri;
 
+  // todo
   if (uri.find("file://") == 0) {
     processed_uri = path.substr(std::string("file://").size());
   } else {
@@ -69,12 +56,14 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   }
 
   fits_open_file(&infptr, processed_uri, READONLY, &status);
+  // todo -> iterować po extensions (-22:00)
   fits_get_hdu_type(infptr, &hdutype, &status);
 
   if (status != 0) {
     fits_report_error(stderr, status);
   }
 
+  // read the header (check if type is image)
   if (hdutype == IMAGE_HDU) {
     /* get image dimensions and total number of pixels in image */
     for (int ii = 0; ii < 9; ii++)
@@ -96,28 +85,14 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     DALI_FAIL("Not an image!" + ". File: " + filename);
   }
 
-  switch (bitpix) {
-    case BYTE_IMG:
-      datatype = TBYTE;
-      break;
-    case SHORT_IMG:
-      datatype = TSHORT;
-      break;
-    case LONG_IMG:
-      datatype = TINT;
-      break;
-    case FLOAT_IMG:
-      datatype = TFLOAT;
-      break;
-    case DOUBLE_IMG:
-      datatype = TDOUBLE;
-      break;
-  }
-
+  // from utils
+  datatype =  RecognizeTypeFromCfitsCode(bitpix);
+  
+  // from utils
   TypeInfo typeInfo = TypeFromCfitsCode(datatype);
 
   bytepix = abs(bitpix) / 8;
-  // should do sth like  that before
+  // should do sth like that before
   target.data.Resize(shape, typeInfo->id);
   fits_read_img(infptr, datatype, first, totpix, &nulval, target.data.raw_mutable_data(), &anynul,
                 &status);

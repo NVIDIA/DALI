@@ -45,6 +45,16 @@ DLL_PUBLIC bool HasExtension(std::string filepath, const std::vector<std::string
  */
 DLL_PUBLIC bool HasKnownExtension(const std::string &filepath);
 
+/**
+ *  Type From Cfits Code
+ */
+const TypeInfo& TypeFromCfitsCode(const int fitsDataType); 
+
+/**
+ * Recognize Type From Cfits Code
+ */
+int RecognizeTypeFromCfitsCode(int bitpix);
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_LOADER_UTILS_H_
