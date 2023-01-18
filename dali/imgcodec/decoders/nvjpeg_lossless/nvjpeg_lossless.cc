@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_lossless.h"
+#include "dali/imgcodec/decoders/nvjpeg_lossless/nvjpeg_lossless.h"
 #include <map>
 #include <string>
 #include <utility>

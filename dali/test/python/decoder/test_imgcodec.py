@@ -422,7 +422,8 @@ def test_image_decoder_lossless_jpeg(img_name, out_type, dtype):
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(file, device='mixed', dtype=types.UINT16, output_type=types.ANY_DATA):
         encoded, _ = fn.readers.file(files=[file])
-        decoded = fn.experimental.decoders.image(encoded, device=device, dtype=dtype, output_type=output_type)
+        decoded = fn.experimental.decoders.image(
+                encoded, device=device, dtype=dtype, output_type=output_type)
         return decoded
 
     def run(file, device='mixed', dtype=types.UINT16, output_type=types.ANY_DATA):
