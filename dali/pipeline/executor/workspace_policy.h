@@ -441,13 +441,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     return GetWorkspace<op_type>(idxs, graph, node.partition_index);
   }
 
- private:
-  StageQueues depths_;
-  // ws_id -> op_id -> workspace
-  std::vector<std::vector<Workspace>> cpu_workspaces_;
-  std::vector<std::vector<Workspace>> mixed_workspaces_;
-  std::vector<std::vector<Workspace>> gpu_workspaces_;
-
   template <OpType op_type>
   using ws_collection_t = std::vector<std::vector<Workspace>>;
 
@@ -456,8 +449,15 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   template <OpType op_type>
   ws_collection_t<op_type> &GetWorkspacesCollection() {
     return detail::get<ws_collection_t<op_type>&>(
-        std::tie(cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
+            std::tie(cpu_workspaces_, mixed_workspaces_, gpu_workspaces_));
   }
+
+ private:
+  StageQueues depths_;
+  // ws_id -> op_id -> workspace
+  std::vector<std::vector<Workspace>> cpu_workspaces_;
+  std::vector<std::vector<Workspace>> mixed_workspaces_;
+  std::vector<std::vector<Workspace>> gpu_workspaces_;
 
   template <OpType op_type, OpType group_as = op_type, typename T>
   void PlaceWorkspace(
@@ -544,6 +544,25 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
     return ws_vec[node.partition_index];
   }
 
+  struct WorkspaceBlob {
+    std::array<std::vector<Workspace>, static_cast<int>(OpType::COUNT)> op_data;
+
+    void Resize(int cpu, int mixed, int gpu) {
+      op_data[static_cast<int>(OpType::CPU)].resize(cpu);
+      op_data[static_cast<int>(OpType::MIXED)].resize(mixed);
+      op_data[static_cast<int>(OpType::GPU)].resize(gpu);
+    }
+
+    void Clear() {
+      for (auto &data : op_data)
+        data.clear();
+    }
+  };
+
+  std::vector<WorkspaceBlob> &GetWorkspacesCollection() {
+    return wss_;
+  }
+
  private:
   void PrepareWSB(
       int queue_idx, const OpGraph &graph, int device_id,
@@ -570,20 +589,6 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
     }
   }
 
-  struct WorkspaceBlob {
-    std::array<std::vector<Workspace>, static_cast<int>(OpType::COUNT)> op_data;
-
-    void Resize(int cpu, int mixed, int gpu) {
-      op_data[static_cast<int>(OpType::CPU)].resize(cpu);
-      op_data[static_cast<int>(OpType::MIXED)].resize(mixed);
-      op_data[static_cast<int>(OpType::GPU)].resize(gpu);
-    }
-
-    void Clear() {
-      for (auto &data : op_data)
-        data.clear();
-    }
-  };
   vector<WorkspaceBlob> wss_;
   int queue_size_ = -1;
 };

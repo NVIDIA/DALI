@@ -299,8 +299,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  ws.SetOperatorId(op_node.instance_name);
-
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();

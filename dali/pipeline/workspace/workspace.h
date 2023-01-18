@@ -585,7 +585,6 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
-    const std::lock_guard<std::mutex> lock(operator_trace_write_lock_);
     (*operator_traces_)[GetOperatorId()].insert_or_assign(trace_key, std::move(trace_value));
   }
 
@@ -772,8 +771,6 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   /// Traces of the operators corresponding to all operators in the current iteration.
   std::shared_ptr<operator_trace_map_t> operator_traces_;
-  /// Mutex for securing the writes to the operator traces map.
-  std::mutex operator_trace_write_lock_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};
