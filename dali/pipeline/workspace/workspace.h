@@ -544,7 +544,7 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   /// @{
   /**
-   * Sets the operator ID that this Workspace belongs to.
+   * Sets the operator ID that this Workspace in associated with.
    */
   void SetOperatorId(std::string operator_id) {
     operator_id_ = std::move(operator_id);
@@ -552,7 +552,10 @@ class WorkspaceBase : public ArgumentWorkspace {
 
 
   /**
-   * Returns the operator ID that this Workspace belongs to.
+   * Returns the operator ID that this Workspace in associated with.
+   *
+   * @remark When implementing the error messages within an operator implementation,
+   * it is not necessary to add the OperatorId to the message - the Executor does it automatically.
    */
   const std::string &GetOperatorId() const {
     return operator_id_;
@@ -582,6 +585,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
+    const std::lock_guard<std::mutex> lock(operator_trace_write_lock_);
     (*operator_traces_)[GetOperatorId()].insert_or_assign(trace_key, std::move(trace_value));
   }
 
@@ -590,7 +594,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   /**
    * Get the trace map for a given operator.
    *
-   * Returns a map, that maps an trace key to a trace value: `ret_value[trace_key] = trace_value`.
+   * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
    *
    * Typically, this function will be called when the traces shall be read.
    *
@@ -763,11 +767,13 @@ class WorkspaceBase : public ArgumentWorkspace {
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
 
-  /// Name of the instance of the operator, to which this Workspace belongs.
+  /// Name of the instance of the operator, to which this Workspace  in associated with.
   std::string operator_id_;
 
   /// Traces of the operators corresponding to all operators in the current iteration.
   std::shared_ptr<operator_trace_map_t> operator_traces_;
+  /// Mutex for securing the writes to the operator traces map.
+  std::mutex operator_trace_write_lock_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};
