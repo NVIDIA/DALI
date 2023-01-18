@@ -29,10 +29,10 @@ if (BUILD_NVJPEG)
   include_directories(SYSTEM ${NVJPEG_INCLUDE_DIR})
 
   # load using dlopen or link statically here
-  if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  if (NOT WITH_DYNAMIC_NVJPEG)
     list(APPEND DALI_LIBS ${NVJPEG_LIBRARY})
     list(APPEND DALI_EXCLUDES libnvjpeg_static.a)
-  endif (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+  endif (NOT WITH_DYNAMIC_NVJPEG)
 
   add_definitions(-DDALI_USE_NVJPEG)
 
@@ -58,7 +58,7 @@ if (BUILD_NVJPEG2K)
 endif ()
 
 # NVIDIA NPP library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_NPP)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppig_LIBRARY nppig_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
@@ -71,13 +71,13 @@ if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
 endif ()
 
 # cuFFT library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_CUFFT)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
   list(APPEND DALI_EXCLUDES libcufft_static.a)
 endif ()
 
 # CULIBOS needed when using static CUDA libs
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_NVJPEG OR NOT WITH_DYNAMIC_CUFFT OR NOT WITH_DYNAMIC_NPP)
   CUDA_find_library(CUDA_culibos_LIBRARY culibos)
   list(APPEND DALI_LIBS ${CUDA_culibos_LIBRARY})
   list(APPEND DALI_EXCLUDES libculibos.a)

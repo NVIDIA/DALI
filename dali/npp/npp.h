@@ -23,7 +23,7 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
 
-#if WITH_DYNAMIC_CUDA_TOOLKIT_ENABLED
+#if WITH_DYNAMIC_NPP_ENABLED
   bool nppIsSymbolAvailable(const char *name);
 #else
   #define nppIsSymbolAvailable(T) (true)

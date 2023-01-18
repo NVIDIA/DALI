@@ -23,7 +23,7 @@ foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
 endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
 
-if(WITH_DYNAMIC_CUDA_TOOLKIT)
+if(WITH_DYNAMIC_NVJPEG)
   set(NVJPEG_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvjpeg_gen.cc")
   add_custom_command(
     OUTPUT ${NVJPEG_GENERATED_STUB}

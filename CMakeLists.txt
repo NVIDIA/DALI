@@ -40,6 +40,12 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
 option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraires dynamically (NPP, nvJPEG, cuFFT)" OFF)
+cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
@@ -226,7 +232,9 @@ propagate_option(BUILD_NVCOMP)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)
-propagate_option(WITH_DYNAMIC_CUDA_TOOLKIT)
+propagate_option(WITH_DYNAMIC_NVJPEG)
+propagate_option(WITH_DYNAMIC_CUFFT)
+propagate_option(WITH_DYNAMIC_NPP)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 
