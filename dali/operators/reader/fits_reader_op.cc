@@ -113,8 +113,8 @@ sizes vary a lot.)code",
 // Deprecated alias
 DALI_REGISTER_OPERATOR(FitsReader, FitsReaderCPU, CPU);
 
-DALI_SCHEMA(NumpyReader)
-    .DocStr("Legacy alias for :meth:`readers.numpy`.")
+DALI_SCHEMA(FitsReader)
+    .DocStr("Legacy alias for :meth:`readers.fits`.")
     .NumInput(0)
     .NumOutput(1)  // (Arrays)
     .AddParent("readers__Fits")
