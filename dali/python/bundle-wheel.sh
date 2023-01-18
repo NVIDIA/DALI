@@ -186,6 +186,7 @@ pushd $TMPDIR
 
 patch_hashed_names() {
     local sofile=$1
+    local patch_cmd=""
     needed_so_files=$(patchelf --print-needed $sofile)
     for ((j=0;j<${#original[@]};++j)); do
         origname=${original[j]}
@@ -197,10 +198,14 @@ patch_hashed_names() {
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
                 echo "patching $sofile entry $origname to $patchedname"
-                patchelf --replace-needed $origname $patchedname $sofile
+                patch_cmd="$patch_cmd --replace-needed $origname $patchedname"
             fi
         fi
     done
+    if [ -n "$patch_cmd" ]; then
+        echo "running $patch_cmd on $sofile"
+        patchelf $patch_cmd $sofile
+    fi
 }
 echo "Patching to fix the so names to the hashed names..."
 # get list of files to iterate over
