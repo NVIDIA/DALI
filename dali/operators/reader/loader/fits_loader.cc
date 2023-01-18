@@ -24,6 +24,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/util/file.h"
 
+#define max_number_of_axes 999
 
 namespace dali {
 
@@ -31,11 +32,14 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto filename = files_[current_index_++];
   fitsfile* infptr;
   int status = 0, hdupos;
-  int hdutype, bitpix, bytepix, naxis = 0, nkeys, datatype = 0, anynul;
-  long first, totpix = 0, npix;
-  long naxes[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
+  int hdutype, bitpix, bytepix, naxis = 0, nkeys, datatype = 0, ;
+  double nulval = 0.0;
+  // FIXME ? first changed to 1 instead of 0 because pixel indexing in fits file starts at 1 instead of 0
+  long first = 1, totpix = 0, anynul, npix;
+  // FIXME ? naxes converted to arrays of size max_number_of_axes instead of 9
+  long* naxes = NULL;
+  naxes = new long[max_number_of_axes];
   TensorShape<> shape;
-
 
   // handle wrap-around
   MoveToNextShard(current_index_);
@@ -48,51 +52,59 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto path = filesystem::join_path(file_root_, filename);
   std::string processed_uri;
 
-  // todo
-  if (uri.find("file://") == 0) {
+  // remove the "file://" preffix in the path
+  if (path.find("file://") == 0) {
     processed_uri = path.substr(std::string("file://").size());
   } else {
     processed_uri = path;
   }
 
   fits_open_file(&infptr, processed_uri, READONLY, &status);
-  // todo -> iterować po extensions (-22:00)
-  fits_get_hdu_type(infptr, &hdutype, &status);
+  if (status != 0) {
+    fits_report_error(stderr, status);
+  }
 
+  // TODO add header extensions
+  fits_get_hdu_type(infptr, &hdutype, &status);
   if (status != 0) {
     fits_report_error(stderr, status);
   }
 
   // read the header (check if type is image)
+  // get image dimensions and total number of pixels in image
   if (hdutype == IMAGE_HDU) {
-    /* get image dimensions and total number of pixels in image */
-    for (int ii = 0; ii < 9; ii++)
-      naxes[ii] = 1;
+    // get image dimensions
+    fits_get_img_param(infptr, max_number_of_axes, &bitpix, &naxis, naxes, &status);
 
-    fits_get_img_param(infptr, 9, &bitpix, &naxis, naxes, &status);
+    // get total number of pixels in image
+    // check if all naxes are > 0
+    totpix = 1;
+    for (int i = 0; i < naxis; i++) {
+      // FIXME ? if the dimension is <= 0, do we consider the file to be incorrect?
+      if (naxes[i] <= 0) {
+        DALI_FAIL("Invalid image dimension " + std::to_string(naxes[i]));
+      }
+      totpix *= naxes[i];
+    }
 
-    totpix = naxes[0] * naxes[1] * naxes[2] * naxes[3] * naxes[4] * naxes[5] * naxes[6] * naxes[7] *
-             naxes[8];
-    for (int ii = 0; ii < 9; ii++) {
-      if (ii > 1 && naxes[ii] == 1)
-        break;
-
-      shape.shape.push_back(naxes[ii]);
+    // fill the tensor with the shape of the img
+    for (int i = 0; i < naxis; i++) {
+      shape.shape.push_back(naxes[i]);
     }
   }
 
   if (hdutype != IMAGE_HDU || naxis == 0 || totpix == 0) {
-    DALI_FAIL("Not an image!" + ". File: " + filename);
+    DALI_FAIL("Not an image! File: " + filename);
   }
 
-  // from utils
-  datatype =  RecognizeTypeFromCfitsCode(bitpix);
-  
-  // from utils
+  // function from utils
+  datatype = RecognizeTypeFromCfitsCode(bitpix);
+
+  // function from utils
   TypeInfo typeInfo = TypeFromCfitsCode(datatype);
 
   bytepix = abs(bitpix) / 8;
-  // should do sth like that before
+  // should do sth like that before  // TODO what does it mean ?
   target.data.Resize(shape, typeInfo->id);
   fits_read_img(infptr, datatype, first, totpix, &nulval, target.data.raw_mutable_data(), &anynul,
                 &status);
@@ -105,6 +117,8 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
 
   // set file path
   target.filename = std::move(path);
+
+  delete[] naxes;
 }
 
 }  // namespace dali
