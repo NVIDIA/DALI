@@ -415,18 +415,18 @@ def test_peek_shape():
         ('cat-3449999_640_grayscale_16bit', types.GRAY, types.UINT16),
         ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8),
 )
-def test_image_decoder_lossless_jpeg(img_name, out_type, dtype):
+def test_image_decoder_lossless_jpeg(img_name, output_type, dtype):
     data_dir = os.path.join(test_data_root, "db/single/jpeg_lossless/0")
     ref_data_dir = os.path.join(test_data_root, "db/single/reference/jpeg_lossless")
 
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
-    def pipe(file, device='mixed', dtype=types.UINT16, output_type=types.ANY_DATA):
+    def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
         decoded = fn.experimental.decoders.image(
-                encoded, device=device, dtype=dtype, output_type=output_type)
+                encoded, device='mixed', dtype=dtype, output_type=output_type)
         return decoded
 
-    def run(file, device='mixed', dtype=types.UINT16, output_type=types.ANY_DATA):
+    def run(file):
         p = pipe(file)
         p.build()
         out, = p.run()

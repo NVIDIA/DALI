@@ -21,6 +21,7 @@
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/registry.h"
 #include "dali/imgcodec/util/convert_gpu.h"
+#include "dali/imgcodec/util/convert_utils.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
@@ -83,8 +84,8 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
     if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY)
       throw std::invalid_argument("Only ANY_DATA and GRAY are supported.");
 
-    sample_data_.clear();
-    sample_data_.resize(nsamples);
+    sample_meta_.clear();
+    sample_meta_.resize(nsamples);
     encoded_.clear();
     encoded_.resize(nsamples);
     encoded_len_.clear();
@@ -100,26 +101,26 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
       auto data_size = sample->Size();
       encoded_[i] = data_ptr;
       encoded_len_[i] = data_size;
-      sample_data_[i].needs_processing = opts.dtype != DALI_UINT16;
+      sample_meta_[i].needs_processing = opts.dtype != DALI_UINT16;
       if (!rois.empty() && rois[i].use_roi()) {
-        sample_data_[i].needs_processing = true;
+        sample_meta_[i].needs_processing = true;
       }
       if (opts.use_orientation) {
-        auto &ori = sample_data_[i].orientation = JpegParser().GetInfo(in[i]).orientation;
+        auto &ori = sample_meta_[i].orientation = JpegParser().GetInfo(in[i]).orientation;
         if (ori.rotate || ori.flip_x || ori.flip_y)
-          sample_data_[i].needs_processing = true;
+          sample_meta_[i].needs_processing = true;
       }
 
       CUDA_CALL(nvjpegJpegStreamParseHeader(nvjpeg_handle_, sample->RawData<unsigned char>(),
                                             sample->Size(), jpeg_stream_));
       unsigned int precision;
       CUDA_CALL(nvjpegJpegStreamGetSamplePrecision(jpeg_stream_, &precision));
-      sample_data_[i].dyn_range_multiplier = DynamicRangeMultiplier(precision, DALI_UINT16);
+      sample_meta_[i].dyn_range_multiplier = DynamicRangeMultiplier(precision, DALI_UINT16);
 
       auto &o = decoded_[i];
       auto sh = out_sample.shape();
       o.pitch[0] = sh[1] * sh[2] * sizeof(uint16_t);
-      if (sample_data_[i].needs_processing) {
+      if (sample_meta_[i].needs_processing) {
         int64_t nbytes = volume(sh) * sizeof(uint16_t);
         o.channel[0] = s.Allocate<mm::memory_kind::device, uint8_t>(nbytes);
       } else {
@@ -146,7 +147,7 @@ void NvJpegLosslessDecoderInstance::Postprocess(DecodeResultsPromise &promise, D
                                                 cspan<ROI> rois) {
   int nsamples = out.size();
   for (int i = 0; i < nsamples; i++) {
-    if (!sample_data_[i].needs_processing) {
+    if (!sample_meta_[i].needs_processing) {
       promise.set(i, {true, nullptr});
       continue;
     }
@@ -155,8 +156,8 @@ void NvJpegLosslessDecoderInstance::Postprocess(DecodeResultsPromise &promise, D
     DALIImageType decoded_format = sh[2] == 1 ? DALI_GRAY : DALI_ANY_DATA;
     try {
       Convert(out[i], "HWC", opts.format, decoded_view, "HWC", decoded_format,
-              ctx.stream, rois.empty() ? ROI{} : rois[i], sample_data_[i].orientation,
-              sample_data_[i].dyn_range_multiplier);
+              ctx.stream, rois.empty() ? ROI{} : rois[i], sample_meta_[i].orientation,
+              sample_meta_[i].dyn_range_multiplier);
       promise.set(i, {true, nullptr});
     } catch (...) {
       promise.set(i, {false, std::current_exception()});

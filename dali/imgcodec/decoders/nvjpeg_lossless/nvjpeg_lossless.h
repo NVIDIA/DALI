@@ -45,25 +45,18 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
   void Postprocess(DecodeResultsPromise &promise, DecodeContext ctx,
                    span<SampleView<GPUBackend>> out, DecodeParams opts, cspan<ROI> rois);
 
-  float DynamicRangeMultiplier(int input_bpp, DALIDataType out_pixel_type) {
-    int type_bits = CHAR_BIT * dali::TypeTable::GetTypeInfo(out_pixel_type).size();
-    float input_max_value = (1 << input_bpp) - 1;
-    float expected_max_value = (1 << type_bits) - 1;
-    return expected_max_value / input_max_value;
-  }
   nvjpegHandle_t nvjpeg_handle_;
   nvjpegJpegStream_t jpeg_stream_;
   CUDAEvent event_;
   nvjpegJpegState_t state_;
 
-  struct SampleData {
+  struct SampleMeta {
     bool needs_processing;
     Orientation orientation;
     float dyn_range_multiplier;
   };
 
-
-  std::vector<SampleData> sample_data_;
+  std::vector<SampleMeta> sample_meta_;
   std::vector<const unsigned char*> encoded_;
   std::vector<size_t> encoded_len_;
   std::vector<nvjpegImage_t> decoded_;
