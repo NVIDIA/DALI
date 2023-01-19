@@ -310,6 +310,20 @@ inline bool UseVMM() {
   return use_vmm;
 }
 
+template <typename Kind>
+mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
+  while (mr) {
+    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
+      return pool;
+    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+      mr = up->upstream();
+    } else {
+      break;
+    }
+  }
+  return nullptr;
+}
+
 static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
   auto *dev = mm::GetDefaultDeviceResource(0);
   auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
@@ -374,54 +388,88 @@ TEST(MMDefaultResource, DISABLED_ReleaseUnusedMaxMem) {
   ReleaseUnusedTestImpl();
 }
 
-static void PreallocateTestImpl() {
+TEST(MMDefaultResource, PreallocatePinnedMemory) {
+  mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
+
+  auto *res = mm::GetDefaultResource<mm::memory_kind::pinned>();
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool preallocation.";
+
+  size_t size = 64_uz << 20;  // 64 MiB
+  size_t alignment = alignof(std::max_align_t);  // default alignment
+  // Try to get increasing amount of memory from the pool until we can't
+  for (;; size <<= 1) {
+    void *mem = pool->try_allocate_from_free(size, alignment);
+    if (!mem)
+      break;
+    res->deallocate(mem, size, alignment);
+  }
+
+  std::cout << "Preallocating " << (size >> 20) << " MiB of pinned memory" << std::endl;
+
+  try {
+    // Try to preallocate the pool so we're able to get the requested amount
+    mm::PreallocatePinnedMemory(size);
+  } catch (const std::bad_alloc &) {
+    GTEST_SKIP() << "Not enough memory to test pool preallocation.";
+  }
+
+  void *mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
+                             "requested amount of memory from the pool.";
+
+  res->deallocate(mem, size, alignment);
+
+  mm::ReleaseUnusedMemory();
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
   int num_devices = 0;
   CUDA_CALL(cudaGetDeviceCount(&num_devices));
   int device_id = num_devices > 1 ? 1 : 0;
   DeviceGuard dg(device_id);
-  CUDA_CALL(cudaFree(0));
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
-  size_t free0 = 0;  // before preallocation
-  size_t free1 = 0;  // after preallocation
-  size_t free2 = 0;  // after releasing
-  size_t total = 0;
 
+  size_t free0, free1, total;
   CUDA_CALL(cudaMemGetInfo(&free0, &total));
 
   CUDA_CALL(cudaSetDevice(0));
 
-  size_t size = prev_pow2(free0);
-  for (; size >= 256; size >>= 1) {
-    try {
-      mm::PreallocateDeviceMemory(size, device_id);  // use explicit non-current device id
-      break;
-    } catch (const std::bad_alloc &) {
-      continue;
-    }
-  }
-  CUDA_CALL(cudaSetDevice(device_id));
-  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+  auto *res = mm::GetDefaultDeviceResource(device_id);
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool preallocation.";
 
-  size_t max_block_size =  64_uz << 20;  // 64 MiB - max block size for CUDA VM resource
-  EXPECT_LT(free1, free0 - size + max_block_size);
-  EXPECT_GE(free1, free0 - size - max_block_size);
+  size_t size = 64_uz << 20;  // 64 MiB
+  size_t alignment = alignof(std::max_align_t);  // default alignment
+  // Try to get increasing amount of memory from the pool until we can't
+  for (;; size <<= 1) {
+    void *mem = pool->try_allocate_from_free(size, alignment);
+    if (!mem)
+      break;
+    res->deallocate(mem, size, alignment);
+  }
+
+  std::cout << "Preallocating " << (size >> 20) << " MiB of memory on device "
+            << device_id << std::endl;
+
+  try {
+    // Try to preallocate the pool so we're able to get the requested amount
+    mm::PreallocateDeviceMemory(size, device_id);
+  } catch (const std::bad_alloc &) {
+    GTEST_SKIP() << "Not enough memory to test pool preallocation.";
+  }
+
+  void *mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
+                             "requested amount of memory from the pool.";
+
+  res->deallocate(mem, size, alignment);
 
   mm::ReleaseUnusedMemory();
-  CUDA_CALL(cudaMemGetInfo(&free2, &total));
-  EXPECT_GE(free2, free0);  // it can be more if some managed memory was reclaimed
-}
-
-TEST(MMDefaultResource, PreallocateDeviceMemory) {
-  if (!UseVMM())
-    GTEST_SKIP() << "Cannot reliably test device memory preallocation without VMM support";
-
-  PreallocateTestImpl();
-}
-
-// This can be run manually - it can still work, but it's not reliable when run
-// alongside other tests.
-TEST(MMDefaultResource, DISABLED_PreallocateDeviceMemory) {
-  PreallocateTestImpl();
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+  EXPECT_GE(free1, free0);  // it can be more if some managed memory was reclaimed
 }
 
 }  // namespace test
