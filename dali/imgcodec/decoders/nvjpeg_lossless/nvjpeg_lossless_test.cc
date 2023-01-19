@@ -36,18 +36,6 @@ std::string reference_path(const std::string &relative_path) {
                            relative_path);
 }
 
-
-struct ImageBuffer {
-  std::vector<uint8_t> buffer;
-  ImageSource src;
-
-  explicit ImageBuffer(const std::string &path) {
-    std::ifstream stream(path, std::ios::binary);
-    buffer = {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
-    src = ImageSource::FromHostMem(buffer.data(), buffer.size());
-  }
-};
-
 }  // namespace
 
 TEST(NvJpegLosslessDecoderTest, Factory) {

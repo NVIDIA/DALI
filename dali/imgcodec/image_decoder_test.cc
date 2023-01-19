@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,19 +54,6 @@ template<typename... Args>
 std::string join(Args... args) {
   return make_string_delim('/', args...);
 }
-
-std::vector<uint8_t> read_file(const std::string &filename) {
-    std::ifstream stream(filename, std::ios::binary);
-    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
-}
-
-struct ImageBuffer {
-  std::vector<uint8_t> buffer;
-  ImageSource src;
-  explicit ImageBuffer(const std::string &filename)
-  : buffer(read_file(filename))
-  , src(ImageSource::FromHostMem(buffer.data(), buffer.size(), filename)) {}
-};
 
 struct test_sample {
   test_sample(std::string img_path, std::string npy_path, std::string npy_ycbcr_path,

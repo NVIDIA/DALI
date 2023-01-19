@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,21 @@
 namespace dali {
 namespace imgcodec {
 namespace test {
+
+inline std::vector<uint8_t> read_file(const std::string &filename) {
+  std::ifstream stream(filename, std::ios::binary);
+  return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+}
+
+struct ImageBuffer {
+  std::vector<uint8_t> buffer;
+  ImageSource src;
+
+  explicit ImageBuffer(const std::string &filename)
+    : buffer(read_file(filename))
+    , src(ImageSource::FromHostMem(buffer.data(), buffer.size(), filename)) {
+  }
+};
 
 /**
 * @brief Checks if the image and the reference are equal
