@@ -134,9 +134,9 @@ GitHub issue.
 Installing DALI
 ---------------
 
-To install the latest DALI release for the latest CUDA version (11.x)::
+To install the latest DALI release for the latest CUDA version (12.x)::
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
 
 DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
 (versions 18.07 and later).
