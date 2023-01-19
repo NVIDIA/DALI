@@ -34,12 +34,10 @@ class PassthroughOp : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
-
-
+  
   void RunImpl(Workspace &ws) override {
     ws.Output<Backend>(0).ShareData(ws.Input<Backend>(0));
   }
-
 };
 
 }  // namespace dali
