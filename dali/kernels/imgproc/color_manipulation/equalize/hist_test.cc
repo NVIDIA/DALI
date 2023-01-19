@@ -128,6 +128,7 @@ TEST_F(EqualizeHistGpuTest, SingleValue) {
       sample_in_view.data[idx] = 51 * sample_idx;
     }
   }
+  this->Run();
 }
 
 }  // namespace test

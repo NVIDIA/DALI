@@ -37,12 +37,12 @@ struct SampleDesc {
   fast_div<uint64_t> num_channels;
 };
 
-struct HistogramKernelGpu {
+struct DLL_PUBLIC HistogramKernelGpu {
   static constexpr int64_t kBlockSize = 256;
   static constexpr int64_t kMaxGridSize = 128;
   static constexpr int64_t kShmPerChannelSize = SampleDesc::range_size * sizeof(uint64_t);
 
-  HistogramKernelGpu() : shared_mem_limit_{GetSharedMemPerBlock()}, sample_descs_{} {}
+  HistogramKernelGpu() : shared_mem_limit_{GetSharedMemPerBlock()} {}
 
   /**
    * @brief Computes the per-channel histograms.

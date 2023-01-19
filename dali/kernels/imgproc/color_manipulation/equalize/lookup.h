@@ -37,7 +37,7 @@ struct SampleDesc {
   fast_div<uint64_t> num_channels;
 };
 
-struct LookupKernelGpu {
+struct DLL_PUBLIC LookupKernelGpu {
   static constexpr int64_t kBlockSize = 256;
   static constexpr int64_t kMaxGridSize = 1024;
 

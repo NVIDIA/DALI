@@ -34,7 +34,7 @@ struct SampleDesc {
   const uint64_t *in;
 };
 
-struct LutKernelGpu {
+struct DLL_PUBLIC LutKernelGpu {
   static constexpr int kBlockSize = 256;
 
   /**
