@@ -36,11 +36,27 @@ class FitsReader : public DataReader<Backend, Target> {
   }
 
   USE_READER_OPERATOR_MEMBERS(Backend, Target);
+  using DataReader<Backend, Target>::GetCurrBatchSize;
+  using DataReader<Backend, Target>::GetSample;
+  using Operator<Backend>::spec_;
+
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
-    // here should go  checking if all images have same dims
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+
+    int batch_size = GetCurrBatchSize();
+    const auto& file_0 = GetSample(0);
+    DALIDataType output_type = file_0.get_type();
+    int ndim = file_0.get_shape().sample_dim();
+    TensorListShape<> sh(batch_size, ndim);
+
+    // TODO: implement checking that all images have same dimensions
+    // also all general calculations for all images such as roi
+
+    output_desc.resize(1);
+    output_desc[0].shape = std::move(sh);
+    output_desc[0].type = output_type;
     return true;
   }
 };
