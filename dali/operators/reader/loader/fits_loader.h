@@ -58,9 +58,10 @@ struct FitsFileWrapper {
 
 class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
  public:
-  explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
-      : FileLoader(spec, shuffle_after_epoch),
-        header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
+  explicit inline FitsLoader(
+    const OpSpec& spec, 
+    bool shuffle_after_epoch = false)
+      : FileLoader(spec, shuffle_after_epoch) {}
 
   void PrepareEmpty(FitsFileWrapper& target) override {
     target = {};
