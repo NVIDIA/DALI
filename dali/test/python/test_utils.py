@@ -522,7 +522,7 @@ def read_file_bin(filename):
     return np.fromfile(filename, dtype='uint8')
 
 
-def filter_files(dirpath, suffix):
+def filter_files(dirpath, suffix, exclude_subdirs=[]):
     """
     Read all file names recursively from a directory and filter those, which end with given suffix
     :param dirpath: Path to directory, from which the file names will be read
@@ -531,6 +531,9 @@ def filter_files(dirpath, suffix):
     """
     fnames = []
     for dir_name, subdir_list, file_list in os.walk(dirpath):
+        for d in exclude_subdirs:
+            if d in subdir_list:
+                subdir_list.remove(d)
         flist = filter(lambda fname: fname.endswith(suffix), file_list)
         flist = map(lambda fname: os.path.join(dir_name, fname), flist)
         fnames.extend(flist)

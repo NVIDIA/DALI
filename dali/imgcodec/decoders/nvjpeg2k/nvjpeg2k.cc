@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/imgcodec/util/convert_gpu.h"
+#include "dali/imgcodec/util/convert_utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/registry.h"
 #include "dali/pipeline/util/for_each_thread.h"
@@ -37,13 +38,6 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
     CUDA_CALL_EX(status, in->SourceInfo());
     DALI_FAIL("Unreachable");  // silence a warning
   }
-}
-
-float calc_bpp_adjustment_multiplier(int input_bpp, DALIDataType pixel_type) {
-  int type_bits = CHAR_BIT * dali::TypeTable::GetTypeInfo(pixel_type).size();
-  float input_max_value = (1 << input_bpp) - 1;
-  float expected_max_value = (1 << type_bits) - 1;
-  return expected_max_value / input_max_value;
 }
 
 }  // namespace
@@ -265,7 +259,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);
 
   if (is_processing_needed) {
-    auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
+    auto multiplier = DynamicRangeMultiplier(ctx.bpp, ctx.pixel_type);
     Convert(out, "HWC", opts.format, decode_out, "CHW", format, ctx.cuda_stream,
             {}, {}, multiplier);
   }

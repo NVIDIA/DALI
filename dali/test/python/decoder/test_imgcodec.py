@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from nose_utils import assert_raises
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
+from nose2.tools import params
 
 
 def get_img_files(data_path, subdir='*', ext=None):
@@ -392,6 +393,7 @@ def test_peek_shape():
         ('tiff/0/kitty-2948404_640.tiff', (433, 640, 3)),
         ('tiff/0/cat-111793_640_gray.tiff', (475, 640, 1)),
         ('webp/lossless/cat-111793_640.webp', (426, 640, 3)),
+        ('jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg', (423, 640, 1)),
         ('multichannel/with_alpha/cat-111793_640-alpha.jp2', (426, 640, 4)),
         ('multichannel/with_alpha/cat-111793_640-alpha.png', (426, 640, 4)),
         ('multichannel/tiff_multichannel/cat-111793_640_multichannel.tif', (475, 640, 6)),
@@ -404,3 +406,55 @@ def test_peek_shape():
         'tiff/0/kitty-2948404_640.tiff', (433, 640, 1), types.GRAY, True
     yield _testimpl_image_decoder_peek_shape, \
         'bmp/0/cat-111793_640_grayscale.bmp', (426, 640, 3), types.RGB, True
+
+
+@params(
+        ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.UINT16, 12),
+        ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.FLOAT, 16),
+        ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.FLOAT, 12),
+        ('cat-3449999_640_grayscale_16bit', types.GRAY, types.UINT16, 16),
+        ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8, 8),
+)
+def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
+    data_dir = os.path.join(test_data_root, "db/single/jpeg_lossless/0")
+    ref_data_dir = os.path.join(test_data_root, "db/single/reference/jpeg_lossless")
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(file):
+        encoded, _ = fn.readers.file(files=[file])
+        decoded = fn.experimental.decoders.image(
+                encoded, device='mixed', dtype=dtype, output_type=output_type)
+        return decoded
+
+    p = pipe(data_dir + f'/{img_name}.jpg')
+    p.build()
+    out, = p.run()
+    result = np.array(out[0].as_cpu())
+
+    ref = np.load(ref_data_dir + f'/{img_name}.npy')
+    kwargs = {}
+    np_dtype = types.to_numpy_type(dtype)
+    max_val = np_dtype(1.0) if dtype == types.FLOAT else np.iinfo(np_dtype).max
+    need_scaling = max_val != np_dtype(2**precision-1)
+    if need_scaling:
+        multiplier = max_val / (2**precision-1)
+        ref = (ref * multiplier)
+        if dtype != types.FLOAT:
+            kwargs['atol'] = 0.5  # possible rounding error
+    np.testing.assert_allclose(ref, result, **kwargs)
+
+
+def test_image_decoder_lossless_jpeg_cpu_not_supported():
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(file):
+        encoded, _ = fn.readers.file(files=[file])
+        decoded = fn.experimental.decoders.image(
+                encoded, device='cpu', dtype=types.UINT16, output_type=types.ANY_DATA)
+        return decoded
+
+    imgfile = "db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"
+    p = pipe(os.path.join(test_data_root, imgfile))
+    p.build()
+    assert_raises(RuntimeError, p.run, glob='*')  # Add glob pattern when we have a meaningful error
