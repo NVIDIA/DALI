@@ -394,30 +394,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    * Assigns IDs of all operators to the Workspaces that are associated with those operators.
    */
   template<OpType op_type>
-  void AssignOperatorIds() {
-    static_assert(std::is_same_v<WorkspacePolicy, AOT_WS_Policy<QueuePolicy>>,
-                  "Only AOT Policy shall be used.");
-    if constexpr (std::is_same_v<WorkspacePolicy, AOT_WS_Policy<SeparateQueuePolicy>>) {
-      auto wsc = ws_policy_.template GetWorkspacesCollection<op_type>();
-      for (int qidx = 0; stage_queue_depths_[op_type]; qidx++) {
-        for (int i = 0; i < graph_->NumOp(op_type); i++) {
-          OpNode &op_node = graph_->Node(op_type, i);
-          wsc[qidx][op_node.partition_index].SetOperatorId(op_node.instance_name);
-        }
-      }
-    } else if constexpr (std::is_same_v<WorkspacePolicy, AOT_WS_Policy<UniformQueuePolicy>>) {
-      auto wsb = ws_policy_.template GetWorkspacesCollection();
-      for (int qidx = 0; stage_queue_depths_[op_type]; qidx++) {
-        for (int i = 0; i < graph_->NumOp(op_type); i++) {
-          OpNode &op_node = graph_->Node(op_type, i);
-          wsb[qidx].op_data[static_cast<int>(op_type)][op_node.partition_index].SetOperatorId(
-                  op_node.instance_name);
-        }
-      }
-    } else {
-      assert(false);  // This shouldn't be reached.
-    }
-  }
+  void AssignOperatorInstanceNames();
 
 
   /**
@@ -498,9 +475,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
   InitIterationData();
 
-  AssignOperatorIds<OpType::CPU>();
-  AssignOperatorIds<OpType::MIXED>();
-  AssignOperatorIds<OpType::GPU>();
+  AssignOperatorInstanceNames<OpType::CPU>();
+  AssignOperatorInstanceNames<OpType::MIXED>();
+  AssignOperatorInstanceNames<OpType::GPU>();
 }
 
 

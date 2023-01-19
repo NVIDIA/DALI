@@ -19,8 +19,16 @@ namespace dali {
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 size_t PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::CalcIterationDataSize() const {
+  /*
+   * With PipelinedExecutor (with both Uniform and Separated queues), CPU, Mixed and GPU stages
+   * can run simultaneously as many ops as their queue sizes. In other words, in the CPU stage
+   * there can be `cpu_size` iterations alive, etc. Moreover, cpu_size > gpu_size.
+   *
+   * Therefore, the total number of required iteration data structs is a sum of the stages plus one.
+   * This one is required for the output Workspace.
+   */
   return this->queue_sizes_.cpu_size + this->queue_sizes_.gpu_size +
-         this->queue_sizes_.gpu_size /* mixed_queue_size */;
+         this->queue_sizes_.gpu_size /* mixed_queue_size */ + 1;
 }
 
 

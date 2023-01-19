@@ -549,7 +549,38 @@ Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(size_t iteration
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 size_t Executor<WorkspacePolicy, QueuePolicy>::CalcIterationDataSize() const {
-  return 2;
+  /*
+   * In SimpleExecutor it is possible to set queue depth higher than one. This does not impact
+   * the concurrency of execution of stages, however it impacts how user can read the output data.
+   * Essentially, when queue depth is higher than one, user can still call `daliRun` multiple times
+   * and expect that the output will be there.
+   *
+   * Therefore, the IterationDataSize shall be `cpu_size + 1`.
+   * The `+1` is for the output Workspace.
+   */
+  return this->queue_sizes_.cpu_size + 1;
+}
+
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+template<OpType op_type>
+void Executor<WorkspacePolicy, QueuePolicy>::AssignOperatorInstanceNames() {
+  static_assert(std::is_same_v<WorkspacePolicy, AOT_WS_Policy<QueuePolicy>>,
+                "Only AOT Policy shall be used.");
+  for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+    for (int mxd = 0; mxd < queue_sizes_.gpu_size; mxd++) {
+      for (int gpu = 0; gpu < queue_sizes_.gpu_size; gpu++) {
+        for (int op = 0; op < graph_->NumOp(op_type); op++) {
+          OpNode &op_node = graph_->Node(op_type, op);
+          auto &ws = ws_policy_.template GetWorkspace<op_type>(
+                  std::is_same_v<QueuePolicy, UniformQueuePolicy> ?
+                  QueueIdxs(cpu) : QueueIdxs(cpu, mxd, gpu),
+                  *graph_, op_node);
+          ws.SetOperatorInstanceName(op_node.instance_name);
+        }
+      }
+    }
+  }
 }
 
 

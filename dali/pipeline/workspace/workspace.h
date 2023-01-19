@@ -546,8 +546,8 @@ class WorkspaceBase : public ArgumentWorkspace {
   /**
    * Sets the operator ID that this Workspace in associated with.
    */
-  void SetOperatorId(std::string operator_id) {
-    operator_id_ = std::move(operator_id);
+  void SetOperatorInstanceName(std::string operator_id) {
+    operator_instance_name_ = std::move(operator_id);
   }
 
 
@@ -557,8 +557,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @remark When implementing the error messages within an operator implementation,
    * it is not necessary to add the OperatorId to the message - the Executor does it automatically.
    */
-  const std::string &GetOperatorId() const {
-    return operator_id_;
+  const std::string &GetOperatorInstanceName() const {
+    return operator_instance_name_;
   }
   /// @}
 
@@ -585,7 +585,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
-    (*operator_traces_)[GetOperatorId()].insert_or_assign(trace_key, std::move(trace_value));
+    (*operator_traces_)[GetOperatorInstanceName()].insert_or_assign(
+            trace_key, std::move(trace_value));
   }
 
 
@@ -767,7 +768,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   SmallVector<cudaEvent_t, 4> parent_events_;
 
   /// Name of the instance of the operator, to which this Workspace in associated with.
-  std::string operator_id_{};
+  std::string operator_instance_name_;
 
   /// Traces of the operators corresponding to all operators in the current iteration.
   std::shared_ptr<operator_trace_map_t> operator_traces_;
