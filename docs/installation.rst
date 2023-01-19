@@ -8,6 +8,8 @@ Prerequisites
 .. _driver link: https://www.nvidia.com/drivers
 .. |cuda link| replace:: **NVIDIA CUDA 11.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
+.. |cuda toolkit link| replace:: **CUDA Toolkit**
+.. _cuda toolkit link: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
 .. |mxnet link| replace:: **MXNet**
 .. _mxnet link: http://mxnet.incubator.apache.org
 .. |pytorch link| replace:: **PyTorch**
@@ -21,6 +23,7 @@ Prerequisites
 
 1. Linux x64.
 2. |driver link|_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e. 450.80.02 or later driver releases).
+3. |cuda toolkit link|_ - for CUDA 12 toolkit is linked dynamically and it is required to be installed. For CUDA 11 builds it is optional.
 3. [Optional] One or more of the following deep learning frameworks:
 
   - |mxnet link|_
