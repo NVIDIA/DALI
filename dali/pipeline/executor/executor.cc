@@ -465,10 +465,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, siz
                get_queue<op_type_static, storage_dev_static>(tensor_to_store_queue_[out_tensor_id]);
         auto stage_output_idx = output_idx[op_type_static];
         ws->AddOutput(queue[stage_output_idx]);
-        ws->InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
+
+  ws->InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
 
 
   // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.

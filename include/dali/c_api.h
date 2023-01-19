@@ -129,16 +129,16 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *
  * @param max_batch_size Maximum batch size.
  * @param num_threads Number of CPU threads which this pipeline uses.
  * @param device_id ID of the GPU device which this pipeline uses.
- * @param pipelined_execution If 0, this pipeline will execute in Pipeline mode.
- * @param async_execution If 0, this pipeline will execute asynchronously.
- * @param separated_execution If 0, this pipeline will have different depths
+ * @param pipelined_execution If != 0, this pipeline will execute in Pipeline mode.
+ * @param async_execution If != 0, this pipeline will execute asynchronously.
+ * @param separated_execution If != 0, this pipeline will have different depths
  *                            of the CPU and GPU prefetching queues.
  * @param prefetch_queue_depth Depth of the prefetching queue.
- *                             If `separated_execution == 0`, this value is ignored.
+ *                             If `separated_execution != 0`, this value is ignored.
  * @param cpu_prefetch_queue_depth Depth of the prefetching queue in the CPU stage.
- *                                 If `separated_execution != 0`, this value is ignored
+ *                                 If `separated_execution == 0`, this value is ignored
  * @param gpu_prefetch_queue_depth Depth of the prefetching queue in the GPU stage.
- *                                 If `separated_execution != 0`, this value is ignored
+ *                                 If `separated_execution == 0`, this value is ignored
  * @param enable_memory_stats Enable memory stats.
  */
 DLL_PUBLIC void
@@ -522,7 +522,7 @@ DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, in
  * In case the name of non-existing operator is provided,
  * the behaviour of this function is undefined.
  *
- * @return 0, if the trace with given name exists.
+ * @return 0, if the trace with given name does not exist.
  */
 DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
                                     const char *trace_name);

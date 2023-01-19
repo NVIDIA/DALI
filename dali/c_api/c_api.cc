@@ -204,9 +204,9 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     int async_execution, int separated_execution, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
-  bool se = separated_execution == 0;
-  bool pe = pipelined_execution == 0;
-  bool ae = async_execution == 0;
+  bool se = separated_execution != 0;
+  bool pe = pipelined_execution != 0;
+  bool ae = async_execution != 0;
   auto pipeline =
           std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
                                            num_threads, device_id, pe, prefetch_queue_depth, ae);
@@ -568,8 +568,8 @@ int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_n
                          const char *trace_name) {
   auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   try {
-    auto traces = ws->GetOperatorTraces(operator_name);
-    return traces.find(trace_name) != traces.end() ? 0 : 1;
+    auto& traces = ws->GetOperatorTraces(operator_name);
+    return traces.find(trace_name) != traces.end() ? 1 : 0;
   } catch (std::out_of_range&) {
     return -1;
   }
@@ -580,11 +580,10 @@ const char *
 daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
                      const char *trace_name) {
   auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  try {
+  if (daliHasOperatorTrace(pipe_handle, operator_name, trace_name)) {
     return ws->GetOperatorTraces(operator_name).at(trace_name).c_str();
-  } catch (std::out_of_range &) {
-    return nullptr;
   }
+  return nullptr;
 }
 
 
