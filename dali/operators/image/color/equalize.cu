@@ -44,15 +44,16 @@ class EqualizeGPU : public Equalize<GPUBackend> {
     assert(layout.size() == 2 || layout.size() == 3);
     output.SetLayout(layout);
     kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
-    ctx_.gpu.stream = ws.stream();
-    ctx_.scratchpad = &scratchpad;
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = ws.stream();
+    ctx.scratchpad = &scratchpad;
     auto out_view = view<uint8_t>(output);
     auto in_view = view<const uint8_t>(input);
     auto out_shape = GetFlattenedShape(out_view.shape);
     auto in_shape = GetFlattenedShape(in_view.shape);
     TensorListView<StorageGPU, uint8_t, 2> out_view_flat{out_view.data, out_shape};
     TensorListView<StorageGPU, const uint8_t, 2> in_view_flat{in_view.data, in_shape};
-    kmgr_.Run<Kernel>(0, ctx_, out_view_flat, in_view_flat);
+    kmgr_.Run<Kernel>(0, ctx, out_view_flat, in_view_flat);
   }
 
   template <int ndim>
@@ -70,7 +71,6 @@ class EqualizeGPU : public Equalize<GPUBackend> {
   }
 
   kernels::KernelManager kmgr_;
-  kernels::KernelContext ctx_;
 };
 
 }  // namespace equalize
