@@ -1553,6 +1553,30 @@ def _collect_ops(output_nodes):
 
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+    """Variant of :meth:`@pipeline_def <nvidia.dali.pipeline_def>` decorator that enables additional
+    experimental features. It has the same API as its non-experimental variant with the addition of
+    the keyword arguments listed below.
+
+    Keyword args
+    ------------
+    debug : bool, optional
+        Enable pipeline debug mode - allowing for step-by-step execution and intermediate data
+        inspection of the pipeline definition, by default False.
+
+        .. note::
+            This mode is intended only for debugging purposes - the pipeline performance will be
+            significantly worse than the non-debug mode.
+
+    enable_conditionals : bool, optional
+        Enable support for conditional execution of DALI operators using ``if`` statements
+        in pipeline definition, by default False.
+
+
+    .. note::
+
+        The features enabled by this decorator are experimental. The API may change and the
+        functionality may be limited.
+    """
     from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug = pipeline_kwargs.pop('debug', False)
     pipeline_conditionals = pipeline_kwargs.pop('enable_conditionals', False)
