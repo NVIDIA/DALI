@@ -412,6 +412,8 @@ def test_peek_shape():
         ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
         ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
         ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.UINT16, 12),
+        ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.FLOAT, 16),
+        ('cat-3449999_640_grayscale_12bit', types.ANY_DATA, types.FLOAT, 12),
         ('cat-3449999_640_grayscale_16bit', types.GRAY, types.UINT16, 16),
         ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8, 8),
 )
@@ -434,11 +436,13 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
     ref = np.load(ref_data_dir + f'/{img_name}.npy')
     kwargs = {}
     np_dtype = types.to_numpy_type(dtype)
-    need_scaling = np.iinfo(np_dtype).max != np_dtype(2**precision-1)
+    max_val = np_dtype(1.0) if dtype == types.FLOAT else np.iinfo(np_dtype).max
+    need_scaling = max_val != np_dtype(2**precision-1)
     if need_scaling:
-        multiplier = np.iinfo(np_dtype).max / (2**precision-1)
+        multiplier = max_val / (2**precision-1)
         ref = (ref * multiplier)
-        kwargs['atol'] = 0.5
+        if dtype != types.FLOAT:
+            kwargs['atol'] = 0.5  # possible rounding error
     np.testing.assert_allclose(ref, result, **kwargs)
 
 

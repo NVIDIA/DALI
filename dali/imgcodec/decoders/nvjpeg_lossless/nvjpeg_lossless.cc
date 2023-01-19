@@ -115,6 +115,7 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
                                             sample->Size(), jpeg_stream_));
       unsigned int precision;
       CUDA_CALL(nvjpegJpegStreamGetSamplePrecision(jpeg_stream_, &precision));
+      sample_meta_[i].dyn_range_multiplier = 1.0f;
       if (NeedDynamicRangeScaling(precision, DALI_UINT16)) {
         sample_meta_[i].dyn_range_multiplier = DynamicRangeMultiplier(precision, DALI_UINT16);
         sample_meta_[i].needs_processing = true;
