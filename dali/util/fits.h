@@ -26,27 +26,15 @@
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
 
-#define NUMPY_ALLOWED_TYPES                                                                        \
-  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
-   double)
-
 namespace dali {
 namespace fits {
-
-enum HDUType {
-  IMAGE_HDU = 0,
-  ASCII_TBL = 1,
-  BINARY_TBL = 2,
-  ANY_HDU = -1,
-}
 
 class DLL_PUBLIC HeaderData {
  public:
   TensorShape<> shape;
-  HDUType hdu_type;
+  int hdu_type;
   const TypeInfo *type_info = nullptr;
   bool compressed = false;
-  int64_t data_offset = 0;
 
   DALIDataType type() const;
 

@@ -13,27 +13,57 @@
 // limitations under the License.
 
 #include "dali/util/fits.h"
+#include <fitsio.h>
 #include <string>
 #include <vector>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
 
-#define MAX_AXIS 999
+#define MAX_DIMS 999
 
 namespace dali {
 namespace fits {
 
-void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
-  int hdu_type, status, type, n_dims;
-  long dims[MAX_AXIS];
-  fits_get_hdu_type(src, &hdu_type, &status);
+const TypeInfo &TypeFromFitsImageType(int imgtype) {
+  if (imgtype == BYTE_IMG)
+    return TypeTable::GetTypeInfo<uint8_t>();
+  if (imgtype == SHORT_IMG)
+    return TypeTable::GetTypeInfo<uint16_t>();
+  if (imgtype == LONG_IMG)
+    return TypeTable::GetTypeInfo<uint32_t>();
+  if (imgtype == LONGLONG_IMG)
+    return TypeTable::GetTypeInfo<uint64_t>();
+  if (imgtype == ULONG_IMG)
+    return TypeTable::GetTypeInfo<uint64_t>();
+  if (imgtype == ULONGLONG_IMG)
+    return TypeTable::GetTypeInfo<uint64_t>();
+  if (imgtype == FLOAT_IMG)
+    return TypeTable::GetTypeInfo<float>();
+  if (imgtype == DOUBLE_IMG)
+    return TypeTable::GetTypeInfo<double>();
+  DALI_FAIL("Unknown FITS image type type string");
+}
 
-  if (hdu_type == IMAGE_HDU) {
-    fits_get_img_param(src, MAX_DIMS, &type, &n_dims, dims, &status);
+void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
+  int hdu_type, img_type, n_dims, status = 0, i = 0;
+  long dims[MAX_DIMS] = {0};
+
+  fits_get_hdu_type(src, &hdu_type, &status);
+  bool is_image = (hdu_type == IMAGE_HDU);
+  DALI_ENFORCE(is_image, "Only IMAGE_HDUs are supported!");
+  parsed_header.hdu_type = hdu_type;
+
+  fits_get_img_param(src, MAX_DIMS, &img_type, &n_dims, dims, &status);
+  parsed_header.type_info = &TypeFromFitsImageType(img_type);
+  parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
+
+  while (i < MAX_DIMS && dims[i] > 0) {
+    parsed_header.shape.shape.push_back(static_cast<int64_t>(dims[i]));
+    i++;
   }
 
-
-  parsed_header.hdu_type = hdu_type;
+  if (status)
+    fits_report_error(stderr, status);
 }
 
 DALIDataType HeaderData::type() const {
