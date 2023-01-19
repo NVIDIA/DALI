@@ -580,7 +580,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::AssignOperatorInstanceNames() {
         }
       }
     }
-  } else if constexpr (std::is_same_v<QueuePolicy, UniformQueuePolicy>) {
+  } else if constexpr (std::is_same_v<QueuePolicy, UniformQueuePolicy>) {  // NOLINT
     for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
       for (int op = 0; op < graph_->NumOp(op_type); op++) {
         OpNode &op_node = graph_->Node(op_type, op);
