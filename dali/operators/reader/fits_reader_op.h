@@ -78,4 +78,4 @@ class FitsReaderCPU : public FitsReader<CPUBackend, FitsFileWrapper> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_NUMPY_READER_OP_H_
+#endif  // DALI_OPERATORS_READER_FITS_READER_OP_H_
