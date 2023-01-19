@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,6 +52,12 @@ class OperatorBase:
         behavior.
     """
     return False
+
+  def detect_overload_ld(self, v):
+    return self.detect_overload(v)
+
+  def ld(self, v):
+    pass
 
   def detect_overload_if_exp(self, cond):
     return self.detect_overload(cond)

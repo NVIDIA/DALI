@@ -14,11 +14,15 @@
 # ==============================================================================
 """Utilities used to capture Python idioms."""
 
+from nvidia.dali._autograph.utils import hooks
+
 
 def ld(v):
   """Load variable operator."""
   if isinstance(v, Undefined):
     return v.read()
+  if hooks._DISPATCH.detect_overload_ld(v):
+    return hooks._DISPATCH.ld(v)
   return v
 
 

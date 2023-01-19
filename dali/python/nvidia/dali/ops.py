@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ from nvidia.dali.types import \
         CUDAStream as _CUDAStream, \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
+from nvidia.dali import _conditionals
 
 
 cupy = None
@@ -418,6 +419,9 @@ class _OperatorInstance(object):
                     inputs[i] = _instantiate_constant_node(default_input_device, inp)
             inputs = tuple(inputs)
 
+        if _conditionals.conditionals_enabled():
+            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
+
         self._inputs = inputs
 
         spec_args, kwargs = _separate_kwargs(kwargs)
@@ -656,11 +660,17 @@ def python_op_factory(name, schema_name=None):
 
             # If we don't have multiple input sets, flatten the result
             if len(op_instances) == 1:
-                return op_instances[0].unwrapped_outputs
-            outputs = []
-            for op in op_instances:
-                outputs.append(op.outputs)
-            return self._repack_output_sets(outputs)
+                result = op_instances[0].unwrapped_outputs
+            else:
+                outputs = []
+                for op in op_instances:
+                    outputs.append(op.outputs)
+                result = self._repack_output_sets(outputs)
+            if _conditionals.conditionals_enabled():
+                if len(op_instances) != 1:
+                    raise ValueError("Multiple input sets are not supported with conditionals.")
+                _conditionals.register_data_nodes(result, input_sets[0])
+            return result
 
         # Check if any of inputs is a list
         def _detect_multiple_input_sets(self, inputs):
@@ -1326,8 +1336,12 @@ def _arithm_op(name, *inputs):
         dev_inputs = list(edge.gpu() for edge in edges)
     else:
         dev_inputs = edges
+
     # Call it immediately
-    return op(*dev_inputs)
+    result = op(*dev_inputs)
+    if _conditionals.conditionals_enabled():
+        _conditionals.register_data_nodes(result, dev_inputs)
+    return result
 
 
 def cpu_ops():
