@@ -193,7 +193,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
                         int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                         int enable_memory_stats) {
   daliCreatePipeline2(pipe_handle, serialized_pipeline, length, max_batch_size, num_threads,
-                      device_id, 0, 0, separated_execution == 0 ? 1 : 0, prefetch_queue_depth,
+                      device_id, 0, 0, separated_execution, prefetch_queue_depth,
                       cpu_prefetch_queue_depth, gpu_prefetch_queue_depth, enable_memory_stats);
 }
 
