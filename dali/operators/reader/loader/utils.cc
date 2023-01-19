@@ -67,40 +67,4 @@ bool HasKnownExtension(const std::string &filepath) {
   return HasExtension(filepath, extensions);
 }
 
-const TypeInfo& TypeFromCfitsCode(const int fitsDataType) {
-  if (fitsDataType == TBYTE)
-    return TypeTable::GetTypeInfo<uint8_t>();
-  if (fitsDataType == TSHORT)
-    return TypeTable::GetTypeInfo<uint8_t>();
-  if (fitsDataType == TINT)
-    return TypeTable::GetTypeInfo<uint32_t>();
-  if (fitsDataType == TFLOAT)
-    return TypeTable::GetTypeInfo<float>();
-  if (fitsDataType == TDOUBLE)
-    return TypeTable::GetTypeInfo<double>();
-  DALI_FAIL("Unknown fits image type code");
-}
-
-int RecognizeTypeFromCfitsCode(int bitpix){
-  int datatype = 0;
-  switch (bitpix) {
-    case BYTE_IMG:
-      datatype = TBYTE;
-      break;
-    case SHORT_IMG:
-      datatype = TSHORT;
-      break;
-    case LONG_IMG:
-      datatype = TINT;
-      break;
-    case FLOAT_IMG:
-      datatype = TFLOAT;
-      break;
-    case DOUBLE_IMG:
-      datatype = TDOUBLE;
-      break;
-  }
-  return datatype;
-}
-
 }  // namespace dali

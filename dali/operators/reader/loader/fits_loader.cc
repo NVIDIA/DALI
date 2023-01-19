@@ -28,13 +28,51 @@
 
 namespace dali {
 
+
+const TypeInfo& TypeFromCfitsCode(const int fitsDataType) {
+  if (fitsDataType == TBYTE)
+    return TypeTable::GetTypeInfo<uint8_t>();
+  if (fitsDataType == TSHORT)
+    return TypeTable::GetTypeInfo<uint8_t>();
+  if (fitsDataType == TINT)
+    return TypeTable::GetTypeInfo<uint32_t>();
+  if (fitsDataType == TFLOAT)
+    return TypeTable::GetTypeInfo<float>();
+  if (fitsDataType == TDOUBLE)
+    return TypeTable::GetTypeInfo<double>();
+  DALI_FAIL("Unknown fits image type code");
+}
+
+int RecognizeTypeFromCfitsCode(int bitpix) {
+  int datatype = 0;
+  switch (bitpix) {
+    case BYTE_IMG:
+      datatype = TBYTE;
+      break;
+    case SHORT_IMG:
+      datatype = TSHORT;
+      break;
+    case LONG_IMG:
+      datatype = TINT;
+      break;
+    case FLOAT_IMG:
+      datatype = TFLOAT;
+      break;
+    case DOUBLE_IMG:
+      datatype = TDOUBLE;
+      break;
+  }
+  return datatype;
+}
+
 void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto filename = files_[current_index_++];
   fitsfile* infptr;
   int status = 0, hdupos;
   int hdutype, bitpix, bytepix, naxis = 0, nkeys, datatype = 0, ;
   double nulval = 0.0;
-  // FIXME ? first changed to 1 instead of 0 because pixel indexing in fits file starts at 1 instead of 0
+  // FIXME ? first changed to 1 instead of 0 because pixel indexing in fits file starts at 1 instead
+  // of 0
   long first = 1, totpix = 0, anynul, npix;
   // FIXME ? naxes converted to arrays of size max_number_of_axes instead of 9
   long* naxes = NULL;
@@ -97,10 +135,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     DALI_FAIL("Not an image! File: " + filename);
   }
 
-  // function from utils
   datatype = RecognizeTypeFromCfitsCode(bitpix);
-
-  // function from utils
   TypeInfo typeInfo = TypeFromCfitsCode(datatype);
 
   bytepix = abs(bitpix) / 8;

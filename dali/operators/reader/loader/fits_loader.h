@@ -67,9 +67,20 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
     target = {};
   }
 
+  /**
+   *  Type From Cfits Code
+   */
+  const TypeInfo& TypeFromCfitsCode(const int fitsDataType);
+
+  /**
+   * Recognize Type From Cfits Code
+   */
+  int RecognizeTypeFromCfitsCode(int bitpix);
+
   // we want to make it possible to override this function as well
   void ReadSample(FitsFileWrapper& target) override;
 };
+
 
 }  // namespace dali
 
