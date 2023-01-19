@@ -943,7 +943,7 @@ def test_decoders_check(pipeline_fn, data_dir, data_extension, devices=['cpu'], 
 
 @nottest
 def test_decoders_run(pipeline_fn, data_dir, data_extension, devices=['cpu'], exclude_subdirs=[]):
-    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension, 
+    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension,
                                   exclude_subdirs=exclude_subdirs)
     run_pipeline(data, pipeline_fn=pipeline_fn, devices=devices)
 
