@@ -35,7 +35,7 @@ namespace slice_flip_normalize {
  * @tparam Out output type
  * @tparam In input type
  * @tparam spatial_ndim Number of spatial dimensions: 2, 3, or 4 (max is seq of 3D)
- * @tparam channel_dim: points to the channel dimension. -1 if no channel dimension
+ * @tparam channel_dim: points to the channel dimension. Can be either first or last dimension
  *
  * @details see SliceFlipNormalizeGPU::Args
  */

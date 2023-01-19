@@ -53,16 +53,9 @@ int SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::GetOutNumChannels
     std::invalid_argument(
         "Number of samples in the arguments should match the number of samples in the shape");
   }
-  if (sh.num_samples() == 0)
-    return 0;
-  const auto first_sh = sh.tensor_shape_span(0);
-  int nchannels = 1;
-  if (channel_dim < first_sh.size())
-    nchannels = first_sh[channel_dim];
+  int nchannels = GetNumChannels(sh);
   int out_nchannels = std::max(nchannels, static_cast<int>(args.sample_args[0].fill_values.size()));
   for (int i = 1; i < sh.num_samples(); i++) {
-    if (channel_dim > 0 && nchannels != sh.tensor_shape_span(i)[channel_dim])
-      throw std::invalid_argument("All samples should have the same number of channels");
     if (args.sample_args[i].fill_values.size() != args.sample_args[0].fill_values.size())
       throw std::invalid_argument(
           "All sample arguments should have the same number of fill values");
@@ -133,14 +126,10 @@ SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::SetupParams(KernelCon
       fill_values_data[c] = ConvertSat<Out>(0.0f);
   }
 
-  float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
-  Out *fill_values_gpu;
-  std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = ctx.scratchpad->ToContiguousGPU(
+  return ctx.scratchpad->ToContiguousGPU(
       ctx.gpu.stream, make_span(norm_add_cpu, num_samples * nchannels_),
       make_span(norm_mul_cpu, num_samples * nchannels_),
       make_span(fill_values_cpu, num_samples * out_nchannels_));
-
-  return std::tuple<float *, float *, Out *>(norm_add_gpu, norm_mul_gpu, fill_values_gpu);
 }
 
 
@@ -153,10 +142,7 @@ void SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Run(
   int nsamples = in.num_samples();
 
   Sample *samples_cpu = ctx.scratchpad->AllocatePinned<Sample>(nsamples);
-
-  float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
-  Out *fill_values_gpu = nullptr;
-  std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = SetupParams(ctx, args);
+  auto [norm_add_gpu, norm_mul_gpu, fill_values_gpu] = SetupParams(ctx, args);
 
   bool need_pad = out_nchannels_ != nchannels_;
   for (int i = 0; i < nsamples; i++) {
