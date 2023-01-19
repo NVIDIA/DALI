@@ -26,7 +26,6 @@ from nose_utils import assert_raises
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
-from test_utils import numpy_type
 from nose2.tools import params
 
 
@@ -434,7 +433,7 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
 
     ref = np.load(ref_data_dir + f'/{img_name}.npy')
     kwargs = {}
-    np_dtype = numpy_type(dtype)
+    np_dtype = types.to_numpy_type(dtype)
     need_scaling = np.iinfo(np_dtype).max != np_dtype(2**precision-1)
     if need_scaling:
         multiplier = np.iinfo(np_dtype).max / (2**precision-1)

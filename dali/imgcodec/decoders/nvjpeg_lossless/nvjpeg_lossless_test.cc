@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/imgcodec/decoders/nvjpeg_lossless/nvjpeg_lossless.h"
 #include <gtest/gtest.h>
+#include <limits>
 #include <string>
 #include "dali/imgcodec/decoders/decoder_test_helper.h"
-#include "dali/imgcodec/decoders/nvjpeg_lossless/nvjpeg_lossless.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
@@ -26,9 +27,15 @@ namespace test {
 
 namespace {
 
-std::string from_dali_extra(const std::string& path_relative_to_dali_extra) {
-  return make_string_delim('/', testing::dali_extra_path(), path_relative_to_dali_extra);
+std::string data_path(const std::string &relative_path) {
+  return make_string_delim('/', testing::dali_extra_path(), "db/single/jpeg_lossless",
+                           relative_path);
 }
+std::string reference_path(const std::string &relative_path) {
+  return make_string_delim('/', testing::dali_extra_path(), "db/single/reference/jpeg_lossless",
+                           relative_path);
+}
+
 
 struct ImageBuffer {
   std::vector<uint8_t> buffer;
@@ -65,6 +72,15 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
   explicit NvJpegLosslessDecoderTest(int threads_cnt = 1)
   : NumpyDecoderTestBase<GPUBackend, OutputType>(threads_cnt) {}
 
+  template <typename T>
+  void CompareWithRef(const TensorView<StorageCPU, const T>& data,
+                      const std::string& ref_path, int input_precision = -1) {
+    auto ref = this->ReadReferenceFrom(ref_path);
+    if (input_precision > 0)
+      ScaleDynRangeIfNeeded<T>(ref, input_precision);
+    AssertSimilar(data, ref);
+  }
+
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
@@ -84,47 +100,64 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
     opts.use_orientation = true;
     return opts;
   }
+
+ private:
+  template <typename T>
+  void ScaleDynRangeIfNeeded(Tensor<CPUBackend> &data, int input_precision) {
+    static_assert(std::is_unsigned<T>::value && std::is_integral<T>::value);
+    auto *ptr = data.mutable_data<T>();
+    int64_t n = data.shape().num_elements();
+
+    int out_bpp = static_cast<int>(sizeof(T) * 8);
+    if (out_bpp == input_precision)
+      return;
+
+    assert(input_precision < out_bpp);
+    float scale_factor = std::numeric_limits<T>::max() / ((1 << input_precision) - 1);
+    for (int64_t i = 0; i < n; i++)
+      ptr[i] = static_cast<T>(scale_factor * ptr[i]);
+  }
 };
 
 class NvJpegLosslessDecoder16bitTest : public NvJpegLosslessDecoderTest<uint16_t> {};
 class NvJpegLosslessDecoder8bitTest : public NvJpegLosslessDecoderTest<uint8_t> {};
 
 TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle) {
-  ImageBuffer image(
-      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_16bit.jpg"));
+  ImageBuffer image(data_path("0/cat-3449999_640_grayscale_16bit.jpg"));
   auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
 
-  auto ref = this->ReadReferenceFrom(
-      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_16bit.npy"));
-  AssertSimilar(decoded, ref);
+  auto ref_path = reference_path("cat-3449999_640_grayscale_16bit.npy");
+  CompareWithRef(decoded, ref_path);
+}
+
+TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle12bit) {
+  ImageBuffer image(data_path("0/cat-3449999_640_grayscale_12bit.jpg"));
+  auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
+
+  auto ref_path = reference_path("cat-3449999_640_grayscale_12bit.npy");
+  CompareWithRef(decoded, ref_path, 12);
 }
 
 TEST_F(NvJpegLosslessDecoder8bitTest, DecodeSingle) {
-  ImageBuffer image(
-      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_8bit.jpg"));
+  ImageBuffer image(data_path("0/cat-3449999_640_grayscale_8bit.jpg"));
   auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
 
-  auto ref = this->ReadReferenceFrom(
-      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_8bit.npy"));
-  AssertSimilar(decoded, ref);
+  auto ref_path = reference_path("cat-3449999_640_grayscale_8bit.npy");
+  CompareWithRef(decoded, ref_path);
 }
 
 TEST_F(NvJpegLosslessDecoder16bitTest, DecodeBatch) {
   std::vector<ImageBuffer> buffers;
-  buffers.emplace_back(
-      from_dali_extra("db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"));
-  buffers.emplace_back(
-      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_16bit.jpg"));
-  buffers.emplace_back(
-      from_dali_extra("db/single/jpeg_lossless/0/cat-3449999_640_grayscale_12bit.jpg"));
+  buffers.emplace_back(data_path("0/cat-1245673_640_grayscale_16bit.jpg"));
+  buffers.emplace_back(data_path("0/cat-3449999_640_grayscale_16bit.jpg"));
+  buffers.emplace_back(data_path("0/cat-3449999_640_grayscale_12bit.jpg"));
 
-  std::vector<Tensor<CPUBackend>> reference;
-  reference.push_back(this->ReadReferenceFrom(
-      from_dali_extra("db/single/reference/jpeg_lossless/cat-1245673_640_grayscale_16bit.npy")));
-  reference.push_back(this->ReadReferenceFrom(
-      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_16bit.npy")));
-  reference.push_back(this->ReadReferenceFrom(
-      from_dali_extra("db/single/reference/jpeg_lossless/cat-3449999_640_grayscale_12bit.npy")));
+  std::vector<std::string> reference;
+  reference.push_back(reference_path("cat-1245673_640_grayscale_16bit.npy"));
+  reference.push_back(reference_path("cat-3449999_640_grayscale_16bit.npy"));
+  reference.push_back(reference_path("cat-3449999_640_grayscale_12bit.npy"));
+
+  std::vector<int> precision = {16, 16, 12};
 
   std::vector<ImageSource *> sources;
   for (auto &buff : buffers)
@@ -134,7 +167,7 @@ TEST_F(NvJpegLosslessDecoder16bitTest, DecodeBatch) {
   auto decoded = this->Decode(make_cspan(sources), this->GetParams());
   assert(decoded.size() == nsamples);
   for (int i = 0; i < nsamples; i++) {
-    AssertSimilar(decoded[i], reference[i]);
+    CompareWithRef(decoded[i], reference[i], precision[i]);
   }
 }
 

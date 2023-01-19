@@ -409,31 +409,6 @@ def dali_type(t):
     raise TypeError("Unsupported type: " + str(t))
 
 
-def numpy_type(t):
-    import_numpy()
-    if t is None:
-        return None
-    if t is types.FLOAT16:
-        return np.float16
-    if t is types.FLOAT:
-        return np.float32
-    if t is types.UINT8:
-        return np.uint8
-    if t is types.INT8:
-        return np.int8
-    if t is types.UINT16:
-        return np.uint16
-    if t is types.INT16:
-        return np.int16
-    if t is types.INT16:
-        return np.int16
-    if t is types.UINT32:
-        return np.uint32
-    if t is types.INT32:
-        return np.int32
-    raise TypeError("Unsupported type: " + str(t))
-
-
 def py_buffer_from_address(address, shape, dtype, gpu=False):
     import_numpy()
 
@@ -536,7 +511,7 @@ def read_file_bin(filename):
     return np.fromfile(filename, dtype='uint8')
 
 
-def filter_files(dirpath, suffix):
+def filter_files(dirpath, suffix, exclude_subdirs=[]):
     """
     Read all file names recursively from a directory and filter those, which end with given suffix
     :param dirpath: Path to directory, from which the file names will be read
@@ -545,6 +520,9 @@ def filter_files(dirpath, suffix):
     """
     fnames = []
     for dir_name, subdir_list, file_list in os.walk(dirpath):
+        for d in exclude_subdirs:
+            if d in subdir_list:
+                subdir_list.remove(d)
         flist = filter(lambda fname: fname.endswith(suffix), file_list)
         flist = map(lambda fname: os.path.join(dir_name, fname), flist)
         fnames.extend(flist)
