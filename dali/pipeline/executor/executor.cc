@@ -567,19 +567,29 @@ template<OpType op_type>
 void Executor<WorkspacePolicy, QueuePolicy>::AssignOperatorInstanceNames() {
   static_assert(std::is_same_v<WorkspacePolicy, AOT_WS_Policy<QueuePolicy>>,
                 "Only AOT Policy shall be used.");
-  for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
-    for (int mxd = 0; mxd < queue_sizes_.gpu_size; mxd++) {
-      for (int gpu = 0; gpu < queue_sizes_.gpu_size; gpu++) {
-        for (int op = 0; op < graph_->NumOp(op_type); op++) {
-          OpNode &op_node = graph_->Node(op_type, op);
-          auto &ws = ws_policy_.template GetWorkspace<op_type>(
-                  std::is_same_v<QueuePolicy, UniformQueuePolicy> ?
-                  QueueIdxs(cpu) : QueueIdxs(cpu, mxd, gpu),
-                  *graph_, op_node);
-          ws.SetOperatorInstanceName(op_node.instance_name);
+  if constexpr (std::is_same_v<QueuePolicy, SeparateQueuePolicy>) {
+    for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+      for (int mxd = 0; mxd < queue_sizes_.gpu_size; mxd++) {
+        for (int gpu = 0; gpu < queue_sizes_.gpu_size; gpu++) {
+          for (int op = 0; op < graph_->NumOp(op_type); op++) {
+            OpNode &op_node = graph_->Node(op_type, op);
+            auto &ws = ws_policy_.template GetWorkspace<op_type>(
+                    QueueIdxs(cpu, mxd, gpu), *graph_, op_node);
+            ws.SetOperatorInstanceName(op_node.instance_name);
+          }
         }
       }
     }
+  } else if constexpr (std::is_same_v<QueuePolicy, UniformQueuePolicy>) {
+    for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+      for (int op = 0; op < graph_->NumOp(op_type); op++) {
+        OpNode &op_node = graph_->Node(op_type, op);
+        auto &ws = ws_policy_.template GetWorkspace<op_type>(QueueIdxs(cpu), *graph_, op_node);
+        ws.SetOperatorInstanceName(op_node.instance_name);
+      }
+    }
+  } else {
+    assert(false);  // This shouldn't be reached
   }
 }
 
