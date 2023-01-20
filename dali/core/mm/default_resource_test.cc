@@ -324,6 +324,15 @@ mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
   return nullptr;
 }
 
+static mm::cuda_vm_resource *GetVMMDefaultResource(int device_id = -1) {
+  auto *res = mm::GetDefaultDeviceResource(device_id);
+  if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+    return dynamic_cast<mm::cuda_vm_resource*>(up->upstream());
+  }
+  return nullptr;
+}
+
+
 static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
   auto *dev = mm::GetDefaultDeviceResource(0);
   auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
@@ -460,10 +469,12 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
                              "requested amount of memory from the pool.";
 
-  auto *vm_res = dynamic_cast<mm::cuda_vm_resource*>(pool);
+  auto *vm_res = GetVMMDefaultResource(device_id);
   int prev_unmaps = 0;
-  if (vm_res)
+  if (vm_res) {
     prev_unmaps = vm_res->get_stat().total_unmaps;
+    std::cout << "Unmaps (pre)  " << prev_unmaps << std::endl;
+  }
 
   res->deallocate(mem, size, alignment);
 
@@ -479,6 +490,7 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   if (vm_res) {
     // some unmapping should have occurred
     EXPECT_GT(vm_res->get_stat().total_unmaps, prev_unmaps);
+    std::cout << "Unmaps (post) " << vm_res->get_stat().total_unmaps << std::endl;
   }
 }
 
