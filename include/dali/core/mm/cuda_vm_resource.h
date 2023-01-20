@@ -180,11 +180,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
             auto *start_ptr = region.block_ptr<char>(start);
             auto *end_ptr = region.block_ptr<char>(end);
             for (ptrdiff_t i = start; i < end; i++) {
-              try {
-                blocks_to_free.push_back(region.unmap_block(i));
-              } catch (dali::CUDABadAlloc&) {
-                ???
-              }
+              blocks_to_free.push_back(region.unmap_block(i));
               stat_.total_unmaps++;
             }
             free_mapped_.get_specific_block(start_ptr, end_ptr);
