@@ -424,10 +424,8 @@ TEST(MMDefaultResource, PreallocatePinnedMemory) {
   mm::ReleaseUnusedMemory();
 }
 
-TEST(MMDefaultResource, PreallocateDeviceMemory) {
-  int num_devices = 0;
-  CUDA_CALL(cudaGetDeviceCount(&num_devices));
-  int device_id = num_devices > 1 ? 1 : 0;
+static void TestPreallocateDeviceMemory(bool multigpu) {
+  int device_id = multigpu ? 1 : 0;
   DeviceGuard dg(device_id);
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
 
@@ -470,6 +468,20 @@ TEST(MMDefaultResource, PreallocateDeviceMemory) {
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free1, &total));
   EXPECT_GE(free1, free0);  // it can be more if some managed memory was reclaimed
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
+  TestPreallocateDeviceMemory(false);
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory_MultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices >= 2) {
+    TestPreallocateDeviceMemory(true);
+  } else {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
 }
 
 }  // namespace test
