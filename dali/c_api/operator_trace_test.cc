@@ -145,6 +145,7 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
       daliOutputRelease(&h);
     }
   }
+  daliDeletePipeline(&h);
 }
 
 
@@ -229,20 +230,20 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
 
     // Feed CPU input data.
-    for (int i = 0; i < prefetch_depth * batch_size_; i++) {
+    for (int i = 0; i < prefetch_depth; i++) {
       size_t sample_size = 42;
       auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
-      std::vector<int64_t> shapes(sample_size, 42);
+      std::vector<int64_t> shapes(batch_size_, sample_size);
       daliSetExternalInput(&h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.data(),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_default);
     }
 
     // Feed GPU input data.
-    for (int i = 0; i < prefetch_depth * batch_size_; i++) {
+    for (int i = 0; i < prefetch_depth; i++) {
       int sample_size = 42;
       auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
-      std::vector<int64_t> shapes{sample_size, 42};
+      std::vector<int64_t> shapes(batch_size_, sample_size);
       daliSetExternalInput(&h, "OP_TRACE_IN_GPU", device_type_t::GPU,
                            thrust::raw_pointer_cast(in_data.data()), dali_data_type_t::DALI_UINT8,
                            shapes.data(), 1, nullptr, DALI_ext_default);
@@ -263,6 +264,7 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
       daliOutputRelease(&h);
     }
   }
+  daliDeletePipeline(&h);
 }
 
 
