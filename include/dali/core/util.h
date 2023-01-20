@@ -16,6 +16,7 @@
 #define DALI_CORE_UTIL_H_
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
