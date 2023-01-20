@@ -62,7 +62,7 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
     const OpSpec& spec, 
     bool shuffle_after_epoch = false)
       : FileLoader(spec, shuffle_after_epoch) {
-        hdu_index_ = 0; 
+        hdu_index_ = 2; // we try to ommit primary hdu 
       }
 
   void PrepareEmpty(FitsFileWrapper& target) override {
