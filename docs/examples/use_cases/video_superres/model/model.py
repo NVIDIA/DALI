@@ -177,7 +177,7 @@ class VSRNet(nn.Module):
             y[:, :, fr, :, :] = self.upsample(downsampled_input)
 
             if fr == self.mi:
-                conv1_out.append(self.conv1(y[:, :, self.mi, :, :]))
+                conv1_out.append(self.conv1(y[:, :, self.mi, :, :].clone()))
             else:
                 im1 = inputs[:, :, fr, :, :]
                 im2 = inputs[:, :, self.mi, :, :]

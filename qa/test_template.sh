@@ -9,8 +9,10 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
+export PYTHONPATH=${PYTHONPATH}:$topdir/qa
 python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
-python_test_runner="python -m nose"
+# use DALI nose wrapper to patch nose to support Python 3.10
+python_test_runner="python -m nose_wrapper"
 python_test_args="--verbose --with-timer --timer-top-n 20 -s"
 python_invoke_test="${python_test_runner} ${python_test_args}"
 
@@ -113,11 +115,18 @@ process_sanitizers_logs() {
     find $topdir -iname "sanitizer.log*" -delete
 }
 
-# get extra index url for given packages
+# get extra index url for given packages - PEP 503 Python Package Index
 extra_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -e)
 extra_indices_string=""
 for e in ${extra_indices}; do
     extra_indices_string="${extra_indices_string} --extra-index-url=${e}"
+done
+
+# get link index url for given packages -  a URL or path to an html file with links to archives
+link_indices=$($topdir/qa/setup_packages.py -u $pip_packages --cuda ${CUDA_VERSION} -k)
+link_indices_string=""
+for e in ${link_indices}; do
+    link_indices_string="${link_indices_string} -f ${e}"
 done
 
 # store the original LD_LIBRARY_PATH
@@ -144,7 +153,7 @@ do
         if [ -n "$inst" ]; then
             for pkg in ${inst}
             do
-                install_pip_pkg "pip install $pkg -f /pip-packages ${extra_indices_string}"
+                install_pip_pkg "pip install $pkg -f /pip-packages ${link_indices_string} ${extra_indices_string}"
             done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin

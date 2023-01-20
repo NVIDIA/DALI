@@ -42,7 +42,7 @@ if not initialized:
     initialized = True
 
     # py39 warning
-    if sys.version_info[0] == 3 and sys.version_info[1] >= 10:
+    if sys.version_info[0] == 3 and sys.version_info[1] >= 11:
         deprecation_warning("DALI support for Python {0}.{1} is experimental and some "
                             "functionalities may not work."
                             "".format(sys.version_info[0], sys.version_info[1]))
