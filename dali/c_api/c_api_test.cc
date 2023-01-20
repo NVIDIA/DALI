@@ -200,6 +200,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     Check(view<uint8_t>(pipeline_output_cpu),
           TensorListView<StorageCPU, uint8_t>(cpu_buf.get(), pipeline_output_cpu.shape()));
   }
+  daliOutputRelease(&handle);
 }
 
 }  // namespace
