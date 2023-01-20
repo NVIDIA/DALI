@@ -137,9 +137,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
  protected:
-  DLL_PUBLIC void RunCPUImpl();
-  DLL_PUBLIC void RunMixedImpl();
-  DLL_PUBLIC void RunGPUImpl();
+  DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
+  DLL_PUBLIC void RunMixedImpl(size_t iteration_id);
+  DLL_PUBLIC void RunGPUImpl(size_t iteration_id);
+  DLL_PUBLIC void ShareOutputsImpl(Workspace *ws, size_t iteration_id);
   DLL_PUBLIC void SyncDevice();
 
   template <typename T>
@@ -343,8 +344,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   WorkspacePolicy ws_policy_;
 
+  std::vector<IterationData> iteration_data_;
+  size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
+  size_t output_iteration_id_ = 0;
+
  private:
-  void RunHelper(OpNode &op_node, Workspace &ws);
+  void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
   void RethrowError() const {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -371,6 +376,58 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   int InferBatchSize(const std::vector<BatchSizeProvider *> &batch_size_providers) const;
 
   void PreRun();
+
+  /**
+   * Calculates, what shall be the size of the iteration_data_ vector. This size will vary
+   * depending on the type of the Executor used.
+   * @return The size of iteration_data_ vector.
+   */
+  virtual size_t CalcIterationDataSize() const;
+
+  /**
+   * Initializes structures that track the iteration data.
+   */
+  void InitIterationData();
+
+
+  /**
+   * Assigns IDs of all operators to the Workspaces that are associated with those operators.
+   */
+  template<OpType op_type>
+  void AssignOperatorInstanceNames() {
+    static_assert(std::is_same_v<WorkspacePolicy, AOT_WS_Policy<QueuePolicy>>,
+                  "Only AOT Policy shall be used.");
+    if constexpr (std::is_same_v<QueuePolicy, SeparateQueuePolicy>) {
+      for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+        for (int mxd = 0; mxd < queue_sizes_.gpu_size; mxd++) {
+          for (int gpu = 0; gpu < queue_sizes_.gpu_size; gpu++) {
+            for (int op = 0; op < graph_->NumOp(op_type); op++) {
+              OpNode &op_node = graph_->Node(op_type, op);
+              auto &ws = ws_policy_.template GetWorkspace<op_type>(
+                      QueueIdxs(cpu, mxd, gpu), *graph_, op_node);
+              ws.SetOperatorInstanceName(op_node.instance_name);
+            }
+          }
+        }
+      }
+    } else if constexpr (std::is_same_v<QueuePolicy, UniformQueuePolicy>) {  // NOLINT
+      for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+        for (int op = 0; op < graph_->NumOp(op_type); op++) {
+          OpNode &op_node = graph_->Node(op_type, op);
+          auto &ws = ws_policy_.template GetWorkspace<op_type>(QueueIdxs(cpu), *graph_, op_node);
+          ws.SetOperatorInstanceName(op_node.instance_name);
+        }
+      }
+    } else {
+      assert(false);  // This shouldn't be reached
+    }
+  }
+
+
+  /**
+   * Returns the iteration data for given iteration ID and stage.
+   */
+  virtual IterationData& GetCurrentIterationData(size_t iteration_id);
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -442,6 +499,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   SetupOutputQueuesForGraph();
 
   DiscoverBatchSizeProviders();
+
+  InitIterationData();
+
+  AssignOperatorInstanceNames<OpType::CPU>();
+  AssignOperatorInstanceNames<OpType::MIXED>();
+  AssignOperatorInstanceNames<OpType::GPU>();
 }
 
 
@@ -458,61 +521,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Outputs(Workspace *ws) {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(Workspace *ws) {
-  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  DeviceGuard g(device_id_);
-  ws->Clear();
-
-  if (exec_error_ || QueuePolicy::IsStopSignaled())
-    RethrowError();
-
-  auto output_idx = QueuePolicy::UseOutputIdxs();
-
-  if (exec_error_ || QueuePolicy::IsStopSignaled())
-    RethrowError();
-
-  // We need to fill the output workspace with pointers to appropriate output buffers.
-  for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
-    auto out_tensor_id = pipeline_outputs_[i];
-    auto &out_tensor = graph_->Tensor(out_tensor_id);
-    auto op_type = graph_->Node(out_tensor.producer.node).op_type;
-    auto storage_dev = out_tensor.producer.storage_device;
-    VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
-    (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
-      (
-        auto &queue = get_queue<op_type_static, storage_dev_static>(
-            tensor_to_store_queue_[out_tensor_id]);
-        auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
-      ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
-    ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
-  }
-
-  // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
-  for (int i = 0; i < ws->NumOutput(); i++) {
-    const char *error_msg =
-        "DALI internal error: all outputs from the Pipeline must be contiguous after being "
-        "processed by MakeContiguous operator.";
-    if (ws->OutputIsType<CPUBackend>(i)) {
-      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);
-    } else {
-      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(), error_msg);
-    }
-  }
-
-  // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
-  // If the output event list is not empty, it means that there are outputs on GPU that we
-  // have to wait for.
-  AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
-
-  if (!mixed_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::MIXED];
-    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
-  }
-  if (!gpu_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::GPU];
-    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
-  }
+  ShareOutputsImpl(ws, output_iteration_id_++);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>

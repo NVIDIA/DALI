@@ -121,6 +121,34 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *
                                    int enable_memory_stats);
 
 /**
+ * Create a DALI Pipeline, using a pipeline that has been serialized beforehand.
+ *
+ * @param pipe_handle Pipeline handle.
+ * @param serialized_pipeline Serialized pipeline.
+ * @param length Length of the serialized pipeline string.
+ * @param max_batch_size Maximum batch size.
+ * @param num_threads Number of CPU threads which this pipeline uses.
+ * @param device_id ID of the GPU device which this pipeline uses.
+ * @param pipelined_execution If != 0, this pipeline will execute in Pipeline mode.
+ * @param async_execution If != 0, this pipeline will execute asynchronously.
+ * @param separated_execution If != 0, this pipeline will have different depths
+ *                            of the CPU and GPU prefetching queues.
+ * @param prefetch_queue_depth Depth of the prefetching queue.
+ *                             If `separated_execution != 0`, this value is ignored.
+ * @param cpu_prefetch_queue_depth Depth of the prefetching queue in the CPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param gpu_prefetch_queue_depth Depth of the prefetching queue in the GPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param enable_memory_stats Enable memory stats.
+ */
+DLL_PUBLIC void
+daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id, int pipelined_execution,
+                    int async_execution, int separated_execution, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats);
+
+/**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
  * from serialized pipeline.
  */
@@ -482,6 +510,46 @@ DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id
  * @brief Returns device_type_t indicating device backing pipeline output given by id
  */
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
+
+
+/**
+ * @name Operator traces
+ * @{
+ */
+/**
+ * Checks, if given operator produced a trace with given name.
+ *
+ * In case the name of non-existing operator is provided,
+ * the behaviour of this function is undefined.
+ *
+ * @return 0, if the trace with given name does not exist.
+ */
+DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                                    const char *trace_name);
+
+/**
+ * Returns the traces of the given operator in the DALI Pipeline.
+ *
+ * Operator Traces is a communication mechanism with particular operators in the pipeline. For
+ * more information @see operator_trace_map_t.
+ *
+ * User does not own the returned value. In a situation, when changing of this value is necessary,
+ * user shall copy it to his own memory. The lifetime of this value ends, when the
+ * daliOutputRelease() is called.
+ *
+ * User shall check, if the trace with given name exists (@see daliHasOperatorTrace). In case the
+ * name of non-existing operator or non-existing trace is provided, the behaviour of this function
+ * is undefined.
+ *
+ * @param operator_name Name of the operator, which trace shall be returned.
+ * @param trace_name Name of the requested trace.
+ * @return Operator trace.
+ */
+DLL_PUBLIC const char *
+daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                     const char *trace_name);
+/** @} */
+
 
 /**
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.

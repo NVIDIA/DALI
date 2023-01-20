@@ -187,16 +187,31 @@ void daliInitialize() {
   std::call_once(init_flag, init);
 }
 
+
 void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                         int length, int max_batch_size, int num_threads, int device_id,
                         int separated_execution, int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                         int enable_memory_stats) {
+  daliCreatePipeline2(pipe_handle, serialized_pipeline, length, max_batch_size, num_threads,
+                      device_id, 1, 1, separated_execution, prefetch_queue_depth,
+                      cpu_prefetch_queue_depth, gpu_prefetch_queue_depth, enable_memory_stats);
+}
+
+
+DLL_PUBLIC void
+daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id, int pipelined_execution,
+                    int async_execution, int separated_execution, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats) {
   bool se = separated_execution != 0;
+  bool pe = pipelined_execution != 0;
+  bool ae = async_execution != 0;
   auto pipeline =
-      std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
-                                       num_threads, device_id, true, prefetch_queue_depth, true);
-  pipeline->SetExecutionTypes(true, se, true);
+          std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
+                                           num_threads, device_id, pe, prefetch_queue_depth, ae);
+  pipeline->SetExecutionTypes(pe, se, ae);
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
@@ -540,6 +555,7 @@ const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id) {
   return pipeline->output_name(id).c_str();
 }
 
+
 device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   if (pipeline->output_device(id) == "gpu") {
@@ -547,6 +563,30 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
   }
   return device_type_t::CPU;
 }
+
+
+int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                         const char *trace_name) {
+  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  try {
+    auto& traces = ws->GetOperatorTraces(operator_name);
+    return traces.find(trace_name) != traces.end() ? 1 : 0;
+  } catch (std::out_of_range&) {
+    return -1;
+  }
+}
+
+
+const char *
+daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                     const char *trace_name) {
+  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  if (daliHasOperatorTrace(pipe_handle, operator_name, trace_name)) {
+    return ws->GetOperatorTraces(operator_name).at(trace_name).c_str();
+  }
+  return nullptr;
+}
+
 
 void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
                     device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
