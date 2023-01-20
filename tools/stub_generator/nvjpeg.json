@@ -41,6 +41,9 @@
       "nvjpegDecodeJpegDevice": {},
       "nvjpegBufferDeviceCreate": {},
       "nvjpegGetProperty": {},
-      "nvjpegGetHardwareDecoderInfo": {}
+      "nvjpegGetHardwareDecoderInfo": {},
+      "nvjpegJpegStreamGetSamplePrecision": {},
+      "nvjpegJpegStreamParseHeader": {},
+      "nvjpegCreateEx": {}
    }
 }
