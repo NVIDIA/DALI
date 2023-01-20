@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -338,6 +338,18 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         // calculate the volume in all other dimensions
         out_sample_shape[wildcard_dim] = 1;
         auto other_dims_volume = volume(out_sample_shape);
+        if (other_dims_volume == 0) {
+          if (wildcard_dim < input_shape_.sample_dim() &&
+              output_shape_.sample_dim() > input_shape_.sample_dim()) {
+            DALI_FAIL(make_string("Cannot infer the extent of dimension ", wildcard_dim,
+              " for ", output_shape_.sample_dim(), "D output and ", input_shape_.sample_dim(),
+              "D input. Use `src_dims` to achieve more complex "
+              "mapping of input to output dimensions."));
+          } else {
+            DALI_FAIL(make_string("Cannot infer the extent of dimension ", wildcard_dim,
+              " when the volume of remaining dimensions is 0. Input shape: ", input_shape_[i]));
+          }
+        }
         // try to make wildcard dim match the input volume - if it fails,
         // volume comparison will fail
         out_sample_shape[wildcard_dim] = (actual_volume * input_element_size) /

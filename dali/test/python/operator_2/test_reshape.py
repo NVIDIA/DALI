@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -369,3 +369,23 @@ def test_reshape_src_dims_throw_error():
         pipe.build()
         with assert_raises(RuntimeError, regex=err_regex):
             pipe.run()
+
+
+def test_invalid_wildcard():
+    shapes = [[480, 640], [320, 240]]
+    pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                        rel_shape=[1, -1, 1])
+    pipe.build()
+    err_glob = "*Cannot infer*dimension 1 for 3D output and 2D input*Use `src_dims`*"
+    with assert_raises(RuntimeError, glob=err_glob):
+        pipe.run()
+
+
+def test_wildcard_zero_volume():
+    shapes = [[480, 640], [320, 0]]
+    pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                        rel_shape=[-1, 1])
+    pipe.build()
+    err_glob = "*Cannot infer*dimension 0 when the volume*is 0. Input shape:*320 x 0"
+    with assert_raises(RuntimeError, glob=err_glob):
+        pipe.run()
