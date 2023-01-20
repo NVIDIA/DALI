@@ -429,9 +429,6 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   DeviceGuard dg(device_id);
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
 
-  size_t free0, free1, total;
-  CUDA_CALL(cudaMemGetInfo(&free0, &total));
-
   CUDA_CALL(cudaSetDevice(0));
 
   auto *res = mm::GetDefaultDeviceResource(device_id);
@@ -463,11 +460,26 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
                              "requested amount of memory from the pool.";
 
+  auto *vm_res = dynamic_cast<mm::cuda_vm_resource*>(pool);
+  int prev_unmaps = 0;
+  if (vm_res)
+    prev_unmaps = vm_res->get_stat().total_unmaps;
+
   res->deallocate(mem, size, alignment);
 
   mm::ReleaseUnusedMemory();
-  CUDA_CALL(cudaMemGetInfo(&free1, &total));
-  EXPECT_GE(free1, free0);  // it can be more if some managed memory was reclaimed
+
+  // Some memory should have been deallocated in ReleaseUnusedMemory, so now the
+  // allocation from the pool should fail again.
+  mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_EQ(mem, nullptr);
+  if (mem)
+    res->deallocate(mem, size, alignment);
+
+  if (vm_res) {
+    // some unmapping should have occurred
+    EXPECT_GT(vm_res->get_stat().total_unmaps, prev_unmaps);
+  }
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory) {
