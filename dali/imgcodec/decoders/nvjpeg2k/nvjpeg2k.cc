@@ -58,10 +58,18 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
+  bool resource_allocation_successful = true;
   ForEachThread(*tp_, [&](int tid) noexcept {
-    CUDA_CALL(cudaSetDevice(device_id));
-    per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+    try {
+      CUDA_CALL(cudaSetDevice(device_id));
+      per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+    } catch (dali::CUDAError&) {
+      resource_allocation_successful = false;
+    }
   });
+  if (!resource_allocation_successful) {
+    throw std::runtime_error("Unsuccessful resource allocation for NvJpeg2000 decoder.");
+  }
 
   for (const auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -80,7 +88,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
 NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
   tp_->WaitForWork();
   for (const auto &res : per_thread_resources_)
-    CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));
+    CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));  // Intentionally throwing in noexcept scope.
 
   ForEachThread(*tp_, [&](int tid) {
       auto &res = per_thread_resources_[tid];
@@ -89,7 +97,7 @@ NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
       res.intermediate_buffer.free();
     });
 
-  for (auto thread_id : tp_->GetThreadIds())
+  for (auto& thread_id : tp_->GetThreadIds())
     nvjpeg_memory::DeleteAllBuffers(thread_id);
 }
 

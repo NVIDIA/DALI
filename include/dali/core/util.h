@@ -87,21 +87,25 @@ constexpr Value align_up(Value v, Alignment a) {
 
 DALI_HOST_DEV
 constexpr int32_t div_ceil(int32_t total, uint32_t grain) {
+  assert(grain != 0);
   return (total + grain - 1) / grain;
 }
 
 DALI_HOST_DEV
 constexpr uint32_t div_ceil(uint32_t total, uint32_t grain) {
+  assert(grain != 0);
   return (total + grain - 1) / grain;
 }
 
 DALI_HOST_DEV
 constexpr int64_t div_ceil(int64_t total, uint64_t grain) {
+  assert(grain != 0);
   return (total + grain - 1) / grain;
 }
 
 DALI_HOST_DEV
 constexpr uint64_t div_ceil(uint64_t total, uint64_t grain) {
+  assert(grain != 0);
   return (total + grain - 1) / grain;
 }
 

@@ -127,11 +127,12 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     , cuda_stream(res.cuda_stream)
     , tile_dec_res(make_cspan(res.tile_dec_res)) {}
 
-    nvjpeg2kImageInfo_t image_info;
+
+    nvjpeg2kImageInfo_t image_info{0, 0, 0, 0, 0, 0, 0};
     /** @brief Bits per pixel */
-    uint8_t bpp;
+    uint8_t bpp = 0;
     /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
-    DALIDataType pixel_type;
+    DALIDataType pixel_type = DALIDataType::DALI_NO_TYPE;
     TensorShape<> shape;
 
     DecodeParams opts;

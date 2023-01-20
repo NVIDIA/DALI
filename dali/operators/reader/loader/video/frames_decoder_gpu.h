@@ -78,7 +78,7 @@ class NVDECLease {
     }
 
     ~NVDECLease() {
-      Return();
+      Return();  // Intentionally throwing in noexcept scope.
     }
 
     void Return();

@@ -27,13 +27,17 @@ class CfitsioTest : public ::testing::Test {
   char filename[40];
   fitsfile *fptr;
 
-  virtual void SetUp() {
+  void SetUp() final {
     status = 0;
-    remove("testprog.fit");
+    if (remove("testprog.fit") != 0) {
+      std::cerr << "Failed to remove the file.\n";
+    }
   }
 
-  virtual void TearDown() {
-    remove("testprog.fit");
+  void TearDown() final {
+    if (remove("testprog.fit") != 0) {
+      std::cerr << "Faild to remove the file.\n";
+    }
   }
 };
 

@@ -127,7 +127,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   virtual ~InputOperator() {
-    sync_worker_.ForceStop();
+    sync_worker_.ForceStop();  // Intentionally throwing in noexcept scope.
     sync_worker_.Shutdown();
   }
 

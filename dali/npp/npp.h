@@ -49,7 +49,7 @@ inline NppiInterpolationMode to_npp(DALIInterpType interp) {
 }
 
 inline NppStreamContext CreateNppContext(int device_id) {
-  NppStreamContext npp_ctx;
+  NppStreamContext npp_ctx{};
   npp_ctx.nCudaDeviceId = device_id;
   CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx.nCudaDevAttrComputeCapabilityMajor,
                                    cudaDevAttrComputeCapabilityMajor, npp_ctx.nCudaDeviceId));

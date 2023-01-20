@@ -124,6 +124,7 @@ class SliceFlipNormalizePermutePadGpu {
     if (block_remainder != 0) {
       block_count_ += number_of_blocks - block_remainder;
     }
+    assert(block_count_ != 0);
     block_size_ = div_ceil(all_sample_sizes, block_count_);
 
     block_count_ = 0;
