@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class Reshape : public Operator<Backend> {
   void ShapeFromInput(const TensorListLike &tl, bool relative);
 
   template <typename Extent>
-  void ShapeFromInput(const TensorListView<StorageCPU, Extent> &shape);
+  void ShapeFromInput(const TensorListView<StorageCPU, const Extent> &shape);
 
   TensorLayout GetOutputLayout(const Workspace &ws) const;
 };

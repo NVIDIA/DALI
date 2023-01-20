@@ -197,11 +197,40 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
   return false;
 }
 
+template <typename OutSampleShape, typename InSampleShape, typename ShapeArg>
+void SetOutputSampleShape(OutSampleShape &&out_shape,
+                          const InSampleShape &in_shape,
+                          const ShapeArg &arg,
+                          const int *src_dims,
+                          int out_ndim) {
+  for (int d = 0; d < out_ndim; d++) {
+    auto e = arg[d];
+    constexpr bool relative = std::is_floating_point<decltype(e)>::value;
+
+    int src_d = src_dims ? src_dims[d] : d;
+
+    assert(src_d >= -1 && src_d <= static_cast<int>(dali::size(in_shape)));
+
+    int out_e = 1;
+    if (e < 0) {
+      out_e = -1;
+    } else if (relative) {
+      if (src_d < 0)
+        out_e = 1;
+      else
+        out_e = round_int(e * in_shape[src_d]);
+    } else {
+      out_e = e;
+    }
+
+    out_shape[d] = out_e;
+  }
+}
+
 template <typename Backend>
 template <typename Extent>
 void Reshape<Backend>::ShapeFromInput(
-      const TensorListView<StorageCPU, Extent> &shape) {
-  constexpr bool relative = std::is_floating_point<Extent>::value;
+      const TensorListView<StorageCPU, const Extent> &shape) {
   DALI_ENFORCE(shape.sample_dim() == 1 || (shape.sample_dim() == 2 && shape.num_samples() == 1),
     make_string(OpName(), ": shape input must be a list of 1D tensors or a single 2D tensor"));
   if (shape.sample_dim() == 2) {
@@ -213,11 +242,11 @@ void Reshape<Backend>::ShapeFromInput(
     int dim = shape_tensor.shape[1];
     output_shape_.resize(N, dim);
     for (int i = 0; i < N; i++) {
-      for (int d = 0; d < dim; d++) {
-        Extent e = *shape_tensor(i, d);
-        int out_e = e < 0 ? -1 : relative ? round_int(e * input_shape_.tensor_shape_span(i)[d]) : e;
-        output_shape_.tensor_shape_span(i)[d] = out_e;
-      }
+      SetOutputSampleShape(output_shape_.tensor_shape_span(i),
+                            input_shape_.tensor_shape_span(i),
+                            shape_tensor(i),
+                            use_src_dims_ ? src_dims_.data() : nullptr,
+                            dim);
     }
   } else {
     int N = shape.num_samples();
@@ -235,11 +264,11 @@ void Reshape<Backend>::ShapeFromInput(
           make_string(OpName(), ": all samples must have the same number of dimensions"));
       }
 
-      for (int d = 0; d < sample_dim; d++) {
-        Extent e = shape.tensor_data(i)[d];
-        int out_e = e < 0 ? -1 : relative ? round_int(e * input_shape_.tensor_shape_span(i)[d]) : e;
-        output_shape_.tensor_shape_span(i)[d] = out_e;
-      }
+      SetOutputSampleShape(output_shape_.tensor_shape_span(i),
+                           input_shape_.tensor_shape_span(i),
+                           shape.tensor_data(i),
+                           use_src_dims_ ? src_dims_.data() : nullptr,
+                           sample_dim);
     }
   }
 }
