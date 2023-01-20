@@ -61,24 +61,19 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
   explicit inline FitsLoader(
     const OpSpec& spec, 
     bool shuffle_after_epoch = false)
-      : FileLoader(spec, shuffle_after_epoch) {}
+      : FileLoader(spec, shuffle_after_epoch) {
+        hdu_index_ = 0; 
+      }
 
   void PrepareEmpty(FitsFileWrapper& target) override {
     target = {};
   }
 
-  /**
-   *  Type From Cfits Code
-   */
-  const TypeInfo& TypeFromCfitsCode(const int fitsDataType);
-
-  /**
-   * Recognize Type From Cfits Code
-   */
-  int RecognizeTypeFromCfitsCode(int bitpix);
-
   // we want to make it possible to override this function as well
   void ReadSample(FitsFileWrapper& target) override;
+  
+private:
+  int hdu_index_; 
 };
 
 
