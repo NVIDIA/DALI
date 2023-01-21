@@ -52,8 +52,9 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
   auto max_blocks = static_cast<int>((max_sample_size + kBlockSize - 1) * kOneOverBlockSize);
   dim3 block_size(kBlockSize);
   dim3 grid_size(std::min(max_blocks, 64), std::min(n_samples, 64));
-  CUDA_CALL(shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
-                    (data_buffers, sample_sizes, n_samples, shift_value));
+  shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
+          (data_buffers, sample_sizes, n_samples, shift_value);
+  CUDA_CALL(cudaGetLastError());
 }
 
 
