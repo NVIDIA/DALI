@@ -151,8 +151,7 @@ class pool_resource : public memory_resource<Kind>,
    */
   void release_unused() override {
     upstream_lock_guard uguard(upstream_lock_);
-
-    release_unused_impl();
+    release_unused_impl(true);
   }
 
  protected:
@@ -251,7 +250,7 @@ class pool_resource : public memory_resource<Kind>,
     return new_block;
   }
 
-  int release_unused_impl() {
+  int release_unused_impl(bool shrink_next_block_size = false) {
     // go over blocks and find ones that are completely covered by free regions
     // - we can free such blocks.
     int blocks_freed = 0;
@@ -278,6 +277,17 @@ class pool_resource : public memory_resource<Kind>,
         blocks_.erase_at(i);
       }
     }
+    if (shrink_next_block_size) {
+      if (blocks_.empty()) {
+        next_block_size_ = options_.min_block_size;
+      } else {
+        next_block_size_ = blocks_.back().bytes;
+        // next_block_size() uses the previous value of next_block_size_ and modifies it
+        // - this will behave now as if the last remaining block was the most recently allocated
+        next_block_size(0);
+      }
+    }
+
     return blocks_freed;
   }
 

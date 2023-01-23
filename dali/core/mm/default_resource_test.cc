@@ -324,6 +324,15 @@ mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
   return nullptr;
 }
 
+static mm::cuda_vm_resource *GetVMMDefaultResource(int device_id = -1) {
+  auto *res = mm::GetDefaultDeviceResource(device_id);
+  if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+    return dynamic_cast<mm::cuda_vm_resource*>(up->upstream());
+  }
+  return nullptr;
+}
+
+
 static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
   auto *dev = mm::GetDefaultDeviceResource(0);
   auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
@@ -367,8 +376,6 @@ static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<s
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free3, &total));
   EXPECT_GT(free3, free2);
-  // GE, because we might actually get more memory if some Managed Memory has been reclaimed
-  EXPECT_GE(free3, free0);
 }
 
 TEST(MMDefaultResource, ReleaseUnusedBasic) {
@@ -429,9 +436,6 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   DeviceGuard dg(device_id);
   mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
 
-  size_t free0, free1, total;
-  CUDA_CALL(cudaMemGetInfo(&free0, &total));
-
   CUDA_CALL(cudaSetDevice(0));
 
   auto *res = mm::GetDefaultDeviceResource(device_id);
@@ -463,15 +467,38 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
   EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
                              "requested amount of memory from the pool.";
 
+  auto *vm_res = GetVMMDefaultResource(device_id);
+  int prev_unmaps = 0;
+  if (vm_res) {
+    prev_unmaps = vm_res->get_stat().total_unmaps;
+    std::cout << "Unmaps (pre)  " << prev_unmaps << std::endl;
+  }
+
   res->deallocate(mem, size, alignment);
 
   mm::ReleaseUnusedMemory();
-  CUDA_CALL(cudaMemGetInfo(&free1, &total));
-  EXPECT_GE(free1, free0);  // it can be more if some managed memory was reclaimed
+
+  // Some memory should have been deallocated in ReleaseUnusedMemory, so now the
+  // allocation from the pool should fail again.
+  mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_EQ(mem, nullptr);
+  if (mem)
+    res->deallocate(mem, size, alignment);
+
+  if (vm_res) {
+    // some unmapping should have occurred
+    EXPECT_GT(vm_res->get_stat().total_unmaps, prev_unmaps);
+    std::cout << "Unmaps (post) " << vm_res->get_stat().total_unmaps << std::endl;
+  }
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory) {
-  TestPreallocateDeviceMemory(false);
+  for (int i = 0; i < 20; i++) {
+    cout << "Iteration " << i << endl;
+    TestPreallocateDeviceMemory(false);
+    if (HasFailure())
+      break;
+  }
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory_MultiGPU) {

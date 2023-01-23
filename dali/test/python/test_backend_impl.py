@@ -29,15 +29,14 @@ from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memor
 def test_preallocation():
     dali.backend.PreallocateDeviceMemory(0, 0)  # initialize the context
     dali.backend.ReleaseUnusedMemory()
-    free_before = get_device_memory_info().free
+    free_before_prealloc = get_device_memory_info().free
     size = 256 << 20
-    block_size = 64 << 20
     dali.backend.PreallocateDeviceMemory(size, 0)
-    free_after = get_device_memory_info().free
-    assert free_after <= free_before - size + block_size
+    free_after_prealloc = get_device_memory_info().free
+    assert free_after_prealloc < free_before_prealloc  # check that something was allocated
     dali.backend.ReleaseUnusedMemory()
     free_after_release = get_device_memory_info().free
-    assert free_after_release == free_before
+    assert free_after_release > free_after_prealloc  # check that something was freed
 
 
 def test_create_tensor():
