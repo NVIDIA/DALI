@@ -156,7 +156,7 @@ class DLL_PUBLIC Pipeline {
   SetExternalInputHelper(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
                          InputOperatorSettingMode ext_src_setting_mode = {}) {
     OpType op_type;
-    OpNodeId node_id=-1;
+    OpNodeId node_id = -1;
 
     if (graph_.TensorExists(name + "_cpu")) {
       op_type = graph_.NodeType(node_id);

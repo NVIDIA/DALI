@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PASSasdasdasdasd_INPUT_MIXED_H
-#define DALI_PASSasdasdasdasd_INPUT_MIXED_H
+#ifndef DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_
+#define DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_
 
 #include <vector>
 
@@ -29,6 +29,7 @@ class PassthroughInput : public InputOperator<Backend> {
           CPUBackend /* CPUBackend */,
           GPUBackend /* GPUBackend or MixedBackend */
   >;
+
  public:
   explicit PassthroughInput(const OpSpec &spec) : InputOperator<Backend>(spec) {}
 
@@ -57,4 +58,4 @@ class PassthroughInput : public InputOperator<Backend> {
 
 }  // namespace dali
 
-#endif //DALI_PASSTHROUGH_INPUT_MIXED_H
+#endif  // DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_

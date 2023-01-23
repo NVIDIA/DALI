@@ -15,6 +15,10 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 #include "dali/c_api.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
