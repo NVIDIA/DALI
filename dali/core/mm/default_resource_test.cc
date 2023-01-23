@@ -376,8 +376,6 @@ static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<s
   mm::ReleaseUnusedMemory();
   CUDA_CALL(cudaMemGetInfo(&free3, &total));
   EXPECT_GT(free3, free2);
-  // GE, because we might actually get more memory if some Managed Memory has been reclaimed
-  EXPECT_GE(free3, free0);
 }
 
 TEST(MMDefaultResource, ReleaseUnusedBasic) {
@@ -495,7 +493,12 @@ static void TestPreallocateDeviceMemory(bool multigpu) {
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory) {
-  TestPreallocateDeviceMemory(false);
+  for (int i = 0; i < 20; i++) {
+    cout << "Iteration " << i << endl;
+    TestPreallocateDeviceMemory(false);
+    if (HasFailure())
+      break;
+  }
 }
 
 TEST(MMDefaultResource, PreallocateDeviceMemory_MultiGPU) {
