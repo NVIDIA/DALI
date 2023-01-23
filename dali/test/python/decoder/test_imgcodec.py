@@ -413,6 +413,7 @@ def test_peek_shape():
 def is_nvjpeg_lossless_supported(device_id):
     return get_arch(device_id) >= 6.0
 
+
 @params(
         ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
         ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
