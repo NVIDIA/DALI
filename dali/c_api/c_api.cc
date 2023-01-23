@@ -37,27 +37,26 @@ using dali::AccessOrder;
 using dali::CPUBackend;
 using dali::GPUBackend;
 
+using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* batch_size */>;
+using data_id_map_t = std::unordered_map<std::string /* op_name */, std::string /* data_id */>;
+
+/**
+ * @brief Handle for DALI C-like API.
+ *
+ * @note Beware, the C API is just C-like API for handling some mangling issues and
+ * it can throw exceptions.
+ */
+struct DALIPipeline {
+  std::unique_ptr<dali::Pipeline> pipeline;
+  dali::Workspace workspace;
+  batch_size_map_t batch_size_map;
+  data_id_map_t data_id_map;
+  dali::CUDAStreamLease copy_stream;
+};
+
 namespace {
 
 bool dali_initialized = false;
-
-/**
- * Maps operator name to the batch size set prior to daliSetExternal... call.
- * Typically, this operator will be BatchSizeProvider.
- * Negative values denote max batch size (default state).
- * Typical usage:
- * auto *batch_size_map = reinterpret_cast<batch_size_map_t *>(handle->batch_size_map);
- */
-using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* batch_size */>;
-
-/**
- * Maps operator name to the data_id set prior to daliSetExternal... call.
- * Usually the operator with given `op_name` will be an InputOperator.
- * Typical usage:
- * auto *data_id_map = reinterpret_cast<data_id_map_t *>(handle->data_id_map);
- */
-using data_id_map_t = std::unordered_map<std::string /* op_name */, std::string /* data_id */>;
-
 
 int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
                      const std::string &op_name) {
@@ -89,12 +88,12 @@ dali::InputOperatorNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
 }
 
 template <typename Backend>
-void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const void *data_ptr,
+void SetExternalInput(daliPipelineHandle_t pipe_handle, const char *name, const void *data_ptr,
                       dali_data_type_t data_type, const int64_t *shapes, int sample_dim,
                       const char *layout_str, cudaStream_t stream = 0, unsigned int flags = 0) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
-  auto *data_id_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
+  auto *bs_map = &(*pipe_handle)->batch_size_map;
+  auto *data_id_map = &(*pipe_handle)->data_id_map;
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -130,13 +129,13 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
 
 
 template<typename Backend>
-void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
+void SetExternalInputTensors(daliPipelineHandle_t pipe_handle, const char *name,
                              const void *const *data_ptr, dali_data_type_t data_type,
                              const int64_t *shapes, int64_t sample_dim, const char *layout_str,
                              cudaStream_t stream = 0, unsigned int flags = 0) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
-  auto *data_id_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
+  auto *bs_map = &(*pipe_handle)->batch_size_map;
+  auto *data_id_map = &(*pipe_handle)->data_id_map;
   auto curr_batch_size = PopCurrBatchSize(bs_map, pipeline->max_batch_size(), name);
   std::vector<int64_t> shapes_tmp(shapes, shapes + sample_dim * curr_batch_size);
   dali::TensorListShape<> tl_shape(std::move(shapes_tmp), curr_batch_size, sample_dim);
@@ -202,7 +201,7 @@ void daliInitialize() {
 }
 
 
-void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
+void daliCreatePipeline(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline,
                         int length, int max_batch_size, int num_threads, int device_id,
                         int separated_execution, int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
@@ -212,9 +211,19 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
                       cpu_prefetch_queue_depth, gpu_prefetch_queue_depth, enable_memory_stats);
 }
 
+inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline> pipeline) {
+  auto pipe_wrap = std::make_unique<DALIPipeline>();
+
+  if (pipeline->device_id() >= 0) {
+    pipe_wrap->copy_stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
+  }
+
+  pipe_wrap->pipeline = std::move(pipeline);
+  return pipe_wrap;
+}
 
 DLL_PUBLIC void
-daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+daliCreatePipeline2(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline, int length,
                     int max_batch_size, int num_threads, int device_id, int pipelined_execution,
                     int async_execution, int separated_execution, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
@@ -231,23 +240,12 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
   }
   pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
-  auto ws = std::make_unique<dali::Workspace>();
-  dali::CUDAStreamLease stream;
-  if (pipeline->device_id() >= 0) {
-    stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
-  }
-  auto bs_map = std::make_unique<batch_size_map_t>();
-  auto di_map = std::make_unique<data_id_map_t>();
 
-  pipe_handle->ws = ws.release();
-  pipe_handle->copy_stream = stream.release().release();
-  pipe_handle->pipe = pipeline.release();
-  pipe_handle->batch_size_map = bs_map.release();
-  pipe_handle->data_id_map = di_map.release();
+  *pipe_handle = WrapPipeline(std::move(pipeline)).release();
 }
 
 
-void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
+void daliDeserializeDefault(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline,
                             int length) {
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
@@ -255,14 +253,8 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
   if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
-  auto ws = std::make_unique<dali::Workspace>();
-  auto bs_map = std::make_unique<batch_size_map_t>();
-  auto di_map = std::make_unique<data_id_map_t>();
-  pipe_handle->ws = ws.release();
-  pipe_handle->copy_stream = stream.release().release();
-  pipe_handle->pipe = pipeline.release();
-  pipe_handle->batch_size_map = bs_map.release();
-  pipe_handle->data_id_map = di_map.release();
+
+  *pipe_handle = WrapPipeline(std::move(pipeline)).release();
 }
 
 
@@ -272,14 +264,13 @@ int daliIsDeserializable(const char* serialized_pipeline, int length) {
 }
 
 
-int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  return pipeline->max_batch_size();
+int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
+  return (*pipe_handle)->pipeline->max_batch_size();
 }
 
 
-void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
+  auto &pipeline = (*pipe_handle)->pipeline;
   for (int i = 0; i < queue_depth; ++i) {
     pipeline->RunCPU();
     pipeline->RunGPU();
@@ -287,9 +278,9 @@ void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
 }
 
 
-void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
+void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  auto &pipeline = (*pipe_handle)->pipeline;
   for (int i = 0; i < gpu_queue_depth; ++i) {
     pipeline->RunCPU();
     pipeline->RunGPU();
@@ -300,28 +291,26 @@ void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
 }
 
 
-void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
+void daliSetExternalInputBatchSize(daliPipelineHandle_t pipe_handle, const char *name,
                                    int batch_size) {
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
-  (*bs_map)[name] = batch_size;
+  (*pipe_handle)->batch_size_map[name] = batch_size;
 }
 
 
-void daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
+void daliSetExternalInputDataId(daliPipelineHandle_t pipe_handle, const char *operator_name,
                                 const char *data_id) {
-  auto di_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
-  (*di_map)[operator_name] = data_id;
+  (*pipe_handle)->data_id_map[operator_name] = data_id;
 }
 
 
-void daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name, device_type_t device,
+void daliSetExternalInput(daliPipelineHandle_t pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
-                            layout_str, pipe_handle->copy_stream, flags | DALI_ext_force_sync);
+                            layout_str, (*pipe_handle)->copy_stream, flags | DALI_ext_force_sync);
 }
 
-void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
+void daliSetExternalInputAsync(daliPipelineHandle_t pipe_handle, const char *name,
                                device_type_t device, const void *data_ptr,
                                dali_data_type_t data_type, const int64_t *shapes,
                                int sample_dim, const char *layout_str, cudaStream_t stream,
@@ -341,17 +330,17 @@ void daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name
 }
 
 
-void daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
+void daliSetExternalInputTensors(daliPipelineHandle_t pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str, unsigned int flags) {
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, pipe_handle->copy_stream,
+                                        sample_dim, layout_str, (*pipe_handle)->copy_stream,
                                         flags | DALI_ext_force_sync);
 }
 
 
-void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
+void daliSetExternalInputTensorsAsync(daliPipelineHandle_t pipe_handle, const char *name,
                                       device_type_t device, const void *const *data_ptr,
                                       dali_data_type_t data_type, const int64_t *shapes,
                                       int64_t sample_dim, const char *layout_str,
@@ -371,63 +360,57 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const cha
 }
 
 
-int daliGetNumExternalInput(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  return pipeline->num_inputs();
+int daliGetNumExternalInput(daliPipelineHandle_t pipe_handle) {
+  return (*pipe_handle)->pipeline->num_inputs();
 }
 
 
-const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle, int n) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  return pipeline->input_name(n).c_str();
+const char *daliGetExternalInputName(daliPipelineHandle_t pipe_handle, int n) {
+  return (*pipe_handle)->pipeline->input_name(n).c_str();
 }
 
 
-const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handle, const char *name) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  return pipeline->GetInputLayout(name).c_str();
+const char *daliGetExternalInputLayout(daliPipelineHandle_t pipe_handle, const char *name) {
+  return (*pipe_handle)->pipeline->GetInputLayout(name).c_str();
 }
 
 
-int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  return pipeline->GetInputNdim(name);
+int daliGetExternalInputNdim(daliPipelineHandle_t pipe_handle, const char *name) {
+  return (*pipe_handle)->pipeline->GetInputNdim(name);
 }
 
-dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_handle, const char *name) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle, const char *name) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   auto type_id = pipeline->GetInputDtype(name);
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
-void daliRun(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+void daliRun(daliPipelineHandle_t pipe_handle) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->RunCPU();
   pipeline->RunGPU();
 }
 
 
-void daliOutput(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  pipeline->Outputs(ws);
+void daliOutput(daliPipelineHandle_t pipe_handle) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
+  pipeline->Outputs(&(*pipe_handle)->workspace);
 }
 
 
-void daliShareOutput(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  pipeline->ShareOutputs(ws);
+void daliShareOutput(daliPipelineHandle_t pipe_handle) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
+  pipeline->ShareOutputs(&(*pipe_handle)->workspace);
 }
 
 
-void daliOutputRelease(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+void daliOutputRelease(daliPipelineHandle_t pipe_handle) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->ReleaseOutputs();
 }
 
-int64_t daliOutputHasUniformShape(daliPipelineHandle* pipe_handle, int i) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+int64_t daliOutputHasUniformShape(daliPipelineHandle_t pipe_handle, int i) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(i)) {
     return is_uniform(ws->Output<CPUBackend>(i).shape());
   } else {
@@ -458,8 +441,8 @@ static int64_t *daliShapeAtHelper(dali::Workspace *ws, int n, int k) {
   return c_shape;
 }
 
-static int64_t* daliShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n, int k) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+static int64_t* daliShapeAtTypedHelper(daliPipelineHandle_t pipe_handle, int n, int k) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliShapeAtHelper<CPUBackend>(ws, n, k);
   } else {
@@ -467,11 +450,11 @@ static int64_t* daliShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n, i
   }
 }
 
-int64_t* daliShapeAtSample(daliPipelineHandle* pipe_handle, int n, int k) {
+int64_t* daliShapeAtSample(daliPipelineHandle_t pipe_handle, int n, int k) {
   return daliShapeAtTypedHelper(pipe_handle, n, k);
 }
 
-int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
+int64_t* daliShapeAt(daliPipelineHandle_t pipe_handle, int n) {
   return daliShapeAtTypedHelper(pipe_handle, n, -1);
 }
 
@@ -482,8 +465,8 @@ static dali_data_type_t daliTypeAtHelper(dali::Workspace* ws, int n) {
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
-dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+dali_data_type_t daliTypeAt(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliTypeAtHelper<CPUBackend>(ws, n);
   } else {
@@ -497,8 +480,8 @@ static size_t daliNumTensorsHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n).num_samples();
 }
 
-size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+size_t daliNumTensors(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliNumTensorsHelper<CPUBackend>(ws, n);
   } else {
@@ -511,8 +494,8 @@ static size_t daliNumElementsHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n)._num_elements();
 }
 
-size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+size_t daliNumElements(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliNumElementsHelper<CPUBackend>(ws, n);
   } else {
@@ -525,8 +508,8 @@ static size_t daliTensorSizeHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n).nbytes();
 }
 
-size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliTensorSizeHelper<CPUBackend>(ws, n);
   } else {
@@ -551,8 +534,8 @@ static size_t daliMaxDimTensorsHelper(dali::Workspace* ws, int n) {
   return static_cast<size_t>(max_num_dim);
 }
 
-size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
-  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
+size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliMaxDimTensorsHelper<CPUBackend>(ws, n);
   } else {
@@ -560,29 +543,29 @@ size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
   }
 }
 
-size_t daliGetDeclaredOutputNdim(daliPipelineHandle *pipe_handle, int n) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+size_t daliGetDeclaredOutputNdim(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->output_ndim(n);
 }
 
-dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle *pipe_handle, int n) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle_t pipe_handle, int n) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return static_cast<dali_data_type_t>(static_cast<int>(pipeline->output_dtype(n)));
 }
 
-unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+unsigned daliGetNumOutput(daliPipelineHandle_t pipe_handle) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->num_outputs();
 }
 
-const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id) {
-  auto *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+const char *daliGetOutputName(daliPipelineHandle_t pipe_handle, int id) {
+  auto *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->output_name(id).c_str();
 }
 
 
-device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
+  dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   if (pipeline->output_device(id) == "gpu") {
     return device_type_t::GPU;
   }
@@ -590,9 +573,9 @@ device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id) {
 }
 
 
-int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                          const char *trace_name) {
-  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  auto *ws = &(*pipe_handle)->workspace;
   try {
     auto& traces = ws->GetOperatorTraces(operator_name);
     return traces.find(trace_name) != traces.end() ? 1 : 0;
@@ -603,9 +586,9 @@ int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_n
 
 
 const char *
-daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+daliGetOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                      const char *trace_name) {
-  auto *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  auto *ws = &(*pipe_handle)->workspace;
   if (daliHasOperatorTrace(pipe_handle, operator_name, trace_name)) {
     return ws->GetOperatorTraces(operator_name).at(trace_name).c_str();
   }
@@ -613,7 +596,7 @@ daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
 }
 
 
-void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
+void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
                     device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopy", dali::DomainTimeRange::kGreen);
 
@@ -622,7 +605,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
-  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  dali::Workspace *ws = &(*pipe_handle)->workspace;
   assert(ws != nullptr);
 
   AccessOrder wait_order = AccessOrder::host();
@@ -644,7 +627,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   wait_order.wait(copy_order);
 }
 
-void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int output_idx,
+void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int output_idx,
                            device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopySamples", dali::DomainTimeRange::kGreen);
 
@@ -653,7 +636,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
-  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
+  dali::Workspace *ws = &(*pipe_handle)->workspace;
   assert(ws != nullptr);
 
   AccessOrder wait_order = AccessOrder::host();
@@ -676,7 +659,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
 }
 
 
-void daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id,
+void daliCopyTensorNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
                     device_type_t dst_type, cudaStream_t stream, int non_blocking) {
   DALI_WARN("Warning: daliCopyTensorNTo is now deprecated. Use daliOutputCopy instead.");
 
@@ -687,7 +670,7 @@ void daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id
   daliOutputCopy(pipe_handle, dst, output_id, dst_type, stream, flags);
 }
 
-void daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id,
+void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
                            device_type_t dst_type, cudaStream_t stream, int non_blocking) {
   DALI_WARN("Warning: daliCopyTensorListNTo is now deprecated. Use daliOutputCopy instead.");
 
@@ -698,35 +681,23 @@ void daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int outpu
   daliOutputCopy(pipe_handle, dst, output_id, dst_type, stream, flags);
 }
 
-void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
-  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
-  auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
-  auto *di_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
-  DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
-  if (pipe_handle->copy_stream) {
-    CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
-    dali::CUDAStreamPool::instance().Put(dali::CUDAStream(pipe_handle->copy_stream));
-  }
-  pipe_handle->copy_stream = nullptr;
-  delete ws;
-  delete pipeline;
-  delete bs_map;
-  delete di_map;
-  pipe_handle->ws = nullptr;
-  pipe_handle->pipe = nullptr;
-  pipe_handle->batch_size_map = nullptr;
-  pipe_handle->data_id_map = nullptr;
+void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
+  if (!pipe_handle)
+    return;
+
+  auto wrap = std::unique_ptr<DALIPipeline>(pipe_handle);
+  if (wrap->copy_stream)
+    CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
 }
 
 void daliLoadLibrary(const char* lib_path) {
     dali::PluginManager::LoadLibrary(lib_path);
 }
 
-void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,
                            daliReaderMetadata* meta) {
   DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
   meta->epoch_size = returned_meta.epoch_size;
   meta->epoch_size_padded = returned_meta.epoch_size_padded;
@@ -736,8 +707,8 @@ void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_n
   meta->stick_to_shard = returned_meta.stick_to_shard;
 }
 
-dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const char *operator_name) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+dali_backend_t daliGetOperatorBackend(daliPipelineHandle_t pipe_handle, const char *operator_name) {
+  dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   auto *node = pipeline->GetOperatorNode(operator_name);
   switch (node->op_type) {
     case dali::OpType::CPU:
@@ -751,9 +722,9 @@ dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle, const cha
   }
 }
 
-void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle, daliExecutorMetadata **operator_meta,
+void daliGetExecutorMetadata(daliPipelineHandle_t pipe_handle, daliExecutorMetadata **operator_meta,
                              size_t *operator_meta_num) {
-  dali::Pipeline* pipeline = reinterpret_cast<dali::Pipeline*>(pipe_handle->pipe);
+  dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   auto returned_meta = pipeline->GetExecutorMeta();
   *operator_meta_num = returned_meta.size();
   *operator_meta = static_cast<daliExecutorMetadata*>(malloc(sizeof(daliExecutorMetadata) *

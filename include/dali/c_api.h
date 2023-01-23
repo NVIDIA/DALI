@@ -24,19 +24,8 @@
 extern "C" {
 #endif
 
-/**
- * @brief Handle for DALI C-like API.
- *
- * @note Beware, the C API is just C-like API for handling some mangling issues and
- * it can throw exceptions.
- */
-typedef struct {
-  void *pipe;
-  void *ws;
-  void *batch_size_map;      /// @see batch_size_map_t
-  cudaStream_t copy_stream;  /// Stream to perform copy operations on
-  void *data_id_map;         /// @see data_id_map_t
-} daliPipelineHandle;
+typedef struct DALIPipeline *daliPipelineHandle;
+typedef daliPipelineHandle daliPipelineHandle_t;
 
 typedef enum {
   CPU = 0,
@@ -208,7 +197,7 @@ enum {
  * @param pipe_handle Pointer to pipeline handle
  * @return Max batch size
  */
-DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Set the batch size for the upcoming call to `daliSetExternalInput*(...)`
@@ -218,7 +207,7 @@ DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
  *             to be fed
  * @param batch_size Batch size of the data
  */
-DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
+DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle_t pipe_handle, const char *name,
                                               int batch_size);
 
 /**
@@ -280,14 +269,14 @@ daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator
  * @param flags Extra flags, check DALI_ext_* and DALI_use_copy_kernel flags
  */
 DLL_PUBLIC void
-daliSetExternalInputAsync(daliPipelineHandle *pipe_handle, const char *name,
+daliSetExternalInputAsync(daliPipelineHandle_t pipe_handle, const char *name,
                           device_type_t device, const void *data_ptr,
                           dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str,
                           cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
-daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
+daliSetExternalInput(daliPipelineHandle_t pipe_handle, const char *name,
                      device_type_t device, const void *data_ptr,
                      dali_data_type_t data_type, const int64_t *shapes,
                      int sample_dim, const char *layout_str, unsigned int flags);
@@ -332,14 +321,14 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
  * @param flags Extra flags, check DALI_ext_force_sync, DALI_ext_pinned, DALI_use_copy_kernel
  */
 DLL_PUBLIC void
-daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const char *name,
+daliSetExternalInputTensorsAsync(daliPipelineHandle_t pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str,
                                  cudaStream_t stream, unsigned int flags);
 
 DLL_PUBLIC void
-daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
+daliSetExternalInputTensors(daliPipelineHandle_t pipe_handle, const char *name,
                             device_type_t device, const void *const *data_ptr,
                             dali_data_type_t data_type, const int64_t *shapes,
                             int64_t sample_dim, const char *layout_str, unsigned int flags);
@@ -351,7 +340,7 @@ daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
  * @param pipe_handle Pointer to pipeline handle.
  * @return Number of inputs.
  */
-DLL_PUBLIC int daliGetNumExternalInput(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC int daliGetNumExternalInput(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Get the name of n-th external input in the pipeline in the lexicographic order.
@@ -362,7 +351,7 @@ DLL_PUBLIC int daliGetNumExternalInput(daliPipelineHandle *pipe_handle);
  * @param n
  * @return Name of the external input.
  */
-DLL_PUBLIC const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC const char *daliGetExternalInputName(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Get the data layout required by the external input with a given name.
@@ -374,7 +363,7 @@ DLL_PUBLIC const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle,
  * @param name Name of the external input.
  * @return Layout string.
  */
-DLL_PUBLIC const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handle,
+DLL_PUBLIC const char *daliGetExternalInputLayout(daliPipelineHandle_t pipe_handle,
                                                   const char *name);
 
 
@@ -385,7 +374,7 @@ DLL_PUBLIC const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handl
  * @param name Name of the external input.
  * @return Data type.
  */
-DLL_PUBLIC dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_handle,
+DLL_PUBLIC dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle,
                                                      const char *name);
 
 
@@ -397,40 +386,40 @@ DLL_PUBLIC dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_ha
  * @param name Name of the external input.
  * @return Number of dimensions.
  */
-DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name);
+DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle_t pipe_handle, const char *name);
 
 /**
  * @brief Start the execution of the pipeline.
  */
-DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC void daliRun(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
  */
-DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth);
+DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth);
 
 /**
  * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
  */
-DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
+DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                                      int cpu_queue_depth, int gpu_queue_depth);
 
 /**
  * @brief Wait until the output of the pipeline is ready.
  * Releases previously returned buffers.
  */
-DLL_PUBLIC void daliOutput(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC void daliOutput(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Wait until the output of the pipeline is ready.
  * Doesn't release previously returned buffers.
  */
-DLL_PUBLIC void daliShareOutput(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC void daliShareOutput(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Releases buffer returned by last daliOutput call.
  */
-DLL_PUBLIC void daliOutputRelease(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC void daliOutputRelease(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Returns 1 if the the output batch stored at position `n` in the pipeline can
@@ -439,7 +428,7 @@ DLL_PUBLIC void daliOutputRelease(daliPipelineHandle *pipe_handle);
  * This function may only be called after
  * calling Output function.
  */
-DLL_PUBLIC int64_t daliOutputHasUniformShape(daliPipelineHandle *pipe_handle, int i);
+DLL_PUBLIC int64_t daliOutputHasUniformShape(daliPipelineHandle_t pipe_handle, int i);
 
 /**
  * @brief Return the shape of the output tensor stored at position `n` in the pipeline.
@@ -449,7 +438,7 @@ DLL_PUBLIC int64_t daliOutputHasUniformShape(daliPipelineHandle *pipe_handle, in
  * calling Output function.
  * @remarks Caller is responsible to 'free' the memory returned
  */
-DLL_PUBLIC int64_t *daliShapeAt(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC int64_t *daliShapeAt(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Return the type of the output tensor
@@ -457,7 +446,7 @@ DLL_PUBLIC int64_t *daliShapeAt(daliPipelineHandle *pipe_handle, int n);
  * This function may only be called after
  * calling Output function.
  */
-DLL_PUBLIC dali_data_type_t daliTypeAt(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC dali_data_type_t daliTypeAt(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Return the shape of the 'k' output tensor from tensor list
@@ -466,31 +455,31 @@ DLL_PUBLIC dali_data_type_t daliTypeAt(daliPipelineHandle *pipe_handle, int n);
  * calling Output function.
  * @remarks Caller is responsible to 'free' the memory returned
  */
-DLL_PUBLIC int64_t *daliShapeAtSample(daliPipelineHandle *pipe_handle, int n, int k);
+DLL_PUBLIC int64_t *daliShapeAtSample(daliPipelineHandle_t pipe_handle, int n, int k);
 
 /**
  * @brief Return the number of tensors in the tensor list
  * stored at position `n` in the pipeline.
  */
-DLL_PUBLIC size_t daliNumTensors(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC size_t daliNumTensors(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Return the number of all elements in the tensor list
  * stored at position `n` in the pipeline.
  */
-DLL_PUBLIC size_t daliNumElements(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC size_t daliNumElements(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Return the size of the tensor list
  * stored at position `n` in the pipeline.
  */
-DLL_PUBLIC size_t daliTensorSize(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Return maximum number of dimensions from all tensors
  * from the tensor list stored at position `n` in the pipeline.
  */
-DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Check, what is the declared number of dimensions in the given output.
@@ -500,7 +489,7 @@ DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
  *
  * @param n Index of the output, at which the check is performed.
  */
-DLL_PUBLIC size_t daliGetDeclaredOutputNdim(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC size_t daliGetDeclaredOutputNdim(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Check, what is the declared data type in the given output.
@@ -510,23 +499,23 @@ DLL_PUBLIC size_t daliGetDeclaredOutputNdim(daliPipelineHandle *pipe_handle, int
  *
  * @param n Index of the output, at which the check is performed.
  */
-DLL_PUBLIC dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle *pipe_handle, int n);
+DLL_PUBLIC dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle_t pipe_handle, int n);
 
 /**
  * @brief Returns number of DALI pipeline outputs
  */
-DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Returns a string indicating name of the output given by id.
  * @remark The returned pointer is invalidated after calling `daliDeletePipeline(pipe_handle)`.
  */
-DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id);
+DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle_t pipe_handle, int id);
 
 /**
  * @brief Returns device_type_t indicating device backing pipeline output given by id
  */
-DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
+DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id);
 
 
 /**
@@ -541,7 +530,7 @@ DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, in
  *
  * @return 0, if the trace with given name does not exist.
  */
-DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                                     const char *trace_name);
 
 /**
@@ -563,7 +552,7 @@ DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char 
  * @return Operator trace.
  */
 DLL_PUBLIC const char *
-daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+daliGetOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                      const char *trace_name);
 /** @} */
 
@@ -580,7 +569,7 @@ daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
  */
 
 DLL_PUBLIC void
-daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx, device_type_t dst_type,
+daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx, device_type_t dst_type,
                cudaStream_t stream, unsigned int flags);
 
 /**
@@ -594,7 +583,7 @@ daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx, devic
  * @param stream CUDA stream to use when copying the data to/from the GPU.
  * @param flags Extra flags, check DALI_ext_force_sync, DALI_use_copy_kernel
  */
-DLL_PUBLIC void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int output_idx,
+DLL_PUBLIC void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int output_idx,
                                       device_type_t dst_type, cudaStream_t stream,
                                       unsigned int flags);
 
@@ -602,20 +591,20 @@ DLL_PUBLIC void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **ds
  * @brief DEPRECATED API: use daliOutputCopy instead
  */
 DLL_PUBLIC void
-daliCopyTensorNTo(daliPipelineHandle *pipe_handle, void *dst, int n, device_type_t dst_type,
+daliCopyTensorNTo(daliPipelineHandle_t pipe_handle, void *dst, int n, device_type_t dst_type,
                   cudaStream_t stream, int non_blocking);
 
 /**
  * @brief DEPRECATED API: use daliOutputCopy instead
  */
 DLL_PUBLIC void
-daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id,
+daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
                       device_type_t dst_type, cudaStream_t stream, int non_blocking);
 
 /**
  * @brief Delete the pipeline object.
  */
-DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
+DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle_t pipe_handle);
 
 /**
  * @brief Load plugin library
@@ -627,14 +616,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  *  @param reader_name Name of the reader to query
  *  @param meta Pointer to metadata to be filled by the function
  */
-DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
 
 /**
  * @brief Returns the backend of the operator with a given \p operator_name
  * @param operator_name Name of the operator to query
  */
-DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle_t pipe_handle,
                                                  const char *operator_name);
 
 /**
@@ -645,7 +634,7 @@ DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle
  *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
  *                           (operators) have been files
  */
-DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle_t pipe_handle,
                                         daliExecutorMetadata **operator_meta,
                                         size_t *operator_meta_num);
 
