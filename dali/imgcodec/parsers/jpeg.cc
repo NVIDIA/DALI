@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,11 @@ bool IsSofMarker(const jpeg_marker_t &marker) {
 }
 
 ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
-  ImageInfo info{};
+  return GetExtendedInfo(encoded).img_info;
+}
+
+JpegParser::ExtendedImageInfo JpegParser::GetExtendedInfo(ImageSource *encoded) const {
+  JpegParser::ExtendedImageInfo info{};
   auto stream = encoded->Open();
 
   jpeg_marker_t first_marker = stream->ReadOne<jpeg_marker_t>();
@@ -67,11 +71,12 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
     uint16_t size = ReadValueBE<uint16_t>(*stream);
     ptrdiff_t next_marker_offset = stream->TellRead() - 2 + size;
     if (IsSofMarker(marker)) {
+      info.sof_marker = marker;
       stream->Skip(1);  // Skip the precision field
       auto height = ReadValueBE<uint16_t>(*stream);
       auto width = ReadValueBE<uint16_t>(*stream);
       auto nchannels = stream->ReadOne<uint8_t>();
-      info.shape = {height, width, nchannels};
+      info.img_info.shape = {height, width, nchannels};
       read_shape = true;
     } else if (marker == app1_marker && stream->ReadOne<jpeg_exif_header_t>() == exif_header) {
       std::vector<uint8_t> exif_block(size - 8);
@@ -81,7 +86,8 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
         continue;
       auto entry = reader.getTag(cv::ORIENTATION);
       if (entry.tag != cv::INVALID_TAG) {
-        info.orientation = FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
+        info.img_info.orientation =
+            FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
         read_orientation = true;
       }
     }

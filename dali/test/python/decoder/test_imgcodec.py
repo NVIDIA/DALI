@@ -457,4 +457,7 @@ def test_image_decoder_lossless_jpeg_cpu_not_supported():
     imgfile = "db/single/jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg"
     p = pipe(os.path.join(test_data_root, imgfile))
     p.build()
-    assert_raises(RuntimeError, p.run, glob='*')  # Add glob pattern when we have a meaningful error
+
+    assert_raises(
+        RuntimeError, p.run,
+        glob='*Failed to decode a JPEG lossless (SOF-3)*Only "mixed" backend*')
