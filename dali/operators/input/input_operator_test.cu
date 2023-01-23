@@ -80,9 +80,9 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
     cout << "TEST: cpu_queue_depth=" << cpu_queue_depth_ << ", gpu_queue_depth=" << gpu_queue_depth_
          << ", exec_async=" << std::boolalpha << exec_async_ << ", exec_pipelined="
          << exec_pipelined_ << endl;
+
     pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
                                            exec_pipelined_, cpu_queue_depth_, exec_async_);
-
     pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
 
     PutTogetherDaliGraph();
@@ -109,11 +109,9 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
                                    .AddArg("name", operator_name_)
                                    .AddOutput(operator_name_, "gpu"),
                            operator_name_);
-
     std::vector<std::pair<std::string, std::string>> outputs = {
             {operator_name_, "gpu"},
     };
-
     pipeline_->SetOutputDescs(outputs);
   }
 };
@@ -130,7 +128,6 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
     thrust::host_vector<int32_t> in_data(sample_size*batch_size_, 2137);
     thrust::device_vector<int32_t> ref_data = in_data;
 
-
     // Feed CPU input data.
     for (int i = 0; i < prefetch_depth; i++) {
       std::vector<int64_t> shapes(batch_size_, sample_size);
@@ -139,13 +136,10 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
                            DALI_ext_force_copy);
     }
 
-
     daliPrefetchUniform(&h, prefetch_depth);
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
-
       auto sz = daliNumElements(&h, 0);
-
       thrust::device_vector<int32_t> out_data(sz);
       daliOutputCopy(&h, thrust::raw_pointer_cast(out_data.data()), 0, device_type_t::GPU, 0,
                      DALI_ext_force_sync);
