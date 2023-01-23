@@ -102,6 +102,7 @@ class DLL_PUBLIC VideoDecoderBase {
       frames_decoder.ReadNextFrame(output_data + f * frame_size);
     }
     assert(f <= num_frames);
+    assert((std::is_same_v<storage_backend_for_copy_kernel, StorageCPU>) || stream.has_value());
     bool full_sequence_decoded = f == num_frames;
     // If there's an insufficient number of frames, pad if requested.
     for (; f < num_frames && pad_value.has_value(); f++) {

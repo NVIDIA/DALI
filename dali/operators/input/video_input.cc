@@ -46,20 +46,30 @@ void VideoInput<Backend, FramesDecoder>::EraseNextDataIdTrace(Workspace &ws) {
 }
 
 
-template<>
-bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::CreateDecoder(const Workspace &ws) {
+  auto sample = encoded_video_[0];
+  auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
+  size_t size = sample.shape().num_elements();
+  if constexpr (std::is_same_v<FramesDecoder, dali::FramesDecoder>) {
+    frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, false);
+  } else if constexpr (std::is_same_v<FramesDecoder, FramesDecoderGpu>) {
+    frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, ws.stream(), false);
+  }
+}
+
+
+template<typename Backend, typename FramesDecoder>
+bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
                                        const Workspace &ws) {
   if (!initialized_) {
     if (needs_data_load_) {
-      InputOperator<CPUBackend>::HandleDataAvailability();
-      LoadDataFromInputOperator(ws.GetThreadPool());
+      InputOperator<InBackend>::HandleDataAvailability();
+      auto &tp = GetThreadPool(ws);
+      LoadDataFromInputOperator(tp);
     }
 
-    // Creating FramesDecoders
-    auto sample = encoded_video_[0];
-    auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-    size_t size = sample.shape().num_elements();
-    frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, false);
+    CreateDecoder(ws);
 
     assert(output_descs_.empty());
     DetermineOutputDescs(static_cast<int>(frames_decoders_[0]->NumFrames()));
@@ -78,17 +88,19 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 
-template<>
-void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::RunImpl(Workspace &ws) {
+  auto &output = ws.Output<OutBackend>(0);
   output.SetLayout("FHWC");
+
+  auto stream = !detail::is_cpu<Backend>() ? std::make_optional(ws.stream()) : std::nullopt;
 
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
     auto pad_value =
-            last_sequence_policy_ == "pad" ? std::optional<SampleView<CPUBackend>>(GetPadFrame())
+            last_sequence_policy_ == "pad" ? std::optional<SampleView<OutBackend>>(GetPadFrame())
                                            : std::nullopt;
-    full_sequence = DecodeFrames(output[s], 0, sequence_length_, pad_value);
+    full_sequence = DecodeFrames(output[s], 0, sequence_length_, pad_value, stream);
     if (!full_sequence) {
       break;
     }
@@ -105,7 +117,7 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
        * Instead of doing this in Setup, it's done in Run so that operator can assign proper
        * "next_output_data_id" trace.
        */
-      LoadDataFromInputOperator(ws.GetThreadPool());
+      LoadDataFromInputOperator(GetThreadPool(ws));
     }
   }
 
@@ -199,9 +211,16 @@ be padded with empty frames.
 
 Allowed values are ``'partial'`` and ``'pad'``.
 )code", "partial")
+                .AddOptionalArg("affine", R"code(
+Applies only to the mixed backend type.
+
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.
+)code", true)
                 .AddParent("InputOperatorBase");
 
 
 DALI_REGISTER_OPERATOR(experimental__inputs__Video, VideoInput<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(experimental__inputs__Video, VideoInput<MixedBackend>, Mixed);
 
 }  // namespace dali

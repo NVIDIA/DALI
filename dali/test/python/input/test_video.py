@@ -31,7 +31,7 @@ files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 batch_size_values = [1, 3, 100]
 frames_per_sequence_values = [1, 7, 100]
-device_values = ['cpu']
+device_values = ['cpu', 'mixed']
 
 
 def params_generator():

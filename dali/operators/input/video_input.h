@@ -67,6 +67,12 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
   return std::make_tuple(num_full_batches, num_full_sequences, frames_in_last_sequence);
 }
 
+
+template<typename Backend>
+constexpr bool is_cpu() {
+  return std::is_same_v<Backend, CPUBackend>;
+}
+
 }  // namespace detail
 
 
@@ -80,10 +86,16 @@ using frames_decoder_t =
 
 
 template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
-class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
+class VideoInput
+        : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<CPUBackend> {
+  using InputOperator<CPUBackend>::HasDataInQueue;
+  using VideoDecoderBase<Backend, FramesDecoder>::frames_decoders_;
+  using VideoDecoderBase<Backend, FramesDecoder>::DecodeFrames;
+  using InBackend = CPUBackend;
+  using OutBackend = std::conditional_t<std::is_same_v<Backend, CPUBackend>, CPUBackend, GPUBackend>;
  public:
   explicit VideoInput(const OpSpec &spec) :
-          InputOperator<Backend>(spec),
+          InputOperator<InBackend>(spec),
           sequence_length_(spec.GetArgument<int>("sequence_length")),
           device_id_(spec.GetArgument<int>("device_id")),
           batch_size_(spec.GetArgument<int>("max_batch_size")),
@@ -91,6 +103,10 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     DALI_ENFORCE(last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
                  make_string("Provided `last_sequence_policy` is not supported: ",
                              last_sequence_policy_));
+    if constexpr (!detail::is_cpu<Backend>()) {
+      thread_pool_.emplace(num_threads_, spec.GetArgument<int>("device_id"),
+                           spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
+    }
   }
 
 
@@ -125,6 +141,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   void SetNextDataIdTrace(Workspace &ws, std::string next_data_id);
 
   void EraseNextDataIdTrace(Workspace &ws);
+
+  void CreateDecoder(const Workspace &ws);
 
 
   /**
@@ -169,7 +187,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  SampleView<Backend> GetPadFrame() {
+  SampleView<OutBackend> GetPadFrame() {
     return {pad_value_data_.data(), pad_frame_shape_};
   }
 
@@ -193,6 +211,16 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
+  ThreadPool &GetThreadPool(const Workspace &ws) {
+    if constexpr (detail::is_cpu<Backend>()) {
+      return ws.GetThreadPool();
+    } else {
+      assert(thread_pool_.has_value());
+      return *thread_pool_;
+    }
+  }
+
+
   const int sequence_length_ = {};
   const int device_id_ = {};
   const int batch_size_ = {};
@@ -204,7 +232,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   /// VideoInput needs data load, if the current input has been depleted.
   bool needs_data_load_ = true;
   /// Input to the VideoInput. It's a single encoded video file.
-  TensorList<CPUBackend> encoded_video_;
+  TensorList<InBackend> encoded_video_;
   /// DataId property of the input. @see daliSetExternalInputDataId
   std::optional<std::string> data_id_;
 
@@ -215,6 +243,9 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   std::vector<uint8_t> pad_value_data_ = {};
   /// Shape of pad frame.
   TensorShape<3> pad_frame_shape_ = {};
+
+  /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
+  std::optional<ThreadPool> thread_pool_ = std::nullopt;
 };
 
 
