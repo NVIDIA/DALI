@@ -131,42 +131,42 @@ class DLL_PUBLIC Pipeline {
   }
 
 
-  template<typename T, typename OperatorBackend>
-  void
-  SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
-                      InputOperatorSettingMode in_op_setting_mode = {}) {
-    // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
-    // The StorageBackend is hidden under `T` type.
+  template<typename TensorListBackend, typename OperatorBackend>
+  void SetDataSourceHelper(const string &name, const TensorList<TensorListBackend> &tl,
+                           OperatorBase *op_ptr, AccessOrder order = {},
+                           InputOperatorSettingMode in_op_setting_mode = {}) {
     auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an InputOperator.");
-    source->SetDataSource(tl, order, in_op_setting_mode);
+    source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode);
   }
+
 
   /**
    * @brief Helper function for the SetExternalInput.
    * @tparam Backend CPUBackend or GPUBackend
-   * @tparam TL TensorList<> or vector<Tensor<>>
    * @param name name of the input
    * @param tl data
    * @param order synchronization order (CUDA stream or host)
    * @param ext_src_setting_mode Options passed to the External Source describing the behaviour
    *                        of setting the data.
    */
-  template<typename TL>
-  void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
-                              InputOperatorSettingMode ext_src_setting_mode = {}) {
-    bool is_cpu_node = true;
-    OpNodeId node_id;
+  template<typename Backend>
+  void
+  SetExternalInputHelper(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
+                         InputOperatorSettingMode ext_src_setting_mode = {}) {
+    OpType op_type;
+    OpNodeId node_id=-1;
 
     if (graph_.TensorExists(name + "_cpu")) {
+      op_type = graph_.NodeType(node_id);
       node_id = graph_.TensorSourceID(name + "_cpu");
-      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
+      DALI_ENFORCE(op_type == OpType::CPU,
                    "Internal error setting external input data.");
     } else if (graph_.TensorExists(name + "_gpu")) {
-      is_cpu_node = false;
       node_id = graph_.TensorSourceID(name + "_gpu");
-      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::GPU,
+      op_type = graph_.NodeType(node_id);
+      DALI_ENFORCE(op_type == OpType::GPU || op_type == OpType::MIXED,
                    "Internal error setting external input data.");
     } else {
       DALI_FAIL("Cannot find " + name + " tensor, it doesn't exists or was pruned as unused one.");
@@ -175,10 +175,18 @@ class DLL_PUBLIC Pipeline {
     auto &node = graph_.Node(node_id);
     OperatorBase *op_ptr = &node.InstantiateOperator();
 
-    if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
-    } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+    switch (op_type) {
+      case OpType::CPU:
+        SetDataSourceHelper<Backend, CPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+        break;
+      case OpType::MIXED:
+        SetDataSourceHelper<Backend, MixedBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+        break;
+      case OpType::GPU:
+        SetDataSourceHelper<Backend, GPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+        break;
+      default:
+        assert(false);  // This shouldn't happen.
     }
   }
 

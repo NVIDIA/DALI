@@ -123,7 +123,8 @@ if (BUILD_TEST)
     ${DALI_OPERATOR_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc
     ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc
-    ${DALI_ROOT}/dali/test/operators/passthrough_with_trace.cc)
+    ${DALI_ROOT}/dali/test/operators/passthrough_with_trace.cc
+    ${DALI_ROOT}/dali/test/operators/passthrough_input.cc)
 
   target_link_libraries(dali_operator_test PUBLIC dali_operators)
   target_link_libraries(dali_operator_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})

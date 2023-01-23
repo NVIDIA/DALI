@@ -47,7 +47,7 @@ and bandwidth.
 
 
 template<>
-void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<OutBackend> &target,
                                                    ThreadPool &thread_pool) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
@@ -84,7 +84,7 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
 
 template<>
 void
-InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream) {
+InputOperator<GPUBackend>::ForwardCurrentData(TensorList<OutBackend> &target, cudaStream_t stream) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   InputSourceState state_info;
@@ -113,6 +113,27 @@ InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cu
   } else {
     RecycleBuffer(tensor_list_elm);
   }
+}
+
+
+template<>
+void InputOperator<MixedBackend>::ForwardCurrentData(
+        TensorList<OutBackend> &target, cudaStream_t stream) {
+  std::list<uptr_tl_type> tensor_list_elm;
+  std::list<uptr_cuda_event_type> internal_copy_to_storage;
+  InputSourceState state_info;
+  {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    tensor_list_elm = tl_data_.PopFront();
+    state_info = state_.front();
+    state_.pop_front();
+  }
+
+  target.Copy(*tensor_list_elm.front(), stream);
+
+  tensor_list_elm.front()->set_order(internal_copy_order_);
+
+  RecycleBuffer(tensor_list_elm);
 }
 
 }  // namespace dali
