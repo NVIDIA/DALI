@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=no-member
+from typing import List
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
@@ -662,40 +663,7 @@ Parameters
 
             _data_node._check(outputs[i])
 
-        # Backtrack to construct the graph
-        op_ids = set()
-        edges = deque(list(outputs) + self._sinks)
-        ops = []
-        while edges:
-            current_edge = edges.popleft()
-            source_op = current_edge.source
-            if source_op is None:
-                raise RuntimeError("Pipeline encountered an Edge with no source op.")
-
-            # To make sure we don't double count ops in
-            # the case that they produce more than one
-            # output, we keep track of the unique op ids
-            # for each op we encounter and only add the
-            # op if we have not already
-            if source_op.id not in op_ids:
-                op_ids.add(source_op.id)
-                source_op.check_args()
-                ops.append(source_op)
-            else:
-                # If the op was already added, we need to
-                # change its position to the top of the list.
-                # This ensures topological ordering of ops
-                # when adding to the backend pipeline
-                ops.remove(source_op)
-                ops.append(source_op)
-            for edge in source_op.inputs:
-                if isinstance(edge, list):
-                    for e in edge:
-                        edges.append(e)
-                else:
-                    edges.append(edge)
-        ops.reverse()
-        self._ops = ops
+        self._ops = _collect_ops(list(outputs) + self._sinks)
         self._graph_outputs = outputs
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
@@ -1528,6 +1496,60 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         return create_pipeline
 
     return actual_decorator(fn) if fn else actual_decorator
+
+
+def _collect_ops(output_nodes):
+    """
+    Traverses the pipeline graph starting from the outputs to collect all reachable operators.
+    Returns the list of operators topologically sorted, so that operators that contribute
+    as inputs to another operator go first.
+    """
+
+    def get_source_op(edge: DataNode):
+        source_op = edge.source
+        if source_op is None:
+            raise RuntimeError("Pipeline encountered an Edge with no source op.")
+        return source_op
+
+    def get_op_input_edges(op) -> List[DataNode]:
+        for inp in op.inputs:
+            if isinstance(inp, list):
+                yield from inp
+            else:
+                yield inp
+
+    def get_op_outputs_num():
+        # BSF traverse the graph first to learn, for each reachable operator in the graph,
+        # how many data-nodes/edges the operator contributes to
+        # (i.e. the number of outputs of the operator instance)
+        op_outputs_num = {}
+        edges = deque(output_nodes)
+        while edges:
+            current_edge = edges.popleft()
+            source_op = get_source_op(current_edge)
+            if source_op.id in op_outputs_num:
+                op_outputs_num[source_op.id] += 1
+            else:
+                op_outputs_num[source_op.id] = 1
+                source_op.check_args()
+                edges.extend(get_op_input_edges(source_op))
+        return op_outputs_num
+
+    ops = []
+    edges = deque(output_nodes)
+    op_total_outputs_num = get_op_outputs_num()
+    op_visited_outputs_num = {op_id: 0 for op_id in op_total_outputs_num}
+    while edges:
+        current_edge = edges.popleft()
+        source_op = get_source_op(current_edge)
+        op_visited_outputs_num[source_op.id] += 1
+        # Actually visit the operator only when all the nodes it contributes to
+        # were already processed
+        if op_visited_outputs_num[source_op.id] == op_total_outputs_num[source_op.id]:
+            ops.append(source_op)
+            edges.extend(get_op_input_edges(source_op))
+    ops.reverse()
+    return ops
 
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
