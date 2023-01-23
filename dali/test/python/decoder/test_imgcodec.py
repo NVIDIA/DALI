@@ -26,7 +26,9 @@ from nose_utils import assert_raises
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
+from test_utils import get_arch
 from nose2.tools import params
+from nose import SkipTest
 
 
 def get_img_files(data_path, subdir='*', ext=None):
@@ -408,6 +410,10 @@ def test_peek_shape():
         'bmp/0/cat-111793_640_grayscale.bmp', (426, 640, 3), types.RGB, True
 
 
+def is_nvjpeg_lossless_supported(device_id):
+    return get_arch(device_id) >= 6.0
+
+
 @params(
         ('cat-1245673_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
         ('cat-3449999_640_grayscale_16bit', types.ANY_DATA, types.UINT16, 16),
@@ -418,10 +424,14 @@ def test_peek_shape():
         ('cat-3449999_640_grayscale_8bit', types.ANY_DATA, types.UINT8, 8),
 )
 def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
+    device_id = 0
+    if not is_nvjpeg_lossless_supported(device_id=device_id):
+        raise SkipTest('NVJPEG lossless supported on SM60+ capable devices only')
+
     data_dir = os.path.join(test_data_root, "db/single/jpeg_lossless/0")
     ref_data_dir = os.path.join(test_data_root, "db/single/reference/jpeg_lossless")
 
-    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    @pipeline_def(batch_size=1, device_id=device_id, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
         decoded = fn.experimental.decoders.image(
@@ -447,7 +457,11 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
 
 
 def test_image_decoder_lossless_jpeg_cpu_not_supported():
-    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    device_id = 0
+    if not is_nvjpeg_lossless_supported(device_id=device_id):
+        raise SkipTest('NVJPEG lossless supported on SM60+ capable devices only')
+
+    @pipeline_def(batch_size=1, device_id=device_id, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
         decoded = fn.experimental.decoders.image(

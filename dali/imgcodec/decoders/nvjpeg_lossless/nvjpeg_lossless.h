@@ -74,11 +74,17 @@ class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
   }
 
   bool IsSupported(int device_id) const override {
-    return device_id >= 0;
+    if (device_id < 0)
+      return false;
+
+    cudaDeviceProp props;
+    CUDA_CALL(cudaGetDeviceProperties(&props, device_id));
+    return props.major >= 6;
   }
 
   std::shared_ptr<ImageDecoderInstance>
   Create(int device_id, const std::map<std::string, any> &params = {}) const override {
+    assert(IsSupported(device_id));
     return std::make_shared<NvJpegLosslessDecoderInstance>(device_id, params);
   }
 };
