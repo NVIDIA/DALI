@@ -43,6 +43,10 @@ TEST(NvJpegLosslessDecoderTest, Factory) {
   CUDA_CALL(cudaGetDevice(&device_id));
 
   NvJpegLosslessDecoderFactory decoder;
+
+  if (!decoder.IsSupported(device_id))
+    GTEST_SKIP() << "Need SM60+ to execute this test\n";
+
   EXPECT_TRUE(decoder.IsSupported(device_id));
   auto props = decoder.GetProperties();
   EXPECT_TRUE(static_cast<bool>(props.supported_input_kinds & InputKind::HostMemory));
@@ -67,6 +71,10 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
     if (input_precision > 0)
       ScaleDynRangeIfNeeded<T>(ref, input_precision);
     AssertSimilar(data, ref);
+  }
+
+  bool IsLosslessSupported() {
+    return NvJpegLosslessDecoderFactory().IsSupported(this->GetDeviceId());
   }
 
  protected:
@@ -111,6 +119,8 @@ class NvJpegLosslessDecoder16bitTest : public NvJpegLosslessDecoderTest<uint16_t
 class NvJpegLosslessDecoder8bitTest : public NvJpegLosslessDecoderTest<uint8_t> {};
 
 TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle) {
+  if (!this->IsLosslessSupported())
+    GTEST_SKIP() << "Need SM60+ to execute this test\n";
   ImageBuffer image(data_path("0/cat-3449999_640_grayscale_16bit.jpg"));
   auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
 
@@ -119,6 +129,8 @@ TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle) {
 }
 
 TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle12bit) {
+  if (!this->IsLosslessSupported())
+    GTEST_SKIP() << "Need SM60+ to execute this test\n";
   ImageBuffer image(data_path("0/cat-3449999_640_grayscale_12bit.jpg"));
   auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
 
@@ -127,6 +139,8 @@ TEST_F(NvJpegLosslessDecoder16bitTest, DecodeSingle12bit) {
 }
 
 TEST_F(NvJpegLosslessDecoder8bitTest, DecodeSingle) {
+  if (!this->IsLosslessSupported())
+    GTEST_SKIP() << "Need SM60+ to execute this test\n";
   ImageBuffer image(data_path("0/cat-3449999_640_grayscale_8bit.jpg"));
   auto decoded = this->Decode(&image.src, this->GetParams(), ROI{});
 
@@ -135,6 +149,8 @@ TEST_F(NvJpegLosslessDecoder8bitTest, DecodeSingle) {
 }
 
 TEST_F(NvJpegLosslessDecoder16bitTest, DecodeBatch) {
+  if (!this->IsLosslessSupported())
+    GTEST_SKIP() << "Need SM60+ to execute this test\n";
   std::vector<ImageBuffer> buffers;
   buffers.emplace_back(data_path("0/cat-1245673_640_grayscale_16bit.jpg"));
   buffers.emplace_back(data_path("0/cat-3449999_640_grayscale_16bit.jpg"));
