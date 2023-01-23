@@ -86,7 +86,8 @@ JpegParser::ExtendedImageInfo JpegParser::GetExtendedInfo(ImageSource *encoded) 
         continue;
       auto entry = reader.getTag(cv::ORIENTATION);
       if (entry.tag != cv::INVALID_TAG) {
-        info.img_info.orientation = FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
+        info.img_info.orientation =
+            FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
         read_orientation = true;
       }
     }

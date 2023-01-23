@@ -133,7 +133,7 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
           res.exception = std::make_exception_ptr(
             std::runtime_error(
               make_string(
-                "Failed to decode a JPEG lossless (SOF-3) sample: ", in->SourceInfo(),".\n"
+                "Failed to decode a JPEG lossless (SOF-3) sample: ", in->SourceInfo(), ".\n"
                 "Support for lossless is currently very limited:\n"
                 "- Only number of components <= 2\n"
                 "- Only predictor value 1\n"
