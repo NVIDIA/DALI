@@ -42,9 +42,10 @@ if not initialized:
     initialized = True
 
     # py39 warning
-    if sys.version_info[0] == 3 and sys.version_info[1] == 10:
-        deprecation_warning("DALI support for Python 3.10 is experimental and some functionalities "
-                            "may not work.")
+    if sys.version_info[0] == 3 and sys.version_info[1] >= 10:
+        deprecation_warning("DALI support for Python {0}.{1} is experimental and some "
+                            "functionalities may not work."
+                            "".format(sys.version_info[0], sys.version_info[1]))
 
     if int(str(__cuda_version__)[:2]) < 11:
         deprecation_warning("DALI 1.21 is the last official release that supports CUDA 10.2. "
