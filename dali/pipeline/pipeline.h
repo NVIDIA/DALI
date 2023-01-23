@@ -159,8 +159,8 @@ class DLL_PUBLIC Pipeline {
     OpNodeId node_id = -1;
 
     if (graph_.TensorExists(name + "_cpu")) {
-      op_type = graph_.NodeType(node_id);
       node_id = graph_.TensorSourceID(name + "_cpu");
+      op_type = graph_.NodeType(node_id);
       DALI_ENFORCE(op_type == OpType::CPU,
                    "Internal error setting external input data.");
     } else if (graph_.TensorExists(name + "_gpu")) {
