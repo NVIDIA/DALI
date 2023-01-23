@@ -282,7 +282,9 @@ class pool_resource : public memory_resource<Kind>,
         next_block_size_ = options_.min_block_size;
       } else {
         next_block_size_ = blocks_.back().bytes;
-        next_block_size_ = next_block_size(0);
+        // next_block_size() uses the previous value of next_block_size_ and modifies it
+        // - this will behave now as if the last remaining block was the most recently allocated
+        next_block_size(0);
       }
     }
 
