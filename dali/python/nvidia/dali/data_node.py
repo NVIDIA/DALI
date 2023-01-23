@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,6 +71,13 @@ class DataNode(object):
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
     def gpu(self):
+        from nvidia.dali import _conditionals
+        if _conditionals.conditionals_enabled():
+            # Treat it the same way as regular operator would behave
+            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
+            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(transferred_node, [self])
+            return transferred_node
         return DataNode(self.name, "gpu", self.source)
 
     def __add__(self, other):
