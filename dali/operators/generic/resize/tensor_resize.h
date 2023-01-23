@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "dali/core/expand_dims.h"
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/tensor_resize_attr.h"
 #include "dali/pipeline/operator/common.h"
@@ -36,8 +37,8 @@ class TensorResize : public Operator<Backend>
   explicit TensorResize(const OpSpec &spec);
 
  protected:
-  int NumSpatialDims() const { return resize_attr_.NumSpatialDims(); }
-  int FirstSpatialDim() const { return resize_attr_.FirstSpatialDim(); }
+  int NumSpatialDims() const { return spatial_ndim_; }
+  int FirstSpatialDim() const { return first_spatial_dim_; }
 
   bool CanInferOutputs() const override { return true; }
 
@@ -45,10 +46,85 @@ class TensorResize : public Operator<Backend>
 
   void RunImpl(Workspace &ws) override;
 
+  void TrimSpatialDims(const TensorListShape<> &input_shape, int min_ndim) {
+    int nsamples = input_shape.num_samples();
+    auto unchanged_dim = [&](int d) {
+      for (int i = 0; i < nsamples; i++) {
+        int64_t extent = input_shape.tensor_shape_span(i)[d];
+        if (static_cast<int64_t>(resize_params_[i].dst_size[d]) != extent ||
+            static_cast<int64_t>(resize_params_[i].src_lo[d]) != 0 ||
+            static_cast<int64_t>(resize_params_[i].src_hi[d]) != extent) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    int can_trim_n = std::max(0, spatial_ndim_ - min_ndim);  // at least 2 spatial dims should remain
+    int new_first_spatial_dim = first_spatial_dim_;
+    int new_end_spatial_dim = first_spatial_dim_ + spatial_ndim_;
+
+    for (int d = first_spatial_dim_; d < first_spatial_dim_ + spatial_ndim_; d++) {
+      if (can_trim_n == 0 || !unchanged_dim(d))
+        break;
+      new_first_spatial_dim++;
+      can_trim_n--;
+    }
+    for (int d = new_end_spatial_dim - 1; d > new_first_spatial_dim; d--) {
+      if (can_trim_n == 0 || !unchanged_dim(d))
+        break;
+      new_end_spatial_dim++;
+      can_trim_n--;
+    }
+
+    int new_spatial_ndim = new_end_spatial_dim - new_first_spatial_dim;
+    if (first_spatial_dim_ == new_first_spatial_dim && spatial_ndim_ == new_spatial_ndim)
+      return;
+
+    for (int s = 0; s < nsamples; s++) {
+      auto &p = resize_params_[s];
+      for (int d = 0; d < new_spatial_ndim ; d++) {
+        int orig_d =  new_first_spatial_dim - first_spatial_dim_ + d;
+        p.dst_size[d] = p.dst_size[orig_d];
+        p.src_hi[d] = p.src_hi[orig_d];
+        p.src_lo[d] = p.src_lo[orig_d];
+      }
+      p.dst_size.resize(new_spatial_ndim);
+      p.src_hi.resize(new_spatial_ndim);
+      p.src_lo.resize(new_spatial_ndim);
+    }
+    first_spatial_dim_ = new_first_spatial_dim;
+    spatial_ndim_ = new_spatial_ndim;
+  }
+
   void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape,
                      const TensorLayout &layout) {
-    int nsamples = input_shape.num_samples();
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape, layout);
+
+    // 1st: Expand number of dimensions to at least 2D
+    int min_spatial_ndim = 2;  // ResizeBase requires it.
+    int orig_spatial_ndim = resize_attr_.NumSpatialDims();
+    add_leading_spatial_ndim_ = std::max(0, min_spatial_ndim - orig_spatial_ndim);
+    first_spatial_dim_ = 0;
+    spatial_ndim_ = orig_spatial_ndim + add_leading_spatial_ndim_;
+    expand_dims(expanded_input_shape_, input_shape, first_spatial_dim_, spatial_ndim_);
+    (void) input_shape;  // should use expanded_input_shape_ from now on
+
+    auto params_view = resize_attr_.Params();
+    resize_params_.clear();
+    resize_params_.reserve(params_view.size());
+    for (auto p : params_view) {
+      for (int i = 0; i < add_leading_spatial_ndim_; i++) {
+        p.dst_size.insert(p.dst_size.begin(), 1);
+        p.src_lo.insert(p.src_lo.begin(), 0);
+        p.src_hi.insert(p.src_hi.begin(), 1);
+      }
+      resize_params_.emplace_back(std::move(p));
+    }
+
+    // 2nd: Remove leading and trailing dimensions that are not resized,
+    // while keeping at least 2D.
+    TrimSpatialDims(expanded_input_shape_, min_spatial_ndim);
 
     if (NumSpatialDims() > 3) {
       throw std::invalid_argument(make_string(
@@ -62,14 +138,13 @@ class TensorResize : public Operator<Backend>
           NumSpatialDims(), " spatial dimensions starting at dim ",
           FirstSpatialDim()));
     }
-
-    // PrepareResizeParams should expand to at least 2D
     assert(NumSpatialDims() >= 2 && NumSpatialDims() <= 3);
     assert(FirstSpatialDim() >= 0);
+    int nsamples = expanded_input_shape_.num_samples();
     resample_params_.resize(nsamples * NumSpatialDims());
     resampling_attr_.PrepareFilterParams(spec_, ws, nsamples);
     resampling_attr_.GetResamplingParams(make_span(resample_params_),
-                                         resize_attr_.Params());
+                                         make_cspan(resize_params_));
   }
 
   void InitializeBackend();
@@ -80,6 +155,12 @@ class TensorResize : public Operator<Backend>
 
   TensorResizeAttr resize_attr_;
   ResamplingFilterAttr resampling_attr_;
+
+  TensorListShape<> expanded_input_shape_;  // expanded if needed
+  int spatial_ndim_ = -1;
+  int first_spatial_dim_ = -1;
+  int add_leading_spatial_ndim_ = 0;
+  std::vector<ResizeParams> resize_params_;
 };
 
 template <typename Backend>
@@ -95,18 +176,16 @@ bool TensorResize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto &input = ws.Input<Backend>(0);
   auto in_type = input.type();
   PrepareParams(ws, input.shape(), input.GetLayout());
-  auto expanded_in_shape = resize_attr_.ExpandedInputShape();
-  int leading_dummy_ndim = resize_attr_.LeadingDummyDims();
-  int N = expanded_in_shape.num_samples();
+  int N = expanded_input_shape_.num_samples();
   auto out_type = resampling_attr_.GetOutputType(in_type);
 
   output_desc[0].type = out_type;
-  this->SetupResize(output_desc[0].shape, out_type, expanded_in_shape, in_type,
+  this->SetupResize(output_desc[0].shape, out_type, expanded_input_shape_, in_type,
                     make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
 
-  if (leading_dummy_ndim > 0) {
+  if (add_leading_spatial_ndim_ > 0) {
     using shape_blocks_t = SmallVector<std::pair<int, int>, 6>;
-    auto groups_dim = shape_blocks_t{{0, leading_dummy_ndim + 1}};
+    auto groups_dim = shape_blocks_t{{0, add_leading_spatial_ndim_ + 1}};
     output_desc[0].shape = collapse_dims(output_desc[0].shape, make_cspan(groups_dim));
   }
   return true;

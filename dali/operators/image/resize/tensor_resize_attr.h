@@ -48,14 +48,6 @@ class DLL_PUBLIC TensorResizeAttr {
     }
   }
 
-  TensorListShape<> ExpandedInputShape() const {
-    return input_shape_;
-  }
-
-  int LeadingDummyDims() const {
-    return add_leading_spatial_ndim_;
-  }
-
   int NumSpatialDims() const {
     return spatial_ndim_;
   }
@@ -70,7 +62,6 @@ class DLL_PUBLIC TensorResizeAttr {
 
  private:
   const float* PrepareMaxSize(const OpSpec &spec, span<const int> axes);
-  void TrimSpatialDims(const TensorListShape<> &input_shape);
 
   AxesHelper axes_helper_;
   bool has_sizes_ = false;
@@ -88,11 +79,8 @@ class DLL_PUBLIC TensorResizeAttr {
   vector<float> alignment_, alignment_arg_;
   vector<float> max_size_, max_size_arg_;
   std::function<int(float)> scale_round_fn_;
-  TensorListShape<> input_shape_;
-  int ndim_ = -1;
   int spatial_ndim_ = -1;
   int first_spatial_dim_ = -1;
-  int add_leading_spatial_ndim_ = 0;
   vector<ResizeParams> params_;
 };
 

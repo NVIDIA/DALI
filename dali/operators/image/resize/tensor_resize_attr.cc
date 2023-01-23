@@ -16,7 +16,6 @@
 #include <limits>
 #include <string>
 #include <vector>
-#include "dali/core/expand_dims.h"
 #include "dali/core/math_util.h"
 #include "dali/operators/image/resize/resize_attr.h"
 #include "dali/operators/util/axes_utils.h"
@@ -128,80 +127,16 @@ TensorResizeAttr::TensorResizeAttr(const OpSpec &spec) : axes_helper_(spec) {
   }
 }
 
-void TensorResizeAttr::TrimSpatialDims(const TensorListShape<> &input_shape) {
-  int nsamples = input_shape.num_samples();
-  auto unchanged_dim = [&](int d) {
-    for (int i = 0; i < nsamples; i++) {
-      int64_t extent = input_shape.tensor_shape_span(i)[d];
-      if (static_cast<int64_t>(params_[i].dst_size[d]) != extent ||
-          static_cast<int64_t>(params_[i].src_lo[d]) != 0 ||
-          static_cast<int64_t>(params_[i].src_hi[d]) != extent) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  int can_trim_n = std::max(0, spatial_ndim_ - 2);  // at least 2 spatial dims should remain
-  int new_first_spatial_dim = first_spatial_dim_;
-  int new_end_spatial_dim = first_spatial_dim_ + spatial_ndim_;
-
-  for (int d = first_spatial_dim_; d < first_spatial_dim_ + spatial_ndim_; d++) {
-    if (can_trim_n == 0 || !unchanged_dim(d))
-      break;
-    new_first_spatial_dim++;
-    can_trim_n--;
-  }
-  for (int d = new_end_spatial_dim - 1; d > new_first_spatial_dim; d--) {
-    if (can_trim_n == 0 || !unchanged_dim(d))
-      break;
-    new_end_spatial_dim++;
-    can_trim_n--;
-  }
-
-  int new_spatial_ndim = new_end_spatial_dim - new_first_spatial_dim;
-  if (first_spatial_dim_ == new_first_spatial_dim && spatial_ndim_ == new_spatial_ndim)
-    return;
-
-  for (int s = 0; s < nsamples; s++) {
-    auto &p = params_[s];
-    for (int d = 0; d < new_spatial_ndim ; d++) {
-      int orig_d =  new_first_spatial_dim - first_spatial_dim_ + d;
-      p.dst_size[d] = p.dst_size[orig_d];
-      p.src_hi[d] = p.src_hi[orig_d];
-      p.src_lo[d] = p.src_lo[orig_d];
-    }
-    p.dst_size.resize(new_spatial_ndim);
-    p.src_hi.resize(new_spatial_ndim);
-    p.src_lo.resize(new_spatial_ndim);
-  }
-  first_spatial_dim_ = new_first_spatial_dim;
-  spatial_ndim_ = new_spatial_ndim;
-}
-
 void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                            const TensorListShape<> &input_shape,
                                            const TensorLayout &layout) {
-  input_shape_ = input_shape;
-  (void) input_shape;  // we are potentially modifying our copy for internal use
-  ndim_ = input_shape_.sample_dim();
-  if (ndim_ < 1)
-    throw std::runtime_error("Input must be at least 1D");
-  axes_helper_.PrepareAxes(layout, ndim_);
-  span<int> axes = axes_helper_.Axes();
   first_spatial_dim_ = 0;
-  // We need spatial_ndim >= 2
-  add_leading_spatial_ndim_ = std::max(0, 2 - ndim_);
-  if (add_leading_spatial_ndim_ > 0) {
-    expand_dims(input_shape_, input_shape, first_spatial_dim_, ndim_ + add_leading_spatial_ndim_);
-    ndim_ = input_shape_.sample_dim();
-    for (int &a : axes)  // skip dummy dims
-      a += add_leading_spatial_ndim_;
-  }
-  spatial_ndim_ = ndim_;
-  assert(spatial_ndim_ >= 2);
-
-  int nsamples = input_shape_.num_samples();
+  spatial_ndim_ = input_shape.sample_dim();
+  if (spatial_ndim_ < 1)
+    throw std::runtime_error("Input must be at least 1D");
+  axes_helper_.PrepareAxes(layout, spatial_ndim_);
+  span<int> axes = axes_helper_.Axes();
+  int nsamples = input_shape.num_samples();
   int nargs = axes.size();
 
   auto set_values_axes = [&](std::vector<float>& values, const std::vector<float>& arg) {
@@ -223,7 +158,7 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
                                                 const std::vector<float> &arg) {
     values.resize(nsamples * spatial_ndim_);
     for (int i = 0; i < nsamples; i++) {
-      span<const int64_t> in_sample_shape = input_shape_.tensor_shape_span(i);
+      span<const int64_t> in_sample_shape = input_shape.tensor_shape_span(i);
       for (int d = 0; d < spatial_ndim_; d++) {
         values[d] = in_sample_shape[d];
       }
@@ -280,7 +215,7 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
   in_hi.resize(spatial_ndim_);
 
   for (int i = 0; i < nsamples; i++) {
-    auto in_sample_shape = input_shape_.tensor_shape_span(i);
+    auto in_sample_shape = input_shape.tensor_shape_span(i);
 
     if (has_sizes_) {
       for (int d = 0; d < spatial_ndim_; d++) {
@@ -293,9 +228,9 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
       }
     }
 
-    bool empty_input = volume(input_shape_.tensor_shape_span(i)) == 0;
+    bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
     CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start, roi_end,
-                      input_shape_, i, spatial_ndim_, first_spatial_dim_);
+                      input_shape, i, spatial_ndim_, first_spatial_dim_);
 
     span<const float> alignment;
     if (has_alignment_)
@@ -304,11 +239,6 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                           spatial_ndim_, mode_, max_size, alignment, scale_round_fn_);
   }
-
-  // Modify first_spatial_dim_ and spatial_ndim_ so that we ignore dimensions that are not resized
-  // (e.g. scale 1, or requested same output size as input), but at the same time make sure we keep
-  // at least 2 spatial dims
-  TrimSpatialDims(input_shape_);
 }
 
 }  // namespace dali
