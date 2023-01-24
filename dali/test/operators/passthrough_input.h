@@ -31,7 +31,9 @@ class PassthroughInput : public InputOperator<Backend> {
   >;
 
  public:
-  explicit PassthroughInput(const OpSpec &spec) : InputOperator<Backend>(spec) {}
+  explicit PassthroughInput(const OpSpec &spec) :
+          InputOperator<Backend>(spec),
+          cpu_input_(spec.GetArgument<int>("cpu_input")) {}
 
   DISABLE_COPY_MOVE_ASSIGN(PassthroughInput);
 
@@ -47,13 +49,29 @@ class PassthroughInput : public InputOperator<Backend> {
 
 
   void Run(Workspace &ws) override {
-    auto& out = ws.Output<OutBackend>(0);
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      this->ForwardCurrentData(out, ws.GetThreadPool());
+    if (cpu_input_) {
+      RunCpuInput(ws);
     } else {
-      this->ForwardCurrentData(out, ws.stream());
+      RunGpuInput(ws);
     }
   }
+
+
+  void RunCpuInput(Workspace &ws) {
+    auto& out = ws.Output<OutBackend>(0);
+    TensorList<CPUBackend> intermediate;
+    this->ForwardCurrentData(intermediate, ws.GetThreadPool());
+    out.Copy(intermediate, ws.stream());
+  }
+
+
+  void RunGpuInput(Workspace &ws) {
+    auto& out = ws.Output<OutBackend>(0);
+    this->ForwardCurrentData(out, ws.stream());
+  }
+
+
+  bool cpu_input_;
 };
 
 }  // namespace dali

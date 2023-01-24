@@ -199,12 +199,15 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * This function will take a best effort not to copy the data,
    * however it might not always be possible.
    *
+   * `target` tensor does not have to be allocated properly. This function resizes the target
+   * tensor to proper size.
+   *
    * @param target Where the data shall be injected.
    * @param tp TheadPool used to copy the data.
    */
-  void DLL_PUBLIC ForwardCurrentData(TensorList<OutBackend> &target, ThreadPool &tp);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
 
-  void DLL_PUBLIC ForwardCurrentData(TensorList<OutBackend> &target, cudaStream_t stream = nullptr);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
   ///@}
 
 

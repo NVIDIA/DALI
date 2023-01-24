@@ -23,6 +23,10 @@ The operator that is a passthrough operator and also an input operator. Used for
 )code")
                 .NumInput(0)
                 .NumOutput(1)
+                .AddOptionalArg("cpu_input", R"code(
+If `true`, this operator will grab the input as CPU tensor, copy it and return GPU.
+If `false`, this operator will grab the input as GPU tensor.
+)code", true)
                 .AddParent("InputOperatorBase");
 
 

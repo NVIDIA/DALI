@@ -29,29 +29,30 @@ namespace dali::test {
 struct InputOperatorMixedTestParam {
   int cpu_queue_depth, gpu_queue_depth;
   bool exec_pipelined, exec_async;
+  bool cpu_input;
 };
 
 
 namespace {
 
 InputOperatorMixedTestParam input_operator_test_params_simple_executor[] = {
-        {1, 1, false, false},
-        {2, 2, false, false},
+        {1, 1, false, false, true},
+        {2, 2, false, false, false},
 };
 
 
 InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_uniform_queue[] = {
-        {2, 2, true, false},
-        {3, 3, true, false},
-        {2, 2, true, true},
-        {3, 3, true, true},
+        {2, 2, true, false, true},
+        {3, 3, true, false, true},
+        {2, 2, true, true,  false},
+        {3, 3, true, true,  false},
 };
 
 InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_separate_queue[] = {
-        {2, 3, true, false},
-        {3, 2, true, false},
-        {2, 3, true, true},
-        {3, 2, true, true},
+        {2, 3, true, false, true},
+        {3, 2, true, false, true},
+        {2, 3, true, true,  false},
+        {3, 2, true, true,  false},
 };
 
 
@@ -77,6 +78,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
     exec_async_ = parameters.exec_async;
     exec_pipelined_ = parameters.exec_pipelined;
     exec_separated_ = cpu_queue_depth_ != gpu_queue_depth_;
+    cpu_input_ = parameters.cpu_input;
     cout << "TEST: cpu_queue_depth=" << cpu_queue_depth_ << ", gpu_queue_depth=" << gpu_queue_depth_
          << ", exec_async=" << std::boolalpha << exec_async_ << ", exec_pipelined="
          << exec_pipelined_ << endl;
@@ -100,6 +102,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
 
   bool exec_pipelined_, exec_async_, exec_separated_;
   int cpu_queue_depth_, gpu_queue_depth_;
+  bool cpu_input_;
   std::string serialized_pipeline_;
 
  private:
@@ -107,6 +110,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
     pipeline_->AddOperator(OpSpec("PassthroughInput")
                                    .AddArg("device", "mixed")
                                    .AddArg("name", operator_name_)
+                                   .AddArg("cpu_input", cpu_input_)
                                    .AddOutput(operator_name_, "gpu"),
                            operator_name_);
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -125,7 +129,7 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
     size_t sample_size = 42;
-    thrust::host_vector<int32_t> in_data(sample_size*batch_size_, 2137);
+    thrust::host_vector<int32_t> in_data(sample_size * batch_size_, 2137);
     thrust::device_vector<int32_t> ref_data = in_data;
 
     // Feed CPU input data.
@@ -144,7 +148,7 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
       daliOutputCopy(&h, thrust::raw_pointer_cast(out_data.data()), 0, device_type_t::GPU, 0,
                      DALI_ext_force_sync);
 
-      EXPECT_EQ(out_data , ref_data);
+      EXPECT_EQ(out_data, ref_data);
 
       daliOutputRelease(&h);
     }
