@@ -3,24 +3,45 @@
 Mathematical Expressions
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-DALI allows you to use regular Python arithmetic operations and other mathematical functions in
-the :meth:`~nvidia.dali.Pipeline.define_graph` method on the values that are returned
-from invoking other operators.
+DALI allows you to use regular Python :ref:`arithmetic operations <Supported Arithmetic Operations>`
+and other :ref:`mathematical functions <Mathematical Functions>` in
+the pipeline definition (via :meth:`@pipeline_def <nvidia.dali.pipeline_def>` or within
+:meth:`~nvidia.dali.Pipeline.define_graph`) on the values that are returned from invoking
+other operators.
 
 The expressions that are used will be incorporated into the pipeline without needing to explicitly
-instantiate operators and will describe the element-wise operations on Tensors.
+instantiate operators and will describe the element-wise operations on tensors::
+
+    @pipeline_def
+    def my_pipeline():
+        """Create a pipeline which reads and decodes the images, scales channels by broadcasting
+        and clamps the result to [128, 255) range."""
+        img_files, _ = fn.readers.file(file_root="image_dir")
+        images = fn.decoders.image(img_files, device="mixed")
+        red_highlight = images * nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75]))
+        result = nvidia.dali.math.clamp(red_highlight, 128, 255)
+        return result
+
 
 At least one of the inputs to the arithmetic expression must be returned by other DALI operator -
 that is a value of :class:`nvidia.dali.pipeline.DataNode` representing a batch of tensors.
 The other input can be :meth:`nvidia.dali.types.Constant` or regular Python value of type ``bool``,
 ``int``, or ``float``. As the operations performed are element-wise, the shapes of all
-operands must match.
-
-.. note::
-    If one of the operands is a batch of Tensors that represent scalars, the scalar values
-    are *broadcast* to the other operand.
+operands must be compatible - either match exactly or be :ref:`broadcastable <Broadcasting>`.
 
 For details and examples see :doc:`expressions tutorials <examples/general/expressions/index>`.
+
+.. note::
+    Keep in mind to wrap the tensor constants used in mathematical expressions (like NumPy array)
+    with the :meth:`nvidia.dali.types.Constant`. If used directly, the operator implementation
+    from that tensor's library may be picked up and the result might be undefined. Using the line
+    from the previous example, the first two variants are equivalent, while the third will be wrong::
+      # Correct approach:
+      red_highlight_0 = images * nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75]))
+      red_highlight_1 = nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75])) * images
+      # Wrong approach:
+      # red_highlight_2 = np.float32([1.25, 0.75, 0.75]) * images
+
 
 .. _type promotions:
 

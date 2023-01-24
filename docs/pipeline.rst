@@ -133,6 +133,7 @@ to the previous one::
    :members:
    :special-members: __enter__, __exit__
 
+.. _pipeline_decorator:
 
 Pipeline Decorator
 ------------------
