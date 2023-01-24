@@ -172,4 +172,5 @@ void InputOperator<MixedBackend>::ForwardCurrentData(
   RecycleBuffer(tensor_list_elm);
 }
 
+
 }  // namespace dali

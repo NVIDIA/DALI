@@ -22,7 +22,7 @@
 namespace dali {
 
 
-template <typename Backend>
+template<typename Backend>
 class PassthroughInput : public InputOperator<Backend> {
   using OutBackend = std::conditional_t<
           std::is_same_v<Backend, CPUBackend>,
@@ -33,7 +33,12 @@ class PassthroughInput : public InputOperator<Backend> {
  public:
   explicit PassthroughInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
-          cpu_input_(spec.GetArgument<int>("cpu_input")) {}
+          cpu_input_(spec.GetArgument<bool>("cpu_input")) {
+    if constexpr (std::is_same_v<Backend, MixedBackend>) {
+      tp_ = std::make_unique<ThreadPool>(this->num_threads_, this->device_id_, false,
+                                         "PassthroughInput thread pool");
+    }
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(PassthroughInput);
 
@@ -49,6 +54,8 @@ class PassthroughInput : public InputOperator<Backend> {
 
 
   void Run(Workspace &ws) override {
+    DALI_ENFORCE(!cpu_input_ || ((cpu_input_) != (std::is_same_v<Backend, GPUBackend>)),
+                 "Can't have CPU input in the GPU operator.");
     if (cpu_input_) {
       RunCpuInput(ws);
     } else {
@@ -58,20 +65,22 @@ class PassthroughInput : public InputOperator<Backend> {
 
 
   void RunCpuInput(Workspace &ws) {
-    auto& out = ws.Output<OutBackend>(0);
+    auto &out = ws.Output<OutBackend>(0);
     TensorList<CPUBackend> intermediate;
-    this->ForwardCurrentData(intermediate, ws.GetThreadPool());
+    this->ForwardCurrentData(intermediate,
+                             std::is_same_v<Backend, CPUBackend> ? ws.GetThreadPool() : *tp_);
     out.Copy(intermediate, ws.stream());
   }
 
 
   void RunGpuInput(Workspace &ws) {
-    auto& out = ws.Output<OutBackend>(0);
+    auto &out = ws.Output<OutBackend>(0);
     this->ForwardCurrentData(out, ws.stream());
   }
 
 
   bool cpu_input_;
+  std::unique_ptr<ThreadPool> tp_;
 };
 
 }  // namespace dali
