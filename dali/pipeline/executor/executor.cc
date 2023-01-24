@@ -300,6 +300,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   SmallVector<int, 16> empty_layout_in_idxs;
 
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
+  ws.ClearOperatorTraces();
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
 
