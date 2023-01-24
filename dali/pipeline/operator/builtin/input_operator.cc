@@ -127,8 +127,6 @@ void InputOperator<MixedBackend>::ForwardCurrentData(
     state_info = state_.front();
     state_.pop_front();
   }
-  const auto &shapes = tensor_list_elm.front()->shape();
-  target.Resize(shapes, tensor_list_elm.front()->type());
   target.Copy(*tensor_list_elm.front(), stream);
 
   tensor_list_elm.front()->set_order(internal_copy_order_);
