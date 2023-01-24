@@ -41,7 +41,7 @@ Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
     .AddOptionalArg<float>("alignment", R"code(Determines the position of the ROI
 when using scales (provided or calculated).
 
-The real output size must be integer and may differ from "ideal" output size calculated as input
+The real output size must be integral and may differ from "ideal" output size calculated as input
 (or ROI) size multiplied by the scale factor. In that case, the output size is rounded (according
 to `size_rounding` policy) and the input ROI needs to be adjusted to maintain the scale factor.
 This parameter defines which relative point of the ROI should retain its position in the output.

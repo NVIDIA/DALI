@@ -60,21 +60,22 @@ class TensorResize : public Operator<Backend>
       return true;
     };
 
-    int can_trim_n = std::max(0, spatial_ndim_ - min_ndim);  // at least 2 spatial dims should remain
+    // at least min_ndim should remain
+    int ndim_to_trim = std::max(0, spatial_ndim_ - min_ndim);
     int new_first_spatial_dim = first_spatial_dim_;
     int new_end_spatial_dim = first_spatial_dim_ + spatial_ndim_;
 
     for (int d = first_spatial_dim_; d < first_spatial_dim_ + spatial_ndim_; d++) {
-      if (can_trim_n == 0 || !unchanged_dim(d))
+      if (ndim_to_trim == 0 || !unchanged_dim(d))
         break;
       new_first_spatial_dim++;
-      can_trim_n--;
+      ndim_to_trim--;
     }
     for (int d = new_end_spatial_dim - 1; d > new_first_spatial_dim; d--) {
-      if (can_trim_n == 0 || !unchanged_dim(d))
+      if (ndim_to_trim == 0 || !unchanged_dim(d))
         break;
       new_end_spatial_dim++;
-      can_trim_n--;
+      ndim_to_trim--;
     }
 
     int new_spatial_ndim = new_end_spatial_dim - new_first_spatial_dim;
@@ -108,7 +109,7 @@ class TensorResize : public Operator<Backend>
     first_spatial_dim_ = 0;
     spatial_ndim_ = orig_spatial_ndim + add_leading_spatial_ndim_;
     expand_dims(expanded_input_shape_, input_shape, first_spatial_dim_, spatial_ndim_);
-    (void) input_shape;  // should use expanded_input_shape_ from now on
+    // should use expanded_input_shape_ from now on
 
     auto params_view = resize_attr_.Params();
     resize_params_.clear();
