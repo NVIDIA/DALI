@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/operators/passthrough_input.h"
+#include "dali/test/operators/identity_input.h"
 
 namespace dali {
 
-DALI_SCHEMA(PassthroughInput)
+DALI_SCHEMA(IdentityInput)
                 .DocStr(
                         R"code(
-The operator that is a passthrough operator and also an input operator. Used for test only.
+The operator returns its input unchanged and also is an input operator. Used for test only.
 )code")
                 .NumInput(0)
                 .NumOutput(1)
@@ -30,6 +30,6 @@ If `false`, this operator will grab the input as GPU tensor.
                 .AddParent("InputOperatorBase");
 
 
-DALI_REGISTER_OPERATOR(PassthroughInput, PassthroughInput<MixedBackend>, Mixed);
+DALI_REGISTER_OPERATOR(IdentityInput, IdentityInput<MixedBackend>, Mixed);
 
 }  // namespace dali

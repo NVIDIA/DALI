@@ -23,7 +23,7 @@ namespace dali {
 
 
 template<typename Backend>
-class PassthroughInput : public InputOperator<Backend> {
+class IdentityInput : public InputOperator<Backend> {
   using OutBackend = std::conditional_t<
           std::is_same_v<Backend, CPUBackend>,
           CPUBackend /* CPUBackend */,
@@ -31,7 +31,7 @@ class PassthroughInput : public InputOperator<Backend> {
   >;
 
  public:
-  explicit PassthroughInput(const OpSpec &spec) :
+  explicit IdentityInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
           cpu_input_(spec.GetArgument<bool>("cpu_input")) {
     if constexpr (std::is_same_v<Backend, MixedBackend>) {
@@ -40,7 +40,7 @@ class PassthroughInput : public InputOperator<Backend> {
     }
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(PassthroughInput);
+  DISABLE_COPY_MOVE_ASSIGN(IdentityInput);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

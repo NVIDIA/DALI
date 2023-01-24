@@ -43,15 +43,15 @@ InputOperatorMixedTestParam input_operator_test_params_simple_executor[] = {
 
 InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_uniform_queue[] = {
         {2, 2, true, false, true},
-        {3, 3, true, false, true},
-        {2, 2, true, true,  false},
+        {3, 3, true, false, false},
+        {2, 2, true, true,  true},
         {3, 3, true, true,  false},
 };
 
 InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_separate_queue[] = {
         {2, 3, true, false, true},
-        {3, 2, true, false, true},
-        {2, 3, true, true,  false},
+        {3, 2, true, false, false},
+        {2, 3, true, true,  true},
         {3, 2, true, true,  false},
 };
 
@@ -98,7 +98,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
   int device_id_ = 0;
   int n_iterations_ = 50;
   std::unique_ptr<Pipeline> pipeline_;
-  std::string operator_name_ = "PTI";
+  std::string operator_name_ = "IDIN";
 
   bool exec_pipelined_, exec_async_, exec_separated_;
   int cpu_queue_depth_, gpu_queue_depth_;
@@ -107,7 +107,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
 
  private:
   void PutTogetherDaliGraph() {
-    pipeline_->AddOperator(OpSpec("PassthroughInput")
+    pipeline_->AddOperator(OpSpec("IdentityInput")
                                    .AddArg("device", "mixed")
                                    .AddArg("name", operator_name_)
                                    .AddArg("cpu_input", cpu_input_)
