@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_
-#define DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_
+#ifndef DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
+#define DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
 
 #include <vector>
-
+#include <memory>
 #include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
@@ -85,4 +85,4 @@ class IdentityInput : public InputOperator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_TEST_OPERATORS_PASSTHROUGH_INPUT_H_
+#endif  // DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
