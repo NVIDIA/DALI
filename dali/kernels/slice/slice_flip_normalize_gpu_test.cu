@@ -100,13 +100,13 @@ class SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC
 class SliceFlipNormalizeGPUTest_float_uint8_2D_HWC
     : public SliceFlipNormalizeGPUTest<float, uint8_t, 2, 2> {};
 
-TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, only_crop_1) {
-  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize/only_crop/1";
+TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, only_crop) {
+  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize";
 
   TestTensorList<uint8_t, 3> input;
   TestTensorList<uint8_t, 3> ref;
   this->LoadBatch(input, tc_dir,  {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
+  this->LoadBatch(ref, tc_dir, {"output0_c.npy", "output1_c.npy", "output2_c.npy"});
 
   TestTensorList<uint8_t, 3> output;
   typename Kernel::Args args;
@@ -122,14 +122,13 @@ TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, only_crop_1) {
   Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
 }
 
-TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, crop_and_mirror) {
-  auto tc_dir =
-      testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize/crop_and_mirror/1";
+TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, crop_mirror) {
+  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize";
 
   TestTensorList<uint8_t, 3> input;
   TestTensorList<uint8_t, 3> ref;
   this->LoadBatch(input, tc_dir,  {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
+  this->LoadBatch(ref, tc_dir, {"output0_cm.npy", "output1_cm.npy", "output2_cm.npy"});
 
   TestTensorList<uint8_t, 3> output;
   typename Kernel::Args args;
@@ -145,14 +144,13 @@ TEST_F(SliceFlipNormalizeGPUTest_uint8_uint8_2D_HWC, crop_and_mirror) {
   Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
 }
 
-TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_and_mirror_and_normalize) {
-  auto tc_dir = testing::dali_extra_path() +
-                "/db/test_data/crop_mirror_normalize/crop_and_mirror_and_normalize/1";
+TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_mirror_normalize) {
+  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize";
 
   TestTensorList<uint8_t, 3> input;
   TestTensorList<float, 3> ref;
   this->LoadBatch(input, tc_dir,  {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
+  this->LoadBatch(ref, tc_dir, {"output0_cmn.npy", "output1_cmn.npy", "output2_cmn.npy"});
 
   TestTensorList<float, 3> output;
   typename Kernel::Args args;
@@ -175,14 +173,13 @@ TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_and_mirror_and_normali
   Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
 }
 
-TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_and_mirror_and_normalize_and_transpose) {
-  auto tc_dir = testing::dali_extra_path() +
-                "/db/test_data/crop_mirror_normalize/crop_and_mirror_and_normalize_and_transpose/1";
+TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_mirror_normalize_transpose) {
+  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize";
 
   TestTensorList<uint8_t, 3> input;
   TestTensorList<float, 3> ref;
   this->LoadBatch(input, tc_dir, {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
+  this->LoadBatch(ref, tc_dir, {"output0_cmnt.npy", "output1_cmnt.npy", "output2_cmnt.npy"});
 
   TestTensorList<float, 3> output;
   typename Kernel::Args args;
@@ -205,14 +202,13 @@ TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, crop_and_mirror_and_normali
   Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
 }
 
-TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, pad_and_normalize) {
-  auto tc_dir = testing::dali_extra_path() +
-                "/db/test_data/crop_mirror_normalize/pad_and_normalize/1";
+TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, pad_normalize) {
+  auto tc_dir = testing::dali_extra_path() + "/db/test_data/crop_mirror_normalize";
 
   TestTensorList<uint8_t, 3> input;
   TestTensorList<float, 3> ref;
   this->LoadBatch(input, tc_dir, {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
+  this->LoadBatch(ref, tc_dir, {"output0_pn.npy", "output1_pn.npy", "output2_pn.npy"});
 
   TestTensorList<float, 3> output;
   typename Kernel::Args args;
@@ -241,41 +237,6 @@ TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, pad_and_normalize) {
   Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
 }
 
-TEST_F(SliceFlipNormalizeGPUTest_float_uint8_2D_HWC, pad_and_flip_and_normalize) {
-  auto tc_dir = testing::dali_extra_path() +
-                "/db/test_data/crop_mirror_normalize/pad_and_flip_and_normalize/1";
-
-  TestTensorList<uint8_t, 3> input;
-  TestTensorList<float, 3> ref;
-  this->LoadBatch(input, tc_dir, {"input0.npy", "input1.npy", "input2.npy"});
-  this->LoadBatch(ref, tc_dir, {"output0.npy", "output1.npy", "output2.npy"});
-
-  TestTensorList<float, 3> output;
-  typename Kernel::Args args;
-  args.perm = {};
-
-  args.sample_args = {
-    { Roi<2>{{0, -2}, {19, 8}}, {true, false},
-      {255 * 0.485f, 255 * 0.456f, 255 * 0.406f},
-      {1.0f / (255 * 0.229f), 1.0f / (255 * 0.224f), 1.0f / (255 * 0.225f)},
-      {255.0f, 128.0f, 64.0f, 32.0f}
-    },
-    { Roi<2>{{-4, 0}, {4, 28}}, {true, true},
-      {255 * 0.455f, 255 * 0.436f, 255 * 0.416f},
-      {1.0f / (255 * 0.225f), 1.0f / (255 * 0.224f), 1.0f / (255 * 0.221f)},
-      {255.0f + 1, 128.0f + 1, 64.0f + 1, 32.0f + 1}
-    },
-    { Roi<2>{{0, 0}, {5, 120}}, {false, false},
-      {255 * 0.495f, 255 * 0.466f, 255 * 0.396f},
-      {1.0f / (255 * 0.226f), 1.0f / (255 * 0.229f), 1.0f / (255 * 0.222f)},
-      {255.0f + 2, 128.0f + 2, 64.0f + 2, 32.0f + 2}
-    }
-  };
-
-  this->RunKernel(output, input, args);
-
-  Check(ref.cpu(), output.cpu(), EqualEps(1e-6));
-}
 
 TEST(SliceFlipNormalizeGPUTest, Benchmark) {
   using Kernel = SliceFlipNormalizeGPU<float, uint8_t, 2, 2>;
@@ -326,8 +287,8 @@ TEST(SliceFlipNormalizeGPUTest, Benchmark) {
     float time_ms = 0;
     CUDA_CALL(cudaEventElapsedTime(&time_ms, started, finished));
     time_ms /= iters;
-    int64_t data_size =  // note: using out_view.num_elements() twice in purpose (we are not reading
-                         // all input)
+    // note: using out_view.num_elements() twice in purpose (we are not reading all input)
+    int64_t data_size =
         out_view.num_elements() * sizeof(InType) + out_view.num_elements() * sizeof(OutType);
     std::cout << data_size * 1e-6 / time_ms << " GB/s" << std::endl;
   };
@@ -401,8 +362,8 @@ TEST(SliceFlipNormalizeGPUTest, BenchmarkOld) {
     float time_ms = 0;
     CUDA_CALL(cudaEventElapsedTime(&time_ms, started, finished));
     time_ms /= iters;
-    int64_t data_size =  // note: using out_view.num_elements() twice in purpose (we are not reading
-                        // all input)
+    // note: using out_view.num_elements() twice in purpose (we are not reading all input)
+    int64_t data_size =
         out_view.num_elements() * sizeof(InType) + out_view.num_elements() * sizeof(OutType);
     std::cout << data_size * 1e-6 / time_ms << " GB/s" << std::endl;
   };

@@ -49,7 +49,7 @@ int SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::GetNumChannels(
 template <typename Out, typename In, int spatial_ndim, int channel_dim>
 int SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::GetOutNumChannels(
     const TensorListShape<ndim> &sh, const Args &args) {
-  if (sh.num_samples() != args.sample_args.size()) {
+  if (sh.num_samples() != static_cast<int>(args.sample_args.size())) {
     std::invalid_argument(
         "Number of samples in the arguments should match the number of samples in the shape");
   }
@@ -68,7 +68,7 @@ KernelRequirements SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Se
     KernelContext &ctx, const TensorListShape<ndim> &sh, const Args &args) {
   (void) ctx;
   int nsamples = sh.num_samples();
-  if (nsamples != args.sample_args.size())
+  if (nsamples != static_cast<int>(args.sample_args.size()))
     throw std::invalid_argument("Invalid number of samples in kernel args");
   out_shape_ = TensorListShape<ndim>(nsamples, ndim);
   out_shape_orig_ = TensorListShape<ndim>(nsamples, ndim);
