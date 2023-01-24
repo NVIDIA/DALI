@@ -41,7 +41,7 @@ def test_condition_stack():
     # if pred_node:
     #     some_op()
     #     if pred_nested:
-    #         some_other_op()
+    #         some_nested_op()
 
     test_stack.register_data_nodes(pred_node)
     test_stack.register_data_nodes(pred_nested)
@@ -482,6 +482,51 @@ def test_against_split_merge():
             output = fn.rotate(decoded, angle=30)
         else:
             output = fn.flip(decoded, horizontal=True)
+        return output
+
+    pipes = [regular_pipe(), conditional_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
+# Compare pure Split/Merge operators with if statement to see if DataNodes produced by `.gpu()`
+# are registered
+def test_dot_gpu():
+    test_data_root = get_dali_extra_path()
+    caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
+
+    @pipeline_def(**kwargs)
+    def regular_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        decoded = fn.decoders.image(encoded, device="cpu")
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        true, false = fn._conditional.split(decoded, predicate=pred)
+        output_true = fn.rotate(true.gpu(), angle=30)
+        output_false = fn.flip(false, horizontal=True).gpu()
+        return fn._conditional.merge(output_true, output_false, predicate=pred)
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def conditional_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        decoded = fn.decoders.image(encoded)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        if pred:
+            decoded_gpu_true = decoded.gpu()
+            # The `decoded` will be split as we look it up in a scope of a branch,
+            # so the new node is built based on that split batch
+            assert "__Split" in decoded_gpu_true.name
+            output = fn.rotate(decoded_gpu_true, angle=30)
+        else:
+            output = fn.flip(decoded, name="flip_in_else", horizontal=True)
+            output = output.gpu()
+            # here we crate new node based on the one already produced in this scope,
+            # so the source name is kept
+            assert output.name == "flip_in_else"
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
