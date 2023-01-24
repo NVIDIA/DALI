@@ -241,6 +241,10 @@ def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
 
+def test_tensor_resize_cpu():
+    check_single_input(fn.experimental.tensor_resize, sizes=[50, 50], axes=[0, 1])
+
+
 def test_per_frame_cpu():
     check_single_input(fn.per_frame, replace=True)
 
@@ -1228,6 +1232,7 @@ tested_methods = [
     "cast",
     "cast_like",
     "resize",
+    "experimental.tensor_resize",
     "gaussian_blur",
     "laplacian",
     "crop_mirror_normalize",
