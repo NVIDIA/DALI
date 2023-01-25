@@ -15,8 +15,9 @@
 #ifndef DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
 #define DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
 
-#include <vector>
 #include <memory>
+#include <string>
+#include <vector>
 #include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
@@ -67,7 +68,7 @@ class IdentityInput : public InputOperator<Backend> {
   void RunCpuInput(Workspace &ws) {
     auto &out = ws.Output<OutBackend>(0);
     TensorList<CPUBackend> intermediate;
-    this->ForwardCurrentData(intermediate,
+    this->ForwardCurrentData(intermediate, data_id_,
                              std::is_same_v<Backend, CPUBackend> ? ws.GetThreadPool() : *tp_);
     out.Copy(intermediate, ws.stream());
   }
@@ -75,12 +76,13 @@ class IdentityInput : public InputOperator<Backend> {
 
   void RunGpuInput(Workspace &ws) {
     auto &out = ws.Output<OutBackend>(0);
-    this->ForwardCurrentData(out, ws.stream());
+    this->ForwardCurrentData(out, data_id_, ws.stream());
   }
 
 
   bool cpu_input_;
   std::unique_ptr<ThreadPool> tp_;
+  std::optional<std::string> data_id_;
 };
 
 }  // namespace dali
