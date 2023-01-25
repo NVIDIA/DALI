@@ -108,7 +108,15 @@ struct InputOperatorSettingMode {
  */
 template<typename Backend>
 class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider {
-  using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
+  using InBackend = std::conditional_t<
+          std::is_same_v<Backend, GPUBackend>,
+          GPUBackend /* GPUBackend */,
+          CPUBackend /* CPUBackend and MixedBackend */>;
+  using OutBackend = std::conditional_t<
+          std::is_same_v<Backend, CPUBackend>,
+          CPUBackend /* CPUBackend */,
+          GPUBackend /* GPUBackend and MixedBackend */>;
+  using uptr_tl_type = std::unique_ptr<TensorList<InBackend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
  public:
@@ -191,6 +199,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * This function will take a best effort not to copy the data,
    * however it might not always be possible.
    *
+   * `target` tensor does not have to be allocated properly. This function resizes the target
+   * tensor to proper size.
+   *
    * @param target Where the data shall be injected.
    * @param tp TheadPool used to copy the data.
    */
@@ -203,7 +214,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   /**
    * Peeks the data that is next in line.
    */
-  const TensorList<Backend> &PeekCurrentData() {
+  const TensorList<InBackend> &PeekCurrentData() {
     return *tl_data_.PeekFront();
   }
 
@@ -242,7 +253,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   template<typename SrcBackend>
-  std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
+  std::enable_if_t<!std::is_same<SrcBackend, InBackend>::value>
   ShareUserData(const TensorList<SrcBackend> &t, AccessOrder /* order = {}*/,
                 bool /* use_copy_kernel */) {
     DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
@@ -256,7 +267,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
   template<typename SrcBackend>
   std::enable_if_t<
-          std::is_same<SrcBackend, Backend>::value && std::is_same<SrcBackend, CPUBackend>::value>
+          std::is_same<SrcBackend, InBackend>::value && std::is_same<SrcBackend, CPUBackend>::value>
   ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder /* order = {}*/,
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -287,7 +298,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   template<typename SrcBackend>
   std::enable_if_t<
-          std::is_same<SrcBackend, Backend>::value && std::is_same<SrcBackend, GPUBackend>::value>
+          std::is_same<SrcBackend, InBackend>::value && std::is_same<SrcBackend, GPUBackend>::value>
   ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder order = {},
                 bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -319,7 +330,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
 
-  template<typename SrcBackend, typename B = Backend>
+  template<typename SrcBackend, typename B = InBackend>
   std::enable_if_t<std::is_same<B, CPUBackend>::value>
   CopyUserData(const TensorList<SrcBackend> &batch, AccessOrder order, bool /* sync */,
                bool /* use_copy_kernel */) {
@@ -347,7 +358,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
 
-  template<typename SrcBackend, typename B = Backend>
+  template<typename SrcBackend, typename B = InBackend>
   std::enable_if_t<std::is_same<B, GPUBackend>::value>
   CopyUserData(const TensorList<SrcBackend> &batch, AccessOrder order, bool sync,
                bool use_copy_kernel) {
