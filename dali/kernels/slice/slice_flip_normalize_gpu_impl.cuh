@@ -22,6 +22,7 @@
 #include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/imgproc/surface.h"
@@ -48,6 +49,7 @@ struct SampleDesc {
   int64_t in_channel_stride;
 };
 
+
 template <typename Out, typename In>
 __global__ void SliceNormalizeKernel_2D(const SampleDesc<Out, In, 2> *samples,
                                         const ::dali::kernels::BlockDesc<2> *tiles) {
@@ -58,12 +60,10 @@ __global__ void SliceNormalizeKernel_2D(const SampleDesc<Out, In, 2> *samples,
     for (int x = threadIdx.x + tile.start.x; x < tile.end.x; x += blockDim.x) {
       int c = 0;
       if (!sample.bounds.contains(ivec2{x, y})) {
-        #pragma unroll 4
         for (; c < sample.out.channels; c++) {
           sample.out(x, y, c) = fill_values[c];
         }
       } else {
-        #pragma unroll 4
         for (; c < sample.in.channels; c++) {
           float fpin = sample.in(x, y, c);
           float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
@@ -77,22 +77,39 @@ __global__ void SliceNormalizeKernel_2D(const SampleDesc<Out, In, 2> *samples,
   }
 }
 
+template <int static_channels, typename Out, typename In>
+__device__ void SliceNormalizeKernel_2D_NoPad_Ch(const SampleDesc<Out, In, 2> &sample,
+                                              const ::dali::kernels::BlockDesc<2> &tile) {
+  auto fill_values = static_cast<const Out *>(sample.fill_values);
+  for (int y = threadIdx.y + tile.start.y; y < tile.end.y; y += blockDim.y) {
+    for (int x = threadIdx.x + tile.start.x; x < tile.end.x; x += blockDim.x) {
+      if constexpr (static_channels > 0) {
+        #pragma unroll static_channels
+        for (int c = 0; c < static_channels; c++) {
+          float fpin = sample.in(x, y, c);
+          float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
+          sample.out(x, y, c) = ConvertSat<Out>(fpout);
+        }
+      } else {
+        for (int c = 0; c < sample.in.channels; c++) {
+          float fpin = sample.in(x, y, c);
+          float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
+          sample.out(x, y, c) = ConvertSat<Out>(fpout);
+        }
+      }
+    }
+  }
+}
+
 template <typename Out, typename In>
 __global__ void SliceNormalizeKernel_2D_NoPad(const SampleDesc<Out, In, 2> *samples,
                                               const ::dali::kernels::BlockDesc<2> *tiles) {
   const auto tile = tiles[blockIdx.x];
   const auto sample = samples[tile.sample_idx];
-  auto fill_values = static_cast<const Out *>(sample.fill_values);
-  for (int y = threadIdx.y + tile.start.y; y < tile.end.y; y += blockDim.y) {
-    for (int x = threadIdx.x + tile.start.x; x < tile.end.x; x += blockDim.x) {
-      #pragma unroll 4
-      for (int c = 0; c < sample.in.channels; c++) {
-        float fpin = sample.in(x, y, c);
-        float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
-        sample.out(x, y, c) = ConvertSat<Out>(fpout);
-      }
-    }
-  }
+  VALUE_SWITCH(sample.out.channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8, 16),
+    (SliceNormalizeKernel_2D_NoPad_Ch<static_channels>(sample, tile);),
+    (SliceNormalizeKernel_2D_NoPad_Ch<-1>(sample, tile);)
+  );  // NOLINT(whitespace/parens)
 }
 
 
