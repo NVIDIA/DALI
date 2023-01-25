@@ -276,14 +276,14 @@ TEST(SliceFlipNormalizeGPUTest, Benchmark) {
     // warm-up
     CUDAEvent started  = CUDAEvent::CreateWithFlags(0);  // timing enabled
     CUDAEvent finished = CUDAEvent::CreateWithFlags(0);
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     kernel.Run(ctx, out_view, in_view, args);
     int iters = 100;
     CUDA_CALL(cudaEventRecord(started, ctx.gpu.stream));
     for (int i = 0; i < iters; i++)
       kernel.Run(ctx, out_view, in_view, args);
     CUDA_CALL(cudaEventRecord(finished, ctx.gpu.stream));
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     float time_ms = 0;
     CUDA_CALL(cudaEventElapsedTime(&time_ms, started, finished));
     time_ms /= iters;
@@ -351,14 +351,14 @@ TEST(SliceFlipNormalizeGPUTest, BenchmarkOld) {
     // warm-up
     CUDAEvent started  = CUDAEvent::CreateWithFlags(0);  // timing enabled
     CUDAEvent finished = CUDAEvent::CreateWithFlags(0);
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     kernel.Run(ctx, out_view, in_view, args);
     int iters = 100;
     CUDA_CALL(cudaEventRecord(started, ctx.gpu.stream));
     for (int i = 0; i < iters; i++)
       kernel.Run(ctx, out_view, in_view, args);
     CUDA_CALL(cudaEventRecord(finished, ctx.gpu.stream));
-    CUDA_CALL(cudaDeviceSynchronize());
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
     float time_ms = 0;
     CUDA_CALL(cudaEventElapsedTime(&time_ms, started, finished));
     time_ms /= iters;
