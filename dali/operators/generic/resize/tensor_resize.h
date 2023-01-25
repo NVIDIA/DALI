@@ -74,7 +74,7 @@ class TensorResize : public Operator<Backend>
     for (int d = new_end_spatial_dim - 1; d > new_first_spatial_dim; d--) {
       if (ndim_to_trim == 0 || !unchanged_dim(d))
         break;
-      new_end_spatial_dim++;
+      new_end_spatial_dim--;
       ndim_to_trim--;
     }
 
