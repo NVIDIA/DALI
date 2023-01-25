@@ -47,8 +47,9 @@ and bandwidth.
 
 
 template<>
-void InputOperator<CPUBackend>::ForwardCurrentData(
-        TensorList<CPUBackend> &target, std::optional<std::string> &target_data_id, ThreadPool &thread_pool) {
+void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+                                                   std::optional<std::string> &target_data_id,
+                                                   ThreadPool &thread_pool) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
@@ -85,8 +86,9 @@ void InputOperator<CPUBackend>::ForwardCurrentData(
 
 
 template<>
-void InputOperator<GPUBackend>::ForwardCurrentData(
-        TensorList<GPUBackend> &target, std::optional<std::string> &target_data_id, cudaStream_t stream) {
+void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+                                                   std::optional<std::string> &target_data_id,
+                                                   cudaStream_t stream) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   InputSourceState state_info;

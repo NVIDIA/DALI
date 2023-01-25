@@ -132,13 +132,15 @@ class DLL_PUBLIC Pipeline {
 
 
   template<typename TensorListBackend, typename OperatorBackend>
-  void SetDataSourceHelper(const string &name, const TensorList<TensorListBackend> &tl, std::optional<std::string> data_id,
-                           OperatorBase *op_ptr, AccessOrder order = {},
-                           InputOperatorSettingMode in_op_setting_mode = {}) {
+  void SetDataSourceHelper(
+          const string &name, const TensorList<TensorListBackend> &tl,
+          std::optional<std::string> data_id, OperatorBase *op_ptr, AccessOrder order = {},
+          InputOperatorSettingMode in_op_setting_mode = {}) {
     auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
                  "Input name '" + name + "' is not marked as an InputOperator.");
-    source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode, std::move(data_id));
+    source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode,
+                                                      std::move(data_id));
   }
 
 
@@ -152,9 +154,9 @@ class DLL_PUBLIC Pipeline {
    *                        of setting the data.
    */
   template<typename Backend>
-  void
-  SetExternalInputHelper(const string &name, const TensorList<Backend> &tl, std::optional<std::string> data_id, AccessOrder order = {},
-                         InputOperatorSettingMode ext_src_setting_mode = {}) {
+  void SetExternalInputHelper(const string &name, const TensorList<Backend> &tl,
+                              std::optional<std::string> data_id, AccessOrder order = {},
+                              InputOperatorSettingMode ext_src_setting_mode = {}) {
     OpType op_type;
     OpNodeId node_id = -1;
 
@@ -177,13 +179,16 @@ class DLL_PUBLIC Pipeline {
 
     switch (op_type) {
       case OpType::CPU:
-        SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order, ext_src_setting_mode);
+        SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                 ext_src_setting_mode);
         break;
       case OpType::MIXED:
-        SetDataSourceHelper<Backend, MixedBackend>(name, tl, std::move(data_id), op_ptr, order, ext_src_setting_mode);
+        SetDataSourceHelper<Backend, MixedBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                   ext_src_setting_mode);
         break;
       case OpType::GPU:
-        SetDataSourceHelper<Backend, GPUBackend>(name, tl, std::move(data_id), op_ptr, order, ext_src_setting_mode);
+        SetDataSourceHelper<Backend, GPUBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                 ext_src_setting_mode);
         break;
       default:
         assert(false);  // This shouldn't happen.
