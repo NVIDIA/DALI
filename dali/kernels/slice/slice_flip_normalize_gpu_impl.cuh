@@ -58,12 +58,10 @@ __global__ void SliceNormalizeKernel_2D(const SampleDesc<Out, In, 2> *samples,
     for (int x = threadIdx.x + tile.start.x; x < tile.end.x; x += blockDim.x) {
       int c = 0;
       if (!sample.bounds.contains(ivec2{x, y})) {
-        #pragma unroll 4
         for (; c < sample.out.channels; c++) {
           sample.out(x, y, c) = fill_values[c];
         }
       } else {
-        #pragma unroll 4
         for (; c < sample.in.channels; c++) {
           float fpin = sample.in(x, y, c);
           float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
@@ -85,7 +83,6 @@ __global__ void SliceNormalizeKernel_2D_NoPad(const SampleDesc<Out, In, 2> *samp
   auto fill_values = static_cast<const Out *>(sample.fill_values);
   for (int y = threadIdx.y + tile.start.y; y < tile.end.y; y += blockDim.y) {
     for (int x = threadIdx.x + tile.start.x; x < tile.end.x; x += blockDim.x) {
-      #pragma unroll 4
       for (int c = 0; c < sample.in.channels; c++) {
         float fpin = sample.in(x, y, c);
         float fpout = fmaf(fpin, sample.norm_mul[c], sample.norm_add[c]);
