@@ -91,6 +91,10 @@ class AxesHelper {
     CheckAxes(make_cspan(axes_), sample_dim);
   }
 
+  span<int> Axes() {
+    return make_span(axes_);
+  }
+
   bool has_axes_arg_;
   bool has_axis_names_arg_;
   bool has_empty_axes_arg_;
