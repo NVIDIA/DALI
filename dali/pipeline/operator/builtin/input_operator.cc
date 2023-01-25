@@ -123,8 +123,9 @@ void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &targe
 
 
 template<>
-void InputOperator<MixedBackend>::ForwardCurrentData(
-        TensorList<GPUBackend> &target, cudaStream_t stream) {
+void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+                                                     std::optional<std::string> &target_data_id,
+                                                     cudaStream_t stream) {
   std::list<uptr_tl_type> tensor_list_elm;
   InputSourceState state_info;
   {
@@ -133,6 +134,9 @@ void InputOperator<MixedBackend>::ForwardCurrentData(
     state_info = state_.front();
     state_.pop_front();
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
+
   target.Copy(*tensor_list_elm.front(), stream);
 
   tensor_list_elm.front()->set_order(internal_copy_order_);
@@ -142,14 +146,17 @@ void InputOperator<MixedBackend>::ForwardCurrentData(
 
 
 template<>
-void InputOperator<MixedBackend>::ForwardCurrentData(
-        TensorList<CPUBackend> &target, ThreadPool &thread_pool) {
+void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+                                                     std::optional<std::string> &target_data_id,
+                                                     ThreadPool &thread_pool) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
     state_.pop_front();
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     const auto &shapes = tensor_list_elm.front()->shape();
