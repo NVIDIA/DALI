@@ -15,8 +15,9 @@
 #ifndef DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
 #define DALI_TEST_OPERATORS_IDENTITY_INPUT_H_
 
-#include <vector>
 #include <memory>
+#include <string>
+#include <vector>
 #include "dali/pipeline/operator/builtin/input_operator.h"
 
 namespace dali {
