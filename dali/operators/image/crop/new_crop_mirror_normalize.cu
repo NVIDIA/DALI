@@ -178,11 +178,12 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     // TODO(janton): remove fallback
     static bool cmn_legacy = []() {
       const char *env = std::getenv("DALI_CMN_LEGACY");
-      return !env || atoi(env);
+      return env && atoi(env);
     }();
     use_fallback_ = spatial_ndim_ != 2 || ndim != 3 ||
                     (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_) ||
                     cmn_legacy;
+    DALI_WARN_ONCE(make_string("CropMirrorNormalize legacy impl.: ", use_fallback_));
 
     if (use_fallback_)
       return fallback_.Setup(output_desc, ws);
