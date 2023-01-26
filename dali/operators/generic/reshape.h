@@ -82,11 +82,14 @@ class Reshape : public Operator<Backend> {
   };
   ShapeSource shape_source_ = ShapeSource::None;
 
-  template <typename TensorListLike>
-  void ShapeFromInput(const TensorListLike &tl, bool relative);
+  void ValidateRelativeShapeNDim(int ndim) const;
 
-  template <typename Extent>
-  void ShapeFromInput(const TensorListView<StorageCPU, const Extent> &shape);
+  template <bool relative, typename TensorListLike>
+  void ShapeFromInput(const TensorListLike &tl, std::bool_constant<relative>);
+
+  template <bool relative, typename Extent>
+  void ShapeFromInput(const TensorListView<StorageCPU, const Extent> &shape,
+                      std::bool_constant<relative>);
 
   TensorLayout GetOutputLayout(const Workspace &ws) const;
 };

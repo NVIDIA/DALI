@@ -114,8 +114,8 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
   }
   if (spec.HasArgument("dtype"))
     output_type_arg_ = spec.GetArgument<DALIDataType>("dtype");
-  DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(OpName(),
-    ": shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
+  DALI_ENFORCE(has_shape_input + has_shape_arg + has_rel_shape_arg <= 1, make_string(
+    "Shape input, `shape` argument and `rel_shape` argument are mutually exclusive"));
 
   if (!has_shape_input && !has_shape_arg && !has_rel_shape_arg && !has_layout_arg
       && !has_src_dims_arg) {
@@ -140,12 +140,12 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       int num_negative = 0;
       for (int i = 0; i < uniform_shape_.sample_dim(); i++) {
         if (shape_vec[i] < 0) {
-          DALI_ENFORCE(++num_negative == 1, make_string(OpName(),
-            ": Only one negative extent is allowed; got: ", uniform_shape_));
+          DALI_ENFORCE(++num_negative == 1, make_string(
+            "Only one negative extent is allowed; got: ", uniform_shape_));
           uniform_shape_[i] = 0;
           wildcard_dim_ = i;
         } else {
-          DALI_ENFORCE(shape_vec[i] != 0, make_string(OpName(), ": extent of 0 is illegal; got: ",
+          DALI_ENFORCE(shape_vec[i] != 0, make_string("Extent of 0 is illegal; got: ",
               uniform_shape_));
           uniform_shape_[i] = shape_vec[i];
         }
@@ -158,25 +158,25 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       shape_source_ = ShapeSource::ArgInput;
     } else {
       rel_uniform_shape_ = spec.GetRepeatedArgument<float>("rel_shape");
-      DALI_ENFORCE(!rel_uniform_shape_.empty(), make_string(OpName(),
-                   ": `rel_shape` specified as an empty list"));
+      DALI_ENFORCE(!rel_uniform_shape_.empty(), make_string(
+          "`rel_shape` specified as an empty list"));
       int num_negative = 0;
       int out_dims = rel_uniform_shape_.size();
       for (int i = 0; i < out_dims; i++) {
         if (rel_uniform_shape_[i] < 0) {
-          DALI_ENFORCE(++num_negative == 1, make_string(OpName(),
-            ": Only one negative extent is allowed; got: ", uniform_shape_));
+          DALI_ENFORCE(++num_negative == 1, make_string(
+              "Only one negative extent is allowed; got: ", uniform_shape_));
           wildcard_dim_ = i;
         } else {
           DALI_ENFORCE(rel_uniform_shape_[i] != 0,
-                       make_string(OpName(), ": zero extent is illegal"));
+                       make_string("Extent of 0 is illegal"));
         }
       }
       shape_source_ = ShapeSource::Arg;
     }
   } else if (has_shape_input) {
     DALI_ENFORCE(spec.InputDevice(1) == "cpu",
-                 make_string(OpName(), ": Output shapes must be provided as a CPU input"));
+                 make_string("Output shapes must be provided as a CPU input"));
     shape_source_ = ShapeSource::Input;
   }
   if (has_layout_arg) {
@@ -198,7 +198,7 @@ bool Reshape<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Wor
   return false;
 }
 
-template <typename OutSampleShape, typename InSampleShape, typename ShapeArg>
+template <bool relative, typename OutSampleShape, typename InSampleShape, typename ShapeArg>
 void SetOutputSampleShape(OutSampleShape &&out_shape,
                           const InSampleShape &in_shape,
                           const ShapeArg &arg,
@@ -206,20 +206,13 @@ void SetOutputSampleShape(OutSampleShape &&out_shape,
                           int out_ndim) {
   for (int d = 0; d < out_ndim; d++) {
     auto e = arg[d];
-    constexpr bool relative = std::is_floating_point<decltype(e)>::value;
-
-    int src_d = src_dims ? src_dims[d] : d;
-
-    assert(src_d >= -1 && src_d <= static_cast<int>(dali::size(in_shape)));
 
     int out_e = 1;
     if (e < 0) {
       out_e = -1;
     } else if (relative) {
-      if (src_d < 0)
-        out_e = 1;
-      else
-        out_e = round_int(e * in_shape[src_d]);
+      int src_d = src_dims ? src_dims[d] : d;
+      out_e = src_d < 0 ? 1 : round_int(e * in_shape[src_d]);
     } else {
       out_e = e;
     }
@@ -229,30 +222,53 @@ void SetOutputSampleShape(OutSampleShape &&out_shape,
 }
 
 template <typename Backend>
-template <typename Extent>
+void Reshape<Backend>::ValidateRelativeShapeNDim(int ndim) const {
+  if (use_src_dims_) {
+    if (ndim + 0_uz != src_dims_.size()) {
+      DALI_FAIL(make_string(
+        "``src_dims`` and ``rel_shape`` have different lengths: ",
+        src_dims_.size(), " vs ", ndim));
+    }
+  } else {
+    if (ndim > input_shape_.sample_dim()) {
+      DALI_FAIL(make_string(
+        "``rel_shape`` has more elements (", ndim, ") than "
+        "there are dimensions in the input (", input_shape_.sample_dim(), "). "
+        "To add new dimensions, use ``src_dims`` to specify the mapping between "
+        "input and output dimensions."));
+    }
+  }
+}
+
+
+template <typename Backend>
+template <bool relative, typename Extent>
 void Reshape<Backend>::ShapeFromInput(
-      const TensorListView<StorageCPU, const Extent> &shape) {
+      const TensorListView<StorageCPU, const Extent> &shape,
+      std::bool_constant<relative>) {
   DALI_ENFORCE(shape.sample_dim() == 1 || (shape.sample_dim() == 2 && shape.num_samples() == 1),
-    make_string(OpName(), ": shape input must be a list of 1D tensors or a single 2D tensor"));
+    make_string("shape input must be a list of 1D tensors or a single 2D tensor"));
   if (shape.sample_dim() == 2) {
     auto shape_tensor = shape[0];
     int N = shape_tensor.shape[0];
-    DALI_ENFORCE(N == input_shape_.num_samples(), make_string(OpName(),
-      ": the new shape must have same number of samples. Got ",
+    DALI_ENFORCE(N == input_shape_.num_samples(), make_string(
+      "The new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
     int dim = shape_tensor.shape[1];
+    if (relative)
+      ValidateRelativeShapeNDim(dim);
     output_shape_.resize(N, dim);
     for (int i = 0; i < N; i++) {
-      SetOutputSampleShape(output_shape_.tensor_shape_span(i),
-                            input_shape_.tensor_shape_span(i),
-                            shape_tensor(i),
-                            use_src_dims_ ? src_dims_.data() : nullptr,
-                            dim);
+      SetOutputSampleShape<relative>(output_shape_.tensor_shape_span(i),
+                                     input_shape_.tensor_shape_span(i),
+                                     shape_tensor(i),
+                                     use_src_dims_ ? src_dims_.data() : nullptr,
+                                     dim);
     }
   } else {
     int N = shape.num_samples();
     DALI_ENFORCE(N == input_shape_.num_samples(),
-      make_string(OpName(), ": the new shape must have same number of samples. Got ",
+      make_string("The new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
     int sample_dim;
     for (int i = 0; i < N; i++) {
@@ -262,28 +278,31 @@ void Reshape<Backend>::ShapeFromInput(
         output_shape_.resize(N, sample_dim);
       } else {
         DALI_ENFORCE(current_sample_dim == sample_dim,
-          make_string(OpName(), ": all samples must have the same number of dimensions"));
+          make_string("All samples must have the same number of dimensions"));
       }
 
-      SetOutputSampleShape(output_shape_.tensor_shape_span(i),
-                           input_shape_.tensor_shape_span(i),
-                           shape.tensor_data(i),
-                           use_src_dims_ ? src_dims_.data() : nullptr,
-                           sample_dim);
+      if (relative)
+        ValidateRelativeShapeNDim(sample_dim);
+      SetOutputSampleShape<relative>(output_shape_.tensor_shape_span(i),
+                                     input_shape_.tensor_shape_span(i),
+                                     shape.tensor_data(i),
+                                     use_src_dims_ ? src_dims_.data() : nullptr,
+                                     sample_dim);
     }
   }
 }
 
 template <typename Backend>
-template <typename TensorListLike>
-void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl, bool relative) {
+template <bool _relative, typename TensorListLike>
+void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl,
+                                      std::bool_constant<_relative> relative) {
   if (relative) {
-    this->ShapeFromInput(view<const float>(tl));
+    this->ShapeFromInput(view<const float>(tl), relative);
   } else {
     TYPE_SWITCH(tl.type(), type2id, type,
       (int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t),
-      (this->ShapeFromInput(view<const type>(tl));),
-      (DALI_FAIL(make_string(OpName(), ": shape input must have integral type; got: ",
+      (this->ShapeFromInput(view<const type>(tl), relative);),
+      (DALI_FAIL(make_string("Shape input must have integral type; got: ",
                  tl.type()));)
     );  // NOLINT
   }
@@ -297,17 +316,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   switch (shape_source_) {
     case ShapeSource::Arg:
       if (use_rel_shape_) {
-        if (use_src_dims_) {
-          DALI_ENFORCE(rel_uniform_shape_.size() == src_dims_.size(),
-            make_string(OpName(), ": ``src_dims`` and ``rel_shape`` have different"
-            " lengths: ", src_dims_.size(), " vs ", rel_uniform_shape_.size()));
-        } else {
-          DALI_ENFORCE(static_cast<int>(rel_uniform_shape_.size()) <= input_shape_.sample_dim(),
-            make_string("``rel_shape`` has more elements (", rel_uniform_shape_.size(), ") than "
-                        "there are dimensions in the input (", input_shape_.sample_dim(), "). "
-                        "To add new dimensions, use ``src_dims`` to specify the mapping between "
-                        "input and output dimensions."));
-        }
+        ValidateRelativeShapeNDim(rel_uniform_shape_.size());
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
@@ -325,12 +334,12 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       break;
     case ShapeSource::ArgInput:
       if (use_rel_shape_)
-        ShapeFromInput(ws.ArgumentInput("rel_shape"), true);
+        ShapeFromInput(ws.ArgumentInput("rel_shape"), std::true_type());
       else
-        ShapeFromInput(ws.ArgumentInput("shape"), false);
+        ShapeFromInput(ws.ArgumentInput("shape"), std::false_type());
       break;
     case ShapeSource::Input:
-      ShapeFromInput(ws.Input<CPUBackend>(1), false);
+      ShapeFromInput(ws.Input<CPUBackend>(1), std::false_type());
       break;
     case ShapeSource::None:
       if (!use_src_dims_) {
@@ -347,7 +356,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         }
         DALI_ENFORCE(
           output_shape_.tensor_size(i) == input_shape_.tensor_size(i),
-          make_string(OpName(), ": The volume of the new shape should match the"
+          make_string("The volume of the new shape should match the"
           " one of the original shape. Requested a shape with ", output_shape_.tensor_size(i),
           " elements but the original shape has ", input_shape_.tensor_size(i), " elements."));
       }
@@ -366,7 +375,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         for (int d = 0; d < out_sample_shape.size(); d++)
           if (out_sample_shape[d] < 0) {
             DALI_ENFORCE(wildcard_dim < 0,
-                         make_string(OpName(), ": Only one dimension can have negative extent"));
+                         make_string("Only one dimension can have negative extent"));
             wildcard_dim = d;
           }
       }
@@ -394,8 +403,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
 
       auto requested_volume = volume(out_sample_shape);
       DALI_ENFORCE(actual_volume * input_element_size == requested_volume * output_element_size,
-        make_string(OpName(),
-          ": Input and output samples must occupy the same size in bytes."
+        make_string(
+          "Input and output samples must occupy the same size in bytes."
           "\nSample index:     ", i,
           "\nActual volume:    ", actual_volume,
           "\n     in bytes:    ", actual_volume * input_element_size,
@@ -409,7 +418,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
       auto out_sample_shape = output_shape_.tensor_shape_span(i);
       auto &innermost = out_sample_shape[output_shape_.sample_dim()-1];
       DALI_ENFORCE((innermost * input_element_size) % output_element_size == 0,
-        make_string(OpName(), ": the size, in bytes, of the innermost dimension is not divisible "
+        make_string("The size, in bytes, of the innermost dimension is not divisible "
         "by the sizes of the requested output type."));
       innermost = innermost * input_element_size / output_element_size;
     }
@@ -419,8 +428,8 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
 template <typename Backend>
 TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
   if (!layout_.empty()) {
-    DALI_ENFORCE(output_shape_.sample_dim() == layout_.ndim(), make_string(OpName(),
-      ": requested layout '", layout_, "' is not compatible with a ",
+    DALI_ENFORCE(output_shape_.sample_dim() == layout_.ndim(), make_string(
+      "Requested layout '", layout_, "' is not compatible with a ",
       output_shape_.sample_dim(), "D shape"));
     return layout_;
   } else if (use_layout_) {
@@ -473,7 +482,7 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   const int ndim = input_shape.sample_dim();
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
-      make_string(OpName(), ": ``src_dims[", d, "]`` == ", src_dims_[d], " is out of bounds.\n"
+      make_string("``src_dims[", d, "]`` == ", src_dims_[d], " is out of bounds.\n"
       "The indices in ``src_dims`` should be either valid dimension indices in "
       "range [0..", ndim-1, "] or -1 to insert a new dimension."));
   }

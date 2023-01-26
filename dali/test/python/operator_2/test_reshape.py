@@ -22,6 +22,7 @@ from numpy.testing import assert_array_equal
 import os
 
 from nose_utils import assert_raises
+from nose2.tools import params
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -357,27 +358,27 @@ def test_reshape_src_dims_arg():
             yield _testimpl_reshape_src_dims_arg, src_dims, shape_inp, shapes, expected_out_shapes
 
 
-def test_reshape_src_dims_throw_error():
-    args = [
-        ([2, 0], None, [[20, 10, 20]],
-         r"Reshape: The volume of the new shape should match the one of the original shape\. "
-         r"Requested a shape with \d* elements but the original shape has \d* elements\."),
-        ([2, 0, 1], [1, -1], [[1, 2, 3]],
-         r"Reshape: ``src_dims`` and ``rel_shape`` have different lengths: \d* vs \d*"),
-        ([0, 1, 3], None, [1, 2, 3], "Reshape:.*is out of bounds.*"),
-    ]
-    for src_dims, rel_shape, shapes, err_regex in args:
-        pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
-                            src_dims=src_dims, rel_shape=rel_shape)
-        pipe.build()
-        with assert_raises(RuntimeError, regex=err_regex):
-            pipe.run()
+@params(
+    ([2, 0], None, [[20, 10, 20]],
+     r"The volume of the new shape should match the one of the original shape\. "
+     r"Requested a shape with \d* elements but the original shape has \d* elements\."),
+    ([2, 0, 1], [1, -1], [[1, 2, 3]],
+     r"``src_dims`` and ``rel_shape`` have different lengths: \d* vs \d*"),
+    ([0, 1, 3], None, [1, 2, 3], ".*is out of bounds.*"),
+)
+def test_reshape_src_dims_throw_error(src_dims, rel_shape, shapes, err_regex):
+    pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                        src_dims=src_dims, rel_shape=rel_shape)
+    pipe.build()
+    with assert_raises(RuntimeError, regex=err_regex):
+        pipe.run()
 
 
-def test_invalid_wildcard():
+@params([1, -1, 1], np.float32([1, -1, 1]))
+def test_invalid_wildcard(rel_shape):
     shapes = [[480, 640], [320, 240]]
     pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
-                        rel_shape=[1, -1, 1])
+                        rel_shape=rel_shape)
     pipe.build()
     err_glob = "*``rel_shape`` has more elements (3) than*dimensions in the input (2)*" \
                "use ``src_dims``*"
