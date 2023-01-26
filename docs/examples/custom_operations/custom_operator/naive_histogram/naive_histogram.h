@@ -62,4 +62,4 @@ class NaiveHistogram : public ::dali::Operator<Backend> {
 
 }  // namespace naive_histogram
 
-#endif //DALI_NAIVE_HISTOGRAM_H
+#endif  // DALI_NAIVE_HISTOGRAM_H
