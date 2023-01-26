@@ -40,6 +40,7 @@ op_dev_pairs = [(ops.CropMirrorNormalize, 'cpu'),
                 (ops.CropMirrorNormalize, 'gpu'),
                 (ops.experimental.CropMirrorNormalize, 'gpu')]
 
+
 def next_power_of_two(x):
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
 
@@ -254,9 +255,10 @@ def check_cmn_vs_numpy(cmn_op, device, batch_size, dtype, output_layout,
     iterations = 8 if batch_size == 1 else 1
     eps, max_err = (1e-5, 1e-5) if dtype == types.FLOAT else (0.3, 0.6)
     compare_pipelines(
-        CropMirrorNormalizePipeline(cmn_op, device, batch_size, dtype=dtype, output_layout=output_layout,
-                                    mirror_probability=mirror_probability, mean=mean, std=std,
-                                    scale=scale, shift=shift, pad_output=should_pad),
+        CropMirrorNormalizePipeline(
+            cmn_op, device, batch_size, dtype=dtype, output_layout=output_layout,
+            mirror_probability=mirror_probability, mean=mean, std=std,
+            scale=scale, shift=shift, pad_output=should_pad),
         PythonOpPipeline(batch_size, function, output_layout, mirror_probability),
         batch_size=batch_size, N_iterations=iterations, eps=eps, max_allowed_error=max_err)
 
@@ -288,14 +290,14 @@ def test_cmn_vs_numpy():
                             np.random.randint(0, len(type_scale_shift))]
                         shift = default_shift if mean and mean[0] > 1 else None
                         scale = default_scale if std and std[0] > 1 else None
-                        yield check_cmn_vs_numpy, cmn_op, device, batch_size, dtype, output_layout, \
-                            mirror_probability, mean, std, scale, shift, should_pad
+                        yield check_cmn_vs_numpy, cmn_op, device, batch_size, dtype, \
+                            output_layout, mirror_probability, mean, std, scale, shift, should_pad
 
 
 class CMNRandomDataPipeline(Pipeline):
-    def __init__(self, cmn_op, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1,
-                 dtype=types.FLOAT, output_layout="FHWC", mirror_probability=0.0, mean=[0., 0., 0.],
-                 std=[1., 1., 1.], scale=None, shift=None, pad_output=False,
+    def __init__(self, cmn_op, device, batch_size, layout, iterator, num_threads=1, device_id=0,
+                 num_gpus=1, dtype=types.FLOAT, output_layout="FHWC", mirror_probability=0.0,
+                 mean=[0., 0., 0.], std=[1., 1., 1.], scale=None, shift=None, pad_output=False,
                  crop_seq_as_depth=False, crop_d=8, crop_h=16, crop_w=32, crop_pos_x=0.3,
                  crop_pos_y=0.2, crop_pos_z=0.1, out_of_bounds_policy=None, fill_values=None,
                  extra_outputs=False):
@@ -367,8 +369,8 @@ def check_cmn_random_data_vs_numpy(cmn_op, device, batch_size, dtype, input_layo
                        mean, std, scale, shift, input_layout, output_layout,
                        dali_type_to_np(dtype))
 
-    cmn_pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, input_layout, iter(eii1), dtype=dtype,
-                                     output_layout=output_layout,
+    cmn_pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, input_layout, iter(eii1),
+                                     dtype=dtype, output_layout=output_layout,
                                      mirror_probability=mirror_probability, mean=mean, std=std,
                                      scale=scale, shift=shift, pad_output=should_pad)
 
@@ -423,8 +425,9 @@ def test_cmn_random_data_vs_numpy():
                                     np.random.randint(0, len(type_scale_shift))]
                                 shift = default_shift if mean and mean[0] > 1 else None
                                 scale = default_scale if std and std[0] > 1 else None
-                                yield check_cmn_random_data_vs_numpy, cmn_op, device, batch_size, \
-                                    dtype, input_layout, input_shape, output_layout, mirror_probability, \
+                                yield check_cmn_random_data_vs_numpy, \
+                                    cmn_op, device, batch_size, dtype, input_layout, \
+                                    input_shape, output_layout, mirror_probability, \
                                     mean, std, scale, shift, should_pad
 
 
@@ -613,7 +616,8 @@ def test_per_sample_norm_args():
     for cmn_fn, device in fn_dev_pairs:
         for random_mean, random_std in [(True, True), (True, False), (False, True)]:
             for scale, shift in [(None, None), (255.0, -128.0)]:
-                yield check_cmn_per_sample_norm_args, cmn_fn, device, random_mean, random_std, scale, shift
+                yield check_cmn_per_sample_norm_args, \
+                    cmn_fn, device, random_mean, random_std, scale, shift
 
 
 def check_crop_mirror_normalize_wrong_layout(cmn_fn, device, batch_size, input_shape=(100, 200, 3),
@@ -641,7 +645,8 @@ def test_crop_mirror_normalize_wrong_layout():
     batch_size = 3
     for cmn_fn, device in fn_dev_pairs:
         for layout in ['ABC']:
-            yield check_crop_mirror_normalize_wrong_layout, cmn_fn, device, batch_size, in_shape, layout
+            yield check_crop_mirror_normalize_wrong_layout, \
+                cmn_fn, device, batch_size, in_shape, layout
 
 
 def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_shape=(100, 200, 3)):
