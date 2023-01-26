@@ -15,10 +15,10 @@
 #include <string>
 
 #include "dali/core/backend_tags.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/kernels/transpose/transpose.h"
-#include "dali/core/static_switch.h"
 #include "dali/operators/reader/fits_reader_op.h"
 #include "dali/pipeline/data/backend.h"
 
@@ -31,18 +31,15 @@ static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend
   auto nelements = input.shape().num_elements();
   auto nbytes = nelements * TypeTable::GetTypeInfo(input.type()).size();
   if (nelements <= min_blk_sz) {
-    thread_pool.AddWork([=](int tid) {
-      std::memcpy(out_ptr, in_ptr, nbytes);
-    }, nelements);
+    thread_pool.AddWork([=](int tid) { std::memcpy(out_ptr, in_ptr, nbytes); }, nelements);
   } else {
     int64_t prev_b_start = 0;
     for (int b = 0; b < req_nblocks; b++) {
       int64_t b_start = prev_b_start;
       int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
       int64_t b_size = b_end - b_start;
-      thread_pool.AddWork([=](int tid) {
-        std::memcpy(out_ptr + b_start, in_ptr + b_start, b_size); 
-      }, b_size);
+      thread_pool.AddWork(
+          [=](int tid) { std::memcpy(out_ptr + b_start, in_ptr + b_start, b_size); }, b_size);
     }
   }
 }
@@ -111,22 +108,6 @@ If true, the device I/O buffers will be registered with cuFile. It is not recomm
 sizes vary a lot.)code",
                     true)
     .AddParent("LoaderBase");
-
-
-// Deprecated alias
-DALI_REGISTER_OPERATOR(FitsReader, FitsReaderCPU, CPU);
-
-DALI_SCHEMA(FitsReader)
-    .DocStr("Legacy alias for :meth:`readers.fits`.")
-    .NumInput(0)
-    .NumOutput(1)  // (Arrays)
-    .AddParent("readers__Fits")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "readers__Fits",
-        R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 void FitsReaderCPU::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
