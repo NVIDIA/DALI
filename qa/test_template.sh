@@ -9,16 +9,16 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
-python_test_runner_package="nose nose2"
+python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 python_test_runner="python -m nose"
-python_test_args="--verbose -s"
+python_test_args="--verbose --with-timer --timer-top-n 20 -s"
 python_invoke_test="${python_test_runner} ${python_test_args}"
 
 # New framework for Python Tests
 # During the transition we run both
 # When all tests are ported old will be removed
 python_new_test_runner="python -m nose2"
-python_new_test_args="--verbose"
+python_new_test_args="--verbose --plugin=nose2_test_timer.plugin --with-timer --timer-color --timer-top-n 20"
 python_new_invoke_test="${python_new_test_runner} ${python_new_test_args}"
 
 # Set proper CUDA version for packages, like MXNet, requiring it
