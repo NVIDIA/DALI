@@ -24,13 +24,6 @@ from numpy.testing import assert_array_equal
 
 rng = np.random.RandomState(12345)
 
-gds_data_root = '/scratch/'
-if not os.path.isdir(gds_data_root):
-    gds_data_root = os.getcwd() + "/scratch/"
-    if not os.path.isdir(gds_data_root):
-        os.mkdir(gds_data_root)
-        assert os.path.isdir(gds_data_root)
-
 
 def create_fits_file(filename, shape, type=np.int32, compressed=False):
     imageData = rng.randint(100, size=shape).astype(type)
