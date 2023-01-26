@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} tensorflow-gpu'
+pip_packages='${python_test_runner_package} tensorflow'
 target_dir=./dali/test/python
 
 # reduce the lenght of the sanitizers tests as much as possible

@@ -335,7 +335,7 @@ class InstallerHelper:
 
         if not self.tf_version or not self.tf_path:
             error_msg = "Installation error:"
-            error_msg += "\n Tensorflow installation not found. Install `tensorflow-gpu` " + \
+            error_msg += "\n Tensorflow installation not found. Install `tensorflow` " + \
                          "and try again"
             error_msg += '\n' + self.debug_str()
             raise ImportError(error_msg)

@@ -3,7 +3,7 @@ pip_packages='horovod==0.26.1'
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
-    if [ $($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION}) = -1 ]; then
+    if [ $($topdir/qa/setup_packages.py -n -u tensorflow --cuda ${CUDA_VERSION}) = -1 ]; then
         exit 0
     fi
     mkdir -p idx-files/
@@ -15,10 +15,10 @@ do_once() {
     # check if CUDA version is at least 11.x
     if [ "${CUDA_VERSION:0:2}" == "11" ]; then
         # install TF 2.6.x for CUDA 11.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
+        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow --cuda ${CUDA_VERSION}) -f /pip-packages"
     else
         # install TF 2.3.x for CUDA 10.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
+        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow --cuda ${CUDA_VERSION}) -f /pip-packages"
     fi
 
     # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly

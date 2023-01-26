@@ -37,4 +37,4 @@ COPY --from=builder /wheelhouse/nvidia_dali_* /opt/dali/
 COPY --from=builder /wheelhouse/nvidia-dali-tf-plugin-*.tar.gz /opt/dali/
 
 RUN pip install /opt/dali/*.whl
-RUN pip show tensorflow-gpu && pip install /opt/dali/*.tar.gz || true
+RUN pip show tensorflow && pip install /opt/dali/*.tar.gz || true

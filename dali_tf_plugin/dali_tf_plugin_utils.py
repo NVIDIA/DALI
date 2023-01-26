@@ -71,14 +71,18 @@ def get_tf_compiler_version():
 def get_tf_version():
     try:
         import pkg_resources
-        s = pkg_resources.get_distribution("tensorflow-gpu").version
+        s = pkg_resources.get_distribution("tensorflow").version
     except pkg_resources.DistributionNotFound:
-        # pkg_resources.get_distribution doesn't work well with conda installed packages
         try:
-            import tensorflow as tf
-            s = tf.__version__
-        except ModuleNotFoundError:
-            return ""
+            import pkg_resources
+            s = pkg_resources.get_distribution("tensorflow").version
+        except pkg_resources.DistributionNotFound:
+            # pkg_resources.get_distribution doesn't work well with conda installed packages
+            try:
+                import tensorflow as tf
+                s = tf.__version__
+            except ModuleNotFoundError:
+                return ""
     version = re.search(r"(\d+.\d+).\d+", s).group(1)
     return version
 

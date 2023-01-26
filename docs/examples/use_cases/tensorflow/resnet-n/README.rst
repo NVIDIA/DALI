@@ -94,7 +94,7 @@ TensorFlow
 
 ::
 
-   pip install tensorflow-gpu==2.4.1
+   pip install tensorflow==2.4.1
 
 OpenMPI
 ^^^^^^^
