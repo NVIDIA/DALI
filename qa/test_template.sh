@@ -9,9 +9,9 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
-python_test_runner_package="nose nose2 nose2-test-timer"
+python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 python_test_runner="python -m nose"
-python_test_args="--verbose -s"
+python_test_args="--verbose --with-timer --timer-color --timer-top-n 20 -s"
 python_invoke_test="${python_test_runner} ${python_test_args}"
 
 # New framework for Python Tests
