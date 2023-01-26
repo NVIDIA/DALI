@@ -175,19 +175,13 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     channel_dim_idx_ = ImageLayoutInfo::ChannelDimIndex(input_layout_);
     assert(channel_dim_idx_ >= 0);
 
-    // TODO(janton): remove fallback
-    static bool cmn_legacy = []() {
-      const char *env = std::getenv("DALI_CMN_LEGACY");
-      return env && atoi(env);
-    }();
     use_fallback_ = spatial_ndim_ != 2 || ndim != 3 ||
-                    (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_) ||
-                    cmn_legacy;
-    DALI_WARN_ONCE(make_string("CropMirrorNormalize legacy impl.: ", use_fallback_));
+                    (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_);
 
-    if (use_fallback_)
+    if (use_fallback_) {
+      DALI_WARN_ONCE("using CropMirrorNormalize legacy implementation");
       return fallback_.Setup(output_desc, ws);
-
+    }
     crop_attr_.ProcessArguments(spec_, ws);
 
     ArgValueFlags flags = ArgValue_EnforceUniform;
@@ -269,6 +263,27 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
 };
 
 
-DALI_REGISTER_OPERATOR(CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
+DALI_SCHEMA(experimental__CropMirrorNormalize)
+  .DocStr(R"code(Performs fused cropping, normalization, format conversion
+(NHWC to NCHW) if desired, and type casting.
+
+Normalization takes the input images and produces the output by using the following formula::
+
+  output = scale * (input - mean) / std + shift
+
+.. note::
+    If no cropping arguments are specified, only mirroring and normalization will occur.
+)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .InputLayout(0, {"HWC", "CHW",
+                   "DHWC", "CDHW",
+                   "FHWC", "FCHW", "CFHW",
+                   "FDHWC", "FCDHW", "CFDHW"})
+  .AllowSequences()
+  .SupportVolumetric()
+  .AddParent("CropMirrorNormalize");
+
+DALI_REGISTER_OPERATOR(experimental__CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
 
 }  // namespace dali

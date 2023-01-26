@@ -72,6 +72,6 @@ void CropMirrorNormalize<GPUBackend>::RunImpl(Workspace &ws) {
   ), DALI_FAIL(make_string("Not supported input type:", input_type_));); // NOLINT
 }
 
-// DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<GPUBackend>, GPU);
 
 }  // namespace dali
