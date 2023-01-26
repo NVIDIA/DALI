@@ -37,10 +37,9 @@ The buffer contents are not copied.)code")
   .SupportVolumetric()
   .AddOptionalArg<int>("shape", R"code(The desired shape of the output.
 
-Number of dimensions cannot exceed the number of dimensions of the input.
-There can be one negative extent that receives the size that is required to match
-the input volume. For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
-results in the shape ``[240, 3840]``.
+There can be one negative extent that receives the size that is required to match the input volume.
+For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
+results in the output shape ``[240, 3840]``.
 
 .. note::
   rel_shape and shape are mutually exclusive.
@@ -48,10 +47,12 @@ results in the shape ``[240, 3840]``.
                   std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
 
-Number of dimensions cannot exceed the number of dimensions of the input. There can be
-one negative extent that receives the size that is required to match the input volume.
+There can be one negative extent that receives the size that is required to match the input volume.
 For example, an input of shape ``[480, 640, 3]`` and a ``rel_shape = [0.5, -1]`` results in
-the shape ``[240, 3840]``.
+the output shape ``[240, 3840]``.
+
+The number of dimensions must match ``src_dims``, if specified. If ``src_dims`` is not used,
+the number of dimensions in ``shape`` must not exceed the number of dimensions in the input.
 
 .. note::
   rel_shape and shape are mutually exclusive.
@@ -300,11 +301,17 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
           DALI_ENFORCE(rel_uniform_shape_.size() == src_dims_.size(),
             make_string(OpName(), ": ``src_dims`` and ``rel_shape`` have different"
             " lengths: ", src_dims_.size(), " vs ", rel_uniform_shape_.size()));
+        } else {
+          DALI_ENFORCE(static_cast<int>(rel_uniform_shape_.size()) <= input_shape_.sample_dim(),
+            make_string("``rel_shape`` has more elements (", rel_uniform_shape_.size(), ") than "
+                        "there are dimensions in the input (", input_shape_.sample_dim(), "). "
+                        "To add new dimensions, use ``src_dims`` to specify the mapping between "
+                        "input and output dimensions."));
         }
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
-            const int src_d = !use_src_dims_ ? d : src_dims_[d];
+            int src_d = use_src_dims_ ? src_dims_[d] : d;
             int out_e = round_int(rel_uniform_shape_[d] *
               (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
             output_shape_.tensor_shape_span(i)[d] = out_e;

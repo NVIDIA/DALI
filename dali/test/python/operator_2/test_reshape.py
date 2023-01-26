@@ -379,7 +379,8 @@ def test_invalid_wildcard():
     pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
                         rel_shape=[1, -1, 1])
     pipe.build()
-    err_glob = "*Cannot infer*dimension 1 for 3D output and 2D input*Use `src_dims`*"
+    err_glob = "*``rel_shape`` has more elements (3) than*dimensions in the input (2)*" \
+               "use ``src_dims``*"
     with assert_raises(RuntimeError, glob=err_glob):
         pipe.run()
 
