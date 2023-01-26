@@ -11,7 +11,7 @@ source $topdir/qa/setup_test_common.sh
 # Set runner for python tests
 python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 python_test_runner="python -m nose"
-python_test_args="--verbose --with-timer --timer-color --timer-top-n 20 -s"
+python_test_args="--verbose --with-timer --timer-top-n 20 -s"
 python_invoke_test="${python_test_runner} ${python_test_args}"
 
 # New framework for Python Tests
