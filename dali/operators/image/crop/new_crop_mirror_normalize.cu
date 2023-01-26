@@ -62,7 +62,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
 
  protected:
   template <typename Out, typename In, int spatial_ndim, int channel_dim>
-  bool SetupImplTyped(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+  bool SetupImplTyped(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
     static constexpr int ndim = spatial_ndim + 1;
     auto nsamples = ws.GetInputBatchSize(0);
     output_desc.resize(1);
@@ -132,7 +132,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
 
       if (fill_values_.size() > 0) {
         a.fill_values.resize(nchannels);
-        DALI_ENFORCE(fill_values_.size() == 1 || fill_values_.size() >= nchannels,
+        DALI_ENFORCE(fill_values_.size() == 1 || static_cast<int>(fill_values_.size()) >= nchannels,
                      "Should provide either a single fill_value or at least as many as number of "
                      "channels in the input");
         for (int c = 0; c < nchannels; c++)
@@ -200,7 +200,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
   }
 
   template <typename Out, typename In, int spatial_ndim, int channel_dim>
-  void RunImplTyped(const Workspace &ws) override {
+  void RunImplTyped(const Workspace &ws) {
     static constexpr int ndim = spatial_ndim + 1;
     using Kernel =
         kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
