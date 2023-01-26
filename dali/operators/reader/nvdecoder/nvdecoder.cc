@@ -502,7 +502,7 @@ NvDecoder::get_textures(uint8_t* input, unsigned int input_pitch,
 
 void NvDecoder::convert_frame(const MappedFrame& frame, SequenceWrapper& sequence,
                               int index) {
-  auto input_width = ALIGN16(decoder_.width());
+  auto input_width = ALIGN32(decoder_.width());
   auto input_height = decoder_.height();
 
   auto output_idx = index;
