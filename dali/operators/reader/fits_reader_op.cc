@@ -44,9 +44,9 @@ static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend
   }
 }
 
-DALI_REGISTER_OPERATOR(readers__Fits, FitsReaderCPU, CPU);
+DALI_REGISTER_OPERATOR(experimental_readers__Fits, FitsReaderCPU, CPU);
 
-DALI_SCHEMA(readers__Fits)
+DALI_SCHEMA(experimental_readers__Fits)
     .DocStr(R"(Reads Fits image HDUs from a directory.
 
 This operator can be used in the following modes:
@@ -54,16 +54,6 @@ This operator can be used in the following modes:
 1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
 2. Read file names from a text file indicated in ``file_list`` argument.
 3. Read files listed in ``files`` argument.
-
-.. note::
-  The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). which is
-  shipped with the CUDA toolkit starting from CUDA 11.4. Please check the GDS documentation
-  for more details.
-
-  The ``gpu`` reader reads the files in chunks. The size of the chunk can be controlled
-  process-wide with an environment variable ``DALI_GDS_CHUNK_SIZE``. Valid values are powers of 2
-  between 4096 and 16M, with the default being 2M. For convenience, the value can be specified
-  with a k or M suffix, applying a multiplier of 1024 and 2^20, respectively.
 )")
     .NumInput(0)
     .NumOutput(1)  // (Arrays)
@@ -79,7 +69,7 @@ If not using ``file_list`` or ``files``, this directory is traversed to discover
 list of files in the sub-directories of the ``file_root``.
 
 This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
-        "*.npy")
+        "*.fits")
     .AddOptionalArg<string>("file_list",
                             R"(Path to a text file that contains filenames (one per line)
 where the filenames are relative to the location of that file or to ``file_root``, if specified.
@@ -97,16 +87,6 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
-    .AddOptionalArg("register_buffers",
-                    R"code(Applies **only** to the ``gpu`` backend type.
-
-.. warning::
-    This argument is temporarily disabled and left for backward compatibility.
-    It will be reenabled in the future releases.
-
-If true, the device I/O buffers will be registered with cuFile. It is not recommended if the sample
-sizes vary a lot.)code",
-                    true)
     .AddParent("LoaderBase");
 
 void FitsReaderCPU::RunImpl(Workspace &ws) {
