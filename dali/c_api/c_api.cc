@@ -702,6 +702,7 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
+  auto *di_map = reinterpret_cast<data_id_map_t *>(pipe_handle->data_id_map);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
   if (pipe_handle->copy_stream) {
     CUDA_CALL(cudaStreamSynchronize(pipe_handle->copy_stream));
@@ -711,9 +712,11 @@ void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   delete ws;
   delete pipeline;
   delete bs_map;
+  delete di_map;
   pipe_handle->ws = nullptr;
   pipe_handle->pipe = nullptr;
   pipe_handle->batch_size_map = nullptr;
+  pipe_handle->data_id_map = nullptr;
 }
 
 void daliLoadLibrary(const char* lib_path) {

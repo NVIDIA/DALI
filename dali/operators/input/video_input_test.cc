@@ -225,6 +225,7 @@ TEST_F(VideoInputNextOutputDataIdTest, VideoInputNextOutputDataIdTest) {
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 0);
+  daliDeletePipeline(&h);
 }
 
 
@@ -237,6 +238,7 @@ TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyTest) {
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 1);
+  daliDeletePipeline(&h);
 }
 
 
@@ -250,6 +252,7 @@ TEST_F(VideoInputNextOutputDataIdTest, OneInputFileSplitUniformlyNoDataIdTest) {
   daliDeserializeDefault(&h, serialized_pipeline_.c_str(),
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 2);
+  daliDeletePipeline(&h);
 }
 
 
@@ -262,6 +265,7 @@ TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest) {
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 0);
   DoTest(&h, 2);
+  daliDeletePipeline(&h);
 }
 
 
@@ -274,6 +278,7 @@ TEST_F(VideoInputNextOutputDataIdTest, TwoInputFilesSeparatedTest2) {
                          static_cast<int>(serialized_pipeline_.length()));
   DoTest(&h, 2);
   DoTest(&h, 1);
+  daliDeletePipeline(&h);
 }
 
 
@@ -289,6 +294,7 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleFilesSeparatedTest) {
   DoTest(&h, 2);
   DoTest(&h, 0);
   DoTest(&h, 2);
+  daliDeletePipeline(&h);
 }
 
 
@@ -345,6 +351,7 @@ TEST_F(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
   daliRun(&h);
   daliOutput(&h);
   EXPECT_EQ(daliHasOperatorTrace(&h, video_input_name_.c_str(), trace_name_.c_str()), 0);
+  daliDeletePipeline(&h);
 }
 
 }  // namespace dali::test
