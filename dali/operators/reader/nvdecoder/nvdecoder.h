@@ -47,7 +47,7 @@ struct AVCodecContext;
 using CodecParameters = AVCodecContext;
 #endif
 
-#define ALIGN16(value) ((((value) + 15) >> 4) << 4)
+#define ALIGN32(value) ((((value) + 31) >> 5) << 5)
 
 namespace dali {
 
