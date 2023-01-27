@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -164,14 +164,14 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
                              int batch_size = dali::batch_size) {
   dali::Workspace ws;
   baseline.Outputs(&ws);
-  daliOutput(handle);
+  daliOutput(&handle);
 
-  EXPECT_EQ(daliGetNumOutput(handle), ws.NumOutput());
+  EXPECT_EQ(daliGetNumOutput(&handle), ws.NumOutput());
   const int num_output = ws.NumOutput();
   for (int output = 0; output < num_output; output++) {
-    EXPECT_EQ(daliNumTensors(handle, output), batch_size);
+    EXPECT_EQ(daliNumTensors(&handle, output), batch_size);
     for (int elem = 0; elem < batch_size; elem++) {
-      auto *shape = daliShapeAtSample(handle, output, elem);
+      auto *shape = daliShapeAtSample(&handle, output, elem);
       auto ref_shape = ws.Output<Backend>(output).shape()[elem];
       int D = ref_shape.size();
       for (int d = 0; d < D; d++)
@@ -191,7 +191,7 @@ void ComparePipelinesOutputs(daliPipelineHandle &handle, Pipeline &baseline,
     auto num_elems = pipeline_output_cpu.shape().num_elements();
     auto [backend_buf, cpu_buf] = AllocBufferPair<Backend>(num_elems, false);
 
-    daliOutputCopy(handle, backend_buf.get(), 0,
+    daliOutputCopy(&handle, backend_buf.get(), 0,
                    backend_to_device_type<Backend>::value, 0, copy_output_flags);
 
     CopyIfDifferent(cpu_buf.get(), backend_buf.get(), num_elems, cuda_stream);
@@ -245,16 +245,16 @@ TYPED_TEST(CApiTest, GetOutputNameTest) {
 
   auto serialized = pipe.SerializeToProtobuf();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
 
-  ASSERT_EQ(daliGetNumOutput(handle), 2);
-  EXPECT_STREQ(daliGetOutputName(handle, 0), output0_name.c_str());
-  EXPECT_STREQ(daliGetOutputName(handle, 1), output1_name.c_str());
+  ASSERT_EQ(daliGetNumOutput(&handle), 2);
+  EXPECT_STREQ(daliGetOutputName(&handle, 0), output0_name.c_str());
+  EXPECT_STREQ(daliGetOutputName(&handle, 1), output1_name.c_str());
 
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -268,23 +268,23 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
     pipe_ptr->RunGPU();
   }
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
 
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
@@ -297,20 +297,20 @@ TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
     pipe_ptr->RunGPU();
   }
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, serialized.c_str(), serialized.size());
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
 
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -328,7 +328,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
 
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -339,8 +339,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems,
                             false, input_shape, DALI_UINT8, this->device_id_);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
-    daliSetExternalInputBatchSize(handle, input_name.c_str(), input_shape.num_samples());
-    daliSetExternalInputAsync(handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+    daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
+    daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_default);
   }
@@ -349,7 +349,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -363,15 +363,15 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems,
                           false, input_shape, DALI_UINT8, this->device_id_);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
-  daliSetExternalInputAsync(handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+  daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                             input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                             input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -389,7 +389,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -410,8 +410,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
       input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems,
                               false, input_shape, DALI_UINT8, this->device_id_);
       pipe_ptr->SetExternalInput(input_name, input_wrapper);
-      daliSetExternalInputBatchSize(handle, input_name.c_str(), input_shape.num_samples());
-      daliSetExternalInputAsync(handle, input_name.c_str(),
+      daliSetExternalInputBatchSize(&handle, input_name.c_str(), input_shape.num_samples());
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
                                 backend_to_device_type<TypeParam>::value, input.get(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_default);
@@ -421,7 +421,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
       pipe_ptr->RunCPU();
       pipe_ptr->RunGPU();
     }
-    daliPrefetchUniform(handle, prefetch_queue_depth);
+    daliPrefetchUniform(&handle, prefetch_queue_depth);
 
     dali::Workspace ws;
     for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -429,7 +429,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
                                          input_shape.num_samples());
     }
   }
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -451,7 +451,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
 
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -461,7 +461,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     input.Copy(input_cpu, this->order_);
     pipe_ptr->SetExternalInput(input_name, input, this->order_);
-    daliSetExternalInputTensorsAsync(handle, input_name.c_str(),
+    daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                      backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                      dali_data_type_t::DALI_UINT8, input_shape.data(),
                                      input_shape.sample_dim(), nullptr, this->order_.stream(),
@@ -472,7 +472,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -483,16 +483,16 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
   input.Copy(input_cpu, this->order_);
   pipe_ptr->SetExternalInput(input_name, input, this->order_);
-  daliSetExternalInputTensorsAsync(handle, input_name.c_str(),
+  daliSetExternalInputTensorsAsync(&handle, input_name.c_str(),
                                    backend_to_device_type<TypeParam>::value, data_ptrs.data(),
                                    dali_data_type_t::DALI_UINT8, input_shape.data(),
                                    input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -515,7 +515,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
 
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -527,7 +527,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
     input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems,
                             false, input_shape, DALI_UINT8, this->device_id_);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
-    daliSetExternalInput(handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
+    daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                          input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                          input_shape.sample_dim(), nullptr, DALI_ext_default);
   }
@@ -536,7 +536,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -551,15 +551,15 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   input_wrapper.ShareData(std::static_pointer_cast<void>(input), num_elems,
                           false, input_shape, DALI_UINT8, this->device_id_);
   pipe_ptr->SetExternalInput(input_name, input_wrapper);
-  daliSetExternalInput(handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
+  daliSetExternalInput(&handle, input_name.c_str(), backend_to_device_type<DataBackend>::value,
                         input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                         input_shape.sample_dim(), "HWC", DALI_ext_default);
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -584,7 +584,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
 
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -597,7 +597,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
                           : this->order_);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
-    daliSetExternalInputTensors(handle, input_name.c_str(),
+    daliSetExternalInputTensors(&handle, input_name.c_str(),
                                 backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr, DALI_ext_default);
@@ -607,7 +607,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -621,16 +621,16 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
                         : this->order_);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
-  daliSetExternalInputTensors(handle, input_name.c_str(),
+  daliSetExternalInputTensors(&handle, input_name.c_str(),
                               backend_to_device_type<DataBackend>::value, data_ptrs.data(),
                               dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), "HWC", DALI_ext_default);
-  daliRun(handle);
+  daliRun(&handle);
   pipe_ptr->RunCPU();
   pipe_ptr->RunGPU();
 
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, TestExecutorMeta) {
@@ -638,19 +638,19 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
   pipe_ptr.reset();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, true);
 
-  daliRun(handle);
-  daliOutput(handle);
+  daliRun(&handle);
+  daliOutput(&handle);
   if (std::is_same_v<TypeParam, GPUBackend>)
     CUDA_CALL(cudaDeviceSynchronize());
 
   size_t N;
   daliExecutorMetadata *meta;
-  daliGetExecutorMetadata(handle, &meta, &N);
+  daliGetExecutorMetadata(&handle, &meta, &N);
 
   // File Reader -> Image Decoder -> [Copy to Gpu] -> Resize -> Make Contiguous (always for outputs)
   if (std::is_same_v<TypeParam, CPUBackend>) {
@@ -666,7 +666,7 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
     }
   }
   daliFreeExecutorMetadata(meta, N);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TYPED_TEST(CApiTest, UseCopyKernel) {
@@ -685,7 +685,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   auto serialized = pipe_ptr->SerializeToProtobuf();
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -701,7 +701,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
                             std::is_same_v<TypeParam, CPUBackend>, input_shape, DALI_UINT8,
                             this->device_id_);
     pipe_ptr->SetExternalInput(input_name, input_wrapper);
-    daliSetExternalInputAsync(handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+    daliSetExternalInputAsync(&handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                               input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), nullptr, cuda_stream, flags);
   }
@@ -710,13 +710,13 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, flags);
   }
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -738,7 +738,7 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
   auto pipe_ptr = GetExternalSourcePipeline(false, other_device_str);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      this->device_id_, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -751,11 +751,11 @@ TYPED_TEST(CApiTest, ForceNoCopyFail) {
   // while forcing NO COPY. It's not allowed to do a no copy across backends and it should error
   // out.
   ASSERT_THROW(daliSetExternalInputAsync(
-                    handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
+                    &handle, input_name.c_str(), backend_to_device_type<TypeParam>::value,
                     input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                     input_shape.sample_dim(), nullptr, cuda_stream, DALI_ext_force_no_copy),
                 std::runtime_error);
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -776,7 +776,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
 
   pipe_ptr->Build();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliCreatePipeline(&handle, serialized.c_str(), serialized.size(), batch_size, num_thread,
                      device_id, false, prefetch_queue_depth, prefetch_queue_depth,
                      prefetch_queue_depth, false);
@@ -800,7 +800,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data
-      daliSetExternalInputAsync(handle, input_name.c_str(),
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
                                 backend_to_device_type<TypeParam>::value, data[i].get(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr, cuda_stream, flag_to_test);
@@ -813,7 +813,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
         MemCopy(tmp_data.get(), data[i].get(), num_elems, cuda_stream);
       }
       // We pass a temporary TensorList as input and force the copy
-      daliSetExternalInputAsync(handle, input_name.c_str(),
+      daliSetExternalInputAsync(&handle, input_name.c_str(),
                                 backend_to_device_type<TypeParam>::value, tmp_data.get(),
                                 dali_data_type_t::DALI_UINT8, input_shape.data(),
                                 input_shape.sample_dim(), nullptr, cuda_stream, flag_to_test);
@@ -824,13 +824,13 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
     pipe_ptr->RunCPU();
     pipe_ptr->RunGPU();
   }
-  daliPrefetchUniform(handle, prefetch_queue_depth);
+  daliPrefetchUniform(&handle, prefetch_queue_depth);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
     ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   }
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -862,17 +862,17 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
 
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, serialized.c_str(), serialized.size());
 
-  daliRun(handle);
-  daliOutput(handle);
-  const int num_output = daliGetNumOutput(handle);
+  daliRun(&handle);
+  daliOutput(&handle);
+  const int num_output = daliGetNumOutput(&handle);
   for (int out_idx = 0; out_idx < num_output; out_idx++) {
     std::vector<int64_t> sample_sizes(batch_size, 0);
-    EXPECT_EQ(daliNumTensors(handle, out_idx), batch_size);
+    EXPECT_EQ(daliNumTensors(&handle, out_idx), batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-      auto *shape = daliShapeAtSample(handle, out_idx, sample_idx);
+      auto *shape = daliShapeAtSample(&handle, out_idx, sample_idx);
       int ndim = 0;
       sample_sizes[sample_idx] = 1;
       for (int d = 0; shape[d] > 0; d++) {
@@ -881,13 +881,13 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       free(shape);
     }
 
-    DALIDataType type = static_cast<DALIDataType>(daliTypeAt(handle, out_idx));
+    DALIDataType type = static_cast<DALIDataType>(daliTypeAt(&handle, out_idx));
     auto type_info = dali::TypeTable::GetTypeInfo(type);
-    int64_t out_size = daliNumElements(handle, out_idx);
+    int64_t out_size = daliNumElements(&handle, out_idx);
     Tensor<TypeParam> output1;
     output1.set_pinned(false);
     output1.Resize({out_size}, type_info.id());
-    daliOutputCopy(handle, output1.raw_mutable_data(), out_idx,
+    daliOutputCopy(&handle, output1.raw_mutable_data(), out_idx,
                    backend_to_device_type<TypeParam>::value, 0, DALI_ext_default);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
     Tensor<CPUBackend> output1_cpu;
@@ -919,7 +919,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       if (pinned)
         flags |= DALI_ext_pinned;
 
-      daliOutputCopySamples(handle, sample_dsts.data(), out_idx,
+      daliOutputCopySamples(&handle, sample_dsts.data(), out_idx,
                             backend_to_device_type<TypeParam>::value, cuda_stream, flags);
 
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
@@ -961,9 +961,9 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       if (std::is_same_v<TypeParam, CPUBackend>)
         flags |= DALI_ext_pinned;
 
-      daliOutputCopySamples(handle, sample_dsts_even.data(), out_idx,
+      daliOutputCopySamples(&handle, sample_dsts_even.data(), out_idx,
                             backend_to_device_type<TypeParam>::value, cuda_stream, flags);
-      daliOutputCopySamples(handle, sample_dsts_odd.data(), out_idx,
+      daliOutputCopySamples(&handle, sample_dsts_odd.data(), out_idx,
                             backend_to_device_type<TypeParam>::value, cuda_stream, flags);
 
       // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
@@ -973,7 +973,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
       Check(view<uint8_t>(output1_cpu), view<uint8_t>(output2_cpu));
     }
   }
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 
@@ -1005,9 +1005,9 @@ TEST(CApiTest, CpuOnlyTest) {
   std::vector<std::pair<std::string, std::string>> outputs = {{"dummy", "cpu"}};
   pipe.SetOutputDescs(outputs);
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TEST(CApiTest, GetBackendTest) {
@@ -1026,12 +1026,12 @@ TEST(CApiTest, GetBackendTest) {
                                                               {cont_name, "gpu"}};
   pipe.SetOutputDescs(outputs);
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
-  EXPECT_EQ(daliGetOperatorBackend(handle, es_cpu_name.c_str()), DALI_BACKEND_CPU);
-  EXPECT_EQ(daliGetOperatorBackend(handle, es_gpu_name.c_str()), DALI_BACKEND_GPU);
-  EXPECT_EQ(daliGetOperatorBackend(handle, cont_name.c_str()), DALI_BACKEND_MIXED);
-  daliDeletePipeline(handle);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, es_cpu_name.c_str()), DALI_BACKEND_CPU);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, es_gpu_name.c_str()), DALI_BACKEND_GPU);
+  EXPECT_EQ(daliGetOperatorBackend(&handle, cont_name.c_str()), DALI_BACKEND_MIXED);
+  daliDeletePipeline(&handle);
 }
 
 TEST(CApiTest, GetESDetailsTest) {
@@ -1042,26 +1042,26 @@ TEST(CApiTest, GetESDetailsTest) {
 
   pipe.SetOutputDescs({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
-  EXPECT_EQ(daliGetNumExternalInput(handle), 3);
+  EXPECT_EQ(daliGetNumExternalInput(&handle), 3);
 
-  EXPECT_EQ(daliGetExternalInputName(handle, 0), std::string("INPUT1"));
-  EXPECT_EQ(daliGetExternalInputLayout(handle, "INPUT1"), std::string("NHWC"));
-  EXPECT_EQ(daliGetExternalInputNdim(handle, "INPUT1"), 4);
-  EXPECT_EQ(daliGetExternalInputType(handle, "INPUT1"), DALI_UINT32);
+  EXPECT_EQ(daliGetExternalInputName(&handle, 0), std::string("INPUT1"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT1"), std::string("NHWC"));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT1"), 4);
+  EXPECT_EQ(daliGetExternalInputType(&handle, "INPUT1"), DALI_UINT32);
 
-  EXPECT_EQ(daliGetExternalInputName(handle, 1), std::string("INPUT2"));
-  EXPECT_EQ(daliGetExternalInputLayout(handle, "INPUT2"), std::string(""));
-  EXPECT_EQ(daliGetExternalInputNdim(handle, "INPUT2"), -1);
-  EXPECT_EQ(daliGetExternalInputType(handle, "INPUT2"), DALI_NO_TYPE);
+  EXPECT_EQ(daliGetExternalInputName(&handle, 1), std::string("INPUT2"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT2"), std::string(""));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT2"), -1);
+  EXPECT_EQ(daliGetExternalInputType(&handle, "INPUT2"), DALI_NO_TYPE);
 
-  EXPECT_EQ(daliGetExternalInputName(handle, 2), std::string("INPUT3"));
-  EXPECT_EQ(daliGetExternalInputLayout(handle, "INPUT3"), std::string("HWC"));
-  EXPECT_EQ(daliGetExternalInputNdim(handle, "INPUT3"), 3);
-  EXPECT_EQ(daliGetExternalInputType(handle, "INPUT3"), DALI_FLOAT16);
+  EXPECT_EQ(daliGetExternalInputName(&handle, 2), std::string("INPUT3"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT3"), std::string("HWC"));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT3"), 3);
+  EXPECT_EQ(daliGetExternalInputType(&handle, "INPUT3"), DALI_FLOAT16);
 
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TEST(CApiTest, GetMaxBatchSizeTest) {
@@ -1070,12 +1070,12 @@ TEST(CApiTest, GetMaxBatchSizeTest) {
   pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
   pipe.SetOutputDescs({{"INPUT", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
-  EXPECT_EQ(daliGetMaxBatchSize(handle), BS);
+  EXPECT_EQ(daliGetMaxBatchSize(&handle), BS);
 
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
@@ -1086,13 +1086,13 @@ TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
   pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
   pipe.SetOutputDescs({{"INPUT", "cpu", dtype, ndim}});
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle = nullptr;
+  daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
-  EXPECT_EQ(daliGetDeclaredOutputDtype(handle, 0), ref_dtype);
-  EXPECT_EQ(daliGetDeclaredOutputNdim(handle, 0), ndim);
+  EXPECT_EQ(daliGetDeclaredOutputDtype(&handle, 0), ref_dtype);
+  EXPECT_EQ(daliGetDeclaredOutputNdim(&handle, 0), ndim);
 
-  daliDeletePipeline(handle);
+  daliDeletePipeline(&handle);
 }
 
 }  // namespace dali

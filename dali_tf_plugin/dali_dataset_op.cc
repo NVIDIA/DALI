@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -290,17 +290,17 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       input_ext_src_devices_.resize(dataset()->NumInputs());
       for (size_t i = 0; i < input_ext_src_devices_.size(); i++) {
         TF_DALI_CALL(input_ext_src_devices_[i] = daliGetOperatorBackend(
-                         pipeline_handle_, dataset()->input_desc_.input_names[i].c_str()));
+                         &pipeline_handle_, dataset()->input_desc_.input_names[i].c_str()));
       }
     }
-    TF_RETURN_IF_ERROR(PrefetchPipeline(context, pipeline_handle_));
+    TF_RETURN_IF_ERROR(PrefetchPipeline(context, &pipeline_handle_));
     return CheckOutputDevices();
   }
 
   Status CheckOutputDevices() {
-    auto num_outputs = daliGetNumOutput(pipeline_handle_);
+    auto num_outputs = daliGetNumOutput(&pipeline_handle_);
     for (auto i = 0; i < num_outputs; ++i) {
-      auto dali_device_type = daliGetOutputDevice(pipeline_handle_, i);
+      auto dali_device_type = daliGetOutputDevice(&pipeline_handle_, i);
 
       if (dali_device_type != dataset()->device_type_) {
         auto msg = dali::make_string(
@@ -338,7 +338,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         if (end_of_input_sequence) {
           iterator_state_ = InputState::stop_pending;
         } else {
-          TF_RETURN_IF_ERROR(FeedInputs(pipeline_handle_, std::move(batches)));
+          TF_RETURN_IF_ERROR(FeedInputs(&pipeline_handle_, std::move(batches)));
         }
       }
 
@@ -363,7 +363,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     // We schedule next run always when we don't have inputs or when we have inputs
     // and they produced something - which happens only in `in_progress` state.
     if (!dataset()->HasInputs() || iterator_state_ == InputState::in_progress) {
-      TF_DALI_CALL(daliRun(pipeline_handle_));
+      TF_DALI_CALL(daliRun(&pipeline_handle_));
     }
     return Status();
   }
@@ -372,7 +372,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     if (enable_memory_stats_) {
       size_t N;
       daliExecutorMetadata *meta;
-      daliGetExecutorMetadata(pipeline_handle_, &meta, &N);
+      daliGetExecutorMetadata(&pipeline_handle_, &meta, &N);
       std::cout << "DALI operator memory statistics: " << std::endl;
       for (size_t i = 0; i < N; ++i) {
         std::cout << "Operator " << meta[i].operator_name;
@@ -388,7 +388,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       }
       daliFreeExecutorMetadata(meta, N);
     }
-    daliDeletePipeline(pipeline_handle_);
+    daliDeletePipeline(&pipeline_handle_);
   }
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
@@ -409,7 +409,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    *
    * TODO(klecki): Inputs handled only for an uniform executor
    */
-  Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle pipeline_handle) {
+  Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle *pipeline_handle) {
     if (!dataset()->pipeline_def_.exec_separated) {
       int prefetch_depth = dataset()->pipeline_def_.prefetch_queue_depth;
       int actual_prefetch_depth = 0;
@@ -554,22 +554,22 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    */
   Status ProduceOutputs(IteratorContext *context, std::vector<Tensor> *out_tensors,
                         bool &end_of_sequence) {
-    TF_DALI_CALL(daliShareOutput(pipeline_handle_));
+    TF_DALI_CALL(daliShareOutput(&pipeline_handle_));
 
     auto num_outputs = 0;
-    TF_DALI_CALL(num_outputs = daliGetNumOutput(pipeline_handle_));
+    TF_DALI_CALL(num_outputs = daliGetNumOutput(&pipeline_handle_));
 
     for (int out_id = 0; out_id < num_outputs; ++out_id) {
       TensorShape output_shape;
       bool is_uniform = false;
-      TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(pipeline_handle_, out_id));
+      TF_DALI_CALL(is_uniform = daliOutputHasUniformShape(&pipeline_handle_, out_id));
 
       if (!is_uniform) {
         std::stringstream shapes;
         for (int sample_id = 0; sample_id < dataset()->pipeline_def_.batch_size; sample_id++) {
           AutoCPtr<int64_t> dali_shape;
           TF_DALI_CALL(dali_shape = AutoCPtr<int64_t>(
-                           daliShapeAtSample(pipeline_handle_, out_id, sample_id)));
+                           daliShapeAtSample(&pipeline_handle_, out_id, sample_id)));
 
           shapes << DaliToShape(dali_shape);
           if (sample_id < dataset()->pipeline_def_.batch_size - 1) {
@@ -584,7 +584,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
             "shape. Got shapes: ", shapes.str());
       }
       AutoCPtr<int64_t> dali_batch_shape;
-      TF_DALI_CALL(dali_batch_shape = AutoCPtr<int64_t>(daliShapeAt(pipeline_handle_, out_id)));
+      TF_DALI_CALL(dali_batch_shape = AutoCPtr<int64_t>(daliShapeAt(&pipeline_handle_, out_id)));
       auto dali_shape = DaliToShape(dali_batch_shape);
       auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id], dali_shape,
                                        dataset()->pipeline_def_.batch_size, out_id);
@@ -593,7 +593,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       }
 
       dali_data_type_t dali_type = DALI_NO_TYPE;
-      TF_DALI_CALL(dali_type = daliTypeAt(pipeline_handle_, out_id));
+      TF_DALI_CALL(dali_type = daliTypeAt(&pipeline_handle_, out_id));
       auto tf_type = DaliToTfType(dali_type);
 
       if (tf_type != dataset()->dtypes_[out_id]) {
@@ -660,13 +660,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                   DALI_ext_force_sync :
                                   DALI_ext_default;
 
-      TF_DALI_CALL(daliOutputCopy(pipeline_handle_, dst, out_id, dataset()->device_type_,
+      TF_DALI_CALL(daliOutputCopy(&pipeline_handle_, dst, out_id, dataset()->device_type_,
                                   dataset()->stream_, wait_flag));
     }
 
     end_of_sequence = false;
 
-    TF_DALI_CALL(daliOutputRelease(pipeline_handle_));
+    TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
     return Status();
   }
 
@@ -675,7 +675,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    *
    * The batches are kept in queue to keep them alive long enough for DALI to process them.
    */
-  Status FeedInputs(daliPipelineHandle pipeline_handle, ListOfBatches &&batches) {
+  Status FeedInputs(daliPipelineHandle *pipeline_handle, ListOfBatches &&batches) {
     // Keep alive the prefetch_queue_depth of batches - this corresponds to the number of batches
     // that we insert during warmup
     alive_batches_.push(std::move(batches));
@@ -873,7 +873,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   std::vector<dali_backend_t> input_ext_src_devices_;
   std::queue<ListOfBatches> alive_batches_;
   InputState iterator_state_ = InputState::in_progress;
-  daliPipelineHandle pipeline_handle_ = nullptr;
+  daliPipelineHandle pipeline_handle_;
   bool enable_memory_stats_;
 };
 
@@ -938,7 +938,7 @@ void DALIDatasetOp::ValidateInputs(OpKernelContext *context, Inputs &inputs,
 
 std::unique_ptr<IteratorBase> DALIDatasetOp::Dataset::MakeIteratorInternal(
     const string &prefix) const {
-  daliPipelineHandle pipeline_handle = nullptr;
+  daliPipelineHandle pipeline_handle;
   TF_CHECK_OK(InitPipeline(&pipeline_handle));
 
   return absl::make_unique<Iterator>(Iterator::Params{this, strings::StrCat(prefix, "::DALI")},

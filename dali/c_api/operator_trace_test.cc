@@ -124,28 +124,28 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
 
 
 TEST_P(OperatorTraceTest, OperatorTraceTest) {
-  daliPipelineHandle h = nullptr;
+  daliPipelineHandle h;
   daliCreatePipeline2(&h, serialized_pipeline_.c_str(), serialized_pipeline_.length(), batch_size_,
                       num_threads_, device_id_, exec_pipelined_, exec_async_, exec_separated_,
                       cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_, 0);
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
-    daliPrefetchUniform(h, prefetch_depth);
+    daliPrefetchUniform(&h, prefetch_depth);
     for (int i = 0; i < prefetch_depth; i++) {
-      daliShareOutput(h);
+      daliShareOutput(&h);
 
       for (const auto & operator_name : operator_under_test_names) {
-        EXPECT_EQ(daliHasOperatorTrace(h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(h, operator_name.c_str(), "test_trace"), 0);
+        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
 
-        EXPECT_EQ(std::string(daliGetOperatorTrace(h, operator_name.c_str(), "test_trace")),
+        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name.c_str(), "test_trace")),
                   make_string("test_value", iteration * prefetch_depth + i));
       }
 
-      daliOutputRelease(h);
+      daliOutputRelease(&h);
     }
   }
-  daliDeletePipeline(h);
+  daliDeletePipeline(&h);
 }
 
 
@@ -221,7 +221,7 @@ thrust::device_vector<T> random_vector_gpu(std::mt19937 &mt, size_t size) {
 
 
 TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
-  daliPipelineHandle h = nullptr;
+  daliPipelineHandle h;
   daliCreatePipeline2(&h, serialized_pipeline_.c_str(), serialized_pipeline_.length(), batch_size_,
                       num_threads_, device_id_, exec_pipelined_, exec_async_, exec_separated_,
                       cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_, 0);
@@ -234,7 +234,7 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
       size_t sample_size = 42;
       auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
-      daliSetExternalInput(h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.data(),
+      daliSetExternalInput(&h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.data(),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_default);
     }
@@ -244,27 +244,27 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
       int sample_size = 42;
       auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
-      daliSetExternalInput(h, "OP_TRACE_IN_GPU", device_type_t::GPU,
+      daliSetExternalInput(&h, "OP_TRACE_IN_GPU", device_type_t::GPU,
                            thrust::raw_pointer_cast(in_data.data()), dali_data_type_t::DALI_UINT8,
                            shapes.data(), 1, nullptr, DALI_ext_default);
     }
 
-    daliPrefetchUniform(h, prefetch_depth);
+    daliPrefetchUniform(&h, prefetch_depth);
     for (int i = 0; i < prefetch_depth; i++) {
-      daliShareOutput(h);
+      daliShareOutput(&h);
 
       for (const auto &operator_name : operator_under_test_names) {
-        EXPECT_EQ(daliHasOperatorTrace(h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
-        ASSERT_NE(daliHasOperatorTrace(h, operator_name.c_str(), "test_trace"), 0);
+        EXPECT_EQ(daliHasOperatorTrace(&h, operator_name.c_str(), "this_trace_does_not_exist"), 0);
+        ASSERT_NE(daliHasOperatorTrace(&h, operator_name.c_str(), "test_trace"), 0);
 
-        EXPECT_EQ(std::string(daliGetOperatorTrace(h, operator_name.c_str(), "test_trace")),
+        EXPECT_EQ(std::string(daliGetOperatorTrace(&h, operator_name.c_str(), "test_trace")),
                   make_string("test_value", iteration * prefetch_depth + i));
       }
 
-      daliOutputRelease(h);
+      daliOutputRelease(&h);
     }
   }
-  daliDeletePipeline(h);
+  daliDeletePipeline(&h);
 }
 
 

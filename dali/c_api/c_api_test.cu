@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,42 +104,42 @@ void TestCopyOutput(Method method) {
   // In order to trigger a failure, remove the `wait_order.wait` at the end of
   // daliOutputCopy / daliOutputCopySamples
   for (int attempt = 0; attempt < 20; attempt++) {
-    daliPipelineHandle handle = nullptr;
+    daliPipelineHandle handle;
 
     // create a new instance of the pipeline
     daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
     // feed the data & run - this is the iteration from which we want to see the data
-    daliSetExternalInput(handle, "pipe_in", CPU, in_data[0].data(), ::DALI_INT32,
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[0].data(), ::DALI_INT32,
                         shape.shapes.data(), 1, nullptr, 0);
-    daliRun(handle);
+    daliRun(&handle);
 
     // schedule an extra iteration
-    daliSetExternalInput(handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
                         shape.shapes.data(), 1, nullptr, 0);
-    daliRun(handle);
+    daliRun(&handle);
     // ...and prepare for one more
-    daliSetExternalInput(handle, "pipe_in", CPU, in_data[2].data(), ::DALI_INT32,
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[2].data(), ::DALI_INT32,
                         shape.shapes.data(), 1, nullptr, 0);
 
     // get the outputs - this contains some synchronization, so it comes before dispatching the hog
-    daliShareOutput(handle);
+    daliShareOutput(&handle);
     // hog the GPU on the stream on which we'll copy the output
     hog.run(stream, 10);
 
     // copy the output on our stream, without waiting on host
     if (method == Method::Contiguous) {
-      daliOutputCopy(handle, out_gpu.data(), 0, GPU, stream, 0);
+      daliOutputCopy(&handle, out_gpu.data(), 0, GPU, stream, 0);
     } else if (method == Method::Samples) {
       void *dsts[batch_size];
       for (int i = 0; i < batch_size; i++)
         dsts[i] = out_gpu.data() + i*sample_size;
-      daliOutputCopySamples(handle, dsts, 0, GPU, stream, 0);
+      daliOutputCopySamples(&handle, dsts, 0, GPU, stream, 0);
     }
 
     // release the buffer - it can be immediately recycled (in appropriate stream order)
-    daliOutputRelease(handle);
-    daliRun(handle);
+    daliOutputRelease(&handle);
+    daliRun(&handle);
 
     // now, copy the buffer to host...
     CUDA_CALL(cudaMemcpyAsync(out_cpu.data(), out_gpu.data(), batch_size*sample_size*sizeof(int),
@@ -156,7 +156,7 @@ void TestCopyOutput(Method method) {
       ASSERT_EQ(out_cpu[i], in_data[0][i]) << " data corrupted at index " << i;
     }
 
-    daliDeletePipeline(handle);
+    daliDeletePipeline(&handle);
   }
 }
 
