@@ -24,7 +24,16 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Handle for DALI C-like API.
+ *
+ * @note Beware, the C API is just C-like API for handling some mangling issues and
+ * it can throw exceptions.
+ */
 typedef struct DALIPipeline *daliPipelineHandle;
+
+// Temporary workaround for backward compatibility
+// - in the long run, daliPipeline_t is going to be change to daliPipeline and passed by value
 typedef daliPipelineHandle *daliPipelineHandle_t;
 
 typedef enum {

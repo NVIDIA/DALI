@@ -41,10 +41,7 @@ using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* ba
 using data_id_map_t = std::unordered_map<std::string /* op_name */, std::string /* data_id */>;
 
 /**
- * @brief Handle for DALI C-like API.
- *
- * @note Beware, the C API is just C-like API for handling some mangling issues and
- * it can throw exceptions.
+ * @brief Aggregates a DALI pipeline and auxiliary objects
  */
 struct DALIPipeline {
   std::unique_ptr<dali::Pipeline> pipeline;
