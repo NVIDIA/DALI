@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 typedef struct DALIPipeline *daliPipelineHandle;
-typedef daliPipelineHandle daliPipelineHandle_t;
+typedef daliPipelineHandle *daliPipelineHandle_t;
 
 typedef enum {
   CPU = 0,

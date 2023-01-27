@@ -201,7 +201,7 @@ void daliInitialize() {
 }
 
 
-void daliCreatePipeline(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline,
+void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                         int length, int max_batch_size, int num_threads, int device_id,
                         int separated_execution, int prefetch_queue_depth,
                         int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
@@ -223,7 +223,7 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
 }
 
 DLL_PUBLIC void
-daliCreatePipeline2(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline, int length,
+daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
                     int max_batch_size, int num_threads, int device_id, int pipelined_execution,
                     int async_execution, int separated_execution, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
@@ -245,7 +245,7 @@ daliCreatePipeline2(daliPipelineHandle_t *pipe_handle, const char *serialized_pi
 }
 
 
-void daliDeserializeDefault(daliPipelineHandle_t *pipe_handle, const char *serialized_pipeline,
+void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
@@ -685,7 +685,7 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   if (!pipe_handle)
     return;
 
-  auto wrap = std::unique_ptr<DALIPipeline>(pipe_handle);
+  auto wrap = std::unique_ptr<DALIPipeline>(*pipe_handle);
   if (wrap->copy_stream)
     CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
 }
