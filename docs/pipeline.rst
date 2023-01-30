@@ -145,8 +145,45 @@ DataNode
 .. autoclass:: nvidia.dali.pipeline.DataNode
    :members:
 
+Experimental Pipeline Features
+------------------------------
+Some additional experimental features can be enabled via the special variant of the pipeline
+decorator.
+
+.. autodecorator:: nvidia.dali.pipeline.experimental.pipeline_def
+
+
+Conditional Execution (experimental)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+DALI allows to execute operators conditionally for selected samples within the batch using
+``if`` statements. To enable this feature use the
+:py:func:`experimental @pipeline_def <nvidia.dali.pipeline.experimental.pipeline_def>` variant of
+decorator with the pipeline definition and set ``enable_conditionals`` to ``True``.
+
+Every ``if`` statement that have a :meth:`~nvidia.dali.pipeline.DataNode` as a condition
+will be recognized as DALI conditional statement.
+
+For example, this pipeline rotates each image with probabilty of 25% by a random angle between
+10 and 30 degrees::
+
+    @experimental.pipeline_def(enable_conditionals=True)
+    def random_rotate():
+        jpegs, _ = fn.readers.file(device="cpu", file_root=images_dir)
+        images = fn.decoders.image(jpegs, device="mixed")
+        do_rotate = fn.random.coin_flip(probability=0.25, dtype=DALIDataType.BOOL)
+        if do_rotate:
+            result = fn.rotate(images, angle=fn.random.uniform(range=(10, 30)), fill_value=0)
+        else:
+            result = images
+        return result
+
+The semantics of DALI conditionals can be understood as if the code processed one sample at a time.
+You can read more in the `conditional tutorial <examples/general/conditionals.html>`_.
+
+
 Pipeline Debug Mode (experimental)
-----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
 experimental variant ``@nvidia.dali.pipeline.experimental.pipeline_def`` and setting parameter
@@ -176,7 +213,7 @@ Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI 
         ...
 
 Notice
-^^^^^^
+~~~~~~
 
 * Seed generation in debug mode works differently than in standard mode (it is deterministic but
   different). If you want to achieve the same results in debug mode as in standard mode initialize
