@@ -374,6 +374,17 @@ def test_reshape_src_dims_throw_error(src_dims, rel_shape, shapes, err_regex):
         pipe.run()
 
 
+@params([1, 1, -1], np.float32([1, 1, -1]))
+def test_trailing_wildcard(rel_shape):
+    shapes = [[480, 640], [320, 240]]
+    pipe = reshape_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                        rel_shape=rel_shape)
+    pipe.build()
+    out, = pipe.run()
+    assert out[0].shape() == [480, 640, 1]
+    assert out[1].shape() == [320, 240, 1]
+
+
 @params([1, -1, 1], np.float32([1, -1, 1]))
 def test_invalid_wildcard(rel_shape):
     shapes = [[480, 640], [320, 240]]
