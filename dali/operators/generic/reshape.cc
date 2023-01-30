@@ -61,6 +61,7 @@ For example, an input of shape ``[480, 640, 3]`` and a ``rel_shape = [0.5, -1]``
 the output shape ``[240, 3840]``.
 
 The number of dimensions is subject to the following restrictions:
+
 - if ``src_dims`` argument is used, the number of elements in ``src_dims``
   and ``rel_shape`` must match
 - otherwise, the length of ``rel_shape`` must not exceed the number of dimensions in the input
