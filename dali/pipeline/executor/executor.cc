@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +29,24 @@
 #include "dali/pipeline/executor/source_info_propagation.h"
 
 namespace dali {
+
+/**
+ * @brief Takes the batch size from any of the op's tensor inputs.
+ *
+ * If no inputs were specified, a batch size inferred from
+ * the stage queue is used instead.
+ */
+inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
+  if (ws.NumInput() > 0) {
+    return ws.GetInputBatchSize(0);
+  }
+  const ArgumentWorkspace &argument_ws = ws;
+  if (begin(argument_ws) != end(argument_ws)) {
+    auto [name, arg] = *begin(argument_ws);
+    return arg.tvec->num_samples();
+  }
+  return stage_batch_size;
+}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
@@ -97,7 +115,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
     return;
   }
 
-  auto batch_size = batch_sizes_cpu_.front();
+  int stage_batch_size = batch_sizes_cpu_.front();
   batch_sizes_cpu_.pop();
 
   // Run the cpu-ops in the thread
@@ -106,6 +124,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
 
+    int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
     ws.SetBatchSizes(batch_size);
 
     DomainTimeRange tr("[DALI][CPU op] " + op_node.instance_name, DomainTimeRange::kBlue1);
@@ -143,7 +162,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
   if (device_id_ != CPU_ONLY_DEVICE_ID)
     CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
-  auto batch_size = batch_sizes_mixed_.front();
+  int stage_batch_size = batch_sizes_mixed_.front();
   batch_sizes_mixed_.pop();
 
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
@@ -151,6 +170,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
     try {
       decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
 
+      int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
       ws.SetBatchSizes(batch_size);
 
       DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name, DomainTimeRange::kOrange);
@@ -208,7 +228,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
   // iterations of a stage of the pipeline.
   CUDA_CALL(cudaEventSynchronize(gpu_stage_event_));
 
-  auto batch_size = batch_sizes_gpu_.front();
+  int stage_batch_size = batch_sizes_gpu_.front();
   batch_sizes_gpu_.pop();
 
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
@@ -216,6 +236,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
     try {
       decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
 
+      int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
       ws.SetBatchSizes(batch_size);
 
       auto parent_events = ws.ParentEvents();
