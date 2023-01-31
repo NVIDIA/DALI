@@ -617,3 +617,135 @@ def test_uninitialized():
                                 " (both `if` branches). The `else` branch must also have a return"
                                 " statement.")):
         one_return()
+
+
+def _tensor_arg_permute_batch_params():
+    batch_sizes = [1, 5, 8]
+    inp0 = [[np.full((2, 2), i, dtype=np.float32) for i in range(batch_size)]
+            for batch_size in batch_sizes]
+    mask_batches = [
+        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+    ]
+    kwarg_batches = [np.array([pred for pred in mask], dtype=np.int32) for mask in mask_batches]
+    return (inp0, ), mask_batches, {'indices': kwarg_batches}
+
+
+def _tensor_arg_transform_per_dim_params(arg_name):
+
+    def inner():
+        batch_sizes = [5, 1, 2, 8]
+        mask_batches = [
+            np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+        ]
+        kwarg_batches = [
+            np.array([[pred, pred] for pred in mask], dtype=np.float32) for mask in mask_batches
+        ]
+        return tuple(), mask_batches, {arg_name: kwarg_batches}
+
+    return inner
+
+
+def _tensor_arg_rotate_params():
+    batch_sizes = [3, 1, 2, 4]
+    mask_batches = [
+        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+    ]
+    kwarg_batches = [
+        np.array([10 + 45 * pred for pred in mask], dtype=np.float32) for mask in mask_batches
+    ]
+    return tuple(), mask_batches, {'angle': kwarg_batches}
+
+
+def _tensor_arg_roi_random_crop_params():
+    batch_sizes = [1, 2, 7, 3]
+    crop_shape = [[
+        np.array([100 * i + 50, 200 * i + 50, 3], dtype=np.int32) for i in range(batch_size)
+    ] for batch_size in batch_sizes]
+    roi_start = [[
+        np.array([sample[0] // 2, sample[1] // 2, sample[2]], dtype=np.int32) for sample in batch
+    ] for batch in crop_shape]
+    mask_batches = [
+        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+    ]
+    return tuple(), mask_batches, {
+        'crop_shape': crop_shape,
+        'roi_start': roi_start,
+        'roi_end': crop_shape
+    }
+
+
+def _tensor_arg_shape_kwarg():
+    batch_sizes = [1, 2, 3, 16, 5]
+    shape = [[np.array([1 + 3 * i, 2 * (i + 1) - 1], dtype=np.int32) for i in range(batch_size)]
+             for batch_size in batch_sizes]
+    mask_batches = [
+        np.array([i % 2 for i in range(batch_size)], dtype=bool) for batch_size in batch_sizes
+    ]
+    return tuple(), mask_batches, {'shape': shape}
+
+
+# Test operators that infer their batch sizes from the tensor argument inputs
+@params(fn.permute_batch, fn.roi_random_crop, fn.transforms.crop, fn.transforms.scale,
+        fn.transforms.shear, fn.transforms.translation, fn.transforms.rotation,
+        fn.random.uniform, fn.random.normal, fn.random.coin_flip)
+def test_named_tensor_arguments(op):
+
+    ops2params = {
+        fn.permute_batch: _tensor_arg_permute_batch_params,
+        fn.roi_random_crop: _tensor_arg_roi_random_crop_params,
+        fn.transforms.crop: _tensor_arg_transform_per_dim_params('from_start'),
+        fn.transforms.scale: _tensor_arg_transform_per_dim_params('scale'),
+        fn.transforms.shear: _tensor_arg_transform_per_dim_params('angles'),
+        fn.transforms.translation: _tensor_arg_transform_per_dim_params('offset'),
+        fn.transforms.rotation: _tensor_arg_rotate_params,
+        fn.random.uniform: _tensor_arg_shape_kwarg,
+        fn.random.normal: _tensor_arg_shape_kwarg,
+        fn.random.coin_flip: _tensor_arg_shape_kwarg,
+    }
+
+    def dummy_source(batches):
+
+        def cb():
+            for batch in batches:
+                yield batch
+
+        return cb
+
+    def get_pipeline(op, args_batches, mask_batches, kwargs_batches, num_threads=4, device_id=0):
+        max_batch_size = max(len(batch) for batch in mask_batches)
+
+        @pipeline_def(batch_size=max_batch_size, num_threads=num_threads, device_id=device_id)
+        def split_pipeline():
+            args = [fn.external_source(dummy_source(arg_batches)) for arg_batches in args_batches]
+            mask = fn.external_source(dummy_source(mask_batches))
+            kwargs = {
+                kwarg_name: fn.external_source(dummy_source(batches))
+                for kwarg_name, batches in kwargs_batches.items()
+            }
+            kwargs_split = {
+                kwarg_name: fn._conditional.split(batch, predicate=mask)
+                for kwarg_name, batch in kwargs.items()
+            }
+            split_args = [fn._conditional.split(arg, predicate=mask) for arg in args]
+            left_args = [left_arg for left_arg, _ in split_args]
+            right_args = [right_arg for _, right_arg in split_args]
+            left = op(
+                *left_args,
+                **{kwarg_name: left_kwarg
+                   for kwarg_name, (left_kwarg, _) in kwargs_split.items()})
+            right = op(
+                *right_args, **{
+                    kwarg_name: right_kwarg
+                    for kwarg_name, (_, right_kwarg) in kwargs_split.items()
+                })
+            batch = fn._conditional.merge(left, right, predicate=mask)
+            return batch
+
+        return split_pipeline()
+
+    args_batches, mask_batches, kwargs_batches = ops2params[op]()
+    pipe = get_pipeline(op=op, args_batches=args_batches, mask_batches=mask_batches,
+                        kwargs_batches=kwargs_batches)
+    pipe.build()
+    for _ in range(len(mask_batches)):
+        pipe.run()
