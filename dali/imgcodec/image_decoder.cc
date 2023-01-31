@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/imgcodec/image_decoder.h"
 #include <cassert>
 #include <condition_variable>
-#include <memory>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <typeinfo>
 #include <vector>
 #include "dali/core/cuda_error.h"
 #include "dali/core/mm/memory.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/core/nvtx.h"
 #include "dali/imgcodec/util/output_shape.h"
 
 namespace dali {
@@ -213,6 +216,7 @@ class ImageDecoder::DecoderWorker {
   std::thread worker_;
   bool stop_requested_ = false;
   std::once_flag started_;
+  std::string nvtx_marker_str_;
 
   ImageDecoder *owner_ = nullptr;
   const ImageDecoderFactory *factory_ = nullptr;
@@ -309,6 +313,9 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
 
 // The main processing function
 void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) noexcept {
+  if (this->nvtx_marker_str_.empty())
+    this->nvtx_marker_str_ = make_string(typeid(*this->decoder_).name(), "/process_batch");
+  DomainTimeRange tr(this->nvtx_marker_str_, DomainTimeRange::kCyan);
   assert(work->num_samples() > 0);
   assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
          (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||

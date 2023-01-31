@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -142,6 +142,19 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
     CUDA_CALL(nvjpegDecoderDestroy(decoder_data.decoder));
     CUDA_CALL(nvjpegJpegStateDestroy(decoder_data.state));
   }
+}
+
+bool NvJpegDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts,
+                                      const ROI &roi) {
+  JpegParser jpeg_parser{};
+  if (!jpeg_parser.CanParse(in))
+    return false;
+
+  // This decoder does not support SOF-3 (JPEG lossless) samples
+  auto ext_info = jpeg_parser.GetExtendedInfo(in);
+  std::array<uint8_t, 2> sof3_marker = {0xff, 0xc3};
+  bool is_lossless_jpeg = ext_info.sof_marker == sof3_marker;
+  return !is_lossless_jpeg;
 }
 
 bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
