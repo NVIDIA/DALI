@@ -17,37 +17,19 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/operators/conditional/unary.h"
+#include "dali/operators/conditional/validation.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
 
-void EnforceConditionalInputKind(const TensorList<CPUBackend> &input, const std::string &name) {
-  auto dim = input.shape().sample_dim();
-
-  std::string preamble =
-      "Logical expression ``not`` is restricted to scalar (0-d tensors) inputs of bool type.";
-  std::string suggestion =
-      "\n\nThis input restriction allows the logical expressions to always return scalar boolean "
-      "outputs and to be used in unambiguous way in DALI conditionals. You may use bitwise "
-      "arithmetic operators ``&``, ``|`` if you need to process inputs of higher dimensionality or "
-      "types other than ``bool`` - those operations performed on boolean inputs are equivalent to "
-      "logical expressions.";
-
-  DALI_ENFORCE(dim == 0,
-               make_string(preamble, " Got a ", dim, "-d input.", suggestion));
-  // TODO(klecki): Lift this restriction as it should be safe to do. Do it in the same time when
-  // such restriction is lifted for the Split operator `predicate` that implements `if` statement,
-  // so we do not introduce the `if not not x` idiom.
-  auto type = input.type();
-  DALI_ENFORCE(type == DALI_BOOL, make_string(preamble, " Got an input of type ", type, " on the ",
-                                              side, ".", suggestion));
-}
-
 bool LogicalNot::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
 
-  EnforceConditionalInputKind(input, name_);
+  // TODO(klecki): Lift this restriction for input type, as it should be safe to do.
+  // Do it at the same time as lifting such restriction for the Split operator `predicate`
+  // that implements `if` statement, so we do not introduce the `if not not x` idiom.
+  EnforceConditionalInputKind(input, name_, "", true);
 
   output_desc.resize(1);
   output_desc[0] = {input.shape(), DALI_BOOL};
