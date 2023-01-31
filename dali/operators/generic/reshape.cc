@@ -31,7 +31,7 @@ The buffer contents are not copied.)code")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as `shape` keyword argument")
+  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
@@ -42,20 +42,34 @@ For example, an input of shape ``[480, 640, 3]`` and ``shape = [240, -1]``
 results in the output shape ``[240, 3840]``.
 
 .. note::
-  rel_shape and shape are mutually exclusive.
+  ``rel_shape`` and ``shape`` are mutually exclusive.
 )code",
                   std::vector<int>(), true)
   .AddOptionalArg<float>("rel_shape", R"code(The relative shape of the output.
+
+The output shape is calculated by multiplying the input shape by ``rel_shape``::
+
+  out_shape[i] = in_shape[i] * rel_shape[i]
+
+An additional argument ``src_dims`` may be used to alter which source dimension is used
+for calculating the output shape::
+
+  out_shape[i] = in_shape[src_dims[i]] * rel_shape[i]
 
 There can be one negative extent that receives the size that is required to match the input volume.
 For example, an input of shape ``[480, 640, 3]`` and a ``rel_shape = [0.5, -1]`` results in
 the output shape ``[240, 3840]``.
 
-The number of dimensions must match ``src_dims``, if specified. If ``src_dims`` is not used,
-the number of dimensions in ``shape`` must not exceed the number of dimensions in the input.
+The number of dimensions is subject to the following restrictions:
+
+- if ``src_dims`` argument is used, the number of elements in ``src_dims``
+  and ``rel_shape`` must match
+- otherwise, the length of ``rel_shape`` must not exceed the number of dimensions in the input
+  except when the last element in ``rel_shape`` is negative, in which case an extra dimension at
+  the end will be added
 
 .. note::
-  rel_shape and shape are mutually exclusive.
+  ``rel_shape`` and ``shape`` are mutually exclusive.
 )code",
                   std::vector<float>(), true)
   .AddOptionalArg("layout", R"code(New layout for the data.
@@ -75,7 +89,7 @@ argument ``[-1, 1, 0]`` produces an output shape ``[1, 200, 300]``. A leading di
 extent 1 is inserted at the beginning, followed by the first original dimensions but in reverse
 order. The last dimension is removed.
 
-The `src_dims` argument can be used together with `rel_shape`, in which case the relative
+The ``src_dims`` argument can be used together with `rel_shape`, in which case the relative
 extents in `rel_shape` describe to the target dimensions. In the example above, specifying
 ``rel_shape = [-1, 0.5, 2]`` would result in the output shape ``[1, 100, 600]``.
 
@@ -89,7 +103,7 @@ The buffer contents are not copied.)")
   .NumInput(1, 2)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be reshaped")
-  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as `shape` keyword argument")
+  .InputDox(1, "shape_input", "1D TensorList of integers", "Same as ``shape`` keyword argument")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
@@ -222,19 +236,19 @@ void SetOutputSampleShape(OutSampleShape &&out_shape,
 }
 
 template <typename Backend>
-void Reshape<Backend>::ValidateRelativeShapeNDim(int ndim) const {
+void Reshape<Backend>::ValidateRelativeShapeNDim(int ndim, bool last_dim_inferred) const {
   if (use_src_dims_) {
     if (ndim + 0_uz != src_dims_.size()) {
       DALI_FAIL(make_string(
-        "``src_dims`` and ``rel_shape`` have different lengths: ",
+        "`src_dims` and `rel_shape` have different lengths: ",
         src_dims_.size(), " vs ", ndim));
     }
   } else {
-    if (ndim > input_shape_.sample_dim()) {
+    if (ndim > input_shape_.sample_dim() + last_dim_inferred) {
       DALI_FAIL(make_string(
-        "``rel_shape`` has more elements (", ndim, ") than "
+        "`rel_shape` has more elements (", ndim, ") than "
         "there are dimensions in the input (", input_shape_.sample_dim(), "). "
-        "To add new dimensions, use ``src_dims`` to specify the mapping between "
+        "To add new dimensions, use `src_dims` to specify the mapping between "
         "input and output dimensions."));
     }
   }
@@ -255,8 +269,16 @@ void Reshape<Backend>::ShapeFromInput(
       "The new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
     int dim = shape_tensor.shape[1];
-    if (relative)
-      ValidateRelativeShapeNDim(dim);
+    if (relative) {
+      bool last_dim_negative = true;
+      for (int i = 0; i < N; i++) {
+        if (shape_tensor(i)[dim - 1] >= 0) {
+          last_dim_negative = false;
+          break;
+        }
+      }
+      ValidateRelativeShapeNDim(dim, last_dim_negative);
+    }
     output_shape_.resize(N, dim);
     for (int i = 0; i < N; i++) {
       SetOutputSampleShape<relative>(output_shape_.tensor_shape_span(i),
@@ -281,8 +303,10 @@ void Reshape<Backend>::ShapeFromInput(
           make_string("All samples must have the same number of dimensions"));
       }
 
-      if (relative)
-        ValidateRelativeShapeNDim(sample_dim);
+      if (relative) {
+        bool last_dim_negative = shape.tensor_data(i)[sample_dim - 1] < 0;
+        ValidateRelativeShapeNDim(sample_dim, last_dim_negative);
+      }
       SetOutputSampleShape<relative>(output_shape_.tensor_shape_span(i),
                                      input_shape_.tensor_shape_span(i),
                                      shape.tensor_data(i),
@@ -316,7 +340,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
   switch (shape_source_) {
     case ShapeSource::Arg:
       if (use_rel_shape_) {
-        ValidateRelativeShapeNDim(rel_uniform_shape_.size());
+        ValidateRelativeShapeNDim(rel_uniform_shape_.size(), rel_uniform_shape_.back() < 0);
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
@@ -482,9 +506,9 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
   const int ndim = input_shape.sample_dim();
   for (size_t d = 0; d < src_dims_.size(); d++) {
     DALI_ENFORCE(-1 <= src_dims_[d] && src_dims_[d] < ndim,
-      make_string("``src_dims[", d, "]`` == ", src_dims_[d], " is out of bounds.\n"
-      "The indices in ``src_dims`` should be either valid dimension indices in "
-      "range [0..", ndim-1, "] or -1 to insert a new dimension."));
+      make_string("`src_dims[", d, "] == ", src_dims_[d], "` is out of bounds.\n"
+        "The indices in `src_dims` should be either valid dimension indices in "
+        "range [0..", ndim-1, "] or -1 to insert a new dimension."));
   }
 }
 

@@ -82,7 +82,7 @@ class Reshape : public Operator<Backend> {
   };
   ShapeSource shape_source_ = ShapeSource::None;
 
-  void ValidateRelativeShapeNDim(int ndim) const;
+  void ValidateRelativeShapeNDim(int ndim, bool last_dim_inferred) const;
 
   template <bool relative, typename TensorListLike>
   void ShapeFromInput(const TensorListLike &tl, std::bool_constant<relative>);
