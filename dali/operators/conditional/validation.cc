@@ -28,9 +28,9 @@ void EnforceConditionalInputKind(const TensorList<CPUBackend> &input, const std:
   std::string suggestion =
       "\n\nThis input restriction allows the logical expressions to always return scalar boolean "
       "outputs and to be used in unambiguous way in DALI conditionals. You may use bitwise "
-      "arithmetic operators ``&``, ``|`` if you need to process inputs of higher dimensionality or "
-      "different type - those operations performed on boolean inputs are equivalent to logical "
-      "expressions.";
+      "arithmetic operators ``&``, ``|`` or compare with zero (``== 0``) if you need to process "
+      "inputs of higher dimensionality or different type - those operations performed on boolean "
+      "inputs are equivalent to logical expressions.";
 
   std::string in_side_mention = side.empty() ? "." : make_string(" on the ", side, ".");
 

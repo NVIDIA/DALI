@@ -48,11 +48,11 @@ void LogicalNot::RunImpl(Workspace &ws) {
 DALI_SCHEMA(_conditional__Not)
     .DocStr(R"code(Compute the logical operation ``not``.
 
-This operator is inserted when Python ``and`` statement is used with ``enabled_conditionals=True``.
+This operator is inserted when Python ``not`` statement is used with ``enabled_conditionals=True``.
 The inputs are restricted to scalar values of boolean type - this makes them consistent
 with Python semantics and allows for unambiguous ``if`` evaluation.
-You can use mathematical operator ``&`` to emulate elementwise equivalent of logical operation on
-inputs of other types and shapes.)code")
+You can use mathematical operator ``==`` and compare with 0 to emulate elementwise equivalent of
+logical operation on inputs of other types and shapes.)code")
     .NumInput(1)
     .NumOutput(1)
     .MakeDocHidden();
