@@ -30,18 +30,26 @@
 
 namespace dali {
 
+inline bool HasTensorArgInputs(const ArgumentWorkspace& argument_ws) {
+  return begin(argument_ws) != end(argument_ws);
+}
+
 /**
  * @brief Takes the batch size from any of the op's tensor inputs.
  *
  * If no inputs were specified, a batch size inferred from
  * the stage queue is used instead.
+ *
+ * Assumes that most of the operators expect uniform batch
+ * size between all inputs and outputs. The notable exception
+ * of split and merge operators cannot rely on this value.
  */
 inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
   if (ws.NumInput() > 0) {
     return ws.GetInputBatchSize(0);
   }
   const ArgumentWorkspace &argument_ws = ws;
-  if (begin(argument_ws) != end(argument_ws)) {
+  if (HasTensorArgInputs(argument_ws)) {
     auto [name, arg] = *begin(argument_ws);
     return arg.tvec->num_samples();
   }
@@ -353,10 +361,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   }
 
   // Assuming that most operators don't expect empty input, and expect consistent input.
-  if (ws.NumInput() > 0) {
+  if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
     bool all_inputs_empty = true;
     for (int i = 0; i < ws.NumInput(); i++) {
       all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
+    }
+    const ArgumentWorkspace &argument_ws = ws;
+    for (const auto &[name, arg] : argument_ws) {
+      all_inputs_empty = all_inputs_empty && arg.tvec->num_samples() == 0;
     }
     if (all_inputs_empty) {
       // We skip the execution of this operator and Reset the outputs in case some state was still
