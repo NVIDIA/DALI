@@ -367,7 +367,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // store updated spec
   AddToOpSpecs(inst_name, spec, logical_id);
-  if (spec.name() == "ExternalSource") {
+  if (spec.name() == "ExternalSource" || spec.name() == "experimental__inputs__Video") {
     ext_input_names_.insert(inst_name);
   }
   return logical_id;
