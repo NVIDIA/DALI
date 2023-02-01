@@ -38,7 +38,7 @@ class LogicalValidate : public Operator<CPUBackend> {
   ~LogicalValidate() override = default;
 
   bool CanInferOutputs() const override {
-    return true;
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;

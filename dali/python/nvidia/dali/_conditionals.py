@@ -318,13 +318,13 @@ class _ConditionStack:
 
 @contextmanager
 def _cond_manager(predicate):
-    actual_predicate = this_condition_stack().push_predicate(predicate)
-    validated_predicate = fn._conditional.validate_logical(actual_predicate, expression_name="if",
+    validated_predicate = fn._conditional.validate_logical(predicate, expression_name="if",
                                                            expression_side="if-stmt")
+    actual_predicate = this_condition_stack().push_predicate(validated_predicate)
     logging.log(7, (f"{this_condition_stack()._indent()}[IF]: {predicate}"
                     f" at {this_condition_stack().stack_depth() - 1}"))
     # Return it so we can use it in merge
-    yield validated_predicate
+    yield actual_predicate
     this_condition_stack().pop()
 
 

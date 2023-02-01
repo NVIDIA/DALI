@@ -100,8 +100,8 @@ void EnforceConditionalInputKind(const TensorList<CPUBackend> &input, const std:
 
   if (enforce_type) {
     auto type = input.type();
-    DALI_ENFORCE(type == DALI_BOOL,
-                 make_string(preamble, " Got an input of type ", type, where_mention, kSuggestion));
+    DALI_ENFORCE(type == DALI_BOOL, make_string(preamble, " Got an input of type `", type, "`",
+                                                where_mention, kSuggestion));
   }
 }
 

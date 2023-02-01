@@ -824,3 +824,67 @@ def test_named_tensor_arguments(op):
     pipe.build()
     for _ in range(len(mask_batches)):
         pipe.run()
+
+
+def test_error_condition():
+    kwargs = {
+        "enable_conditionals": True,
+        "batch_size": 10,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    @experimental.pipeline_def(**kwargs)
+    def gpu_condition():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        if pred.gpu():
+            output = np.array(1)
+        else:
+            output = np.array(0)
+        return output
+
+    # It looks like we first check the graph here, so we cannot intercept the error message
+    # for the argument input.
+    with assert_raises(
+            RuntimeError, glob=("Named arguments inputs to operators must be CPU data nodes."
+                                " However, a GPU data node was provided")):
+        pipe = gpu_condition()
+        pipe.build()
+        pipe.run()
+
+    @experimental.pipeline_def(**kwargs)
+    def non_bool_condition():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.INT32)
+        if pred:
+            output = np.array(1)
+        else:
+            output = np.array(0)
+        return output
+
+    # TODO(klecki): The boolean as if-condition requirement should be lifted and this test removed.
+    with assert_raises(
+            RuntimeError, glob=("Conditions inside `if` statements are restricted to scalar"
+                                " (0-d tensors) inputs of `bool` type, that are placed on CPU."
+                                " Got an input of type `int32` as a condition of the `if`"
+                                " statement.")):
+        pipe = non_bool_condition()
+        pipe.build()
+        pipe.run()
+
+    @experimental.pipeline_def(**kwargs)
+    def non_scalar_condition():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        stacked = fn.stack(pred, pred)
+        if stacked:
+            output = np.array(1)
+        else:
+            output = np.array(0)
+        return output
+
+    with assert_raises(
+            RuntimeError, glob=("Conditions inside `if` statements are restricted to scalar"
+                                " (0-d tensors) inputs of `bool` type, that are placed on CPU."
+                                " Got a 1-d input as a condition of the `if` statement.")):
+        pipe = non_scalar_condition()
+        pipe.build()
+        pipe.run()
