@@ -148,7 +148,8 @@ void NvJpegLosslessDecoderInstance::Parse(DecodeResultsPromise &promise,
   }
 }
 
-void NvJpegLosslessDecoderInstance::RunDecode(DecodeContext ctx,
+void NvJpegLosslessDecoderInstance::RunDecode(kernels::DynamicScratchpad& s,
+                                              DecodeContext ctx,
                                               span<SampleView<GPUBackend>> out,
                                               cspan<ImageSource *> in,
                                               DecodeParams opts,
@@ -156,7 +157,6 @@ void NvJpegLosslessDecoderInstance::RunDecode(DecodeContext ctx,
   if (batch_sz_ <= 0)
     return;
   int nsamples = in.size();
-  kernels::DynamicScratchpad s({}, ctx.stream);
   encoded_.clear();
   encoded_.resize(batch_sz_);
   encoded_len_.clear();
@@ -209,9 +209,11 @@ FutureDecodeResults NvJpegLosslessDecoderInstance::ScheduleDecode(DecodeContext 
     set_promise({false, std::make_exception_ptr(
                             std::invalid_argument("Only ANY_DATA and GRAY are supported."))});
 
+  // scratchpad should not go out of scope until we launch the postprocessing
+  kernels::DynamicScratchpad s({}, ctx.stream);
   Parse(promise, ctx, in, opts, rois);
   try {
-    RunDecode(ctx, out, in, opts, rois);
+    RunDecode(s, ctx, out, in, opts, rois);
   } catch(...) {
     set_promise({false, std::current_exception()});
   }

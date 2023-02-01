@@ -24,6 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/imgcodec/decoders/decoder_batched_api_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/buffer.h"
 
 namespace dali {
@@ -47,9 +48,8 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
              DecodeParams opts, cspan<ROI> rois);
 
   // Invokes nvJPEG decoding (sample_meta_ and batch_sz_ to be populated)
-  void RunDecode(DecodeContext ctx, span<SampleView<GPUBackend>> out,
-                 cspan<ImageSource *> in, DecodeParams opts,
-                 cspan<ROI> rois = {});
+  void RunDecode(kernels::DynamicScratchpad &s, DecodeContext ctx, span<SampleView<GPUBackend>> out,
+                 cspan<ImageSource *> in, DecodeParams opts, cspan<ROI> rois = {});
 
   void Postprocess(DecodeResultsPromise &promise, DecodeContext ctx,
                    span<SampleView<GPUBackend>> out, DecodeParams opts, cspan<ROI> rois);
