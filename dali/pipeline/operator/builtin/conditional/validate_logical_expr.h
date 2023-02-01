@@ -16,9 +16,10 @@
 #define DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_VALIDATE_LOGICAL_EXPR_H_
 
 #include <string>
+#include <vector>
 
-#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 

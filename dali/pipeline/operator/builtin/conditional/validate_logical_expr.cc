@@ -42,7 +42,7 @@ void LogicalValidate::RunImpl(Workspace &ws) {
 
 DALI_SCHEMA(_conditional__ValidateLogical)
     .DocStr(
-R"code(Validate the inputs to logical operation ``and`` or ``or`` or the ``if`` condition.
+        R"code(Validate the inputs to logical operation ``and`` or ``or`` or the ``if`` condition.
 
 This operator is inserted when Python ``and`` and ``or`` expressions of ``if`` statements are used
 with ``enabled_conditionals=True``.

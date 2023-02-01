@@ -14,8 +14,8 @@
 
 #include <string>
 
-#include "dali/pipeline/operator/builtin/conditional/validation.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 
 namespace dali {
 
@@ -23,7 +23,7 @@ namespace {
 
 // TODO(klecki): We should add reductions.all & reductions.any (or similar equivalent) and
 // suggest it here.
-const char* kSuggestion =
+const char *kSuggestion =
     "\n\nThis input restriction allows the logical expressions to always return scalar boolean "
     "outputs and to be used in unambiguous way in DALI conditionals (`if` statements). "
     "You can set the `dtype` parameter of some operators to `nvidia.dali.types.BOOL` "
@@ -50,7 +50,7 @@ void ValidateParamsInternal(const std::string &name, const std::string &where) {
     where_is_allowed = where_is_allowed || where == allowed_where;
   }
   DALI_ENFORCE(name_is_allowed && where_is_allowed,
-              "Internal error - DALI diagnostic configured incorrectly.");
+               "Internal error - DALI diagnostic configured incorrectly.");
 }
 
 /**
@@ -88,7 +88,7 @@ std::string GetSourcePlacementMessage(const std::string &name, const std::string
 }  // namespace
 
 void EnforceConditionalInputKind(const TensorList<CPUBackend> &input, const std::string &name,
-                                 const std::string &where, bool enforce_type){
+                                 const std::string &where, bool enforce_type) {
   ValidateParamsInternal(name, where);
 
   std::string preamble = GetRestrictionMessage(name, enforce_type);
@@ -101,7 +101,7 @@ void EnforceConditionalInputKind(const TensorList<CPUBackend> &input, const std:
   if (enforce_type) {
     auto type = input.type();
     DALI_ENFORCE(type == DALI_BOOL,
-                make_string(preamble, " Got an input of type ", type, where_mention, kSuggestion));
+                 make_string(preamble, " Got an input of type ", type, where_mention, kSuggestion));
   }
 }
 
@@ -114,4 +114,4 @@ void ReportGpuInputError(const std::string &name, const std::string &where, bool
   DALI_FAIL(make_string(preamble, " Got a GPU input", where_mention, kSuggestion));
 }
 
-}
+}  // namespace dali

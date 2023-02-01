@@ -16,10 +16,10 @@
 
 #include "dali/core/format.h"
 #include "dali/core/util.h"
-#include "dali/pipeline/operator/builtin/conditional/logical_not.h"
-#include "dali/pipeline/operator/builtin/conditional/validation.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/builtin/conditional/logical_not.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 
 namespace dali {
 

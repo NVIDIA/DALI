@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_CONDITIONAL_UNARY_H_
-#define DALI_PIPELINE_OPERATOR_CONDITIONAL_UNARY_H_
+#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_LOGICAL_NOT_H_
+#define DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_LOGICAL_NOT_H_
 
 #include <string>
+#include <vector>
 
-#include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
@@ -52,8 +53,7 @@ class LogicalNot : public Operator<CPUBackend> {
  */
 class LogicalNotFailForGpu : public Operator<GPUBackend> {
  public:
-  explicit LogicalNotFailForGpu(const OpSpec &spec)
-      : Operator<GPUBackend>(spec) {
+  explicit LogicalNotFailForGpu(const OpSpec &spec) : Operator<GPUBackend>(spec) {
     ReportGpuInputError("not", "", true);
   }
 
@@ -74,4 +74,4 @@ class LogicalNotFailForGpu : public Operator<GPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_CONDITIONAL_UNARY_H_
+#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_LOGICAL_NOT_H_
