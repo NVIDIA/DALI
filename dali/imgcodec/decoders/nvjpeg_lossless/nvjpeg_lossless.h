@@ -24,6 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/imgcodec/decoders/decoder_batched_api_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/buffer.h"
 
 namespace dali {
@@ -42,20 +43,37 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
                                      cspan<ROI> rois = {}) override;
 
  private:
+  // Parses encoded streams and populates SampleMeta, and batch_sz_
+  void Parse(DecodeResultsPromise &promise, DecodeContext ctx, cspan<ImageSource *> in,
+             DecodeParams opts, cspan<ROI> rois);
+
+  // Invokes nvJPEG decoding (sample_meta_ and batch_sz_ to be populated)
+  void RunDecode(kernels::DynamicScratchpad &s, DecodeContext ctx, span<SampleView<GPUBackend>> out,
+                 cspan<ImageSource *> in, DecodeParams opts, cspan<ROI> rois = {});
+
   void Postprocess(DecodeResultsPromise &promise, DecodeContext ctx,
                    span<SampleView<GPUBackend>> out, DecodeParams opts, cspan<ROI> rois);
 
   nvjpegHandle_t nvjpeg_handle_;
-  nvjpegJpegStream_t jpeg_stream_;
+
+  struct PerThreadResources {
+    explicit PerThreadResources(nvjpegHandle_t handle);
+    PerThreadResources(PerThreadResources&& other);
+    ~PerThreadResources();
+    nvjpegJpegStream_t jpeg_stream;
+  };
+  std::vector<PerThreadResources> per_thread_resources_;
   CUDAEvent event_;
   nvjpegJpegState_t state_;
 
+  int batch_sz_ = 0;  // number of samples to be decoded by nvJPEG
   struct SampleMeta {
+    bool can_decode;
+    int idx_in_batch;  // only relevant if can_decode == true
     bool needs_processing;
     Orientation orientation;
     float dyn_range_multiplier;
   };
-
   std::vector<SampleMeta> sample_meta_;
   std::vector<const unsigned char*> encoded_;
   std::vector<size_t> encoded_len_;
