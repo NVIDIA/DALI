@@ -246,7 +246,8 @@ ImageDecoderInstance *ImageDecoder::DecoderWorker::decoder(bool create_if_null) 
     decoder_ = factory_->Create(owner_->device_id_, owner_->params_);
     produces_gpu_output_ = factory_->GetProperties().gpu_output;
     thread_name_ = make_string("[DALI][WT]ImageDecoder");
-    nvtx_marker_str_ = make_string(typeid(*this->decoder_).name(), "/ process_batch");
+    auto &dec_ref = *this->decoder_;
+    nvtx_marker_str_ = make_string(typeid(dec_ref).name(), "/ process_batch");
   }
   return decoder_.get();
 }

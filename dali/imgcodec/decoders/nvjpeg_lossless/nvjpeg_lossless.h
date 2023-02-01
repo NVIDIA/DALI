@@ -63,7 +63,6 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
     nvjpegJpegStream_t jpeg_stream;
   };
   std::vector<PerThreadResources> per_thread_resources_;
-  nvjpegJpegStream_t jpeg_stream_;
   CUDAEvent event_;
   nvjpegJpegState_t state_;
 
