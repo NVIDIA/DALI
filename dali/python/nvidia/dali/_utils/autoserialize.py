@@ -32,7 +32,7 @@ def _discover_autoserialize(module, visited):
     ret = []
     try:
         module_members = inspect.getmembers(module)
-    except ModuleNotFoundError as e:
+    except ModuleNotFoundError:
         # If any module can't be inspected, DALI will not be able to find the @autoserialize
         # anyway. We can just skip this module.
         return ret
