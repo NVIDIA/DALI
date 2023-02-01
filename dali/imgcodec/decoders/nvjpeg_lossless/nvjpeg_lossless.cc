@@ -32,6 +32,7 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
     : BatchedApiDecoderImpl(device_id, params),
       event_(CUDAEvent::Create(device_id)) {
   DeviceGuard dg(device_id_);
+  // TODO(janton): use custom allocators (?)
   CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_LOSSLESS_JPEG, NULL, NULL, 0, &nvjpeg_handle_));
   per_thread_resources_.push_back(PerThreadResources{nvjpeg_handle_});
   CUDA_CALL(nvjpegJpegStateCreate(nvjpeg_handle_, &state_));

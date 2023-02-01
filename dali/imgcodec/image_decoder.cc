@@ -216,6 +216,7 @@ class ImageDecoder::DecoderWorker {
   std::thread worker_;
   bool stop_requested_ = false;
   std::once_flag started_;
+  std::string thread_name_;
   std::string nvtx_marker_str_;
 
   ImageDecoder *owner_ = nullptr;
@@ -244,6 +245,8 @@ ImageDecoderInstance *ImageDecoder::DecoderWorker::decoder(bool create_if_null) 
   if (!decoder_) {
     decoder_ = factory_->Create(owner_->device_id_, owner_->params_);
     produces_gpu_output_ = factory_->GetProperties().gpu_output;
+    thread_name_ = make_string("[DALI][WT]ImageDecoder");
+    nvtx_marker_str_ = make_string(typeid(*this->decoder_).name(), "/ process_batch");
   }
   return decoder_.get();
 }
@@ -274,6 +277,7 @@ void ImageDecoder::DecoderWorker::stop() {
 }
 
 void ImageDecoder::DecoderWorker::run() {
+  SetThreadName(thread_name_.c_str());
   DeviceGuard dg(owner_->device_id_);
   std::unique_lock lock(mtx_, std::defer_lock);
   while (!stop_requested_) {
@@ -313,9 +317,7 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
 
 // The main processing function
 void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) noexcept {
-  if (this->nvtx_marker_str_.empty())
-    this->nvtx_marker_str_ = make_string(typeid(*this->decoder_).name(), "/process_batch");
-  DomainTimeRange tr(this->nvtx_marker_str_, DomainTimeRange::kCyan);
+  DomainTimeRange tr(nvtx_marker_str_, DomainTimeRange::kCyan);
   assert(work->num_samples() > 0);
   assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
          (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||
