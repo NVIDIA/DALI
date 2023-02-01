@@ -115,21 +115,19 @@ void NvJpegLosslessDecoderInstance::Parse(DecodeResultsPromise &promise,
               parse_promise.set(i, {false, nullptr});
               return;
             }
+            meta.needs_processing = opts.dtype != DALI_UINT16;
+            meta.needs_processing |= !rois.empty() && rois[i].use_roi();
+            if (opts.use_orientation) {
+              auto &ori = meta.orientation = JpegParser().GetInfo(sample).orientation;
+              meta.needs_processing |= (ori.rotate || ori.flip_x || ori.flip_y);
+            }
+
             unsigned int precision;
             CUDA_CALL(nvjpegJpegStreamGetSamplePrecision(jpeg_stream, &precision));
             meta.dyn_range_multiplier = 1.0f;
             if (NeedDynamicRangeScaling(precision, DALI_UINT16)) {
               meta.dyn_range_multiplier = DynamicRangeMultiplier(precision, DALI_UINT16);
               meta.needs_processing = true;
-            }
-            meta.needs_processing = opts.dtype != DALI_UINT16;
-            if (!rois.empty() && rois[i].use_roi()) {
-              meta.needs_processing = true;
-            }
-            if (opts.use_orientation) {
-              auto &ori = meta.orientation = JpegParser().GetInfo(sample).orientation;
-              if (ori.rotate || ori.flip_x || ori.flip_y)
-                meta.needs_processing = true;
             }
             parse_promise.set(i, {true, nullptr});
           } catch (...) {
