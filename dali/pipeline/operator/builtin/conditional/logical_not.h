@@ -18,12 +18,12 @@
 #include <string>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 
 namespace dali {
 
 /**
- * @brief Base class for implementing the logical ``and`` and ``or`` operators.
- * Handles the type and shape validation of inputs.
+ * @brief Eager `not` operator from Python
  */
 class LogicalNot : public Operator<CPUBackend> {
  public:
@@ -32,7 +32,7 @@ class LogicalNot : public Operator<CPUBackend> {
   ~LogicalNot() override = default;
 
   bool CanInferOutputs() const override {
-    return false;
+    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
@@ -45,6 +45,32 @@ class LogicalNot : public Operator<CPUBackend> {
 
   std::string name_;
 };
+
+/**
+ * @brief This is just a placeholder operator that is picked when GPU inputs are encountered
+ * and reports a better error.
+ */
+class LogicalNotFailForGpu : public Operator<GPUBackend> {
+ public:
+  explicit LogicalNotFailForGpu(const OpSpec &spec)
+      : Operator<GPUBackend>(spec) {
+    ReportGpuInputError("not", "", true);
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace &ws) override {}
+
+  ~LogicalNotFailForGpu() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(LogicalNotFailForGpu);
+
+ private:
+  USE_OPERATOR_MEMBERS();
+};
+
 
 }  // namespace dali
 

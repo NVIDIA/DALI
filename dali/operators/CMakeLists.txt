@@ -16,7 +16,6 @@ project(dali_operator CUDA CXX C)
 
 add_subdirectory(audio)
 add_subdirectory(bbox)
-add_subdirectory(conditional)
 add_subdirectory(geometry)
 add_subdirectory(debug)
 add_subdirectory(decoder)

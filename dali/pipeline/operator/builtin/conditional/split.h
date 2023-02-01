@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_SPLIT_H_
-#define DALI_PIPELINE_OPERATOR_BUILTIN_SPLIT_H_
+#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_
+#define DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_
 
 #include <vector>
 
@@ -57,4 +57,4 @@ class Split : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_SPLIT_H_
+#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_

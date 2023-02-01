@@ -37,7 +37,7 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
-#include "dali/pipeline/operator/builtin/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"

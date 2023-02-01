@@ -16,8 +16,8 @@
 
 #include "dali/core/format.h"
 #include "dali/core/util.h"
-#include "dali/operators/conditional/unary.h"
-#include "dali/operators/conditional/validation.h"
+#include "dali/pipeline/operator/builtin/conditional/logical_not.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
@@ -45,19 +45,20 @@ void LogicalNot::RunImpl(Workspace &ws) {
   }
 }
 
-DALI_SCHEMA(_conditional__Not)
+DALI_SCHEMA(_conditional__Not_)
     .DocStr(R"code(Compute the logical operation ``not``.
 
 This operator is inserted when Python ``not`` statement is used with ``enabled_conditionals=True``.
 The inputs are restricted to scalar values of boolean type - this makes them consistent
 with Python semantics and allows for unambiguous ``if`` evaluation.
 You can use mathematical operator ``==`` and compare with 0 to emulate elementwise equivalent of
-logical operation on inputs of other types and shapes.)code")
+logical operation on inputs of other types, shapes, and placements.)code")
     .NumInput(1)
     .NumOutput(1)
     .MakeDocHidden();
 
-DALI_REGISTER_OPERATOR(_conditional__And, LogicalNot, CPU);
+DALI_REGISTER_OPERATOR(_conditional__Not_, LogicalNot, CPU);
+DALI_REGISTER_OPERATOR(_conditional__Not_, LogicalNotFailForGpu, GPU);
 
 
 }  // namespace dali
