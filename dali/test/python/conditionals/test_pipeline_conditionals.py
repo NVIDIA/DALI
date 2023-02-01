@@ -551,8 +551,8 @@ def test_arg_inputs_scoped_tracking():
     def global_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        angle = fn.random.uniform(values=[10, 20, 30])
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        angle = fn.random.uniform(values=[10, 20, 30], seed=7)
         rotate_transform = fn.transforms.rotation(angle=angle)
         if pred:
             output = fn.warp_affine(decoded, matrix=rotate_transform)
@@ -564,8 +564,8 @@ def test_arg_inputs_scoped_tracking():
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        angle = fn.random.uniform(values=[10, 20, 30])
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        angle = fn.random.uniform(values=[10, 20, 30], seed=7)
         if pred:
             # This is the crux of the test, the transforms.rotate has no positional inputs,
             # but it has a DataNode argument input - it should detect it as produced in this scope.
