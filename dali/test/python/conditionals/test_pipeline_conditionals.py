@@ -535,6 +535,81 @@ def test_dot_gpu():
     compare_pipelines(*pipes, bs, iters)
 
 
+# Test if operators without positional inputs but with argument inputs are correctly handled
+# in the split/merge - so they are tracked in the local scope.
+
+
+def test_arg_inputs_scoped_tracking():
+    test_data_root = get_dali_extra_path()
+    caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def global_transform_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        decoded = fn.decoders.image(encoded, device="mixed")
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        angle = fn.random.uniform(values=[10, 20, 30], seed=7)
+        rotate_transform = fn.transforms.rotation(angle=angle)
+        if pred:
+            output = fn.warp_affine(decoded, matrix=rotate_transform)
+        else:
+            output = decoded
+        return output
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def scoped_transform_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        decoded = fn.decoders.image(encoded, device="mixed")
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        angle = fn.random.uniform(values=[10, 20, 30], seed=7)
+        if pred:
+            # This is the crux of the test, the transforms.rotate has no positional inputs,
+            # but it has a DataNode argument input - it should detect it as produced in this scope.
+            rotate_transform = fn.transforms.rotation(angle=angle)
+            output = fn.warp_affine(decoded, matrix=rotate_transform)
+        else:
+            output = decoded
+        return output
+
+    pipes = [global_transform_pipe(), scoped_transform_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
+def test_arg_inputs_scoped_uninitialized():
+    test_data_root = get_dali_extra_path()
+    caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+    bs = 10
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0}
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def scoped_transform_pipe():
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        decoded = fn.decoders.image(encoded, device="mixed")
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        angle = fn.random.uniform(values=[10, 20, 30])
+        if pred:
+            rotate_transform = fn.transforms.rotation(angle=angle)
+            output = fn.warp_affine(decoded, matrix=rotate_transform)
+        else:
+            output = decoded
+        # Check that the rotate_transform is indeed local to the branch by trying to return it
+        # and generating uninitialized error.
+        return output, rotate_transform
+
+    with assert_raises(
+            RuntimeError, glob=("Encountered inconsistent outputs out of the `if/else` control flow"
+                                " statement. Variables need to be initialized in every code path"
+                                " (both `if` branches). Variable 'rotate_transform' must also be"
+                                " initialized in the `else` branch.")):
+        scoped_transform_pipe()
+
+
 # Unified return tests - TODO(klecki)
 
 # Generator tests, remove the random predicate to test the same predicate in both pipelines.

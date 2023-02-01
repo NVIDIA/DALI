@@ -669,7 +669,7 @@ def python_op_factory(name, schema_name=None):
             if _conditionals.conditionals_enabled():
                 if len(op_instances) != 1:
                     raise ValueError("Multiple input sets are not supported with conditionals.")
-                _conditionals.register_data_nodes(result, input_sets[0])
+                _conditionals.register_data_nodes(result, input_sets[0], kwargs)
             return result
 
         # Check if any of inputs is a list

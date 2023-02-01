@@ -370,9 +370,12 @@ def this_condition_stack():
     return current_pipeline._condition_stack
 
 
-def register_data_nodes(data_node, inputs=[]):
+def register_data_nodes(data_node, inputs=[], args={}):
     """Register the outputs of the operator as produced in the scope of the current conditional
-    branch.
+    branch. Pass the list of inputs and dictionary of arguments to automatically detect if any
+    DataNode was passed to that operator, indicating that it has proper inputs or argument inputs
+    and can infer the batch size. Otherwise the outputs are registered in global scope, assuming
+    that they use current batch size.
 
     Parameters
     ----------
@@ -380,10 +383,14 @@ def register_data_nodes(data_node, inputs=[]):
         The output of the operator to be registered.
     inputs : List of DataNode
         Optional list of inputs of the operator whose outputs we are registering.
-        If there were no inputs, the outputs are considered as produced in global scope.
+    args : Dict of DataNode
+        Optional dictionary containing the arguments of the operator whose outputs we are
+        registering.
     """
 
-    any_input = any(isinstance(input, _DataNode) for input in inputs)
+    any_positional_input = any(isinstance(input, _DataNode) for input in inputs)
+    any_arg_input = any(isinstance(arg, _DataNode) for arg_name, arg in args.items())
+    any_input = any_positional_input or any_arg_input
     # TODO(klecki): In theory we have two approaches for inputless operators. Here we insert their
     # outputs to top level and let the automatic splitting handle the situation. Otherwise we could
     # pass the scope information and batch_size within that scope to all operators that are invoked
