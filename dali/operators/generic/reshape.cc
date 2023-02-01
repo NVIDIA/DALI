@@ -292,7 +292,7 @@ void Reshape<Backend>::ShapeFromInput(
     DALI_ENFORCE(N == input_shape_.num_samples(),
       make_string("The new shape must have same number of samples. Got ",
       output_shape_.num_samples(), ", expected ", N));
-    int sample_dim;
+    int sample_dim = 0;
     for (int i = 0; i < N; i++) {
       int current_sample_dim = shape.tensor_shape_span(i)[0];
       if (i == 0) {
