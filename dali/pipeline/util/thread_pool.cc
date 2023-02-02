@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,19 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
+
+  #pragma GCC diagnostic push
+#ifdef __clang__
+  #pragma GCC diagnostic ignored "-Wexceptions"
+#else
+  #pragma GCC diagnostic ignored "-Wterminate"
+#endif
+
+  if (!work_queue_.empty())
+    throw std::logic_error("There was outstanding work in the queue.");
+
+  #pragma GCC diagnostic pop
+
 #if NVML_ENABLED
   nvml::Shutdown();
 #endif
