@@ -344,9 +344,10 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         output_shape_.resize(N, rel_uniform_shape_.size());
         for (int i = 0; i < N; i++) {
           for (int d = 0; d < output_shape_.sample_dim(); d++) {
-            int src_d = use_src_dims_ ? src_dims_[d] : d;
+            int src_d = use_src_dims_ ? src_dims_[d]
+                                      : rel_uniform_shape_[d] < 0 ? -1 : d;
             int out_e = round_int(rel_uniform_shape_[d] *
-              (src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
+              (src_d < 0 ? 1 : input_shape_.tensor_shape_span(i)[src_d]));
             output_shape_.tensor_shape_span(i)[d] = out_e;
           }
         }
