@@ -252,7 +252,8 @@ class _ConditionStack:
                             f" at {self.stack_depth() -1}:"
                             f" split({produced_data_node}, predicate={predicate}."))
             self._is_registration_allowed = False
-            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate)
+            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate,
+                                                          _if_stmt=True)
             self._is_registration_allowed = True
 
             # Record the result of splitting the `data_node` that we are trying to look up
@@ -318,9 +319,7 @@ class _ConditionStack:
 
 @contextmanager
 def _cond_manager(predicate):
-    validated_predicate = fn._conditional.validate_logical(predicate, expression_name="if",
-                                                           expression_side="if-stmt")
-    actual_predicate = this_condition_stack().push_predicate(validated_predicate)
+    actual_predicate = this_condition_stack().push_predicate(predicate)
     logging.log(7, (f"{this_condition_stack()._indent()}[IF]: {predicate}"
                     f" at {this_condition_stack().stack_depth() - 1}"))
     # Return it so we can use it in merge

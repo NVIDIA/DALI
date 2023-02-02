@@ -468,8 +468,6 @@ def test_against_split_merge():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        pred = fn._conditional.validate_logical(pred, expression_name="if",
-                                                expression_side="if-stmt")
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true, angle=30)
         output_false = fn.flip(false, horizontal=True)
@@ -507,8 +505,6 @@ def test_dot_gpu():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="cpu")
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        pred = fn._conditional.validate_logical(pred, expression_name="if",
-                                                expression_side="if-stmt")
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true.gpu(), angle=30)
         output_false = fn.flip(false, horizontal=True).gpu()
@@ -633,8 +629,6 @@ def test_generators(pred):
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         rand = fn.random.uniform()
         predicate = fn.external_source(source=pred, batch=False)
-        predicate = fn._conditional.validate_logical(predicate, expression_name="if",
-                                                     expression_side="if-stmt")
         true_encoded, _ = fn._conditional.split(encoded, predicate=predicate)
         true_rand, _ = fn._conditional.split(rand, predicate=predicate)
         _, false_u8 = fn._conditional.split(np.uint8([0]), predicate=predicate)
@@ -843,20 +837,20 @@ def test_error_condition():
     @experimental.pipeline_def(**kwargs)
     def gpu_condition():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        if pred.gpu():
+        # We have to create a new, pure GPU node, otherwise we still find the CPU node.
+        if pred.gpu() | False:
             output = np.array(1)
         else:
             output = np.array(0)
         return output
 
-    # It looks like we first check the graph here, so we cannot intercept the error message
-    # for the argument input.
+    # TODO(klecki): Extend the error checking so we can provide better error message here.
     with assert_raises(
             RuntimeError, glob=("Named arguments inputs to operators must be CPU data nodes."
                                 " However, a GPU data node was provided")):
         pipe = gpu_condition()
         pipe.build()
-        pipe.run()
+        print(pipe.run())
 
     @experimental.pipeline_def(**kwargs)
     def non_bool_condition():

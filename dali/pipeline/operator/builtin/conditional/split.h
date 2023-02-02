@@ -24,7 +24,8 @@ namespace dali {
 template <typename Backend>
 class Split : public Operator<Backend> {
  public:
-  explicit Split(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Split(const OpSpec &spec)
+      : Operator<Backend>(spec), if_stmt_implementation_(spec.GetArgument<bool>("_if_stmt")) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
@@ -50,6 +51,8 @@ class Split : public Operator<Backend> {
   // We can only split two batches based on a boolean predicate.
   static constexpr int kMaxGroups = 2;
   std::array<int, kMaxGroups> group_counts_;
+
+  bool if_stmt_implementation_ = false;
 
   // test diagnostics
   bool in_pinned_, out_0_pinned_, out_1_pinned_;
