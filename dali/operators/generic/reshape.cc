@@ -377,7 +377,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         for (size_t d = 0; d < src_dims_.size(); d++) {
           const int src_d = src_dims_[d];
           output_shape_.tensor_shape_span(i)[d] =
-            src_d == -1 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
+            src_d < 0 ? 1 : input_shape_.tensor_shape_span(i)[src_d];
         }
         DALI_ENFORCE(
           output_shape_.tensor_size(i) == input_shape_.tensor_size(i),
