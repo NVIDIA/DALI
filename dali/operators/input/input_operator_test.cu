@@ -153,6 +153,7 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
       daliOutputRelease(&h);
     }
   }
+  daliDeletePipeline(&h);
 }
 
 
