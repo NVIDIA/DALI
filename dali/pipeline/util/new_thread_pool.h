@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@
 namespace dali {
 namespace experimental {
 
+class ThreadPoolBase;
+
 /**
  * @brief A collection of tasks, ordered by priority
  *
@@ -58,7 +60,7 @@ class Job {
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
     auto it = tasks_.emplace(priority, Task());
     try {
-      it->second.func = [this, task = &it->second, f = std::move(runnable)](int tid) {
+      it->second.func = [this, task = &it->second, f = std::move(runnable)](int tid) noexcept {
         try {
           f(tid);
         } catch (...) {
@@ -89,24 +91,7 @@ class Job {
       Wait();
   }
 
-  void Wait() {
-    if (!started_)
-      throw std::logic_error("This job hasn't been run - cannot wait for it.");
-    {
-      std::unique_lock lock(mtx_);
-      cv_.wait(lock, [&]() { return num_pending_tasks_ == 0; });
-      waited_for_ = true;
-    }
-    std::vector<std::exception_ptr> errors;
-    for (auto &x : tasks_) {
-      if (x.second.error)
-        errors.push_back(std::move(x.second.error));
-    }
-    if (errors.size() == 1)
-      std::rethrow_exception(errors[0]);
-    else if (errors.size() > 1)
-      throw MultipleErrors(std::move(errors));
-  }
+  void Wait();
 
   void Scrap() {
     if (started_)
@@ -115,7 +100,7 @@ class Job {
   }
 
  private:
-  std::mutex mtx_;  // could just probably use atomic_wait on num_pending_tasks_
+  std::mutex mtx_;  // could just probably use atomic_wait on num_pending_tasks_ - needs C++20
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
   bool started_ = false;
@@ -156,12 +141,16 @@ class ThreadPoolBase {
 
   void AddTask(TaskFunc f);
 
+  bool StopRequested() const noexcept {
+    return stop_requested_;
+  }
+
   static ThreadPoolBase *this_thread_pool() {
     return this_thread_pool_;
   }
 
   static int this_thread_idx() {
-    return thread_idx_;
+    return this_thread_idx_;
   }
 
  protected:
@@ -182,27 +171,37 @@ class ThreadPoolBase {
 
     {
       std::lock_guard<std::mutex> g(mtx_);
-      for (auto &task : tasks_) {
-      }
+      while (!tasks_.empty())
+        tasks_.pop();
+
       threads_.clear();
     }
   }
 
   template <typename Condition>
-  bool WaitOrRunTasks(std::condition_variable cv, Condition &&condition) {
+  bool WaitOrRunTasks(std::condition_variable &cv, Condition &&condition) {
     assert(this_thread_pool() == this);
     std::unique_lock lock(mtx_);
-    do {
-      for (;;) {
-        bool ret;
-        while (!(ret = condition) && !stop_requested_ && tasks_.empty())
-          cv_.wait(lock);
-    }
+    while (!stop_requested_) {
+      bool ret;
+      while (!(ret = condition()) && !stop_requested_ && tasks_.empty())
+        cv.wait_for(lock, std::chrono::microseconds(100));
 
+      if (ret || condition())  // re-evaluate the condition, just in case
+        return true;
+      if (stop_requested_)
+        return false;
+      assert(!tasks_.empty());
+
+      PopAndRunTask(lock);
+    }
+    return false;
   }
 
+  void PopAndRunTask(std::unique_lock<std::mutex> &mtx);
+
   static thread_local ThreadPoolBase *this_thread_pool_;
-  static int thread_idx_;
+  static thread_local int this_thread_idx_;
 
   void Run(int index) noexcept;
 
@@ -213,9 +212,44 @@ class ThreadPoolBase {
   std::vector<std::thread> threads_;
 };
 
+//////////////////////////////
+
+void Job::Wait() {
+  if (!started_)
+    throw std::logic_error("This job hasn't been run - cannot wait for it.");
+
+  if (waited_for_)
+    throw std::logic_error("This job has already been waited for.");
+
+  auto ready = [&]() { return num_pending_tasks_ == 0; };
+
+  if (ThreadPoolBase::this_thread_pool() != nullptr) {
+    bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
+    waited_for_ = true;
+    if (!result)
+      throw std::runtime_error("The thread pool was stopped");
+  } else {
+    std::unique_lock lock(mtx_);
+    cv_.wait(lock, ready);
+    waited_for_ = true;
+  }
+
+  // note - this vector is not allocated unless there were exceptions thrown
+  std::vector<std::exception_ptr> errors;
+  for (auto &x : tasks_) {
+    if (x.second.error)
+      errors.push_back(std::move(x.second.error));
+  }
+  if (errors.size() == 1)
+    std::rethrow_exception(errors[0]);
+  else if (errors.size() > 1)
+    throw MultipleErrors(std::move(errors));
+}
+
+
 
 thread_local ThreadPoolBase *ThreadPoolBase::this_thread_pool_ = nullptr;
-thread_local int ThreadPoolBase::this_thread_index_ = -1;;
+thread_local int ThreadPoolBase::this_thread_idx_ = -1;;
 
 inline void ThreadPoolBase::AddTask(TaskFunc f) {
   {
@@ -229,7 +263,7 @@ inline void ThreadPoolBase::AddTask(TaskFunc f) {
 
 inline void ThreadPoolBase::Run(int index) noexcept {
   ThreadPoolBase *this_thread_pool_ = this;
-  this_thread_index_ = index;
+  this_thread_idx_ = index;
   OnThreadStart(index);
   detail::CallAtExit([&]() { OnThreadStop(index); });
   std::unique_lock lock(mtx_);
@@ -237,13 +271,18 @@ inline void ThreadPoolBase::Run(int index) noexcept {
     cv_.wait(lock, [&]() { return stop_requested_ || !tasks_.empty(); });
     if (stop_requested_)
       break;
-    TaskFunc t = std::move(tasks_.front());
-    tasks_.pop();
-    lock.unlock();
-    t(index);
-    lock.lock();
+    PopAndRunTask(lock);
   }
 }
+
+inline void ThreadPoolBase::PopAndRunTask(std::unique_lock<std::mutex> &lock) {
+  TaskFunc t = std::move(tasks_.front());
+  tasks_.pop();
+  lock.unlock();
+  t(this_thread_idx());
+  lock.lock();
+}
+
 
 }  // namespace experimental
 }  // namespace dali
