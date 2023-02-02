@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,58 +16,48 @@
 #define DALI_KERNELS_COMMON_CAST_CUH_
 
 #include "dali/core/convert.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/kernels/common/block_setup.h"
 
 namespace dali {
 namespace kernels {
 
-struct CastSampleDesc {
+namespace cast {
+
+struct SampleDesc {
   void *output;
   const void *input;
+  uint32_t first_block;
+  int64_t sample_size;
 };
 
-struct CastSampleBlockDesc {
-  unsigned first_block;  // Id of the earliest block that should process given sample
-  unsigned sample_size;
-};
+inline __device__ uint32_t FindSampleIdx(const SampleDesc *samples,
+                                         unsigned nsamples) {
+  uint32_t i = 0;
+  for (uint32_t jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump >>= 1) {
+    if (i + jump < nsamples && samples[i + jump].first_block <= blockIdx.x)
+      i += jump;
+  }
+  return i;
+}
 
-template <typename OType, typename IType>
-__device__ __forceinline__ void CastKernelInternal(const CastSampleDesc& sample,
-                                                   unsigned block_start, unsigned block_end) {
-  auto *out = static_cast<OType *>(sample.output);
-  const auto *in = static_cast<const IType *>(sample.input);
+template <typename Out, typename In>
+__global__ void BinSearchCastKernel(const SampleDesc *samples,
+                                    unsigned nsamples, int block_sz) {
+  int sample_idx = FindSampleIdx(samples, nsamples);
+  SampleDesc sample = samples[sample_idx];
+  auto *out = static_cast<Out *>(sample.output);
+  const auto *in = static_cast<const In *>(sample.input);
+  auto size = sample.sample_size;
+  auto block_idx = blockIdx.x - sample.first_block;
+  auto block_start = block_idx * block_sz;
+  auto block_end = cuda_min<int64_t>(block_start + block_sz, size);
   for (unsigned x = threadIdx.x + block_start; x < block_end; x += blockDim.x) {
-    out[x] = ConvertSat<OType>(in[x]);
+    out[x] = ConvertSat<Out>(in[x]);
   }
 }
 
-template <typename OType, typename IType>
-__global__ void BatchedCastKernel(const CastSampleDesc *samples, const BlockDesc<1> *blocks) {
-  const auto &block = blocks[blockIdx.x];
-  const auto &sample = samples[block.sample_idx];
-  CastKernelInternal<OType, IType>(sample, block.start.x, block.end.x);
-}
-
-template <typename OType, typename IType>
-__global__ void BinSearchCastKernel(const CastSampleDesc *samples,
-                                    const CastSampleBlockDesc *params,
-                                    unsigned nsamples, int block_volume_scale) {
-  unsigned i = 0;
-  for (unsigned jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump >>= 1) {
-    if (i + jump < nsamples && params[i + jump].first_block <= blockIdx.x)
-      i += jump;  // Binary search to find sample that this block should process
-  }
-  CastSampleDesc sample = samples[i];
-  auto size = params[i].sample_size;
-  auto block_offset = blockIdx.x - params[i].first_block;
-
-  auto block_size = block_volume_scale * blockDim.x;
-  auto block_start = block_offset * block_size;
-  auto block_end = block_start + block_size <= size ? block_start + block_size : size;
-
-  CastKernelInternal<OType, IType>(sample, block_start, block_end);
-}
-
+}  // namespace cast
 }  // namespace kernels
 }  // namespace dali
 
