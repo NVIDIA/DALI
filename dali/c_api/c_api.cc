@@ -37,7 +37,23 @@ using dali::AccessOrder;
 using dali::CPUBackend;
 using dali::GPUBackend;
 
+/**
+ * Maps operator name to the batch size set prior to daliSetExternal... call.
+ *
+ * Typically, this operator will be BatchSizeProvider.
+ * Negative values denote max batch size (default state).
+ * Typical usage:
+ * auto *batch_size_map = reinterpret_cast<batch_size_map_t *>(handle->batch_size_map);
+ */
 using batch_size_map_t = std::unordered_map<std::string /* op_name */, int /* batch_size */>;
+
+/**
+ * Maps operator name to the data_id set prior to daliSetExternal... call.
+ *
+ * Usually the operator with given `op_name` will be an InputOperator.
+ * Typical usage:
+ * auto *data_id_map = reinterpret_cast<data_id_map_t *>(handle->data_id_map);
+ */
 using data_id_map_t = std::unordered_map<std::string /* op_name */, std::string /* data_id */>;
 
 /**
@@ -183,6 +199,17 @@ inline dali::mm::memory_kind_id GetMemKind(device_type_t device_type, bool is_pi
         : (is_pinned ? dali::mm::memory_kind_id::pinned : dali::mm::memory_kind_id::host);
 }
 
+inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline> pipeline) {
+  auto pipe_wrap = std::make_unique<DALIPipeline>();
+
+  if (pipeline->device_id() >= 0) {
+    pipe_wrap->copy_stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
+  }
+
+  pipe_wrap->pipeline = std::move(pipeline);
+  return pipe_wrap;
+}
+
 }  // namespace
 
 
@@ -206,17 +233,6 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
   daliCreatePipeline2(pipe_handle, serialized_pipeline, length, max_batch_size, num_threads,
                       device_id, 1, 1, separated_execution, prefetch_queue_depth,
                       cpu_prefetch_queue_depth, gpu_prefetch_queue_depth, enable_memory_stats);
-}
-
-inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline> pipeline) {
-  auto pipe_wrap = std::make_unique<DALIPipeline>();
-
-  if (pipeline->device_id() >= 0) {
-    pipe_wrap->copy_stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
-  }
-
-  pipe_wrap->pipeline = std::move(pipeline);
-  return pipe_wrap;
 }
 
 DLL_PUBLIC void
@@ -246,11 +262,6 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
                             int length) {
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
-  dali::CUDAStreamLease stream;
-  if (pipeline->device_id() >= 0) {
-    stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
-  }
-
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
 }
 
