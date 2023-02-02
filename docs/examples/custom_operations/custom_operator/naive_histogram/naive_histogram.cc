@@ -19,7 +19,8 @@ namespace naive_histogram {
 using namespace ::dali;
 
 DALI_SCHEMA(NaiveHistogram)
-                .DocStr("Creates a histogram in a very naive way")
+                .DocStr("Creates a histogram.")
+                .AddOptionalArg("n_bins", "Number of bins in the histogram", 24)
                 .NumInput(1)
                 .NumOutput(1);
 

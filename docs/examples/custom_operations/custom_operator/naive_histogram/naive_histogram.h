@@ -25,7 +25,8 @@ template<typename Backend>
 class NaiveHistogram : public ::dali::Operator<Backend> {
  public:
   explicit NaiveHistogram(const ::dali::OpSpec &spec) :
-          ::dali::Operator<Backend>(spec) {}
+          ::dali::Operator<Backend>(spec),
+          n_histogram_bins_(spec.GetArgument<int>("n_bins")) {}
 
 
   virtual inline ~NaiveHistogram() = default;
@@ -46,9 +47,19 @@ class NaiveHistogram : public ::dali::Operator<Backend> {
 
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const ::dali::Workspace &ws) override {
+    /*
+     * The purpose of the SetupImpl function is to tell the operator, what is the
+     * shape of the output. With this information, the operator can preallocate the output.
+     * Therefore, user won't need to do it in the RunImpl manually.
+     */
     using namespace ::dali;
     const auto &input = ws.Input<Backend>(0);
+
+    // Telling the operator, that there's one output.
     output_desc.resize(1);
+
+    // Telling the operator, that every output sample is a 1-dimensional vector with
+    // n_histogram_bins_ values and int32 type.
     output_desc[0] = {uniform_list_shape(input.num_samples(), {n_histogram_bins_}), DALI_INT32};
     return true;
   }
@@ -57,7 +68,7 @@ class NaiveHistogram : public ::dali::Operator<Backend> {
   void RunImpl(::dali::Workspace &ws) override;
 
  private:
-  int n_histogram_bins_ = 24;
+  int n_histogram_bins_;
 };
 
 }  // namespace naive_histogram

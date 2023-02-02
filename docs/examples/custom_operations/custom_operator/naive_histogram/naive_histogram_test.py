@@ -13,10 +13,9 @@
 #  limitations under the License.
 
 import os
-import nvidia.dali as dali
 from nvidia.dali import pipeline_def
-import nvidia.dali.fn as fn
 from nvidia.dali.types import DALIImageType
+import nvidia.dali.fn as fn
 
 # Load the Custom Operator
 import nvidia.dali.plugin_manager as plugin_manager
@@ -39,7 +38,8 @@ test_file_list = [
 @pipeline_def
 def naive_hist_pipe():
     img, _ = fn.readers.file(files=test_file_list)
-    img = fn.decoders.image(img, device='mixed', output_type=DALIImageType.GRAY)
+    # The naive_histogram accepts single-channels image, thus we conert the image to Grayscale.
+    img = fn.decoders.image(img, n_bins=24, device='mixed', output_type=DALIImageType.GRAY)
     img = img.gpu()
     img = fn.naive_histogram(img)
     return img

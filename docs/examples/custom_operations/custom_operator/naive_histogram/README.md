@@ -1,8 +1,8 @@
 # DALI custom operator example
 
 This is an example/template of a DALI Custom operator.
-The implemented operation is a (very) naive histogram on a grayscale image.
-The NaiveHistogram operator is a GPU-only operator, which uses a badly written
+The implemented operation is a histogram on a grayscale image.
+The NaiveHistogram operator is a GPU-only operator, which uses a suboptimal
 CUDA kernel to calculate the histogram. The purpose here is not to show-case
 how the write CUDA kernels, but to present how to use CUDA kernels within
 DALI operators.
@@ -22,7 +22,7 @@ $ cmake ..
 $ make -j
 ```
 
-4. **(Optional)** To run the example, you need to provide some test files (actually, images). It can 
+4. To run the example, you need to provide some test files (actually, images). It can 
 really be any image, as long as it's not broken. The test provides preliminary image list as an 
 example. We're using a [DALI_Extra](https://github.com/NVIDIA/DALI_extra) repository for that
 purpose, but it's not obligatory. Should you want to use DALI Extra too, please clone (or download)
