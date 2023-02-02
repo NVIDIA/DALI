@@ -67,6 +67,13 @@ struct DALIPipeline {
   dali::CUDAStreamLease copy_stream;
 };
 
+/** Temporary workaround for backward compatibility
+ *
+ * In the long run, daliPipeline_t is going to be change to daliPipeline and is going to be
+ * passed by value.
+ */
+typedef daliPipelineHandle *daliPipelineHandle_t;
+
 namespace {
 
 bool dali_initialized = false;
