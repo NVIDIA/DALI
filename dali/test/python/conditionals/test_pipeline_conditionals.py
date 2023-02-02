@@ -468,6 +468,8 @@ def test_against_split_merge():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn._conditional.validate_logical(pred, expression_name="if",
+                                                expression_side="if-stmt")
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true, angle=30)
         output_false = fn.flip(false, horizontal=True)
@@ -505,6 +507,8 @@ def test_dot_gpu():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="cpu")
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn._conditional.validate_logical(pred, expression_name="if",
+                                                expression_side="if-stmt")
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true.gpu(), angle=30)
         output_false = fn.flip(false, horizontal=True).gpu()
@@ -629,6 +633,8 @@ def test_generators(pred):
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         rand = fn.random.uniform()
         predicate = fn.external_source(source=pred, batch=False)
+        predicate = fn._conditional.validate_logical(predicate, expression_name="if",
+                                                     expression_side="if-stmt")
         true_encoded, _ = fn._conditional.split(encoded, predicate=predicate)
         true_rand, _ = fn._conditional.split(rand, predicate=predicate)
         _, false_u8 = fn._conditional.split(np.uint8([0]), predicate=predicate)
