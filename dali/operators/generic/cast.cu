@@ -17,9 +17,10 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/static_switch.h"
 #include "dali/core/span.h"
-#include "dali/kernels/common/cast.cuh"
+#include "dali/core/static_switch.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/cast_gpu.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/generic/cast.h"
 
@@ -32,39 +33,23 @@ class CastGPU : public Cast<GPUBackend> {
   void RunImpl(Workspace &ws) override;
   ~CastGPU() override = default;
 
- private:
-  static constexpr int kBlockSize = 1024;
-  static constexpr int kLogicalBlockSize = 1024;
   USE_OPERATOR_MEMBERS();
 };
 
 void CastGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
-  int num_samples = input.num_samples();
-  const auto& in_sh = input.shape();
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
 
+  kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
   kernels::DynamicScratchpad scratchpad({}, ws.stream());
-  using SampleDesc = kernels::cast::SampleDesc;
-  SampleDesc *samples = scratchpad.AllocatePinned<SampleDesc>(num_samples);
-  uint32_t offset_blk = 0;
-  for (int i = 0; i < num_samples; i++) {
-    auto &sample = samples[i];
-    sample.output = output.raw_mutable_tensor(i);
-    sample.input = input.raw_tensor(i);
-    sample.first_block = offset_blk;
-    sample.sample_size = in_sh.tensor_size(i);
-    offset_blk += div_ceil(sample.sample_size, kLogicalBlockSize);
-  }
-
-  auto *samples_dev =
-      scratchpad.ToGPU(ws.stream(), span<const SampleDesc>(samples, num_samples));
+  ctx.scratchpad = &scratchpad;
 
   TYPE_SWITCH(output.type(), type2id, Out, CAST_ALLOWED_TYPES, (
     TYPE_SWITCH(input.type(), type2id, In, CAST_ALLOWED_TYPES, (
-      kernels::cast::BinSearchCastKernel<Out, In>
-          <<<offset_blk, kBlockSize, 0, ws.stream()>>>(samples_dev, num_samples, kLogicalBlockSize);
+      auto kernel = kernels::cast::CastGPU<Out, In>{};
+      kernel.Run(ctx, flatten(view<Out>(output)), flatten(view<const In>(input)));
     ), DALI_FAIL(make_string("Invalid input type: ", input.type())););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output.type())););  // NOLINT(whitespace/parens)
   CUDA_CALL(cudaGetLastError());

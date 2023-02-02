@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -920,6 +920,24 @@ TensorListView<Storage, T, out_dim> reshape(
       TensorListShape<out_dim> shape,
       bool check = false) {
   return reinterpret<T, out_dim>(list, shape, check);
+}
+
+/**
+ * @brief Reshapes as a 1D TensorListView, effectively flattening the shape
+ * 
+ * @tparam Storage 
+ * @tparam T 
+ * @tparam in_dim 
+ * @param list 
+ * @param check 
+ * @return TensorListView<Storage, T, 1> 
+ */
+template <typename Storage, typename T, int in_dim>
+TensorListView<Storage, T, 1> flatten(
+      const TensorListView<Storage, T, in_dim> &list,
+      bool check = false) {
+  auto collapsed_shape = collapse_dims<1>(list.shape, {{0, list.sample_dim()}});
+  return reinterpret<T, 1>(list, collapsed_shape, check);
 }
 
 template <typename Backend, typename T, int ndim>
