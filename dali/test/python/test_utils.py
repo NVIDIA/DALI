@@ -198,6 +198,11 @@ def check_batch(batch1, batch2, batch_size=None,
             "Size mismatch {} != {}".format(left.size, right.size)
         if left.size != 0:
             try:
+                # Do the difference calculation on a type that allows subtraction
+                if left.dtype == bool:
+                    left = left.astype(int)
+                if right.dtype == bool:
+                    right = right.astype(int)
                 # abs doesn't handle overflow for uint8, so get minimal value of a-b and b-a
                 diff1 = np.abs(left - right)
                 diff2 = np.abs(right - left)

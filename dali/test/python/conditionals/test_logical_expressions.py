@@ -12,47 +12,149 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from nvidia.dali.pipeline import pipeline_def, experimental
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.types import SampleInfo
-from nvidia.dali import _conditionals
-from nvidia.dali.data_node import DataNode
 
-from test_utils import check_batch, compare_pipelines
+from test_utils import compare_pipelines
 from nose_utils import assert_raises
-from test_utils import get_dali_extra_path
 from nose2.tools import params
 
-import os
 import numpy as np
 
 
-from nvidia.dali._autograph.utils import ag_logging
+def test_not():
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-ag_logging.set_verbosity(10, True)
+    @pipeline_def(**kwargs)
+    def regular_pipe():
+        boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
+        return boolean_input == 0
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def not_pipe():
+        boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
+        return not boolean_input
+
+    pipes = [regular_pipe(), not_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
 
 
-def _test():
-    test_data_root = get_dali_extra_path()
-    caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+def test_and():
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
+    @pipeline_def(**kwargs)
+    def regular_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        const_F = types.Constant(np.array(False), device="cpu")
+        const_T = types.Constant(np.array(True), device="cpu")
+        return (boolean_input_0 & boolean_input_1, boolean_input_0 & const_F,
+                const_T & boolean_input_1)
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def and_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        const_F = types.Constant(np.array(False), device="cpu")
+        const_T = types.Constant(np.array(True), device="cpu")
+        return (boolean_input_0 and boolean_input_1, boolean_input_0 and const_F, const_T
+                and boolean_input_1)
+
+    pipes = [regular_pipe(), and_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
+def test_or():
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
+
+    @pipeline_def(**kwargs)
+    def regular_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        const_F = types.Constant(np.array(False), device="cpu")
+        const_T = types.Constant(np.array(True), device="cpu")
+        return (boolean_input_0 | boolean_input_1, boolean_input_0 | const_F,
+                const_T | boolean_input_1)
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def or_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        const_F = types.Constant(np.array(False), device="cpu")
+        const_T = types.Constant(np.array(True), device="cpu")
+        return (boolean_input_0 or boolean_input_1, boolean_input_0 or const_F, const_T
+                or boolean_input_1)
+
+    pipes = [regular_pipe(), or_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
+def test_complex_expression():
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
+
+    @pipeline_def(**kwargs)
+    def regular_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_2 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=12)
+        boolean_input_3 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=15)
+        return (boolean_input_0 | (boolean_input_1 & boolean_input_2)) | (boolean_input_3 == 0)
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def expr_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        boolean_input_2 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=12)
+        boolean_input_3 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=15)
+        return boolean_input_0 or boolean_input_1 and boolean_input_2 or not boolean_input_3
+
+    pipes = [regular_pipe(), expr_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
+def test_lazy_eval():
     bs = 10
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
     @experimental.pipeline_def(enable_conditionals=True, **kwargs)
-    def conditional_pipe():
-        val = fn.random.uniform(values=[0, 1, 2])
-        x = val and (not val.gpu() == 1)
-        return x
+    def if_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        if boolean_input_0:
+            val = boolean_input_1 == False  # noqa: E712
+        else:
+            val = boolean_input_0
+        return val
 
-    pipe = conditional_pipe()
-    pipe.build()
-    pipe.save_graph_to_dot_file("or.dot")
-    pipe.save_graph_to_dot_file("or_full.dot", True, True, True)
-    pipe.run()
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def expr_pipe():
+        boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
+        boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
+        val = boolean_input_0 and boolean_input_1 == False  # noqa: E712
+        return val
+
+    pipes = [if_pipe(), expr_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
 
 
 logical_expressions = [
@@ -62,6 +164,7 @@ logical_expressions = [
     lambda x: x or fn.random.coin_flip(dtype=types.DALIDataType.BOOL),
     lambda x: fn.random.coin_flip(dtype=types.DALIDataType.BOOL) or x,
 ]
+
 
 @params(*logical_expressions)
 def test_error_input(expression):
@@ -80,9 +183,9 @@ def test_error_input(expression):
     # We can make a valid graph with `not` op directly, the rest (`and`, `or`) is basically lowered
     # to `if` statements and thus checked by graph via argument input placement validation.
     with assert_raises(
-            RuntimeError, regex=("Logical expression `not` is restricted to scalar (0-d tensors)"
+            RuntimeError, regex=("Logical expression `.*` is restricted to scalar \\(0-d tensors\\)"
                                  " inputs of `bool` type, that are placed on CPU."
-                                 " Got a GPU input in logical expression|"
+                                 " Got a GPU input .*in logical expression.*|"
                                  "Named arguments inputs to operators must be CPU data nodes."
                                  " However, a GPU data node was provided")):
         pipe = gpu_input()
@@ -99,7 +202,7 @@ def test_error_input(expression):
     with assert_raises(
             RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
                                 " inputs of `bool` type, that are placed on CPU. Got an input"
-                                " of type `int32` * in logical expression.")):
+                                " of type `int32` *in logical expression.")):
         pipe = non_bool_input()
         pipe.build()
         pipe.run()
@@ -113,7 +216,7 @@ def test_error_input(expression):
     with assert_raises(
             RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
                                 " inputs of `bool` type, that are placed on CPU. Got a 1-d input"
-                                " * in logical expression.")):
+                                " *in logical expression.")):
         pipe = non_scalar_input()
         pipe.build()
         pipe.run()
