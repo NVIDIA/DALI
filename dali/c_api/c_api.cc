@@ -69,8 +69,8 @@ struct DALIPipeline {
 
 /** Temporary workaround for backward compatibility
  *
- * In the long run, daliPipeline_t is going to be change to daliPipeline and is going to be
- * passed by value.
+ * In the long run, daliPipeline_t is going to be replaced with daliPipeline (aka DALIPipeline *)
+ * and is going to be passed by value.
  */
 typedef daliPipelineHandle *daliPipelineHandle_t;
 
