@@ -298,7 +298,7 @@ ops_image_custom_args = [
     (fn.coord_transform, {'T': 2}),
     (fn.coord_transform, {'M': .5}),
     (fn.crop, {'crop': (5, 5)}),
-    (fn.experimental.crop_mirror_normalize, {'crop': (5, 5), 'devices' : ['gpu']}),
+    (fn.experimental.crop_mirror_normalize, {'crop': (5, 5), 'devices': ['gpu']}),
     (fn.experimental.equalize, {'devices': ['gpu']}),
     (fn.erase, {'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
                 'shape': [0.1], 'normalized_shape': True}),
