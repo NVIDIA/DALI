@@ -88,6 +88,10 @@ void CastGPU<Out, In>::Run(KernelContext &ctx,
     sample.sample_size = sample_size;
     offset_blk += div_ceil(sample_size, kLogicalBlockSize);
   }
+
+  if (nonempty_nsamples == 0)
+    return;
+
   auto *samples_dev = ctx.scratchpad->ToGPU(
       ctx.gpu.stream, span<const impl::SampleDesc>(samples, nonempty_nsamples));
 
