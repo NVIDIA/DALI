@@ -13,7 +13,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.0.1/local_ins
 
 RUN NVJPEG2K_VERSION=0.6.0.28-1 && \
     CUFILE_VERSION=1.5.1.14-1 && \
-    NVCOMP_VERSION=2.6.0 && \
+    NVCOMP_VERSION=2.6.1 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
