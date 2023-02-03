@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <utility>
-#include "dali/core/convert.h"
-#include "dali/core/cuda_utils.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/core/error_handling.h"
-#include "dali/core/span.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/cast_gpu.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/generic/cast.h"
@@ -52,7 +46,6 @@ void CastGPU::RunImpl(Workspace &ws) {
       kernel.Run(ctx, flatten(view<Out>(output)), flatten(view<const In>(input)));
     ), DALI_FAIL(make_string("Invalid input type: ", input.type())););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output.type())););  // NOLINT(whitespace/parens)
-  CUDA_CALL(cudaGetLastError());
 }
 
 DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);
