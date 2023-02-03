@@ -96,7 +96,7 @@ void CastGPU<Out, In>::Run(KernelContext &ctx,
   CUDA_CALL(cudaGetLastError());
 }
 
-#define INSTANTIATE_IMPL(Out, In) template class DLL_PUBLIC CastGPU<Out, In>;
+#define INSTANTIATE_IMPL(Out, In) template struct DLL_PUBLIC CastGPU<Out, In>;
 
 #define INSTANTIATE_FOREACH_INTYPE(Out)  \
   INSTANTIATE_IMPL(Out, bool);  \
@@ -128,4 +128,3 @@ INSTANTIATE_FOREACH_INTYPE(dali::float16);
 }  // namespace cast
 }  // namespace kernels
 }  // namespace dali
-
