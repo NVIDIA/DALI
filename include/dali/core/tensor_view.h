@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -920,6 +920,49 @@ TensorListView<Storage, T, out_dim> reshape(
       TensorListShape<out_dim> shape,
       bool check = false) {
   return reinterpret<T, out_dim>(list, shape, check);
+}
+
+/**
+ * @brief Reshapes as a 1D TensorListView, effectively flattening the shape
+ */
+
+template <typename Storage, typename T, int ndim>
+TensorListView<Storage, T, 1> flatten(
+      const TensorListView<Storage, T, ndim> &list,
+      bool check = false) {
+  return reinterpret<T, 1>(
+    list, collapse_dims<1>(list.shape, {{0, list.sample_dim()}}), check);
+}
+
+template <typename Storage, typename T>
+TensorListView<Storage, T, 1> flatten(
+      const TensorListView<Storage, T, 1> &list,
+      bool check = false) {
+  (void) check;
+  return list;
+}
+
+template <typename Storage, typename T>
+TensorListView<Storage, T, 1> flatten(
+      const TensorListView<Storage, T, 0> &list,
+      bool check = false) {
+  return reinterpret<T, 1>(
+    list, uniform_list_shape<1>(list.num_samples(), {1}), check);
+}
+
+template <typename Storage, typename T>
+TensorListView<Storage, T, 1> flatten(
+      const TensorListView<Storage, T, DynamicDimensions> &list,
+      bool check = false) {
+  TensorListShape<1> sh;
+  if (list.sample_dim() == 0) {
+    sh = uniform_list_shape<1>(list.num_samples(), {1});
+  } else if (list.sample_dim() == 1) {
+    sh = list.shape.template to_static<1>();
+  } else {
+    sh = collapse_dims<1>(list.shape, {{0, list.sample_dim()}});
+  }
+  return reinterpret<T, 1>(list, sh, check);
 }
 
 template <typename Backend, typename T, int ndim>

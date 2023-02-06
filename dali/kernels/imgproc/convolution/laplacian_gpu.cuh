@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,7 @@
 
 #include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_view.h"
-#include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/common/cast.cuh"
+#include "dali/kernels/common/cast_gpu.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
@@ -277,48 +276,18 @@ struct LaplacianGpu<Intermediate, Out, In, W, axes, has_channels, is_sequence,
     : LaplacianGpuBase<Intermediate, In, W, axes, has_channels, is_sequence> {
   using Base = LaplacianGpuBase<Intermediate, In, W, axes, has_channels, is_sequence>;
   using Base::ndim;
-  using GpuBlockSetup = kernels::BlockSetup<1, -1>;
-
-  KernelRequirements Setup(
-      KernelContext& ctx, const TensorListShape<ndim>& in_shape,
-      const std::array<std::array<TensorListShape<1>, axes>, axes>& window_sizes) {
-    auto req = Base::Setup(ctx, in_shape, window_sizes);
-    ScratchpadEstimator se;
-    std::array<std::pair<int, int>, 1> collapse_groups = {{{0, in_shape.sample_dim()}}};
-    auto collapsed_shape = collapse_dims<1>(in_shape, collapse_groups);
-    block_setup_.SetupBlocks(collapsed_shape, true);
-    se.add<mm::memory_kind::device, Intermediate>(in_shape.num_elements());
-    se.add<mm::memory_kind::device, GpuBlockSetup::BlockDesc>(block_setup_.Blocks().size());
-    se.add<mm::memory_kind::device, CastSampleDesc>(in_shape.num_samples());
-    req.scratch_sizes = AppendScratchSize(se.sizes, req.scratch_sizes);
-    return req;
-  }
 
   void Run(
       KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim> out,
       const TensorListView<StorageGPU, const In, ndim>& in,
       const std::array<std::array<TensorListView<StorageCPU, const W, 1>, axes>, axes>& windows,
       std::array<span<const float>, axes> scale) {
-    auto* tmp = ctx.scratchpad->AllocateGPU<Intermediate>(in.shape.num_elements());
-    auto intermediate = TensorListView<StorageGPU, Intermediate, ndim>(tmp, in.shape);
+    auto intermediate =
+        ctx.scratchpad->AllocTensorList<mm::memory_kind::device, Intermediate, ndim>(in.shape);
     Base::Run(ctx, intermediate, in, windows, scale);
-    int nsamples = intermediate.shape.num_samples();
-    CastSampleDesc *host_samples = ctx.scratchpad->AllocateHost<CastSampleDesc>(nsamples);
-    for (int sample_id = 0; sample_id < nsamples; sample_id++) {
-      host_samples[sample_id].output = out.tensor_data(sample_id);
-      host_samples[sample_id].input = intermediate.tensor_data(sample_id);
-    }
-    GpuBlockSetup::BlockDesc *blocks_dev;
-    CastSampleDesc *samples_dev;
-    std::tie(blocks_dev, samples_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream,
-      block_setup_.Blocks(), make_span(host_samples, nsamples));
-    dim3 grid_dim = block_setup_.GridDim();
-    dim3 block_dim = block_setup_.BlockDim();
-    BatchedCastKernel<Out, Intermediate>
-        <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples_dev, blocks_dev);
+    kernels::cast::CastGPU<Out, Intermediate> cast;
+    cast.Run(ctx, flatten(out), flatten(intermediate));
   }
-
-  GpuBlockSetup block_setup_;
 };
 
 }  // namespace laplacian
