@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,13 +33,20 @@ from test_utils import get_dali_extra_path
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
+fn_dev_pairs = [(fn.crop_mirror_normalize, 'cpu'),
+                (fn.crop_mirror_normalize, 'gpu'),
+                (fn.experimental.crop_mirror_normalize, 'gpu')]
+op_dev_pairs = [(ops.CropMirrorNormalize, 'cpu'),
+                (ops.CropMirrorNormalize, 'gpu'),
+                (ops.experimental.CropMirrorNormalize, 'gpu')]
+
 
 def next_power_of_two(x):
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
 
 
 class CropMirrorNormalizePipeline(Pipeline):
-    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
+    def __init__(self, cmn_op, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
                  dtype=types.FLOAT, output_layout="HWC", mirror_probability=0.0,
                  mean=[0., 0., 0.], std=[1., 1., 1.], scale=None, shift=None, pad_output=False):
         super().__init__(batch_size, num_threads, device_id, seed=7865)
@@ -47,17 +54,17 @@ class CropMirrorNormalizePipeline(Pipeline):
         self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id,
                                        num_shards=num_gpus)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        self.cmn = ops.CropMirrorNormalize(device=self.device,
-                                           dtype=dtype,
-                                           output_layout=output_layout,
-                                           crop=(224, 224),
-                                           crop_pos_x=0.3,
-                                           crop_pos_y=0.2,
-                                           mean=mean,
-                                           std=std,
-                                           scale=scale,
-                                           shift=shift,
-                                           pad_output=pad_output)
+        self.cmn = cmn_op(device=self.device,
+                          dtype=dtype,
+                          output_layout=output_layout,
+                          crop=(224, 224),
+                          crop_pos_x=0.3,
+                          crop_pos_y=0.2,
+                          mean=mean,
+                          std=std,
+                          scale=scale,
+                          shift=shift,
+                          pad_output=pad_output)
         self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -71,7 +78,7 @@ class CropMirrorNormalizePipeline(Pipeline):
 
 
 class NoCropPipeline(Pipeline):
-    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
+    def __init__(self, cmn_op, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
                  decoder_only=False):
         super(NoCropPipeline, self).__init__(batch_size, num_threads, device_id)
         self.decoder_only = decoder_only
@@ -80,8 +87,8 @@ class NoCropPipeline(Pipeline):
                                        num_shards=num_gpus)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
         if not self.decoder_only:
-            self.cast = ops.CropMirrorNormalize(device=self.device, dtype=types.FLOAT,
-                                                output_layout="HWC")
+            self.cast = cmn_op(device=self.device, dtype=types.FLOAT,
+                               output_layout="HWC")
         else:
             self.cast = ops.Cast(device=self.device, dtype=types.FLOAT)
 
@@ -94,16 +101,16 @@ class NoCropPipeline(Pipeline):
         return images
 
 
-def check_cmn_no_crop_args_vs_decoder_only(device, batch_size):
-    compare_pipelines(NoCropPipeline(device, batch_size, decoder_only=True),
-                      NoCropPipeline(device, batch_size, decoder_only=False),
+def check_cmn_no_crop_args_vs_decoder_only(cmn_op, device, batch_size):
+    compare_pipelines(NoCropPipeline(cmn_op, device, batch_size, decoder_only=True),
+                      NoCropPipeline(cmn_op, device, batch_size, decoder_only=False),
                       batch_size=batch_size, N_iterations=3)
 
 
 def test_cmn_no_crop_args_vs_decoder_only():
-    for device in {'cpu'}:
+    for cmn_op, device in op_dev_pairs:
         for batch_size in {1, 4}:
-            yield check_cmn_no_crop_args_vs_decoder_only, device, batch_size
+            yield check_cmn_no_crop_args_vs_decoder_only, cmn_op, device, batch_size
 
 
 class PythonOpPipeline(Pipeline):
@@ -234,7 +241,7 @@ def crop_mirror_normalize_func(crop_z, crop_y, crop_x,
     return ret
 
 
-def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
+def check_cmn_vs_numpy(cmn_op, device, batch_size, dtype, output_layout,
                        mirror_probability, mean, std, scale, shift, should_pad):
     crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
     crop_d, crop_h, crop_w = (10, 224, 224)
@@ -248,9 +255,10 @@ def check_cmn_vs_numpy(device, batch_size, dtype, output_layout,
     iterations = 8 if batch_size == 1 else 1
     eps, max_err = (1e-5, 1e-5) if dtype == types.FLOAT else (0.3, 0.6)
     compare_pipelines(
-        CropMirrorNormalizePipeline(device, batch_size, dtype=dtype, output_layout=output_layout,
-                                    mirror_probability=mirror_probability, mean=mean, std=std,
-                                    scale=scale, shift=shift, pad_output=should_pad),
+        CropMirrorNormalizePipeline(
+            cmn_op, device, batch_size, dtype=dtype, output_layout=output_layout,
+            mirror_probability=mirror_probability, mean=mean, std=std,
+            scale=scale, shift=shift, pad_output=should_pad),
         PythonOpPipeline(batch_size, function, output_layout, mirror_probability),
         batch_size=batch_size, N_iterations=iterations, eps=eps, max_allowed_error=max_err)
 
@@ -271,7 +279,7 @@ def test_cmn_vs_numpy():
 
     np.random.seed(12321)
 
-    for device in ['cpu', 'gpu']:
+    for cmn_op, device in op_dev_pairs:
         for batch_size in [1, 4]:
             for output_layout in ["HWC", "CHW"]:
                 mirror_probs = [0.5] if batch_size > 1 else [0.0, 1.0]
@@ -282,14 +290,14 @@ def test_cmn_vs_numpy():
                             np.random.randint(0, len(type_scale_shift))]
                         shift = default_shift if mean and mean[0] > 1 else None
                         scale = default_scale if std and std[0] > 1 else None
-                        yield check_cmn_vs_numpy, device, batch_size, dtype, output_layout, \
-                            mirror_probability, mean, std, scale, shift, should_pad
+                        yield check_cmn_vs_numpy, cmn_op, device, batch_size, dtype, \
+                            output_layout, mirror_probability, mean, std, scale, shift, should_pad
 
 
 class CMNRandomDataPipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, num_gpus=1,
-                 dtype=types.FLOAT, output_layout="FHWC", mirror_probability=0.0, mean=[0., 0., 0.],
-                 std=[1., 1., 1.], scale=None, shift=None, pad_output=False,
+    def __init__(self, cmn_op, device, batch_size, layout, iterator, num_threads=1, device_id=0,
+                 num_gpus=1, dtype=types.FLOAT, output_layout="FHWC", mirror_probability=0.0,
+                 mean=[0., 0., 0.], std=[1., 1., 1.], scale=None, shift=None, pad_output=False,
                  crop_seq_as_depth=False, crop_d=8, crop_h=16, crop_w=32, crop_pos_x=0.3,
                  crop_pos_y=0.2, crop_pos_z=0.1, out_of_bounds_policy=None, fill_values=None,
                  extra_outputs=False):
@@ -302,13 +310,13 @@ class CMNRandomDataPipeline(Pipeline):
 
         if layout.count('D') <= 0 and not (crop_seq_as_depth and layout.count('F') > 0):
             crop_d = None
-        self.cmn = ops.CropMirrorNormalize(device=self.device, dtype=dtype,
-                                           output_layout=output_layout, crop_d=crop_d,
-                                           crop_h=crop_h, crop_w=crop_w, crop_pos_x=crop_pos_x,
-                                           crop_pos_y=crop_pos_y, crop_pos_z=crop_pos_z, mean=mean,
-                                           std=std, pad_output=pad_output, scale=scale, shift=shift,
-                                           out_of_bounds_policy=out_of_bounds_policy,
-                                           fill_values=fill_values)
+        self.cmn = cmn_op(device=self.device, dtype=dtype,
+                          output_layout=output_layout, crop_d=crop_d,
+                          crop_h=crop_h, crop_w=crop_w, crop_pos_x=crop_pos_x,
+                          crop_pos_y=crop_pos_y, crop_pos_z=crop_pos_z, mean=mean,
+                          std=std, pad_output=pad_output, scale=scale, shift=shift,
+                          out_of_bounds_policy=out_of_bounds_policy,
+                          fill_values=fill_values)
         self.coin = ops.random.CoinFlip(probability=mirror_probability, seed=7865)
 
     def define_graph(self):
@@ -346,7 +354,7 @@ class CMNRandomDataPythonOpPipeline(Pipeline):
         self.feed_input(self.data, data, layout=self.layout)
 
 
-def check_cmn_random_data_vs_numpy(device, batch_size, dtype, input_layout, input_shape,
+def check_cmn_random_data_vs_numpy(cmn_op, device, batch_size, dtype, input_layout, input_shape,
                                    output_layout, mirror_probability, mean, std, scale, shift,
                                    should_pad):
     crop_z, crop_y, crop_x = (0.1, 0.2, 0.3)
@@ -361,8 +369,8 @@ def check_cmn_random_data_vs_numpy(device, batch_size, dtype, input_layout, inpu
                        mean, std, scale, shift, input_layout, output_layout,
                        dali_type_to_np(dtype))
 
-    cmn_pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii1), dtype=dtype,
-                                     output_layout=output_layout,
+    cmn_pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, input_layout, iter(eii1),
+                                     dtype=dtype, output_layout=output_layout,
                                      mirror_probability=mirror_probability, mean=mean, std=std,
                                      scale=scale, shift=shift, pad_output=should_pad)
 
@@ -403,7 +411,7 @@ def test_cmn_random_data_vs_numpy():
                         (types.UINT8, 64, 128),
                         (types.INT8, 50, 5)]
 
-    for device in ['cpu', 'gpu']:
+    for cmn_op, device in op_dev_pairs:
         for batch_size in [1, 4]:
             for input_layout in ["HWC", "FHWC", "DHWC", "FDHWC"]:
                 for input_shape in input_shapes[input_layout]:
@@ -417,17 +425,18 @@ def test_cmn_random_data_vs_numpy():
                                     np.random.randint(0, len(type_scale_shift))]
                                 shift = default_shift if mean and mean[0] > 1 else None
                                 scale = default_scale if std and std[0] > 1 else None
-                                yield check_cmn_random_data_vs_numpy, device, batch_size, dtype, \
-                                    input_layout, input_shape, output_layout, mirror_probability, \
+                                yield check_cmn_random_data_vs_numpy, \
+                                    cmn_op, device, batch_size, dtype, input_layout, \
+                                    input_shape, output_layout, mirror_probability, \
                                     mean, std, scale, shift, should_pad
 
 
-def check_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape,
+def check_cmn_crop_sequence_length(cmn_op, device, batch_size, dtype, input_layout, input_shape,
                                    output_layout, mirror_probability, mean, std, should_pad):
     crop_d, crop_h, crop_w = (8, 16, 32)
     eii1 = RandomDataIterator(batch_size, shape=input_shape)
 
-    pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii1), dtype=dtype,
+    pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, input_layout, iter(eii1), dtype=dtype,
                                  output_layout=output_layout, mirror_probability=mirror_probability,
                                  mean=mean, std=std, pad_output=should_pad, crop_seq_as_depth=True)
     pipe.build()
@@ -438,8 +447,9 @@ def check_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, inpu
         crop_d, crop_h, crop_w, 3)
 
     for i in range(batch_size):
-        assert out_data.at(i).shape == expected_out_shape, \
-            "Shape mismatch {} != {}".format(out_data.at(i).shape, expected_out_shape)
+        sh = as_array(out_data[i]).shape
+        assert sh == expected_out_shape, \
+            "Shape mismatch {} != {}".format(sh, expected_out_shape)
 
 
 def test_cmn_crop_sequence_length():
@@ -459,19 +469,19 @@ def test_cmn_crop_sequence_length():
     should_pad = False
     mirror_probability = 0.5
 
-    for device in ['cpu']:
+    for cmn_op, device in op_dev_pairs:
         for batch_size in [8]:
             for dtype in [types.FLOAT]:
                 for input_shape in input_shapes[input_layout]:
                     assert len(input_layout) == len(input_shape)
                     for output_layout in output_layouts[input_layout]:
-                        yield check_cmn_crop_sequence_length, device, batch_size, dtype, \
+                        yield check_cmn_crop_sequence_length, cmn_op, device, batch_size, dtype, \
                               input_layout, input_shape, output_layout, mirror_probability, \
                               mean, std, should_pad
 
 
 def check_cmn_with_out_of_bounds_policy_support(
-        device, batch_size, dtype, input_layout, input_shape, output_layout,
+        cmn_op, device, batch_size, dtype, input_layout, input_shape, output_layout,
         mirror_probability, mean, std, should_pad,
         out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
@@ -482,7 +492,7 @@ def check_cmn_with_out_of_bounds_policy_support(
     eii = RandomDataIterator(batch_size, shape=input_shape)
     crop_y, crop_x = 0.5, 0.5
     crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2
-    pipe = CMNRandomDataPipeline(device, batch_size, input_layout, iter(eii), dtype=dtype,
+    pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, input_layout, iter(eii), dtype=dtype,
                                  output_layout=output_layout, mirror_probability=mirror_probability,
                                  mean=mean, std=std, pad_output=should_pad, crop_w=crop_w,
                                  crop_h=crop_h, crop_pos_x=crop_x, crop_pos_y=crop_y,
@@ -535,24 +545,25 @@ def test_cmn_with_out_of_bounds_policy_support():
     std = [0.229 * 255, 0.224 * 255, 0.225 * 255]
     fill_values = (0x76, 0xb0, 0x00)
     for out_of_bounds_policy in ['pad', 'trim_to_shape']:
-        for device in ['gpu', 'cpu']:
+        for cmn_op, device in op_dev_pairs:
             for batch_size in [1, 3]:
                 for out_layout in ['HWC', 'CHW']:
                     for mirror_probability in [0.5]:
                         for should_pad in [False, True]:
-                            yield check_cmn_with_out_of_bounds_policy_support, device, batch_size, \
-                                  dtype, in_layout, in_shape, out_layout, mirror_probability, \
-                                  mean, std, should_pad, out_of_bounds_policy, fill_values
+                            yield check_cmn_with_out_of_bounds_policy_support, cmn_op, device, \
+                                  batch_size, dtype, in_layout, in_shape, out_layout, \
+                                  mirror_probability, mean, std, should_pad, out_of_bounds_policy, \
+                                  fill_values
 
 
-def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
+def check_cmn_with_out_of_bounds_error(cmn_op, device, batch_size, input_shape=(100, 200, 3)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
     layout = "HWC"
     assert len(input_shape) == 3
     eii = RandomDataIterator(batch_size, shape=input_shape)
     crop_y, crop_x = 0.5, 0.5
     crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2
-    pipe = CMNRandomDataPipeline(device, batch_size, layout, iter(eii),
+    pipe = CMNRandomDataPipeline(cmn_op, device, batch_size, layout, iter(eii),
                                  dtype=types.FLOAT, output_layout=layout,
                                  mirror_probability=0.5, mean=[127.], std=[127.], pad_output=True,
                                  crop_w=crop_w, crop_h=crop_h,
@@ -564,13 +575,13 @@ def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200
 
 def test_slice_with_out_of_bounds_error():
     in_shape = (40, 80, 3)
-    for device in ['gpu', 'cpu']:
+    for cmn_op, device in op_dev_pairs:
         for batch_size in [1, 3]:
             yield raises(RuntimeError, "Slice can't be placed out of bounds with current policy.")(
-                check_cmn_with_out_of_bounds_error), device, batch_size, in_shape
+                check_cmn_with_out_of_bounds_error), cmn_op, device, batch_size, in_shape
 
 
-def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev, scale, shift):
+def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale, shift):
     @pipeline_def(num_threads=3, device_id=0)
     def pipe():
         image_like = fn.random.uniform(device=device, range=(0, 255), shape=(80, 120, 3))
@@ -581,9 +592,9 @@ def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev, scale, shift):
             mean = fn.random.uniform(range=(100, 125), shape=(3,))
         if rand_stdev:
             std = fn.random.uniform(range=(55, 60), shape=(3,))
-        out = fn.crop_mirror_normalize(image_like, dtype=types.FLOAT, output_layout="HWC",
-                                       mean=mean, std=std, scale=scale, shift=shift,
-                                       pad_output=False)
+        out = cmn_fn(image_like, dtype=types.FLOAT, output_layout="HWC",
+                     mean=mean, std=std, scale=scale, shift=shift,
+                     pad_output=False)
         return out, image_like, mean, std
 
     batch_size = 10
@@ -602,13 +613,14 @@ def check_cmn_per_sample_norm_args(device, rand_mean, rand_stdev, scale, shift):
 
 
 def test_per_sample_norm_args():
-    for device in ['cpu', 'gpu']:
+    for cmn_fn, device in fn_dev_pairs:
         for random_mean, random_std in [(True, True), (True, False), (False, True)]:
             for scale, shift in [(None, None), (255.0, -128.0)]:
-                yield check_cmn_per_sample_norm_args, device, random_mean, random_std, scale, shift
+                yield check_cmn_per_sample_norm_args, \
+                    cmn_fn, device, random_mean, random_std, scale, shift
 
 
-def check_crop_mirror_normalize_wrong_layout(device, batch_size, input_shape=(100, 200, 3),
+def check_crop_mirror_normalize_wrong_layout(cmn_fn, device, batch_size, input_shape=(100, 200, 3),
                                              layout="ABC"):
     assert len(layout) == len(input_shape)
 
@@ -619,7 +631,7 @@ def check_crop_mirror_normalize_wrong_layout(device, batch_size, input_shape=(10
             return out
 
         data = fn.external_source(source=get_data, layout=layout, device=device)
-        return fn.crop_mirror_normalize(data, crop_h=10, crop_w=10)
+        return cmn_fn(data, crop_h=10, crop_w=10)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
     pipe.build()
@@ -631,12 +643,13 @@ def check_crop_mirror_normalize_wrong_layout(device, batch_size, input_shape=(10
 def test_crop_mirror_normalize_wrong_layout():
     in_shape = (40, 80, 3)
     batch_size = 3
-    for device in ['gpu', 'cpu']:
+    for cmn_fn, device in fn_dev_pairs:
         for layout in ['ABC']:
-            yield check_crop_mirror_normalize_wrong_layout, device, batch_size, in_shape, layout
+            yield check_crop_mirror_normalize_wrong_layout, \
+                cmn_fn, device, batch_size, in_shape, layout
 
 
-def check_crop_mirror_normalize_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
+def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_shape=(100, 200, 3)):
     @pipeline_def
     def get_pipe():
         def get_data():
@@ -644,7 +657,7 @@ def check_crop_mirror_normalize_empty_layout(device, batch_size, input_shape=(10
             return out
 
         data = fn.external_source(source=get_data, device=device)
-        return fn.crop_mirror_normalize(data, crop_h=10, crop_w=20)
+        return cmn_fn(data, crop_h=10, crop_w=20)
 
     pipe = get_pipe(batch_size=batch_size, device_id=0, num_threads=3)
     pipe.build()
@@ -656,5 +669,5 @@ def check_crop_mirror_normalize_empty_layout(device, batch_size, input_shape=(10
 def test_crop_mirror_normalize_empty_layout():
     in_shape = (40, 80, 3)
     batch_size = 3
-    for device in ['gpu', 'cpu']:
-        yield check_crop_mirror_normalize_empty_layout, device, batch_size, in_shape
+    for cmn_fn, device in fn_dev_pairs:
+        yield check_crop_mirror_normalize_empty_layout, cmn_fn, device, batch_size, in_shape

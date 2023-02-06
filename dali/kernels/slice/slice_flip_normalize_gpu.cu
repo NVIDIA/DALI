@@ -24,9 +24,6 @@ namespace kernels {
 
 namespace slice_flip_normalize {
 
-// template <typename Out, typename In, int spatial_ndim, int channel_dim>
-// SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::~SliceFlipNormalizeGPU() = default;
-
 template <typename Out, typename In, int spatial_ndim, int channel_dim>
 int SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::GetNumChannels(
     const TensorListShape<ndim> &sh) {
@@ -196,8 +193,8 @@ void SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Run(
     sample.fill_values = fill_values_gpu + i * out_nchannels_;
   }
 
-  block_setup_.SetDefaultBlockSize({64, 32});
-  block_setup_.SetBlockDim(dim3(32, 16, 1));
+  block_setup_.SetDefaultBlockSize({64, 64});
+  block_setup_.SetBlockDim(dim3(32, 32, 1));
   block_setup_.SetupBlocks(out_shape_orig_, true);
   auto tiles_cpu = block_setup_.Blocks();
   auto grid_dim = block_setup_.GridDim();
