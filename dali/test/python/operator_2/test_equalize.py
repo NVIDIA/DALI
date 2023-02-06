@@ -66,4 +66,4 @@ def test_image_pipeline(layout, batch_size):
         imgs = [np.array(img) for img in imgs.as_cpu()]
         assert len(equalized) == len(imgs)
         baseline = [equalize_cv_baseline(img, layout) for img in imgs]
-        check_batch(equalized, baseline)
+        check_batch(equalized, baseline, max_allowed_error=1)

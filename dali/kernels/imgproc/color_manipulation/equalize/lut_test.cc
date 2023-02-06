@@ -49,7 +49,9 @@ class EqualizeLutGpuTest : public ::testing::Test {
     auto out_view_cpu = out_.cpu(cuda_stream);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     auto baseline_view = baseline_.cpu();
-    Check(out_view_cpu, baseline_view);
+    // there may be rounding discrepancies as computation is carried with doubles
+    // then converted to uint8's, thus the `EqualEps(1)`
+    Check(out_view_cpu, baseline_view, EqualEps(1));
   }
 
   void RandomUniformHist(std::vector<std::vector<int>> num_leading_zeros_per_channel) {
