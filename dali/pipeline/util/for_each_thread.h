@@ -49,6 +49,8 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
       try {
         func(tid);
       } catch (...) {
+        // If there's any error we catch it and retrhow only after the number
+        // of pending tasks is properly updated and the threads unblocked.
         err = std::current_exception();
       }
 
@@ -58,7 +60,7 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
         std::unique_lock lock(m);
         cv.wait(lock, [&]() { return pending == 0; });
       }
-      if (err)
+      if (err)  // if there's an error, we can rethrow it now
         std::rethrow_exception(err);
     });
   }
