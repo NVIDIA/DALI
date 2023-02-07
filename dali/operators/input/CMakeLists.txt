@@ -17,7 +17,10 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
 if (BUILD_FFMPEG)
     list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_input.h")
-    list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_input.cc")
+    list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_input_cpu.cc")
+    if (BUILD_NVDEC)
+        list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_input_mixed.cc")
+    endif (BUILD_NVDEC)
     collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 endif (BUILD_FFMPEG)
 

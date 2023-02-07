@@ -20,7 +20,7 @@ import nvidia.dali.types as types
 from nose2.tools import params
 from nose_utils import assert_raises
 from nvidia.dali import pipeline_def
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, to_array
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 # filter out HEVC because some GPUs do not support it
@@ -31,7 +31,7 @@ files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 batch_size_values = [1, 3, 100]
 frames_per_sequence_values = [1, 7, 100]
-device_values = ['cpu']
+device_values = ['cpu', 'mixed']
 
 
 def params_generator():
@@ -106,7 +106,7 @@ def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_
     provided parameters, it serves sequences one-by-one, which are supposed to be returned
     by VideoInput operator.
     """
-    ref_sequence = decoder_pipe_out[0].as_array()[0]
+    ref_sequence = to_array(decoder_pipe_out[0])[0]
     num_frames = ref_sequence.shape[0]
     n_batches = num_frames // (batch_size * frames_per_sequence)
     ref_sequence = ref_sequence[:n_batches * frames_per_sequence * batch_size]
@@ -139,7 +139,7 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
 
     for ref_seq in portion_out_reference_sequence(decoder_out, frames_per_sequence, batch_size):
         input_out = input_pipe.run()
-        test_seq = input_out[0].as_array()
+        test_seq = to_array(input_out[0])
         assert np.all(ref_seq == test_seq)
 
 
@@ -167,24 +167,24 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     for _ in range(num_iterations):
         out1 = partial_pipe.run()
         out2 = pad_pipe.run()
-        np.testing.assert_array_equal(out1[0].as_array(), out2[0].as_array())
+        np.testing.assert_array_equal(to_array(out1[0]), to_array(out2[0]))
 
     if num_frames - num_iterations * frames_per_sequence * batch_size == 0:
         # Frames have been split equally across batches.
         return
 
     # Now check the full sequences in the last batch
-    partial_out = partial_pipe.run()
-    pad_out = pad_pipe.run()
+    partial_out = partial_pipe.run()[0]
+    pad_out = pad_pipe.run()[0]
     for i in range(num_full_sequences):
-        np.testing.assert_array_equal(np.array(partial_out[0][i]), np.array(pad_out[0][i]))
+        np.testing.assert_array_equal(to_array(partial_out[i]), to_array(pad_out[i]))
 
     # And lastly, the actual check PARTIAL vs PAD -
     # the last sequence in the last batch, which might be partial (or padded).
     if num_frames_in_partial_sequence == 0:
         return
-    last_partial_sequence = np.array(partial_out[0][num_full_sequences])
-    last_pad_sequence = np.array(pad_out[0][num_full_sequences])
+    last_partial_sequence = to_array(partial_out[num_full_sequences])
+    last_pad_sequence = to_array(pad_out[num_full_sequences])
     for i in range(num_frames_in_partial_sequence):
         # The frames that are in both - partial and padded sequences.
         np.testing.assert_array_equal(last_partial_sequence[i], last_pad_sequence[i])

@@ -14,98 +14,16 @@
 
 #include "dali/operators/input/video_input.h"
 #include <memory>
-#include <utility>
-#include <vector>
 
 namespace dali {
 
-template<typename Backend, typename FramesDecoder>
-void VideoInput<Backend, FramesDecoder>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
-  // By definition, the input batch size of this Operator is always 1.
-  static constexpr int input_batch_size = 1;
-  assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
-  assert(this->HasDataInQueue());  // Data shall not be loaded if there's no data in queue.
-  encoded_video_.Reset();
-  encoded_video_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
-  this->frames_decoders_.resize(input_batch_size);
-  this->ForwardCurrentData(encoded_video_, data_id_, thread_pool);
-  needs_data_load_ = false;
-}
-
-
-template<typename Backend, typename FramesDecoder>
-void
-VideoInput<Backend, FramesDecoder>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
-  ws.SetOperatorTrace(next_output_data_id_trace_name_, std::move(next_data_id));
-}
-
 
 template<>
-bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                       const Workspace &ws) {
-  if (!initialized_) {
-    if (needs_data_load_) {
-      InputOperator<CPUBackend>::HandleDataAvailability();
-      LoadDataFromInputOperator(ws.GetThreadPool());
-    }
-
-    // Creating FramesDecoders
-    auto sample = encoded_video_[0];
-    auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-    size_t size = sample.shape().num_elements();
-    frames_decoders_[0] = std::make_unique<FramesDecoder>(data, size, false);
-
-    assert(output_descs_.empty());
-    DetermineOutputDescs(static_cast<int>(frames_decoders_[0]->NumFrames()));
-
-    // This has to be done for every video file, since we need to know the shape of the frames.
-    if (last_sequence_policy_ == "pad") {
-      InitializePadValue(0);
-    }
-
-    initialized_ = true;
-  }
-  output_desc.resize(1);
-  output_desc[0] = output_descs_.front();
-  output_descs_.pop_front();
-  return true;
-}
-
-
-template<>
-void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
-  output.SetLayout("FHWC");
-
-  bool full_sequence;
-  for (int64_t s = 0; s < output.num_samples(); s++) {
-    auto pad_value =
-            last_sequence_policy_ == "pad" ? std::optional<SampleView<CPUBackend>>(GetPadFrame())
-                                           : std::nullopt;
-    full_sequence = DecodeFrames(output[s], 0, sequence_length_, pad_value);
-    if (!full_sequence) {
-      break;
-    }
-  }
-
-  // There won't be any more output using the current input.
-  bool input_sample_depleted = !full_sequence || frames_decoders_[0]->NextFrameIdx() == -1;
-
-  if (input_sample_depleted) {
-    Invalidate();
-    if (HasDataInQueue()) {
-      /*
-       * Loading the next input (if available).
-       * Instead of doing this in Setup, it's done in Run so that operator can assign proper
-       * "next_output_data_id" trace.
-       */
-      LoadDataFromInputOperator(ws.GetThreadPool());
-    }
-  }
-
-  if (data_id_) {
-    SetNextDataIdTrace(ws, *data_id_);
-  }
+void VideoInput<CPUBackend, dali::FramesDecoder>::CreateDecoder(const Workspace &ws) {
+  auto sample = encoded_video_[0];
+  auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
+  size_t size = sample.shape().num_elements();
+  this->frames_decoders_[0] = std::make_unique<dali::FramesDecoder>(data, size, false);
 }
 
 
@@ -191,9 +109,27 @@ be padded with empty frames.
 
 Allowed values are ``'partial'`` and ``'pad'``.
 )code", "partial")
+                .AddOptionalArg("affine", R"code(
+Applies only to the mixed backend type.
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.
+)code", true)
                 .AddParent("InputOperatorBase");
 
 
-DALI_REGISTER_OPERATOR(experimental__inputs__Video, VideoInput<CPUBackend>, CPU);
+class VideoInputCpu : public VideoInput<CPUBackend> {
+  /*
+   * This awkward class originates from an API inconsistency between
+   * Operator<CPUBackend> and Operator<MixedBackend>. Operator<CPUBackend> has a `RunImpl` function
+   * to be overriden, while Operator<MixedBackend> has `Run` function to be overriden.
+   * Can't sort it out using SFINAE, since these are virtual functions.
+   */
+ public:
+  explicit VideoInputCpu(const OpSpec &spec) : VideoInput<CPUBackend>(spec) {}
+  void RunImpl(Workspace &ws) override { VideoInputRunImpl(ws); }
+};
+
+
+DALI_REGISTER_OPERATOR(experimental__inputs__Video, VideoInputCpu, CPU);
 
 }  // namespace dali
