@@ -602,6 +602,11 @@ class DLL_PUBLIC Pipeline {
                                     const std::string &input_dev, const std::string &device,
                                     const std::string &output_dev);
 
+  /**
+   * Traverses the Operator graph and collects all operators that are Input Operators.
+   */
+  void DiscoverInputOperators();
+
   const int MAX_SEEDS = 1024;
 
   bool built_;
@@ -641,7 +646,7 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> ext_input_names_;
+  std::set<std::string> input_operators_names_;
 };
 
 }  // namespace dali

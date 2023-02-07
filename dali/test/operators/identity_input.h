@@ -80,6 +80,19 @@ class IdentityInput : public InputOperator<Backend> {
   }
 
 
+  const TensorLayout& layout() const override {
+    DALI_FAIL("Not implemented");
+  }
+
+  int ndim() const override {
+    DALI_FAIL("Not implemented");
+  }
+
+  DALIDataType dtype() const override {
+    DALI_FAIL("Not implemented");
+  }
+
+
   bool cpu_input_;
   std::unique_ptr<ThreadPool> tp_;
   std::optional<std::string> data_id_;

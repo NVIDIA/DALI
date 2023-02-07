@@ -179,6 +179,21 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
+  const TensorLayout& layout() const override {
+    return layout_;
+  }
+
+
+  int ndim() const override {
+    return 4;
+  }
+
+
+  DALIDataType dtype() const override {
+    return DALIDataType::DALI_UINT8;
+  }
+
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   /**
@@ -295,6 +310,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
   /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
   std::optional<ThreadPool> thread_pool_ = std::nullopt;
+
+  TensorLayout layout_ = "FHWC";
 };
 
 

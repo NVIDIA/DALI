@@ -362,6 +362,11 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC std::vector<TensorNodeId> GetTensorOrigin(TensorNodeId target_node) const;
 
+
+  DLL_PUBLIC const std::vector<OpNode> &GetOpNodes() const {
+    return op_nodes_;
+  }
+
  private:
   // Should be called only once for each tensor
   void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
