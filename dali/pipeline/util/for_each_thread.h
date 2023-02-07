@@ -49,7 +49,7 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
       try {
         func(tid);
       } catch (...) {
-        // If there's any error we catch it and retrhow only after the number
+        // If there's any error we catch it and rethrow only after the number
         // of pending tasks is properly updated and the threads unblocked.
         err = std::current_exception();
       }
