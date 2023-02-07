@@ -67,9 +67,13 @@ class OperatorTraceTest : public ::testing::TestWithParam<OperatorTraceTestParam
     exec_async_ = parameters.exec_async;
     exec_pipelined_ = parameters.exec_pipelined;
     exec_separated_ = cpu_queue_depth_ != gpu_queue_depth_;
+
+    std::ios_base::fmtflags f = cout.flags();
     cout << "TEST: cpu_queue_depth=" << cpu_queue_depth_ << ", gpu_queue_depth=" << gpu_queue_depth_
          << ", exec_async=" << std::boolalpha << exec_async_ << ", exec_pipelined="
          << exec_pipelined_ << endl;
+    cout.flags(f);
+
     pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
                                            exec_pipelined_, cpu_queue_depth_, exec_async_);
 

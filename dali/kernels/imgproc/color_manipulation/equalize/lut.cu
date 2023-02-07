@@ -85,13 +85,14 @@ void LutKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, uint
   sample_descs_.clear();
   for (int sample_idx = 0; sample_idx < histogram.num_samples(); sample_idx++) {
     auto ranges = sequence_utils::unfolded_views_range<1>(lut[sample_idx], histogram[sample_idx]);
-    for (auto &&[lut, hist] : ranges) {
-      sample_descs_.push_back({lut.data, hist.data});
+    for (auto &&[lu, bin] : ranges) {
+      sample_descs_.push_back({lu.data, bin.data});
     }
   }
   SampleDesc *samples_desc_dev;
   std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
   PrepareLookupTable<<<sample_descs_.size(), kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace lut

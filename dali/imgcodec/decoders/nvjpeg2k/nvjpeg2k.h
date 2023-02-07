@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,9 +129,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
 
     nvjpeg2kImageInfo_t image_info;
     /** @brief Bits per pixel */
-    uint8_t bpp;
+    uint8_t bpp = 0;
     /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
-    DALIDataType pixel_type;
+    DALIDataType pixel_type = DALI_NO_TYPE;
     TensorShape<> shape;
 
     DecodeParams opts;

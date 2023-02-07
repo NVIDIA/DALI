@@ -43,7 +43,8 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
     workspace[idx] = 0;
   }
   __syncthreads();
-  for (uint64_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < sample_desc.num_elements;
+  for (uint64_t idx = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       idx < sample_desc.num_elements;
        idx += blockDim.x * gridDim.x) {
     uint64_t channel_idx = idx % sample_desc.num_channels;
     atomicAdd(workspace + channel_idx * SampleDesc::range_size + in[idx], 1);
@@ -87,8 +88,10 @@ void HistogramKernelGpu::Run(KernelContext &ctx, TensorListView<StorageGPU, uint
   dim3 zero_grid{static_cast<unsigned int>(max_num_channels),
                  static_cast<unsigned int>(batch_size)};
   ZeroMem<<<zero_grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+  CUDA_CALL(cudaGetLastError());
   dim3 hist_grid{static_cast<unsigned int>(max_num_blocks), static_cast<unsigned int>(batch_size)};
   Histogram<<<hist_grid, kBlockSize, workspace_size, ctx.gpu.stream>>>(samples_desc_dev);
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace hist

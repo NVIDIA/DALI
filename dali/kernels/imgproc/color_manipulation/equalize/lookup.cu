@@ -23,7 +23,8 @@ namespace lookup {
 
 __global__ void Lookup(const SampleDesc *sample_descs) {
   auto sample_desc = sample_descs[blockIdx.y];
-  for (uint64_t idx = blockIdx.x * blockDim.x + threadIdx.x; idx < sample_desc.num_elements;
+  for (uint64_t idx = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+       idx < sample_desc.num_elements;
        idx += blockDim.x * gridDim.x) {
     const uint8_t *in = sample_desc.in;
     uint8_t *out = sample_desc.out;
@@ -55,6 +56,7 @@ void LookupKernelGpu::Run(KernelContext &ctx, const TensorListView<StorageGPU, u
   std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_descs_);
   dim3 grid{static_cast<unsigned int>(max_num_blocks), static_cast<unsigned int>(batch_size)};
   Lookup<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(samples_desc_dev);
+  CUDA_CALL(cudaGetLastError());
 }
 
 }  // namespace lookup
