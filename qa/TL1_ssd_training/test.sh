@@ -22,7 +22,7 @@ test_body() {
     # for some reason the `pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" .` doesn't install
     # wheel but only builds the binaries with the setuptools>=50.0, so now we builds wheel explicitly and then install it
     unset CUDA_HOME
-    # escape frome APEX dir or it pip will tell that is already installed
+    # We need to escape from APEX dir. Otherwise pip will tell that it is already installed.
     cd ..
     pip install apex/apex*.whl
     popd
