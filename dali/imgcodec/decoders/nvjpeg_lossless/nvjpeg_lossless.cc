@@ -40,10 +40,10 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
 
 NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
   DeviceGuard dg(device_id_);
-  CUDA_CALL(cudaEventSynchronize(event_));
+  CUDA_DTOR_CALL(cudaEventSynchronize(event_));
   per_thread_resources_.clear();
-  CUDA_CALL(nvjpegJpegStateDestroy(state_));
-  CUDA_CALL(nvjpegDestroy(nvjpeg_handle_));
+  CUDA_DTOR_CALL(nvjpegJpegStateDestroy(state_));
+  CUDA_DTOR_CALL(nvjpegDestroy(nvjpeg_handle_));
 }
 
 NvJpegLosslessDecoderInstance::PerThreadResources::PerThreadResources(nvjpegHandle_t handle) {
@@ -57,7 +57,7 @@ NvJpegLosslessDecoderInstance::PerThreadResources::PerThreadResources(PerThreadR
 
 NvJpegLosslessDecoderInstance::PerThreadResources::~PerThreadResources() {
   if (jpeg_stream) {
-    CUDA_CALL(nvjpegJpegStreamDestroy(jpeg_stream));
+    CUDA_DTOR_CALL(nvjpegJpegStreamDestroy(jpeg_stream));
   }
 }
 

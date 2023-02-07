@@ -31,7 +31,7 @@ namespace slice_flip_normalize {
 
 /**
  * @brief Slice (and/or pad), normalize, and (optionally) flip
- * 
+ *
  * @tparam Out output type
  * @tparam In input type
  * @tparam spatial_ndim Number of spatial dimensions: 2, 3, or 4 (max is seq of 3D)
@@ -96,8 +96,8 @@ class DLL_PUBLIC SliceFlipNormalizeGPU {
   TensorListShape<ndim> out_shape_orig_;  // not permuted
   TensorListShape<ndim> out_shape_;
   BlockSetup<spatial_ndim, channel_dim> block_setup_;
-  int nchannels_;
-  int out_nchannels_;
+  int nchannels_ = -1;
+  int out_nchannels_ = -1;
   ivec<ndim> perm_;
   ivec<ndim> inv_perm_;
 

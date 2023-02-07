@@ -58,7 +58,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
-  ForEachThread(*tp_, [&](int tid) noexcept {
+  ForEachThread(*tp_, [&](int tid) {
     CUDA_CALL(cudaSetDevice(device_id));
     per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
   });

@@ -109,9 +109,10 @@ class NvJpegLosslessDecoderTest : public NumpyDecoderTestBase<GPUBackend, Output
       return;
 
     assert(input_precision < out_bpp);
-    float scale_factor = std::numeric_limits<T>::max() / ((1 << input_precision) - 1);
+    constexpr double out_range = std::numeric_limits<T>::max();
+    double scale_factor = out_range / ((1 << input_precision) - 1);
     for (int64_t i = 0; i < n; i++)
-      ptr[i] = static_cast<T>(scale_factor * ptr[i]);
+      ptr[i] = ConvertSat<T>(scale_factor * ptr[i]);
   }
 };
 
