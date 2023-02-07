@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ inline NppiInterpolationMode to_npp(DALIInterpType interp) {
 }
 
 inline NppStreamContext CreateNppContext(int device_id) {
-  NppStreamContext npp_ctx;
+  NppStreamContext npp_ctx{};
   npp_ctx.nCudaDeviceId = device_id;
   CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx.nCudaDevAttrComputeCapabilityMajor,
                                    cudaDevAttrComputeCapabilityMajor, npp_ctx.nCudaDeviceId));

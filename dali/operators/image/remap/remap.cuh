@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
   dim3 grid_size(std::min(max_blocks, 64), std::min(n_samples, 64));
   shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
           (data_buffers, sample_sizes, n_samples, shift_value);
+  CUDA_CALL(cudaGetLastError());
 }
 
 
