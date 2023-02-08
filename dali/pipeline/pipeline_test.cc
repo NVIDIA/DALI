@@ -752,6 +752,8 @@ TEST(PipelineTest, InputsListing) {
           .AddInput("ZINPUT", "cpu")
           .AddOutput("OUTPUT", "cpu"), "first_op");
 
+  pipe.Build({{"AINPUT0", "cpu"}, {"AINPUT1", "cpu"}, {"OUTPUT", "cpu"}});
+
   ASSERT_EQ(pipe.num_inputs(), 3);
   ASSERT_EQ(pipe.input_name(0), "AINPUT0");
   ASSERT_EQ(pipe.input_name(1), "AINPUT1");
