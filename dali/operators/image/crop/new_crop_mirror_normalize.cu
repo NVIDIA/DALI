@@ -285,5 +285,6 @@ Normalization takes the input images and produces the output by using the follow
   .AddParent("CropMirrorNormalize");
 
 DALI_REGISTER_OPERATOR(experimental__CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
+DALI_REGISTER_OPERATOR(CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
 
 }  // namespace dali
