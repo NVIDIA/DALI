@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import numpy as np
 
 from test_utils import np_type_to_dali
 from nose_utils import assert_raises
-
+from nose.plugins.attrib import attr
 
 class Batch:
     def __init__(self, data_type):
@@ -454,8 +454,8 @@ def _test_reduce_large_data(rank, axes, device):
             ref = np.sum(batch[i].astype(np.float64), axis=axes)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
-
-def test_reduce_large_data():
+attr('slow')
+def slow_test_reduce_large_data():
     np.random.seed(12344)
     for device in ['cpu', 'gpu']:
         for rank in [1, 2, 3, 4]:
@@ -493,8 +493,8 @@ def _test_std_dev_large_data(rank, axes, device):
             ref = np.std(batch[i].astype(np.float64), axis=axes, ddof=0)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
-
-def test_std_dev_large_data():
+attr('slow')
+def slow_test_std_dev_large_data():
     np.random.seed(12344)
     for device in ['cpu', 'gpu']:
         for rank in [1, 2, 3, 4]:

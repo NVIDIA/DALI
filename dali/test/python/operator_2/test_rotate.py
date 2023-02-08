@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import nvidia.dali as dali
 from test_utils import compare_pipelines
 from sequences_test_utils import (ArgData, ArgDesc, ArgCb, ParamsProvider, get_video_input_cases,
                                   sequence_suite_helper)
+from nose.plugins.attrib import attr
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -373,7 +374,8 @@ def test_video():
     yield from sequence_suite_helper(rng, input_cases, video_test_cases)
 
 
-def test_3d_sequence():
+@attr('slow')
+def slow_test_3d_sequence():
     rng = random.Random(42)
     num_batches = 4
     max_batch_size = 8

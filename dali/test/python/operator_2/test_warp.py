@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import cv2
 from sequences_test_utils import video_suite_helper, SampleDesc, ArgCb
 from test_utils import compare_pipelines
 import random
+from nose.plugins.attrib import attr
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -302,8 +303,8 @@ def _test_extremely_large_data(device):
     for c in range(channels):
         assert out[0, 0, c] == c
 
-
-def test_extremely_large_data():
+@attr('slow')
+def slow_test_extremely_large_data():
     for device in ["cpu", "gpu"]:
         yield _test_extremely_large_data, device
 

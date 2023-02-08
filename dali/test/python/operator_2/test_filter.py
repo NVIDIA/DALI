@@ -19,7 +19,7 @@ import numpy as np
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import get_dali_extra_path, np_type_to_dali, check_batch
 from nose2.tools import params
-
+from nose.plugins.attrib import attr
 from filter_test_utils import filter_baseline, filter_baseline_layout
 
 data_root = get_dali_extra_path()
@@ -139,6 +139,7 @@ def test_image_pipeline(dtype, batch_size, border, mode):
         check_batch(filtered_imgs, baseline, max_allowed_error=atol)
 
 
+@attr('slow')
 @params(
     # test 2D
     (np.float16, "HWC", [(501, 127, 3), (600, 600, 1), (128, 256, 5),
@@ -177,7 +178,7 @@ def test_image_pipeline(dtype, batch_size, border, mode):
                          (1, 1, 1024 * 1024)], [(1, 256, 1), (1, 1, 257),
                                                 (258, 1, 1)], 3, "101", "same"),
 )
-def test_samples(dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode):
+def slow_test_samples(dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode):
     num_iters = 2
 
     pipe = sample_pipeline(batch_size=batch_size, num_threads=4, device_id=0,

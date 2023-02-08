@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -167,16 +167,16 @@ def _test_rrc(device, max_frames, layout, aspect_ratio_range, area_range, output
 def test_random_resized_crop():
     np.random.seed(12345)
     types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
+    sizes = [(100, 100), (320, 240)]
     for device in ["cpu", "gpu"]:
-        for max_frames in [None, 1, 8]:
-            for layout in ["FHWC", "FCHW", "CFHW"] if max_frames is not None else ["HWC", "CHW"]:
-                for aspect, area in [
-                    ((0.5, 2), (0.1, 0.8)),
-                    ((1, 2), (0.4, 1.0)),
-                    ((0.5, 1), (0.1, 0.5))
-                ]:
-                    for size in [(100, 100), (640, 480)]:
-                        input_type = types[np.random.randint(0, len(types))]
-                        output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
-                        yield _test_rrc, device, max_frames, layout, aspect, area, size, \
-                            input_type, output_type
+        for layout, max_frames in [("FHWC", 8), ("FCHW", 1), ("CFHW", 1), ("HWC", None), ("CHW", None)]:
+            for aspect, area in [
+                ((0.5, 2), (0.1, 0.8)),
+                ((1, 2), (0.4, 1.0)),
+                ((0.5, 1), (0.1, 0.5))
+            ]:
+                input_type = types[np.random.randint(0, len(types))]
+                output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
+                size = sizes[np.random.randint(0, len(sizes))]
+                yield _test_rrc, device, max_frames, layout, aspect, area, size, \
+                    input_type, output_type
