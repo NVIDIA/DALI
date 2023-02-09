@@ -25,7 +25,6 @@ import nvidia.dali as dali
 from test_utils import compare_pipelines
 from sequences_test_utils import (ArgData, ArgDesc, ArgCb, ParamsProvider, get_video_input_cases,
                                   sequence_suite_helper)
-from nose.plugins.attrib import attr
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']

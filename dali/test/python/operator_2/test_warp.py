@@ -25,7 +25,6 @@ import cv2
 from sequences_test_utils import video_suite_helper, SampleDesc, ArgCb
 from test_utils import compare_pipelines
 import random
-from nose.plugins.attrib import attr
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -220,7 +219,7 @@ def test_gpu_vs_cpu():
         gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
         gpu_pipeline.build()
 
-    random.seed(1005)
+    random.seed(1006)
     for use_input in [False, True]:
         for (itype, otype) in io_types:
             inv_map = random.choice([False, True])
