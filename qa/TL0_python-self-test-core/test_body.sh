@@ -23,6 +23,7 @@ test_py() {
 test_autograph() {
     ${python_new_invoke_test} -s autograph
     ${python_new_invoke_test} -s conditionals
+    ${python_new_invoke_test} -s auto_aug
 }
 
 test_pytorch() {
