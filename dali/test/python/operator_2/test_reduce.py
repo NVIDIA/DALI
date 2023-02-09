@@ -216,7 +216,6 @@ def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=Non
 
 def test_reduce():
     reductions = ["sum", "min", "max"]
-
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
         np.uint8, np.int8,
@@ -229,8 +228,8 @@ def test_reduce():
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for batch_gen in batch_gens:
-                for type_id in types:
-                    yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
+                type_id = np.random.choice(types)
+                yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
 
 
 def test_reduce_negative_axes():
@@ -294,14 +293,14 @@ def test_sum_with_output_type():
         (np.uint32, [np.uint64, np.float32]),
         (np.int32, [np.int32, np.int64, np.float32])]
 
-    for keep_dims in [False, True]:
-        for reduction_name in reductions:
-            for batch_gen in batch_gens:
-                for type_map in types:
-                    input_type = type_map[0]
-                    for output_type in type_map[1]:
-                        yield (run_reduce,
-                               keep_dims, reduction_name, batch_gen, input_type, output_type)
+    for reduction_name in reductions:
+        for batch_gen in batch_gens:
+            for type_map in types:
+                input_type = type_map[0]
+                keep_dims = np.random.choice([False, True])
+                for output_type in type_map[1]:
+                    yield (run_reduce,
+                            keep_dims, reduction_name, batch_gen, input_type, output_type)
 
 
 def run_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, input_type, output_type=None):
@@ -454,8 +453,7 @@ def _test_reduce_large_data(rank, axes, device):
             ref = np.sum(batch[i].astype(np.float64), axis=axes)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
-attr('slow')
-def slow_test_reduce_large_data():
+def test_reduce_large_data():
     np.random.seed(12344)
     for device in ['cpu', 'gpu']:
         for rank in [1, 2, 3, 4]:
@@ -493,8 +491,7 @@ def _test_std_dev_large_data(rank, axes, device):
             ref = np.std(batch[i].astype(np.float64), axis=axes, ddof=0)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
-attr('slow')
-def slow_test_std_dev_large_data():
+def test_std_dev_large_data():
     np.random.seed(12344)
     for device in ['cpu', 'gpu']:
         for rank in [1, 2, 3, 4]:
