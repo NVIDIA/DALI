@@ -231,6 +231,21 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     SetDataSourceHelper(tl, std::move(data_id), order, ext_src_setting_mode);
   }
 
+  /**
+   * Returns the layout of the output from this Operator.
+   */
+  virtual const TensorLayout& layout() const = 0;
+
+  /**
+   * Returns the number of dimensions at the output from this Operator.
+   */
+  virtual int ndim() const = 0;
+
+  /**
+   * Returns the type of the data at the output from this Operator.
+   */
+  virtual DALIDataType dtype() const = 0;
+
 
  protected:
   /**

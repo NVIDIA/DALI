@@ -55,15 +55,15 @@ class ExternalSource : public InputOperator<Backend> {
     return "ExternalSource (" + output_name_ + ")";
   }
 
-  const TensorLayout& layout() const {
+  const TensorLayout& layout() const override {
     return layout_;
   }
 
-  int ndim() const {
+  int ndim() const override {
     return ndim_;
   }
 
-  DALIDataType dtype() const {
+  DALIDataType dtype() const override {
     return dtype_;
   }
 
