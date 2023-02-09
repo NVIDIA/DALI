@@ -21,6 +21,7 @@ import numpy as np
 from test_utils import np_type_to_dali
 from nose_utils import assert_raises
 
+
 class Batch:
     def __init__(self, data_type):
         self._data_type = data_type
@@ -298,8 +299,8 @@ def test_sum_with_output_type():
                 input_type = type_map[0]
                 keep_dims = np.random.choice([False, True])
                 for output_type in type_map[1]:
-                    yield (run_reduce,
-                            keep_dims, reduction_name, batch_gen, input_type, output_type)
+                    yield run_reduce, \
+                        keep_dims, reduction_name, batch_gen, input_type, output_type
 
 
 def run_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, input_type, output_type=None):
@@ -429,6 +430,7 @@ _random_buf = None
 _random_lo = 0
 _random_hi = 1
 
+
 def fast_large_random_batches(rank, batch_size, num_batches, lo=0, hi=1):
     max_vol = 10000000
     max_extent = min(65536, int(np.floor(max_vol**(1/rank))))
@@ -437,8 +439,9 @@ def fast_large_random_batches(rank, batch_size, num_batches, lo=0, hi=1):
     global _random_buf
     global _random_lo
     global _random_hi
-    if (_random_buf is None or _random_buf.size < max_extent**rank or
-        _random_lo != lo or _random_hi != hi):
+    should_generate = _random_buf is None or _random_buf.size < max_extent**rank \
+        or _random_lo != lo or _random_hi != hi
+    if should_generate:
         _random_lo = lo
         _random_hi = hi
         _random_buf = np.random.uniform(low=lo, high=hi, size=max_vol).astype(np.float32)
@@ -457,6 +460,7 @@ def fast_large_random_batches(rank, batch_size, num_batches, lo=0, hi=1):
             batch.append(sample)
         data.append(batch)
     return data
+
 
 @nottest
 def _test_reduce_large_data(rank, axes, device):
@@ -477,6 +481,7 @@ def _test_reduce_large_data(rank, axes, device):
         for i in range(batch_size):
             ref = np.sum(batch[i].astype(np.float64), axis=axes)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
 
 def test_reduce_large_data():
     np.random.seed(12344)
@@ -508,6 +513,7 @@ def _test_std_dev_large_data(rank, axes, device):
         for i in range(batch_size):
             ref = np.std(batch[i].astype(np.float64), axis=axes, ddof=0)
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
 
 def test_std_dev_large_data():
     np.random.seed(12344)

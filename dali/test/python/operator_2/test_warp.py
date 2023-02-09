@@ -17,7 +17,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
 import math
 import os
@@ -196,6 +195,7 @@ io_types = [
   (types.FLOAT, types.FLOAT)
 ]
 
+
 def test_vs_cv():
     def impl(device, batch_size, use_input, otype, itype, inv_map):
         cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
@@ -225,6 +225,7 @@ def test_gpu_vs_cpu():
             inv_map = random.choice([False, True])
             batch_size = random.choice([1, 4, 19])
             yield impl, batch_size, use_input, otype, itype, inv_map
+
 
 def _test_extremely_large_data(device):
     in_size = 30000
@@ -263,6 +264,7 @@ def _test_extremely_large_data(device):
     assert out.shape == (out_size, out_size, channels)
     for c in range(channels):
         assert out[0, 0, c] == c
+
 
 def test_extremely_large_data():
     for device in ["cpu", "gpu"]:

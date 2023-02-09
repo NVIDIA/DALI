@@ -237,6 +237,7 @@ def run_cases(backend1, backend2, epsilon):
     for output_size in [None, (160, 240)]:
         for (itype, otype) in io_types:
             batch_size = np.random.choice([1, 4, 19])
+
             def run_case(backend1, backend2, *args):
                 pipe1 = create_pipeline(backend1, *args)
                 pipe2 = create_pipeline(backend2, *args)

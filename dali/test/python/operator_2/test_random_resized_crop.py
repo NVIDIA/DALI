@@ -169,7 +169,8 @@ def test_random_resized_crop():
     types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
     sizes = [(100, 100), (320, 240)]
     for device in ["cpu", "gpu"]:
-        for layout, max_frames in [("FHWC", 8), ("FCHW", 1), ("CFHW", 1), ("HWC", None), ("CHW", None)]:
+        for layout, max_frames in [("FHWC", 8), ("FCHW", 1), ("CFHW", 1),
+                                   ("HWC", None), ("CHW", None)]:
             for aspect, area in [
                 ((0.5, 2), (0.1, 0.8)),
                 ((1, 2), (0.4, 1.0)),

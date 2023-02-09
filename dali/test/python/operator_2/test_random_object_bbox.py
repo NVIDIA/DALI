@@ -557,7 +557,8 @@ def test_err_threshold_dim_clash():
                  "which can't be interpreted as the expected shape."):
         _test_err_args(threshold=[1, 2, 3, 4, 5])
 
-attr('slow')
+
+@attr('slow')
 def slow_test_large_data():
-    yield (_test_random_object_bbox_with_class,
-           4, 5, np.int32, None, 1., [1, 2, 3], None, None, None, 10)
+    yield _test_random_object_bbox_with_class, \
+        4, 5, np.int32, None, 1., [1, 2, 3], None, None, None, 10
