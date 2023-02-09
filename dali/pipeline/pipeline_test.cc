@@ -768,17 +768,17 @@ TEST(PipelineTest, InputDetails) {
 
   pipe.Build({{"INPUT", "cpu"}, {"INPUT2", "gpu"}, {"INPUT3", "cpu"}});
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT"), 3);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT"), DALI_UINT32);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT"), 3);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT"), DALI_UINT32);
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT2"), 4);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT2"), DALI_FLOAT16);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT2"), 4);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT2"), DALI_FLOAT16);
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT3"), "");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT3"), -1);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT3"), DALI_NO_TYPE);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT3"), "");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT3"), -1);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT3"), DALI_NO_TYPE);
 }
 
 }  // namespace dali

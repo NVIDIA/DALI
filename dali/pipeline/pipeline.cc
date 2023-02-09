@@ -830,7 +830,7 @@ int Pipeline::GetInputNdim(const std::string &name) {
   } else if (node->op_type == OpType::GPU) {
     const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->dtype();
+      return in_op->ndim();
     }
   }
   DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
@@ -908,8 +908,7 @@ static bool is_input_operator(const OpNode &op_node) {
 
 int Pipeline::num_inputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_inputs()\".");
-  auto &op_nodes = graph_.GetOpNodes();
-  return static_cast<int>(std::count_if(op_nodes.begin(), op_nodes.end(), is_input_operator));
+  return input_operators_names_.size();
 }
 
 
