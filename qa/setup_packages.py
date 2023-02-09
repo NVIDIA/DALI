@@ -587,7 +587,7 @@ def get_install_string(idx, packages, cuda_version):
     return " ".join(ret)
 
 
-def get_extra_indices(idx, packages, cuda_version):
+def get_extra_indices(packages, cuda_version):
     """Get all extra indices for given packages"""
     ret = for_all_pckg(packages, lambda pckg: pckg.get_extra_index(cuda_version),
                        add_additional_packages=False)
@@ -595,7 +595,7 @@ def get_extra_indices(idx, packages, cuda_version):
     return " ".join(ret)
 
 
-def get_links_indices(idx, packages, cuda_version):
+def get_links_indices(packages, cuda_version):
     """Get all urls with direct links for given packages"""
     ret = for_all_pckg(packages, lambda pckg: pckg.get_links_index(cuda_version),
                        add_additional_packages=False)
@@ -616,9 +616,9 @@ def main():
     elif args.install >= 0:
         print(get_install_string(args.install, args.use, args.cuda))
     elif args.extra_index:
-        print(get_extra_indices(args.install, args.use, args.cuda))
+        print(get_extra_indices(args.use, args.cuda))
     elif args.links_index:
-        print(get_links_indices(args.install, args.use, args.cuda))
+        print(get_links_indices(args.use, args.cuda))
 
 
 if __name__ == "__main__":
