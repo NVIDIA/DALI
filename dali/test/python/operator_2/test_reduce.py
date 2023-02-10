@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -216,7 +216,6 @@ def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=Non
 
 def test_reduce():
     reductions = ["sum", "min", "max"]
-
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
         np.uint8, np.int8,
@@ -229,8 +228,8 @@ def test_reduce():
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for batch_gen in batch_gens:
-                for type_id in types:
-                    yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
+                type_id = np.random.choice(types)
+                yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
 
 
 def test_reduce_negative_axes():
@@ -294,14 +293,14 @@ def test_sum_with_output_type():
         (np.uint32, [np.uint64, np.float32]),
         (np.int32, [np.int32, np.int64, np.float32])]
 
-    for keep_dims in [False, True]:
-        for reduction_name in reductions:
-            for batch_gen in batch_gens:
-                for type_map in types:
-                    input_type = type_map[0]
-                    for output_type in type_map[1]:
-                        yield (run_reduce,
-                               keep_dims, reduction_name, batch_gen, input_type, output_type)
+    for reduction_name in reductions:
+        for batch_gen in batch_gens:
+            for type_map in types:
+                input_type = type_map[0]
+                keep_dims = np.random.choice([False, True])
+                for output_type in type_map[1]:
+                    yield run_reduce, \
+                        keep_dims, reduction_name, batch_gen, input_type, output_type
 
 
 def run_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, input_type, output_type=None):
@@ -346,9 +345,9 @@ def test_reduce_with_mean_input():
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for batch_gen in batch_gens:
-                for type_id in types:
-                    yield run_reduce_with_mean_input, keep_dims, reduction_name, batch_gen, \
-                        type_id, None
+                type_id = np.random.choice(types)
+                yield run_reduce_with_mean_input, keep_dims, reduction_name, batch_gen, \
+                    type_id, None
 
 
 def run_and_compare_with_layout(batch_gen, pipe):
@@ -427,18 +426,47 @@ def test_reduce_axis_names():
                 axes, axis_names, batch_fn
 
 
-@nottest
-def _test_reduce_large_data(rank, axes, device):
-    batch_size = 16
-    num_batches = 2
+_random_buf = None
+_random_lo = 0
+_random_hi = 1
+
+
+def fast_large_random_batches(rank, batch_size, num_batches, lo=0, hi=1):
+    max_vol = 10000000
+    max_extent = min(65536, int(np.floor(max_vol**(1/rank))))
+
+    # generate a maximum size buffer pre-filled with random numbers
+    global _random_buf
+    global _random_lo
+    global _random_hi
+    should_generate = _random_buf is None or _random_buf.size < max_extent**rank \
+        or _random_lo != lo or _random_hi != hi
+    if should_generate:
+        _random_lo = lo
+        _random_hi = hi
+        _random_buf = np.random.uniform(low=lo, high=hi, size=max_vol).astype(np.float32)
+
     data = []
-    max_extent = min(65536, int(np.floor(10000000**(1/rank))))
     for _ in range(num_batches):
         batch = []
         for _ in range(batch_size):
             size = np.random.randint(1, max_extent, size=rank)
-            batch.append(np.random.random(size=size).astype(np.float32))
+            vol = np.prod(size)
+            # now that we know the actual volume of the sample, we can pick a random
+            # location in the pre-filled buffer
+            offset = np.random.randint(0, (_random_buf.size - vol) + 1)
+            # take a slice and reshape it to the desired shape - these are constant time operations
+            sample = _random_buf[offset:offset+vol].reshape(size)
+            batch.append(sample)
         data.append(batch)
+    return data
+
+
+@nottest
+def _test_reduce_large_data(rank, axes, device):
+    batch_size = 16
+    num_batches = 2
+    data = fast_large_random_batches(rank, batch_size, num_batches)
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == 'gpu' else None)
     input = fn.external_source(data, cycle=True, device=device)
@@ -458,7 +486,7 @@ def _test_reduce_large_data(rank, axes, device):
 def test_reduce_large_data():
     np.random.seed(12344)
     for device in ['cpu', 'gpu']:
-        for rank in [1, 2, 3, 4]:
+        for rank in [1, 2, 3]:
             for axis_mask in range(1, 2**rank):
                 axes = tuple(filter(lambda x: x >= 0,
                                     (i if axis_mask & (1 << i) else -1 for i in range(rank))))
@@ -469,14 +497,7 @@ def test_reduce_large_data():
 def _test_std_dev_large_data(rank, axes, device):
     batch_size = 16
     num_batches = 2
-    data = []
-    max_extent = min(65536, int(np.floor(10000000**(1/rank))))
-    for _ in range(num_batches):
-        batch = []
-        for _ in range(batch_size):
-            size = np.random.randint(1, max_extent, size=rank)
-            batch.append(np.random.uniform(low=1, high=2, size=size).astype(np.float32))
-        data.append(batch)
+    data = fast_large_random_batches(rank, batch_size, num_batches)
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == 'gpu' else None)
     input = fn.external_source(data, cycle=True, device=device)

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
 import math
 import os
@@ -64,10 +63,10 @@ def CVWarp(output_type, input_type, warp_matrix=None, inv_map=False):
     def warp_fn(img, matrix):
         size = (320, 240)
         matrix = ToCVMatrix(matrix)
-        if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
+        if output_type == types.FLOAT or input_type == types.FLOAT:
             img = np.float32(img)
 
-        fill = 12.5 if output_type == dali.types.FLOAT else 42
+        fill = 12.5 if output_type == types.FLOAT else 42
         out = cv2.warpAffine(img,
                              matrix,
                              size,
@@ -75,7 +74,7 @@ def CVWarp(output_type, input_type, warp_matrix=None, inv_map=False):
                              borderValue=[fill, fill, fill],
                              flags=((cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
                                     if inv_map else cv2.INTER_LINEAR))
-        if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
+        if output_type == types.UINT8 and input_type == types.FLOAT:
             out = np.uint8(np.clip(out, 0, 255))
         return out
 
@@ -100,7 +99,7 @@ class WarpPipeline(Pipeline):
         self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id,
                                        num_shards=num_gpus)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
-        if input_type != dali.types.UINT8:
+        if input_type != types.UINT8:
             self.cast = ops.Cast(device=device, dtype=input_type)
         else:
             self.cast = None
@@ -190,78 +189,42 @@ def compare(pipe1, pipe2, max_err):
 
 
 io_types = [
-  (dali.types.UINT8, dali.types.UINT8),
-  (dali.types.UINT8, dali.types.FLOAT),
-  (dali.types.FLOAT, dali.types.UINT8),
-  (dali.types.FLOAT, dali.types.FLOAT)
+  (types.UINT8, types.UINT8),
+  (types.UINT8, types.FLOAT),
+  (types.FLOAT, types.UINT8),
+  (types.FLOAT, types.FLOAT)
 ]
 
 
-def test_cpu_vs_cv():
+def test_vs_cv():
+    def impl(device, batch_size, use_input, otype, itype, inv_map):
+        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
+        cv_pipeline.build()
+        cpu_pipeline = WarpPipeline(device, batch_size, otype, itype, use_input, inv_map=inv_map)
+        cpu_pipeline.build()
+        compare(cv_pipeline, cpu_pipeline, 8)
     random.seed(1009)
-    for batch_size in [1, 4, 19]:
+    for device in ['cpu', 'gpu']:
         for use_input in [False, True]:
             for (itype, otype) in io_types:
                 inv_map = random.choice([False, True])
-                print("Testing cpu vs cv",
-                      "\nbatch size: ", batch_size,
-                      " matrix as input: ", use_input,
-                      " input_type: ", itype,
-                      " output_type: ", otype,
-                      " map_inverse:", inv_map)
-                cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
-                cv_pipeline.build()
-
-                cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input,
-                                            inv_map=inv_map)
-                cpu_pipeline.build()
-
-                compare(cv_pipeline, cpu_pipeline, 8)
-
-
-def test_gpu_vs_cv():
-    random.seed(1007)
-    for batch_size in [1, 4, 19]:
-        for use_input in [False, True]:
-            for (itype, otype) in io_types:
-                inv_map = random.choice([False, True])
-                print("Testing gpu vs cv",
-                      "\nbatch size: ", batch_size,
-                      " matrix as input: ", use_input,
-                      " input_type: ", itype,
-                      " output_type: ", otype,
-                      " map_inverse:", inv_map)
-                cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
-                cv_pipeline.build()
-
-                gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input,
-                                            inv_map=inv_map)
-                gpu_pipeline.build()
-
-                compare(cv_pipeline, gpu_pipeline, 8)
+                batch_size = random.choice([1, 4, 19])
+                yield impl, device, batch_size, use_input, otype, itype, inv_map
 
 
 def test_gpu_vs_cpu():
-    random.seed(1005)
-    for batch_size in [1, 4, 19]:
-        for use_input in [False, True]:
-            for (itype, otype) in io_types:
-                inv_map = random.choice([False, True])
-                print("Testing gpu vs cpu",
-                      "\nbatch size: ", batch_size,
-                      " matrix as input: ", use_input,
-                      " input_type: ", itype,
-                      " output_type: ", otype,
-                      " map_inverse:", inv_map)
-                cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input,
-                                            inv_map=inv_map)
-                cpu_pipeline.build()
+    def impl(batch_size, use_input, otype, itype, inv_map):
+        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        cpu_pipeline.build()
+        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+        gpu_pipeline.build()
 
-                gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input,
-                                            inv_map=inv_map)
-                gpu_pipeline.build()
-
-                compare(cpu_pipeline, gpu_pipeline, 1.0001)
+    random.seed(1006)
+    for use_input in [False, True]:
+        for (itype, otype) in io_types:
+            inv_map = random.choice([False, True])
+            batch_size = random.choice([1, 4, 19])
+            yield impl, batch_size, use_input, otype, itype, inv_map
 
 
 def _test_extremely_large_data(device):

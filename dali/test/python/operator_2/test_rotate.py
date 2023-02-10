@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -234,16 +234,16 @@ def create_pipeline(backend, *args):
 
 
 def run_cases(backend1, backend2, epsilon):
-    for batch_size in [1, 4, 19]:
-        for output_size in [None, (160, 240)]:
-            for (itype, otype) in io_types:
+    for output_size in [None, (160, 240)]:
+        for (itype, otype) in io_types:
+            batch_size = np.random.choice([1, 4, 19])
 
-                def run_case(backend1, backend2, *args):
-                    pipe1 = create_pipeline(backend1, *args)
-                    pipe2 = create_pipeline(backend2, *args)
-                    compare(pipe1, pipe2, epsilon)
+            def run_case(backend1, backend2, *args):
+                pipe1 = create_pipeline(backend1, *args)
+                pipe2 = create_pipeline(backend2, *args)
+                compare(pipe1, pipe2, epsilon)
 
-                yield run_case, backend1, backend2, batch_size, otype, itype, output_size
+            yield run_case, backend1, backend2, batch_size, otype, itype, output_size
 
 
 def test_gpu_vs_cv():

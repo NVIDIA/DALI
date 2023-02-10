@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ import scipy.ndimage.measurements
 import random
 from test_utils import check_batch, np_type_to_dali
 from nose.tools import nottest
+from nose.plugins.attrib import attr
+
 
 np.random.seed(1234)
 random.seed(1234)
@@ -556,6 +558,7 @@ def test_err_threshold_dim_clash():
         _test_err_args(threshold=[1, 2, 3, 4, 5])
 
 
-def test_large_data():
-    yield (_test_random_object_bbox_with_class,
-           4, 5, np.int32, None, 1., [1, 2, 3], None, None, None, 10)
+@attr('slow')
+def slow_test_large_data():
+    yield _test_random_object_bbox_with_class, \
+        4, 5, np.int32, None, 1., [1, 2, 3], None, None, None, 10

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -493,9 +493,6 @@ counter = 0
 def func_with_side_effects(images):
     global counter
     counter = counter + 1
-
-    print('Call ' + str(counter))
-
     return numpy.full_like(images, counter)
 
 
@@ -514,8 +511,6 @@ def test_func_with_side_effects():
         counter = 0
         out_one, = pipe_one.run()
         out_two, = pipe_two.run()
-
-        print('Iter ' + str(it) + ' Len one ' + str(len(out_one)) + ' len two ' + str(len(out_two)))
         assert counter == len(out_one) + len(out_two)
         elems_one = [out_one.at(s)[0][0][0] for s in range(BATCH_SIZE)]
         elems_one.sort()
