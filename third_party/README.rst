@@ -49,15 +49,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.10.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.10.0
+.. |cutlassver| replace:: 2.11.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.11.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.7
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.7
+.. |dlpackver| replace:: 0.8
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.8
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
@@ -70,8 +70,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
-.. |googletestver| replace:: 1.12.1
-.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.12.1
+.. |googletestver| replace:: 1.13.0
+.. _googletestver: https://github.com/google/googletest/releases/tag/v1.13.0
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
@@ -84,8 +84,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.10.1
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.10.1
+.. |pybind11ver| replace:: 2.10.3
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.10.3
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
