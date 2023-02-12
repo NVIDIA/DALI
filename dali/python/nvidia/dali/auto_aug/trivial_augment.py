@@ -15,7 +15,7 @@
 from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
-from nvidia.dali.auto_aug.core.utils import operation_idx_random_choice, apply_selected_ops
+from nvidia.dali.auto_aug.core.utils import operation_idx_random_choice, select
 
 trivial_augment_wide_suite = {
     "shear_x": a.shear_x.augmentation((0, 0.99), True),
@@ -130,4 +130,4 @@ def apply_trivial_augment(augmentations, samples, num_magnitude_bins, seed, augm
                      num_magnitude_bins=num_magnitude_bins, random_sign=random_sign,
                      **augment_kwargs)
     op_idx = operation_idx_random_choice(len(augmentations), 1, seed)
-    return apply_selected_ops(augmentations, op_idx, op_kwargs)
+    return select(augmentations, op_idx, op_kwargs)

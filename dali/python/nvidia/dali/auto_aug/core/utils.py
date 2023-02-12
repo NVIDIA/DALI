@@ -54,5 +54,5 @@ def split_samples_among_ops(op_range_lo, op_range_hi, ops, selected_op_idx, op_k
         return split_samples_among_ops(mid + 1, op_range_hi, ops, selected_op_idx, op_kwargs)
 
 
-def apply_selected_ops(ops, selected_op_idx, op_kwargs):
+def select(ops, selected_op_idx, op_kwargs):
     return split_samples_among_ops(0, len(ops) - 1, ops, selected_op_idx, op_kwargs)

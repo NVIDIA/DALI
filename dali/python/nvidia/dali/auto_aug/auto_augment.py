@@ -17,7 +17,7 @@ from types import MappingProxyType
 from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
-from nvidia.dali.auto_aug.core.utils import operation_idx_random_choice, apply_selected_ops
+from nvidia.dali.auto_aug.core.utils import operation_idx_random_choice, select
 
 
 class Policy:
@@ -167,7 +167,7 @@ def apply_auto_augment(policy: Policy, samples, seed=None, augment_kwargs=None):
                      num_magnitude_bins=policy.num_magnitude_bins, **augment_kwargs)
     sub_policies = [apply_sub_policy(sub_policy) for sub_policy in sub_policies]
     policy_id = operation_idx_random_choice(len(sub_policies), 1, seed)
-    return apply_selected_ops(sub_policies, policy_id, op_kwargs)
+    return select(sub_policies, policy_id, op_kwargs)
 
 
 def apply_sub_policy(sub_policy):
