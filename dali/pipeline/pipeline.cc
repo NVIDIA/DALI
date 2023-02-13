@@ -797,17 +797,17 @@ const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
   if (node->op_type == OpType::CPU) {
     const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->layout();
+      return in_op->in_layout();
     }
   } else if (node->op_type == OpType::MIXED) {
     const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->layout();
+      return in_op->in_layout();
     }
   } else if (node->op_type == OpType::GPU) {
     const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->layout();
+      return in_op->in_layout();
     }
   }
   DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
@@ -820,17 +820,17 @@ int Pipeline::GetInputNdim(const std::string &name) {
   if (node->op_type == OpType::CPU) {
     const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->ndim();
+      return in_op->in_ndim();
     }
   } else if (node->op_type == OpType::MIXED) {
     const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->ndim();
+      return in_op->in_ndim();
     }
   } else if (node->op_type == OpType::GPU) {
     const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->ndim();
+      return in_op->in_ndim();
     }
   }
   DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
@@ -843,17 +843,17 @@ DALIDataType Pipeline::GetInputDtype(const std::string &name) {
   if (node->op_type == OpType::CPU) {
     const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->dtype();
+      return in_op->in_dtype();
     }
   } else if (node->op_type == OpType::MIXED) {
     const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->dtype();
+      return in_op->in_dtype();
     }
   } else if (node->op_type == OpType::GPU) {
     const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
     if (in_op) {
-      return in_op->dtype();
+      return in_op->in_dtype();
     }
   }
   DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
