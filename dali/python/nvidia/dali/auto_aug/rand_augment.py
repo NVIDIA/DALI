@@ -98,9 +98,9 @@ def rand_augment(samples, n, m, num_magnitude_bins=31, shapes=None, fill_value=0
         A batch of transformed samples.
     """
     augments = dict(**rand_augment_suite)
-    augment_kwargs = {"fill_value": fill_value, "interp_type": interp_type}
+    kwargs = {"fill_value": fill_value, "interp_type": interp_type}
     if shapes is not None:
-        augment_kwargs["shapes"] = shapes
+        kwargs["shapes"] = shapes
     else:
         augments["translate_x"] = a.translate_x_no_shape.augmentation((0, max_translate_width))
         augments["translate_y"] = a.translate_y_no_shape.augmentation((0, max_translate_height))
@@ -114,10 +114,11 @@ def rand_augment(samples, n, m, num_magnitude_bins=31, shapes=None, fill_value=0
     selected_augments = [aug for name, aug in augments.items() if name not in excluded]
     return apply_rand_augment(selected_augments, samples, n, m,
                               num_magnitude_bins=num_magnitude_bins, seed=seed,
-                              augment_kwargs=augment_kwargs)
+                              **kwargs)
 
 
-def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins, seed, augment_kwargs=None):
+def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins=31, seed=None,
+                       **kwargs):
     """
     Applies RandAugment (https://arxiv.org/abs/1909.13719) like transformations but with custom
     set of augmentations.
@@ -137,10 +138,10 @@ def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins, seed, a
         The number of bins to divide the magnitude ranges into.
     seed: int
         Seed to be used to randomly sample operations (and to negate magnitudes).
-    augment_kwargs:
-        A dictionary of extra parameters to be passed when calling `augmentations`.
+    kwargs:
+        Any extra parameters to be passed when calling `augmentations`.
         The signature of each augmentation is checked for any extra arguments and if
-        the name of the argument matches one from the `augment_kwargs`, the value is
+        the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
         random augment suite accept `shapes`, `fill_value` and `interp_type`.
     Returns
@@ -150,7 +151,6 @@ def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins, seed, a
     """
     if len(augmentations) == 0:
         return samples
-    augment_kwargs = augment_kwargs or {}
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
     shape = tuple() if n == 1 else (n, )
     if not use_signed_magnitudes:
@@ -166,7 +166,7 @@ def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins, seed, a
             level_random_sign = random_sign[level_idx]
         op_kwargs = dict(samples=samples, magnitude_bin_idx=m,
                          num_magnitude_bins=num_magnitude_bins, random_sign=level_random_sign,
-                         **augment_kwargs)
+                         **kwargs)
         level_op_idx = op_idx if n == 1 else op_idx[level_idx]
         samples = select(augmentations, level_op_idx, op_kwargs)
     return samples

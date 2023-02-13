@@ -62,12 +62,6 @@ def trivial_augment_wide(samples, num_magnitude_bins=31, fill_value=0, interp_ty
         If, instead of just limiting the set of operations, you need to include some custom
         operations or fine-tuned of the existing ones, you can use the `apply_trivial_augment`
         directly, which accepts a list of augmentations.
-    augment_kwargs:
-        A dictionary of extra parameters to be passed when calling `augmentations`.
-        The signature of each augmentation is checked for any extra arguments and if
-        the name of the argument matches one from the `augment_kwargs`, the value is
-        passed as an argument. For example, some augmentations from the default
-        random augment suite accept `shapes`, `fill_value` and `interp_type`.
 
     Returns
     -------
@@ -75,7 +69,7 @@ def trivial_augment_wide(samples, num_magnitude_bins=31, fill_value=0, interp_ty
         A batch of transformed samples.
     """
     augments = dict(**trivial_augment_wide_suite)
-    augment_kwargs = {"fill_value": fill_value, "interp_type": interp_type}
+    kwargs = {"fill_value": fill_value, "interp_type": interp_type}
     excluded = excluded or tuple()
     for name in excluded:
         if name not in augments:
@@ -84,10 +78,10 @@ def trivial_augment_wide(samples, num_magnitude_bins=31, fill_value=0, interp_ty
                 f"does not contain such an augmentation.")
     selected_augments = [augment for name, augment in augments.items() if name not in excluded]
     return apply_trivial_augment(selected_augments, samples, num_magnitude_bins=num_magnitude_bins,
-                                 seed=seed, augment_kwargs=augment_kwargs)
+                                 seed=seed, **kwargs)
 
 
-def apply_trivial_augment(augmentations, samples, num_magnitude_bins, seed, augment_kwargs=None):
+def apply_trivial_augment(augmentations, samples, num_magnitude_bins=31, seed=None, **kwargs):
     """
     Applies TrivialAugment Wide (https://arxiv.org/abs/2103.10158) augmentation scheme to the
     provided batch of samples but with a custom set of augmentations.
@@ -108,6 +102,12 @@ def apply_trivial_augment(augmentations, samples, num_magnitude_bins, seed, augm
         If, instead of just limiting the set of operations, you need to include some custom
         operations or fine-tuned of the existing ones, you can use the `apply_rand_augment`
         directly, which accepts a list of augmentations.
+    kwargs:
+        Any extra parameters to be passed when calling `augmentations`.
+        The signature of each augmentation is checked for any extra arguments and if
+        the name of the argument matches one from the `kwargs`, the value is
+        passed as an argument. For example, some augmentations from the default
+        random augment suite accept `shapes`, `fill_value` and `interp_type`.
 
     Returns
     -------
@@ -128,6 +128,6 @@ def apply_trivial_augment(augmentations, samples, num_magnitude_bins, seed, augm
         random_sign = fn.random.uniform(range=[0, 1], dtype=types.INT32, seed=seed)
     op_kwargs = dict(samples=samples, magnitude_bin_idx=magnitude_bin_idx,
                      num_magnitude_bins=num_magnitude_bins, random_sign=random_sign,
-                     **augment_kwargs)
+                     **kwargs)
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
     return select(augmentations, op_idx, op_kwargs)

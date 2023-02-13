@@ -111,7 +111,7 @@ def auto_augment_image_net(samples, shapes=None, fill_value=0, interp_type=None,
     DataNode
         A batch of transformed samples.
     """
-    augment_kwargs = {"fill_value": fill_value, "interp_type": interp_type}
+    kwargs = {"fill_value": fill_value, "interp_type": interp_type}
     name = auto_augment_image_net_policy.name
     num_magnitude_bins = auto_augment_image_net_policy.num_magnitude_bins
     augments = dict(auto_augment_image_net_policy.augmentations)
@@ -119,12 +119,12 @@ def auto_augment_image_net(samples, shapes=None, fill_value=0, interp_type=None,
     if shapes is not None:
         augments["translate_x"] = a.translate_x_no_shape.augmentation((0, max_translate_width))
         augments["translate_y"] = a.translate_y_no_shape.augmentation((0, max_translate_height))
-        augment_kwargs["shapes"] = shapes
+        kwargs["shapes"] = shapes
     policy = Policy(name, num_magnitude_bins, augments, sub_policies)
-    return apply_auto_augment(policy, samples, seed, augment_kwargs)
+    return apply_auto_augment(policy, samples, seed, **kwargs)
 
 
-def apply_auto_augment(policy: Policy, samples, seed=None, augment_kwargs=None):
+def apply_auto_augment(policy: Policy, samples, seed=None, **kwargs):
     """
     Applies AutoAugment (https://arxiv.org/abs/1805.09501) augmentation scheme to the
     provided batch of samples.
@@ -137,10 +137,10 @@ def apply_auto_augment(policy: Policy, samples, seed=None, augment_kwargs=None):
         A batch of samples to be processed.
     seed: int, optional
         Seed to be used to randomly sample operations (and to negate magnitudes).
-    augment_kwargs:
+    kwargs:
         A dictionary of extra parameters to be passed when calling augmentations.
         The signature of each augmentation is checked for any extra arguments and if
-        the name of the argument matches one from the `augment_kwargs`, the value is
+        the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
         random augment suite accept `shapes`, `fill_value` and `interp_type`.
 
@@ -151,7 +151,6 @@ def apply_auto_augment(policy: Policy, samples, seed=None, augment_kwargs=None):
     """
     if len(policy.sub_policies) == 0:
         return samples
-    augment_kwargs = augment_kwargs or {}
     augmentations = policy.augmentations
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations.values())
     sub_policies = [[(augmentations[name], p, mag) for name, p, mag in sub_policy]
@@ -164,9 +163,10 @@ def apply_auto_augment(policy: Policy, samples, seed=None, augment_kwargs=None):
                                         dtype=types.INT32)
     should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT)
     op_kwargs = dict(samples=samples, should_run=should_run, random_sign=random_sign,
-                     num_magnitude_bins=policy.num_magnitude_bins, **augment_kwargs)
+                     num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
     sub_policies = [apply_sub_policy(sub_policy) for sub_policy in sub_policies]
-    policy_id = fn.random.uniform(values=list(range(len(sub_policies))), seed=seed, dtype=types.INT32)
+    policy_id = fn.random.uniform(values=list(range(len(sub_policies))), seed=seed,
+                                  dtype=types.INT32)
     return select(sub_policies, policy_id, op_kwargs)
 
 
