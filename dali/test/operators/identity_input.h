@@ -80,15 +80,15 @@ class IdentityInput : public InputOperator<Backend> {
   }
 
 
-  const TensorLayout& layout() const override {
+  const TensorLayout& in_layout() const override {
     DALI_FAIL("Not implemented");
   }
 
-  int ndim() const override {
+  int in_ndim() const override {
     DALI_FAIL("Not implemented");
   }
 
-  DALIDataType dtype() const override {
+  DALIDataType in_dtype() const override {
     DALI_FAIL("Not implemented");
   }
 

@@ -232,19 +232,19 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
   /**
-   * Returns the layout of the output from this Operator.
+   * Returns the layout at the input of this Operator.
    */
-  virtual const TensorLayout& layout() const = 0;
+  virtual const TensorLayout& in_layout() const = 0;
 
   /**
-   * Returns the number of dimensions at the output from this Operator.
+   * Returns the number of dimensions at the input of this Operator.
    */
-  virtual int ndim() const = 0;
+  virtual int in_ndim() const = 0;
 
   /**
-   * Returns the type of the data at the output from this Operator.
+   * Returns the type of the data at the input of this Operator.
    */
-  virtual DALIDataType dtype() const = 0;
+  virtual DALIDataType in_dtype() const = 0;
 
 
  protected:
