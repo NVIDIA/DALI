@@ -952,7 +952,7 @@ Parameters
             self._gpu_batches_to_consume -= 1
             return self._outputs()
 
-    def schedule_run(self):
+    def schedule_run(self, **pipeline_inputs):
         """Run the pipeline without returning the resulting buffers.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
@@ -965,9 +965,9 @@ Parameters
         Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
-                self._prefetch()
+                self._prefetch(**pipeline_inputs)
             else:
-                self._run_once()
+                self._run_once(**pipeline_inputs)
 
     # for the backward compatibility
     def _run(self):
@@ -1036,7 +1036,7 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
-    def run(self):
+    def run(self, **pipeline_inputs):
         """Run the pipeline and return the result.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
@@ -1050,10 +1050,10 @@ Parameters
             A list of `TensorList` objects for respective pipeline outputs
         """
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
-            self.schedule_run()
+            self.schedule_run(**pipeline_inputs)
             return self.outputs()
 
-    def _prefetch(self):
+    def _prefetch(self, **pipeline_inputs):
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -1062,10 +1062,10 @@ Parameters
             self._fill_separated_queues()
         else:
             for _ in range(self._prefetch_queue_depth):
-                self._run_once()
+                self._run_once(**pipeline_inputs)
         self._first_iter = False
 
-    def _run_once(self):
+    def _run_once(self, **pipeline_inputs):
         """Start running the whole pipeline once without waiting for its results.
 
         If the pipeline was created with `exec_async` option set to `True`,
@@ -1077,6 +1077,8 @@ Parameters
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
+            for inp_name, inp_value in pipeline_inputs.items():
+                self.feed_input(inp_name, inp_value)
             self._run_cpu()
             self._run_gpu()
         except StopIteration:
@@ -1481,7 +1483,11 @@ def pipeline_def(fn=None, **pipeline_kwargs):
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
-                pipe_outputs = func(*args, **fn_kwargs)
+                from ._utils.pipeline_ast import augment_pipeline_def, get_function_from_ast
+                aug_tree = augment_pipeline_def(func)
+                aug_func = get_function_from_ast(aug_tree, func.__name__)
+
+                pipe_outputs = aug_func(*args, **fn_kwargs)
                 if isinstance(pipe_outputs, tuple):
                     po = pipe_outputs
                 elif pipe_outputs is None:
