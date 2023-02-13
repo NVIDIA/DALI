@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import fn
-
 try:
     import numpy as np
 except ImportError:
@@ -31,16 +29,6 @@ def remap_bins_to_signed_magnitudes(magnitudes, randomly_negate):
         return magnitude
 
     return np.array([remap_bin_idx(bin_idx) for bin_idx in range(2 * len(magnitudes))])
-
-
-def operation_idx_random_choice(num_total_ops, num_levels=1, rng_seed=42):
-    shape = tuple() if num_levels == 1 else (num_levels, )
-    rng = np.random.default_rng(rng_seed)
-
-    def random_choice(_):
-        return rng.choice(range(num_total_ops), shape)
-
-    return fn.external_source(source=random_choice, batch=False)
 
 
 def split_samples_among_ops(op_range_lo, op_range_hi, ops, selected_op_idx, op_kwargs):

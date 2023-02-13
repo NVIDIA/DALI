@@ -15,7 +15,7 @@
 from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
-from nvidia.dali.auto_aug.core.utils import operation_idx_random_choice, select
+from nvidia.dali.auto_aug.core.utils import select
 
 rand_augment_suite = {
     "shear_x": a.shear_x.augmentation((0, 0.3), True),
@@ -152,12 +152,13 @@ def apply_rand_augment(augmentations, samples, n, m, num_magnitude_bins, seed, a
         return samples
     augment_kwargs = augment_kwargs or {}
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
+    shape = tuple() if n == 1 else (n, )
     if not use_signed_magnitudes:
         random_sign = None
     else:
-        random_sign = fn.random.uniform(range=[0, 1], dtype=types.INT32, seed=seed,
-                                        shape=tuple() if n == 1 else (n, ))
-    op_idx = operation_idx_random_choice(len(augmentations), n, seed)
+        random_sign = fn.random.uniform(values=[0, 1], seed=seed, shape=shape, dtype=types.INT32)
+    op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, shape=shape,
+                               dtype=types.INT32)
     for level_idx in range(n):
         if not use_signed_magnitudes or n == 1:
             level_random_sign = random_sign
