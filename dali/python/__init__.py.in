@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,5 +27,5 @@ from . import tfrecord
 from . import types
 from . import plugin_manager
 from . import sysconfig
-from .pipeline import Pipeline, pipeline_def
+from .pipeline import Pipeline, pipeline_def, Input
 from .data_node import newaxis

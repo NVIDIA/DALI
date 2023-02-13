@@ -1904,3 +1904,13 @@ def test_double_output_dtype_ndim():
         create_test_package(output_dtype=int)
     with assert_raises(ValueError, glob="*types.NO_TYPE*"):
         create_test_package(output_dtype=types.NO_TYPE)
+
+
+def test_pipeline_def_with_inputs():
+    @pipeline_def()
+    def my_pipe(x: dali.Input, y: dali.Input):
+        return x + y
+
+    pipe = my_pipe(batch_size=1, device_id=None, num_threads=1)
+    out, = pipe.run(x=[np.array([1, 2, 3])], y=[np.float32(42)])
+    assert np.array_equal(out[0], np.float32([43, 44, 45]))

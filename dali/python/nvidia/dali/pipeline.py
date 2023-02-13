@@ -896,7 +896,7 @@ Parameters
             when copying data to/from GPU memory) instead of ``cudaMemcpyAsync`` (default).
         """
         if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+            self.build()
         if isinstance(data_node, str):
             name = data_node
         else:
@@ -921,7 +921,7 @@ Parameters
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""
         if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+            self.build()
         if not self._last_iter:
             self._pipe.RunCPU()
             self._cpu_batches_to_consume += 1
@@ -929,7 +929,7 @@ Parameters
     def _run_gpu(self):
         """Run GPU portion of the pipeline."""
         if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
+            self.build()
         if self._cpu_batches_to_consume > 0:
             self._pipe.RunGPU()
             self._cpu_batches_to_consume -= 1
@@ -1036,7 +1036,7 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
-    def run(self):
+    def run(self, **inputs):
         """Run the pipeline and return the result.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
@@ -1362,6 +1362,10 @@ Parameters
                 for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
 
 
+class Input:
+    pass
+
+
 def _discriminate_args(func, **func_kwargs):
     """Split args on those applicable to Pipeline constructor and the decorated function."""
     func_argspec = inspect.getfullargspec(func)
@@ -1383,6 +1387,10 @@ def _discriminate_args(func, **func_kwargs):
             f"graph-defining function is not allowed.")
 
     for farg in func_kwargs.items():
+        annotation = func_argspec.annotations.get(farg[0], None)
+        if annotation is Input:
+            raise ValueError(f"The argument {farg} is a pipeline input and should be passed "
+                             f"to pipeline's `run`, function, not to {func.__name__}")
         is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
         is_fn_arg = farg[0] in func_argspec.args or farg[0] in func_argspec.kwonlyargs
         if is_fn_arg:
@@ -1397,6 +1405,22 @@ def _discriminate_args(func, **func_kwargs):
             assert False, f"This shouldn't happen. Please double-check the `{farg[0]}` argument"
 
     return ctor_args, fn_args
+
+
+def _run_with_inputs(self, input_names, run_impl):
+    @functools.wraps(run_impl)
+    def _run_with_inpus_impl(**inputs):
+        for name, value in inputs.items():
+            if name not in input_names:
+                raise ValueError(f"The pipeline doesn't have an input '{name}'")
+        for inp_name in input_names:
+            if inp_name not in inputs:
+                raise ValueError(f"Missing value for input '{inp_name}'")
+        for name, value in inputs.items():
+            self.feed_input(name, value)
+
+        return run_impl()
+    return _run_with_inpus_impl
 
 
 def pipeline_def(fn=None, **pipeline_kwargs):
@@ -1478,7 +1502,25 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
+            from . import fn
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
+
+            func_argspec = inspect.getfullargspec(func)
+            inputs = []
+            for name in func_argspec.args:
+                annotation = func_argspec.annotations.get(name, None)
+                if annotation is Input:
+                    fn_kwargs[name] = fn.external_source(name=name)
+                    inputs.append(name)
+
+            if len(inputs):
+                if "prefetch_queue_depth" in ctor_args:
+                    if ctor_args["prefetch_queue_depth"] != 1:
+                        raise ValueError("A pipeline with Input arguments must not be created with "
+                                         "`prefetch_queue_depth` other than 1.")
+                else:
+                    ctor_args["prefetch_queue_depth"] = 1
+
             pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
@@ -1489,6 +1531,10 @@ def pipeline_def(fn=None, **pipeline_kwargs):
                 else:
                     po = (pipe_outputs, )
                 pipe.set_outputs(*po)
+
+                if len(inputs):
+                    pipe.run = _run_with_inputs(pipe, inputs, pipe.run)
+
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
