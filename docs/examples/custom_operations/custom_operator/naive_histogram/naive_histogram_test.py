@@ -39,9 +39,9 @@ test_file_list = [
 def naive_hist_pipe():
     img, _ = fn.readers.file(files=test_file_list)
     # The naive_histogram accepts single-channels image, thus we conert the image to Grayscale.
-    img = fn.decoders.image(img, n_bins=24, device='mixed', output_type=DALIImageType.GRAY)
+    img = fn.decoders.image(img, device='mixed', output_type=DALIImageType.GRAY)
     img = img.gpu()
-    img = fn.naive_histogram(img)
+    img = fn.naive_histogram(img, n_bins=24)
     return img
 
 

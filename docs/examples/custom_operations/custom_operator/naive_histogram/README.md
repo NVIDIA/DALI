@@ -26,7 +26,8 @@ $ make -j
 really be any image, as long as it's not broken. The test provides preliminary image list as an 
 example. We're using a [DALI_Extra](https://github.com/NVIDIA/DALI_extra) repository for that
 purpose, but it's not obligatory. Should you want to use DALI Extra too, please clone (or download)
-the repo and set a environment variable defining the path to DALI Extra:
+the repo. Be sure to use [the instructions provided](https://github.com/NVIDIA/DALI_Extra#usage).
+After cloning, please set an environment variable defining the path to DALI Extra:
 ```bash
 git clone -d /path/to/dali/extra https://github.com/NVIDIA/DALI_extra
 export DALI_EXTRA_PATH=/path/to/dali/extra

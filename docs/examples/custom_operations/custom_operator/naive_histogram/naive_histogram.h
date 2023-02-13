@@ -26,6 +26,7 @@ class NaiveHistogram : public ::dali::Operator<Backend> {
  public:
   explicit NaiveHistogram(const ::dali::OpSpec &spec) :
           ::dali::Operator<Backend>(spec),
+          // We get a value of scalar argument from the OpSpec.
           n_histogram_bins_(spec.GetArgument<int>("n_bins")) {}
 
 
