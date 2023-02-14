@@ -16,6 +16,30 @@ from setuptools import setup, find_packages
 
 setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       description='NVIDIA DALI @DALI_FLAVOR@ for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
+          long_description='''NVIDIA DALI
+===========
+
+The NVIDIA Data Loading Library (DALI) is a library for data loading and
+pre-processing to accelerate deep learning applications. It provides a
+collection of highly optimized building blocks for loading and processing
+image, video and audio data. It can be used as a portable drop-in replacement
+for built in data loaders and data iterators in popular deep learning frameworks.
+
+Deep learning applications require complex, multi-stage data processing pipelines
+that include loading, decoding, cropping, resizing, and many other augmentations.
+These data processing pipelines, which are currently executed on the CPU, have become a
+bottleneck, limiting the performance and scalability of training and inference.
+
+DALI addresses the problem of the CPU bottleneck by offloading data preprocessing to the
+GPU. Additionally, DALI relies on its own execution engine, built to maximize the throughput
+of the input pipeline. Features such as prefetching, parallel execution, and batch processing
+are handled transparently for the user.
+
+In addition, the deep learning frameworks have multiple data pre-processing implementations,
+resulting in challenges such as portability of training and inference workflows, and code
+maintainability. Data processing pipelines implemented using DALI are portable because they
+can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
+''',
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
