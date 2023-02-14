@@ -119,15 +119,14 @@ def apply_trivial_augment(augmentations, samples, num_magnitude_bins=31, seed=No
             f"The number of magnitude bins cannot be less than 1, got {num_magnitude_bins}.")
     if len(augmentations) == 0:
         return samples
-    magnitude_bin_idx = fn.random.uniform(range=[0, num_magnitude_bins - 1], dtype=types.INT32,
+    magnitude_bin_idx = fn.random.uniform(values=list(range(num_magnitude_bins)), dtype=types.INT32,
                                           seed=seed)
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
     if not use_signed_magnitudes:
         random_sign = None
     else:
-        random_sign = fn.random.uniform(range=[0, 1], dtype=types.INT32, seed=seed)
+        random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32, seed=seed)
     op_kwargs = dict(samples=samples, magnitude_bin_idx=magnitude_bin_idx,
-                     num_magnitude_bins=num_magnitude_bins, random_sign=random_sign,
-                     **kwargs)
+                     num_magnitude_bins=num_magnitude_bins, random_sign=random_sign, **kwargs)
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
     return select(augmentations, op_idx, op_kwargs)
