@@ -157,6 +157,30 @@ def test_lazy_eval():
     compare_pipelines(*pipes, bs, iters)
 
 
+def test_lazy_eval_with_oob():
+    bs = 10
+    iters = 5
+    kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def base_pipe():
+        return types.Constant(np.bool_(True))
+
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    def expr_pipe():
+        boolean_tensor_input = types.Constant(np.bool_([True, True, False]), device="cpu")
+        index_input_1 = types.Constant(np.int32(1), device="cpu")
+        index_input_42 = types.Constant(np.int32(42), device="cpu")
+        # do an oob access in the right subexpression that won't be evaluated.
+        val = boolean_tensor_input[index_input_1] or boolean_tensor_input[index_input_42]
+        return val
+
+    pipes = [base_pipe(), expr_pipe()]
+    for pipe in pipes:
+        pipe.build()
+    compare_pipelines(*pipes, bs, iters)
+
+
 logical_expressions = [
     lambda x: not x,
     lambda x: x and fn.random.coin_flip(dtype=types.DALIDataType.BOOL),

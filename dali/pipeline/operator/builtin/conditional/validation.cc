@@ -31,8 +31,8 @@ const char *kSuggestion =
     "If you need to process inputs of higher dimensionality, different type, or device placement, "
     "you may use bitwise arithmetic operators `&`, `|` or comparison operator (`== 0`) "
     "to emulate logical `and`, `or` and `not` expressions.  Those operations performed on "
-    "boolean inputs are equivalent to logical expressions. Keep in mind that such expression "
-    "would be evaluated eagerly.";
+    "boolean inputs are equivalent to logical expressions. Keep in mind that, in contrast to using "
+    "logical operators, all subexpressions of elementwise arithmetic operators are evaluated.";
 
 const char *kAllowedNames[] = {"and", "or", "not", "if"};
 const char *kAllowedWheres[] = {"", "left", "right", "if-stmt"};

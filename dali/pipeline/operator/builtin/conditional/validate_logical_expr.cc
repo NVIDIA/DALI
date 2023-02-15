@@ -53,7 +53,8 @@ The inputs are restricted to scalar values of boolean type - this makes them con
 with Python semantics and allows for unambiguous ``if`` evaluation.
 You can use mathematical operators `&`, `|`, or ``==`` and compare with 0 to emulate elementwise
 equivalent of logical operations on inputs of other types, shapes, and placements.
-Note that such operations would be eager.
+Note that, in contrast to using logical operators, all subexpressions of elementwise arithmetic
+operators are evaluated.
 The GPU variant of this operator is used to fail fast and provide better error message.
 )code")
     .NumInput(1)
