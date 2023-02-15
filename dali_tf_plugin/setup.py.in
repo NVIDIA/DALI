@@ -39,7 +39,7 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       long_description='''Tensorflow plugin for NVIDIA DALI
 ===========
 
-The Tensorflow plugin enabled usage of DALI with TensorFlow.
+The TensorFlow plugin enables usage of DALI with TensorFlow.
 
 The NVIDIA Data Loading Library (DALI) is a library for data loading and
 pre-processing to accelerate deep learning applications. It provides a
