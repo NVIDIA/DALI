@@ -37,7 +37,7 @@ class CustomDistribution(Distribution):
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       description='NVIDIA DALI @DALI_FLAVOR@ TensorFlow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
       long_description='''TensorFlow plugin for NVIDIA DALI
-===========
+=================================
 
 The TensorFlow plugin enables usage of DALI with TensorFlow.
 
@@ -62,6 +62,7 @@ resulting in challenges such as portability of training and inference workflows,
 maintainability. Data processing pipelines implemented using DALI are portable because they
 can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
 ''',
+      long_description_content_type="text/x-rst",
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
