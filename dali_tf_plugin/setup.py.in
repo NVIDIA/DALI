@@ -35,8 +35,8 @@ class CustomDistribution(Distribution):
         self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
-      description='NVIDIA DALI @DALI_FLAVOR@ Tensorflow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
-      long_description='''Tensorflow plugin for NVIDIA DALI
+      description='NVIDIA DALI @DALI_FLAVOR@ TensorFlow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
+      long_description='''TensorFlow plugin for NVIDIA DALI
 ===========
 
 The TensorFlow plugin enables usage of DALI with TensorFlow.
