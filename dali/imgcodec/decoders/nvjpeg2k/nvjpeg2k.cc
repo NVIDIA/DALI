@@ -187,11 +187,11 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     is_roi_oob;
 
   auto decode_out = out;
-  auto decode_sh = ctx.orig_shape;
+  TensorShape<> decode_sh;
   ROI roi_decode;  // ROI passed to decode API
   ROI roi_convert;  // ROI passed to convert API
   if (ctx.roi && !is_roi_oob) {
-    // if ROI decoding and ROI withing bounds
+    // if ROI decoding and ROI within bounds
     // then use ROI decoding API directly
     decode_sh = ctx.shape;
     roi_decode = ctx.roi;
@@ -205,7 +205,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   if (is_processing_needed) {
     int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
     size_t nbytes = volume(decode_sh) * type_size;
-    void *tmp_buff = scratchpad.AllocateGPU<uint8_t>(nbytes);
+    void *tmp_buff = scratchpad.AllocateGPU<uint8_t>(nbytes, type_size);
     decode_out = {tmp_buff, decode_sh, ctx.pixel_type};
   }
   result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), decode_sh, ctx, roi_decode);
