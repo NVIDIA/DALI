@@ -15,7 +15,7 @@
 #if FFMPEG_ENABLED
 #include "dali/operators/input/video_input.h"
 #endif
-#include "dali/pipeline/operator/builtin/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {

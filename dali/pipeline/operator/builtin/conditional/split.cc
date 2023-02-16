@@ -17,8 +17,9 @@
 #include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operator/builtin/split.h"
-#include "dali/pipeline/operator/builtin/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/split.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 
 namespace dali {
 
@@ -26,6 +27,11 @@ template <typename Backend>
 bool Split<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   const auto &input = ws.template Input<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
+  if (if_stmt_implementation_) {
+    // TODO(klecki): As a next step, lift the restriction on boolean input type.
+    EnforceConditionalInputKind(predicate, "if", "if-stmt", true);
+  }
+
   DALI_ENFORCE(
       input.num_samples() == predicate.num_samples(),
       make_string("Split description must cover whole input, got ", input.num_samples(),
@@ -105,6 +111,11 @@ DALI_SCHEMA(_conditional__Split)
         "Each boolean denotes if the corresponding input sample goes into the true or false "
         "branch.",
         DALI_BOOL, true)
+    .AddOptionalArg(
+        "_if_stmt",
+        "If True, the operator is used as implementation of `if` statement and should apply "
+        "additional error checking, presenting the specialized error message. Internal use only.",
+        false)
     .SamplewisePassThrough()
     .MakeDocHidden();
 

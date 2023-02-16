@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_MERGE_H_
-#define DALI_PIPELINE_OPERATOR_BUILTIN_MERGE_H_
+#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_
+#define DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_
 
-#include <optional>
 #include <vector>
 
-#include "dali/core/access_order.h"
-#include "dali/core/common.h"
 #include "dali/pipeline/operator/operator.h"
+
 namespace dali {
 
 template <typename Backend>
-class Merge : public Operator<Backend> {
+class Split : public Operator<Backend> {
  public:
-  explicit Merge(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Split(const OpSpec &spec)
+      : Operator<Backend>(spec), if_stmt_implementation_(spec.GetArgument<bool>("_if_stmt")) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
   }
 
-  ~Merge() override = default;
+  ~Split() override = default;
 
   bool CanInferOutputs() const override {
     return false;
@@ -41,37 +40,24 @@ class Merge : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
-  DISABLE_COPY_MOVE_ASSIGN(Merge);
+  DISABLE_COPY_MOVE_ASSIGN(Split);
 
  private:
-  /**
-   * @brief Fallback for scheduling copy in a thread pool or on a stream
-   */
-  void CopySampleToOutput(TensorList<Backend> &output, int output_idx,
-                          const TensorList<Backend> &input, int input_idx,
-                          Workspace &ws);
-
-  /**
-   * @brief For CPU backend, execute the work scheduled in thread pool.
-   */
-  void FinalizeCopy(Workspace &ws);
-
   void RegisterTestsDiagnostics();
   void WriteTestsDiagnostics(const Workspace &ws);
 
   USE_OPERATOR_MEMBERS();
 
-  // We can only merge two batches based on a boolean predicate.
+  // We can only split two batches based on a boolean predicate.
   static constexpr int kMaxGroups = 2;
-  int input_sample_count_ = 0;
-  std::optional<bool> pinned_;
-  int device_id_ = CPU_ONLY_DEVICE_ID;
-  std::optional<AccessOrder> order_;
+  std::array<int, kMaxGroups> group_counts_;
+
+  bool if_stmt_implementation_ = false;
 
   // test diagnostics
-  bool in_0_pinned_, in_1_pinned_, out_pinned_;
+  bool in_pinned_, out_0_pinned_, out_1_pinned_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_MERGE_H_
+#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_H_

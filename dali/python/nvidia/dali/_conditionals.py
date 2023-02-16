@@ -252,7 +252,8 @@ class _ConditionStack:
                             f" at {self.stack_depth() -1}:"
                             f" split({produced_data_node}, predicate={predicate}."))
             self._is_registration_allowed = False
-            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate)
+            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate,
+                                                          _if_stmt=True)
             self._is_registration_allowed = True
 
             # Record the result of splitting the `data_node` that we are trying to look up
@@ -514,6 +515,67 @@ class DaliOperatorOverload(_autograph.OperatorBase):
         # No point in propagating the split/merged values that won't be read later.
         output_values += init_state[nouts:]
         set_state(output_values)
+
+    def detect_overload_not_(self, a):
+        return isinstance(a, _DataNode)
+
+    def not_(self, a):
+        # Not is eager (not lazy)
+        return fn._conditional.not_(a)
+
+    def detect_overload_lazy_and(self, a):
+        return isinstance(a, _DataNode)
+
+    def lazy_and(self, a_value, b):
+        # We proceed similarly to `if` statement, but we don't have to trace branches and go back.
+        # Instead we have one branch already evaluated and conditionally execute the other one.
+        # effectively we want `and_output = a_val and b` to be calculated as:
+        # if a_val:
+        #   and_output = b()
+        # else:
+        #   and_output = a_val
+        a_validated = fn._conditional.validate_logical(a_value, expression_name="and",
+                                                       expression_side="left")
+        with _cond_manager(a_validated) as split_predicate:
+            with _cond_true():
+                b_value = b()
+                b_validated = fn._conditional.validate_logical(b_value, expression_name="and",
+                                                               expression_side="right")
+                body_outputs = apply_conditional_split(b_validated)
+            with _cond_false():
+                else_outputs = apply_conditional_split(split_predicate)
+            with _cond_merge(split_predicate):
+                merged = fn._conditional.merge(body_outputs, else_outputs,
+                                               predicate=split_predicate)
+
+        this_condition_stack().register_data_nodes([merged], False)
+        return merged
+
+    def detect_overload_lazy_or(self, a):
+        return isinstance(a, _DataNode)
+
+    def lazy_or(self, a_value, b):
+        # To implement `or_output = a_val or b` we calculate it as:
+        # if a_val:
+        #   or_output = a_val
+        # else:
+        #   or_output = b()
+        a_validated = fn._conditional.validate_logical(a_value, expression_name="or",
+                                                       expression_side="left")
+        with _cond_manager(a_validated) as split_predicate:
+            with _cond_true():
+                body_outputs = apply_conditional_split(split_predicate)
+            with _cond_false():
+                b_value = b()
+                b_validated = fn._conditional.validate_logical(b_value, expression_name="or",
+                                                               expression_side="right")
+                else_outputs = apply_conditional_split(b_validated)
+            with _cond_merge(split_predicate):
+                merged = fn._conditional.merge(body_outputs, else_outputs,
+                                               predicate=split_predicate)
+
+        this_condition_stack().register_data_nodes([merged], False)
+        return merged
 
 
 _OVERLOADS = DaliOperatorOverload()

@@ -18,8 +18,8 @@
 #include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operator/builtin/merge.h"
-#include "dali/pipeline/operator/builtin/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/merge.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 
 namespace dali {
 
