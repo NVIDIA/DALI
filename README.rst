@@ -38,25 +38,25 @@ DALI in action::
   import nvidia.dali.fn as fn
   from nvidia.dali.plugin.pytorch import DALIGenericIterator
   import os
-  
+
   # To run with different data, see documentation of nvidia.dali.fn.readers.file
   # points to https://github.com/NVIDIA/DALI_extra
   data_root_dir = os.environ['DALI_EXTRA_PATH']
   images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
-  
-  
+
+
   def loss_func(pred, y):
       pass
-  
-  
+
+
   def model(x):
       pass
-  
-  
+
+
   def backward(loss, model):
       pass
-  
-  
+
+
   @pipeline_def(num_threads=4, device_id=0)
   def get_dali_pipeline():
       images, labels = fn.readers.file(
@@ -74,15 +74,15 @@ DALI in action::
           std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
           mirror=fn.random.coin_flip())
       return images, labels
-  
-  
+
+
   train_data = DALIGenericIterator(
       [get_dali_pipeline(batch_size=16)],
       ['data', 'label'],
       reader_name='Reader'
   )
-  
-  
+
+
   for i, data in enumerate(train_data):
       x, y = data[0]['data'], data[0]['label']
       pred = model(x)
@@ -120,14 +120,14 @@ Highlights
 DALI Roadmap
 ------------
 
-|dali-roadmap-link|_ a high-level overview of our 2022 plan. You should be aware that this
+|dali-roadmap-link|_ a high-level overview of our 2023 plan. You should be aware that this
 roadmap may change at any time and the order below does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
 
 .. |dali-roadmap-link| replace:: The following issue represents
-.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/3774
+.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/4578
 
 ----
 
