@@ -64,7 +64,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
-    use_jpegturbo_upsampling_(spec.GetArgument<bool>("use_jpegturbo_upsampling")),
+    use_jpegturbo_upsampling_(spec.GetArgument<bool>("jpeg_fancy_upsampling")),
     output_shape_(max_batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),

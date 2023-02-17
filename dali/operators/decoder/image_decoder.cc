@@ -144,7 +144,7 @@ the GPU implementation.
 According to the libjpeg-turbo documentation, decompression performance is improved by up to 14%
 with little reduction in quality.)code",
       false)
-  .AddOptionalArg("use_jpegturbo_upsampling",
+  .AddOptionalArg("jpeg_fancy_upsampling",
       R"code(Make the ``mixed`` backend use the same chroma upsampling approach as the ``cpu`` one.
 
 The option corresponds to the `JPEG fancy upsampling`.)code",
