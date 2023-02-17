@@ -263,28 +263,6 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
 };
 
 
-DALI_SCHEMA(experimental__CropMirrorNormalize)
-  .DocStr(R"code(Performs fused cropping, normalization, format conversion
-(NHWC to NCHW) if desired, and type casting.
-
-Normalization takes the input images and produces the output by using the following formula::
-
-  output = scale * (input - mean) / std + shift
-
-.. note::
-    If no cropping arguments are specified, only mirroring and normalization will occur.
-)code")
-  .NumInput(1)
-  .NumOutput(1)
-  .InputLayout(0, {"HWC", "CHW",
-                   "DHWC", "CDHW",
-                   "FHWC", "FCHW", "CFHW",
-                   "FDHWC", "FCDHW", "CFDHW"})
-  .AllowSequences()
-  .SupportVolumetric()
-  .AddParent("CropMirrorNormalize");
-
-DALI_REGISTER_OPERATOR(experimental__CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, NewCropMirrorNormalizeGPU, GPU);
 
 }  // namespace dali
