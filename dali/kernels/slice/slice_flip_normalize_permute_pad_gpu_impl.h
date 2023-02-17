@@ -283,17 +283,7 @@ void SliceFlipNormalizePermutePadGpu<OutputType, InputType, Dims>::Run(
 #define CMN_KERNEL_INSTANTIATE_IMPL(Out, In, ndim)                                    \
   template class DLL_PUBLIC SliceFlipNormalizePermutePadGpu<Out, In, ndim>;
 
-#define CMN_KERNEL_INSTANTIATE_FOREACH_INTYPE_ALL(Out, ndim)  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, uint8_t, ndim);  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, int8_t, ndim);  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, uint16_t, ndim); \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, int16_t, ndim);  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, uint32_t, ndim);  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, int32_t, ndim);  \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, float, ndim);    \
-    CMN_KERNEL_INSTANTIATE_IMPL(Out, dali::float16, ndim);
-
-#define CMN_KERNEL_INSTANTIATE_FOREACH_INTYPE_SUBSET(Out, ndim)  \
+#define CMN_KERNEL_INSTANTIATE_FOREACH_INTYPE(Out, ndim)  \
     CMN_KERNEL_INSTANTIATE_IMPL(Out, uint8_t, ndim);  \
     CMN_KERNEL_INSTANTIATE_IMPL(Out, uint16_t, ndim); \
     CMN_KERNEL_INSTANTIATE_IMPL(Out, int16_t, ndim);  \

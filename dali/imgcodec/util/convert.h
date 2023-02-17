@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "dali/imgcodec/image_orientation.h"
 #include "dali/imgcodec/image_decoder_interfaces.h"
 
+#define IMGCODEC_IN_TYPES uint8_t, int16_t, uint16_t
 #define IMGCODEC_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float
 
 namespace dali {

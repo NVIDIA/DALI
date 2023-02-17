@@ -17,7 +17,7 @@
 namespace dali {
 namespace kernels {
 
-CMN_KERNEL_INSTANTIATE_FOREACH_INTYPE_ALL(int32_t, 3);
+CMN_KERNEL_INSTANTIATE_FOREACH_INTYPE(int32_t, 3);
 
 }  // namespace kernels
 }  // namespace dali

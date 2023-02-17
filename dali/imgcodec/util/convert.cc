@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,9 +63,14 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
       throw std::logic_error("The requested ROI size does not match the output size");
   }
 
-  auto UnsupportedType = [](const char *which_type, DALIDataType type_id) {
-    DALI_FAIL(make_string("Unsupported ", which_type, " type: ", type_id,
+  auto UnsupportedOutputType = [](DALIDataType type_id) {
+    DALI_FAIL(make_string("Unsupported output type: ", type_id,
                           ListTypeNames<IMGCODEC_TYPES>()));
+  };
+
+  auto UnsupportedInputType = [](DALIDataType type_id) {
+    DALI_FAIL(make_string("Unsupported intput type: ", type_id,
+                          ListTypeNames<IMGCODEC_IN_TYPES>()));
   };
 
   TensorShape<> out_strides = kernels::GetStrides(out_shape);
@@ -79,7 +84,7 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   }
 
   TYPE_SWITCH(out.type(), type2id, Out, (IMGCODEC_TYPES),
-    TYPE_SWITCH(in.type(), type2id, In, (IMGCODEC_TYPES),
+    TYPE_SWITCH(in.type(), type2id, In, (IMGCODEC_IN_TYPES),
       auto out_ptr = out.mutable_data<Out>();
       ApplyOrientation(orientation, out_ptr,
                        out_strides[w_dim], out_shape[w_dim],
@@ -87,8 +92,8 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
       (Convert(out_ptr, out_strides.data(), out_channel_dim, out_format,
                in.data<In>() + in_offset, in_strides.data(), in_channel_dim, in_format,
                out_shape.data(), ndim)),
-      (UnsupportedType("input", in.type());)),
-    (UnsupportedType("output", out.type());));
+      (UnsupportedInputType(in.type());)),
+    (UnsupportedOutputType(out.type());));
 }
 
 }  // namespace imgcodec
