@@ -64,6 +64,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
+    use_jpegturbo_upsampling_(spec.GetArgument<bool>("use_jpegturbo_upsampling")),
     output_shape_(max_batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
@@ -95,6 +96,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // TODO(ktokarski) TODO(jlisiecki) For now it is unused,
     // adjust NVJPEG to (full capacity of) H100
     (void) num_hw_engines_;
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+    unsigned int nvjpeg_flags = use_jpegturbo_upsampling_ ?
+                                  NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
+#else
+    unsigned int nvjpeg_flags = 0;
+#endif
 #if IS_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
@@ -106,7 +113,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 
     if (try_init_hw_decoder &&
-        nvjpegCreate(NVJPEG_BACKEND_HARDWARE, NULL, &handle_) == NVJPEG_STATUS_SUCCESS) {
+        nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, NULL, NULL, nvjpeg_flags, &handle_) == NVJPEG_STATUS_SUCCESS) {
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
@@ -117,7 +124,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         hw_decoder_load_ = 0;
         CUDA_CALL(nvjpegDestroy(handle_));
         LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
-        CUDA_CALL(nvjpegCreateSimple(&handle_));
+        CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &handle_));
         DALI_WARN("Due to performance reason HW NVJPEG decoder is disabled for the driver "
                   "older than 455.x");
       } else {
@@ -182,10 +189,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
     } else {
       LOG_LINE << "NVJPEG_BACKEND_HARDWARE is either disabled or not supported" << std::endl;
-      CUDA_CALL(nvjpegCreateSimple(&handle_));
+      CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &handle_));
     }
 #else
-    CUDA_CALL(nvjpegCreateSimple(&handle_));
+    CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &handle_));
 #endif
 
     size_t device_memory_padding = spec.GetArgument<Index>("device_memory_padding");
@@ -1065,6 +1072,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   unsigned int hybrid_huffman_threshold_;
   bool use_fast_idct_;
+  bool use_jpegturbo_upsampling_;
 
   TensorListShape<> output_shape_;
 
