@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -526,6 +526,8 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 1, 10>, 10, 10>,
     SliceTestArgs<uint8_t, float, 3, 1, 3,
       SliceFlipNormPermArgsGen_OnlyPad_GivenDim<float, 3, 0, 10>, 10, 10>,
+    SliceTestArgs<int, bool, 3, 1, 2,
+      SliceFlipNormPermArgsGen_SliceOnly<bool, 3>>,
     SliceTestArgs<int, float, 3, 1, 10,
       ArgsGen_SingleValuePad_PermuteHWC2CHW<float, 3>, 10, 10>,
     SliceTestArgs<int, float, 3, 1, 10,
