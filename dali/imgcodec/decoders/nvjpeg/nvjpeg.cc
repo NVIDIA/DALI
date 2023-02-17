@@ -35,8 +35,16 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   SetParams(params);
 
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+  unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ ?
+                                NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
+#else
+  unsigned int nvjpeg_flags = 0;
+#endif
+
   DeviceGuard dg(device_id_);
-  CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
+
+  CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &nvjpeg_handle_));
 
   tp_ = std::make_unique<ThreadPool>(num_threads_, device_id, true, "NvJpegDecoderInstance");
   resources_.reserve(tp_->NumThreads());
@@ -167,6 +175,9 @@ bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
     num_threads_ = any_cast<int>(value);
     return true;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    use_jpeg_fancy_upsampling_ = any_cast<bool>(value);
+    return true;
   }
 
   return false;
@@ -179,6 +190,8 @@ any NvJpegDecoderInstance::GetParam(const char *name) const {
     return host_memory_padding_;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
     return num_threads_;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    return use_jpeg_fancy_upsampling_;
   } else {
     return {};
   }

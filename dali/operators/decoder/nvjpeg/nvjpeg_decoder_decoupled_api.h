@@ -113,7 +113,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
 
     if (try_init_hw_decoder &&
-        nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, NULL, NULL, nvjpeg_flags, &handle_) == NVJPEG_STATUS_SUCCESS) {
+        nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, NULL, NULL, nvjpeg_flags, &handle_)
+                                                                        == NVJPEG_STATUS_SUCCESS) {
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED

@@ -75,6 +75,7 @@ class DecoderBase : public Operator<Backend> {
     GetDecoderSpecificArgument<size_t>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<size_t>(spec, "preallocate_height_hint");
     GetDecoderSpecificArgument<bool>(spec, "use_fast_idct");
+    GetDecoderSpecificArgument<bool>(spec, "jpeg_fancy_upsampling");
     GetDecoderSpecificArgument<int>(spec, "num_threads");
 
     if (decoder_params_.count("nvjpeg_num_threads") == 0)
