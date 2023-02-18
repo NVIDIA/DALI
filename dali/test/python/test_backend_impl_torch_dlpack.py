@@ -72,7 +72,9 @@ def check_dlpack_types_gpu(t):
 
 def test_dlpack_interface_types():
     for t in [
-            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            # the more recent PyTorch doesn't support
+            # torch.bool,
+            torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
             torch.float64, torch.float32, torch.float16
     ]:
         yield check_dlpack_types_gpu, t
@@ -156,7 +158,9 @@ def check_dlpack_types_cpu(t):
 
 def test_dlpack_interface_types_cpu():
     for t in [
-            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            # the more recent PyTorch doesn't support
+            # torch.bool,
+            torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
             torch.float64, torch.float32
     ]:
         yield check_dlpack_types_cpu, t
