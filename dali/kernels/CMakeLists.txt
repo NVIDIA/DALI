@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,15 +40,6 @@ if (NOT KERNEL_SRCS_PATTERN STREQUAL "" OR
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/kernel.cc")
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/common/scatter_gather.cu")
   list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/signal/fft/cufft_helper.cc")
-  # Those are needed by imgcodec library
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_f16.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_f.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_i16.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_i32.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_i8.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_u16.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_u32.cu")
-  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/slice/slice_flip_normalize_permute_pad_gpu_u8.cu")
 
   list(APPEND KERNEL_SRCS_PATTERN_EXCLUDE "*test*")
   custom_filter(CMAKE_CURRENT_SOURCE_DIR
