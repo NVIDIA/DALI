@@ -1304,12 +1304,13 @@ def test_cast_like():
     check_pipeline(input_data, pipeline_fn=pipe)
 
 
-def test_conditionals():
+def test_conditional():
+
     def conditional_wrapper(max_batch_size, input_data, device):
-        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size, num_threads=4,
-                                   device_id=0)
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
         def actual_pipe():
-            # just to drive the variable batch size.
             variable_condition = fn.external_source(source=input_data, cycle=False, device=device)
             variable_data = variable_condition + 42.0
             if variable_condition:
@@ -1320,11 +1321,49 @@ def test_conditionals():
             logical_expr = variable_condition or not variable_condition
             logical_expr2 = not variable_condition and variable_condition
             return output, variable_condition, variable_data, logical_expr, logical_expr2
+
         return actual_pipe()
 
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
         pipeline_fn=conditional_wrapper, devices=['cpu'])
+
+    def split_merge_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            variable_data = variable_pred + 42.0
+            true, false = fn._conditional.split(variable_data, predicate=variable_pred)
+            true = true + 10.0
+            merged = fn._conditional.merge(true, false, predicate=variable_pred)
+            return merged, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=split_merge_wrapper, devices=['cpu'])
+
+
+    def not_validate_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            negated = fn._conditional.not_(variable_pred)
+            validated = fn._conditional.validate_logical(variable_pred, expression_name="or",
+                                                         expression_side="right")
+            return negated, validated, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=not_validate_wrapper, devices=['cpu'])
+
 
 
 tested_methods = [
