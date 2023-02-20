@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
+#include "dali/core/util.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
@@ -28,15 +29,28 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+
+int nvjpegGetVersion() {
+  int major = -1;
+  int minor = -1;
+  int patch = -1;
+  GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
+  return GetVersionNumber(major, minor, patch);
+}
+
+}  // namespace
+
 NvJpegDecoderInstance::
 NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   SetParams(params);
-
 #ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
-  unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ ?
+  unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001 ?
                                 NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
 #else
   unsigned int nvjpeg_flags = 0;

@@ -64,7 +64,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
     use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")),
-    use_jpegturbo_upsampling_(spec.GetArgument<bool>("jpeg_fancy_upsampling")),
+    use_jpeg_fancy_upsampling_(spec.GetArgument<bool>("jpeg_fancy_upsampling")),
     output_shape_(max_batch_size_, kOutputDim),
     pinned_buffers_(num_threads_*2),
     jpeg_streams_(num_threads_*2),
@@ -97,7 +97,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // adjust NVJPEG to (full capacity of) H100
     (void) num_hw_engines_;
 #ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
-    unsigned int nvjpeg_flags = use_jpegturbo_upsampling_ ?
+    unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001 ?
                                   NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
 #else
     unsigned int nvjpeg_flags = 0;
@@ -1073,7 +1073,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   unsigned int hybrid_huffman_threshold_;
   bool use_fast_idct_;
-  bool use_jpegturbo_upsampling_;
+  bool use_jpeg_fancy_upsampling_;
 
   TensorListShape<> output_shape_;
 
