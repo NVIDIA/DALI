@@ -415,6 +415,38 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     DomainTimeRange tr("[DALI][Executor] Setup");
     should_allocate = op.Setup(output_desc, ws);
   }
+
+  // Reset before allocation for the BS < max_batch_size_ indicating that we are in the
+  // conditional scope (of a pipeline that consumes data from reader).
+  // This is only a heuristic for testing, and doesn't cover the External Source/Partial Batch
+  // scenario
+
+  if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
+    bool is_conditional = false;
+    for (int i = 0; i < ws.NumInput(); i++) {
+      is_conditional = is_conditional || ws.GetInputBatchSize(i) < max_batch_size_;
+    }
+    const ArgumentWorkspace &argument_ws = ws;
+    for (const auto &[name, arg] : argument_ws) {
+      is_conditional = is_conditional || arg.tvec->num_samples() < max_batch_size_;
+    }
+
+    if (is_conditional) {
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        if (ws.OutputIsType<CPUBackend>(i)) {
+          ws.Output<CPUBackend>(i).Reset();
+        } else {
+          ws.Output<GPUBackend>(i).Reset();
+        }
+      }
+
+    }
+  }
+
+
+
+
+
   {
     DomainTimeRange tr("[DALI][Executor] Allocate outputs");
     if (should_allocate) {
