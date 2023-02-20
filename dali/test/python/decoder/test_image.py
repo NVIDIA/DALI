@@ -47,10 +47,12 @@ def get_img_files(data_path, subdir='*', ext=None):
 
 
 @pipeline_def
-def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False, **kwargs):
+def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False,
+                 jpeg_fancy_upsampling=False):
     inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
     decoded = fn.decoders.image(inputs, device=device, output_type=types.RGB,
-                                use_fast_idct=use_fast_idct, memory_stats=memory_stats, **kwargs)
+                                use_fast_idct=use_fast_idct, memory_stats=memory_stats,
+                                jpeg_fancy_upsampling=jpeg_fancy_upsampling)
 
     return decoded, labels
 
@@ -208,14 +210,14 @@ def check_fancy_upsampling_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
         decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device=device, use_jpegturbo_upsampling=True),
+                     device_id=0, device=device, jpeg_fancy_upsampling=True),
         decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
                      device_id=0, device='cpu'),
         batch_size=batch_size, N_iterations=3, eps=1)
 
 
 def test_fancy_upsampling():
-    if nvidia.dali.backend.GetNvjpegVersion() < 12000:
+    if nvidia.dali.backend.GetNvjpegVersion() < 12001:
         from nose import SkipTest
         raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
     for batch_size in {1, 8}:
