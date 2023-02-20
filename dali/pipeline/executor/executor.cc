@@ -439,7 +439,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
           ws.Output<GPUBackend>(i).Reset();
         }
       }
-
     }
   }
 
