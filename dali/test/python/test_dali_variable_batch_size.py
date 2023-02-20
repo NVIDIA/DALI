@@ -1305,7 +1305,7 @@ def test_cast_like():
 
 
 def test_conditionals():
-    def pipe_wrapper(max_batch_size, input_data, device):
+    def conditional_wrapper(max_batch_size, input_data, device):
         @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size, num_threads=4,
                                    device_id=0)
         def actual_pipe():
@@ -1318,12 +1318,13 @@ def test_conditionals():
             else:
                 output = types.Constant(np.array(42.0), device="cpu")
             logical_expr = variable_condition or not variable_condition
-            return output, variable_condition, variable_data, logical_expr
+            logical_expr2 = not variable_condition and variable_condition
+            return output, variable_condition, variable_data, logical_expr, logical_expr2
         return actual_pipe()
 
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
-        pipeline_fn=pipe_wrapper, devices=['cpu'])
+        pipeline_fn=conditional_wrapper, devices=['cpu'])
 
 
 tested_methods = [

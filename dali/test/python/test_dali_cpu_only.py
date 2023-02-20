@@ -1159,11 +1159,12 @@ def test_conditional():
     def conditional_pipeline():
         true = types.Constant(np.array(True), device="cpu")
         false = types.Constant(np.array(False), device="cpu")
-        if true or not false:
+        if true and true or not false:
             output = types.Constant(np.array([42]), device="cpu")
         else:
             output  = types.Constant(np.array([0]), device="cpu")
         return output
+
     cond_pipe = conditional_pipeline(batch_size=5, num_threads=1, device_id=None)
     cond_pipe.build()
     cond_pipe.run()
