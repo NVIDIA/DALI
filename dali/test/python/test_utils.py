@@ -576,7 +576,8 @@ def to_array(dali_out):
     return np.array(dali_out)
 
 
-def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
+def module_functions(cls, prefix="", remove_prefix="", check_non_module=False,
+                     allowed_private_modules=[]):
     res = []
     if hasattr(cls, '_schema_name'):
         prefix = prefix.replace(remove_prefix, "")
@@ -588,9 +589,12 @@ def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
         res.append(prefix + cls.__name__)
     elif check_non_module or inspect.ismodule(cls):
         for c_name, c in inspect.getmembers(cls):
-            if not c_name.startswith("_") and c_name not in sys.builtin_module_names:
+            def public_or_allowed(c_name):
+                return not c_name.startswith("_") or c_name in allowed_private_modules
+            if public_or_allowed(c_name) and c_name not in sys.builtin_module_names:
                 res += module_functions(c, cls.__name__, remove_prefix=remove_prefix,
-                                        check_non_module=check_non_module)
+                                        check_non_module=check_non_module,
+                                        allowed_private_modules=allowed_private_modules)
     return res
 
 
