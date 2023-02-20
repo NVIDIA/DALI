@@ -19,6 +19,13 @@ from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core.utils import select
 
+try:
+    import numpy as np
+except ImportError:
+    raise RuntimeError(
+        "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
+        "Please install numpy to use the examples.")
+
 
 class Policy:
 
@@ -151,32 +158,65 @@ def apply_auto_augment(policy: Policy, samples, seed=None, **kwargs):
     """
     if len(policy.sub_policies) == 0:
         return samples
-    augmentations = policy.augmentations
-    use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations.values())
-    sub_policies = [[(augmentations[name], p, mag) for name, p, mag in sub_policy]
-                    for sub_policy in policy.sub_policies]
-    max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
+    max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
+    use_signed_magnitudes = any(aug.randomly_negate for aug in policy.augmentations.values())
     if not use_signed_magnitudes:
         random_sign = None
     else:
         random_sign = fn.random.uniform(values=[0, 1], seed=seed, shape=(max_policy_len, ),
                                         dtype=types.INT32)
     should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT)
-    op_kwargs = dict(samples=samples, should_run=should_run, random_sign=random_sign,
-                     num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
-    sub_policies = [apply_sub_policy(sub_policy) for sub_policy in sub_policies]
-    policy_id = fn.random.uniform(values=list(range(len(sub_policies))), seed=seed,
+    policy_id = fn.random.uniform(values=list(range(len(policy.sub_policies))), seed=seed,
                                   dtype=types.INT32)
-    return select(sub_policies, policy_id, op_kwargs)
+    run_probabilities = get_probabilities(policy)
+    run_probabilities = run_probabilities[policy_id]
+    magnitudes = get_magnitudes(policy)
+    magnitudes = magnitudes[policy_id]
+    aug_ids, augmentations = get_augmentations(policy)
+    aug_ids = aug_ids[policy_id]
+    for stage_id in range(max_policy_len):
+        if should_run[stage_id] < run_probabilities[stage_id]:
+            op_kwargs = dict(samples=samples, magnitude_bin_idx=magnitudes[stage_id],
+                             num_magnitude_bins=policy.num_magnitude_bins,
+                             random_sign=random_sign[stage_id], **kwargs)
+            samples = select(augmentations, aug_ids[stage_id], op_kwargs)
+    return samples
 
 
-def apply_sub_policy(sub_policy):
+def get_probabilities(policy: Policy):
+    sub_policies = policy.sub_policies
+    max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
+    prob = np.array([[0. for _ in range(max_policy_len)] for _ in range(len(sub_policies))],
+                    dtype=np.float32)
+    for sub_policy_id, sub_policy in enumerate(sub_policies):
+        for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
+            prob[sub_policy_id, stage_idx] = p
+    return types.Constant(prob)
 
-    def inner(samples, should_run, random_sign, **kwargs):
-        for i, (augmentation, p, magnitude) in enumerate(sub_policy):
-            level_random_sign = None if random_sign is None else random_sign[i]
-            if should_run[i] < p:
-                samples = augmentation(samples, magnitude, random_sign=level_random_sign, **kwargs)
-        return samples
 
-    return inner
+def get_augmentations(policy: Policy):
+    sub_policies = policy.sub_policies
+    max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
+    unique_op_names = list(
+        set(op_name for sub_policy in sub_policies for op_name, p, mag in sub_policy))
+    num_ops = len(unique_op_names)
+    op_name_to_id_map = {name: i for i, name in enumerate(unique_op_names)}
+    identity_id = num_ops
+    op_ids = np.array([[identity_id for _ in range(max_policy_len)]
+                       for _ in range(len(sub_policies))], dtype=np.int32)
+    for sub_policy_id, sub_policy in enumerate(sub_policies):
+        for stage_idx, (op_name, p, mag) in enumerate(sub_policy):
+            op_ids[sub_policy_id, stage_idx] = op_name_to_id_map[op_name]
+    ops = [policy.augmentations[op_name] for op_name in unique_op_names] + [a.identity]
+    return types.Constant(op_ids), ops
+
+
+def get_magnitudes(policy: Policy):
+    sub_policies = policy.sub_policies
+    max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
+    magnitude_bin = np.array([[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))],
+                             dtype=np.int32)
+    for sub_policy_id, sub_policy in enumerate(sub_policies):
+        for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
+            magnitude_bin[sub_policy_id, stage_idx] = mag
+    return types.Constant(magnitude_bin)
