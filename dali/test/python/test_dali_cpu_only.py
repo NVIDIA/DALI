@@ -1154,7 +1154,9 @@ def test_video_input():
     for _ in range(n_iterations):
         p.run()
 
+
 def test_conditional():
+
     @experimental_pipeline_def(enable_conditionals=True)
     def conditional_pipeline():
         true = types.Constant(np.array(True), device="cpu")
@@ -1162,7 +1164,7 @@ def test_conditional():
         if true and true or not false:
             output = types.Constant(np.array([42]), device="cpu")
         else:
-            output  = types.Constant(np.array([0]), device="cpu")
+            output = types.Constant(np.array([0]), device="cpu")
         return output
 
     cond_pipe = conditional_pipeline(batch_size=5, num_threads=1, device_id=None)

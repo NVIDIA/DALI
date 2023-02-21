@@ -103,8 +103,7 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
     elif np.issubdtype(dtype, bool):
         assert isinstance(lo, bool)
         assert isinstance(hi, bool)
-        return [np.random.choice(a=[lo, hi], size=(bs, ) + size_fn())
-            for bs in batch_sizes]
+        return [np.random.choice(a=[lo, hi], size=(bs, ) + size_fn()) for bs in batch_sizes]
     else:
         raise RuntimeError(f"Invalid type argument: {dtype}")
 
@@ -1346,7 +1345,6 @@ def test_conditional():
         generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
         pipeline_fn=split_merge_wrapper, devices=['cpu'])
 
-
     def not_validate_wrapper(max_batch_size, input_data, device):
 
         @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
@@ -1363,7 +1361,6 @@ def test_conditional():
     check_pipeline(
         generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
         pipeline_fn=not_validate_wrapper, devices=['cpu'])
-
 
 
 tested_methods = [
