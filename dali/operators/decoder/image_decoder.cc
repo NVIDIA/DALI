@@ -147,7 +147,8 @@ with little reduction in quality.)code",
   .AddOptionalArg("jpeg_fancy_upsampling",
       R"code(Make the ``mixed`` backend use the same chroma upsampling approach as the ``cpu`` one.
 
-The option corresponds to the `JPEG fancy upsampling`.)code",
+The option corresponds to the `JPEG fancy upsampling` avialable in libjpegturbo or
+ImageMagick.)code",
       false)
   .AddOptionalArg("memory_stats",
       R"code(Applies **only** to the ``mixed`` backend type.

@@ -96,12 +96,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     // TODO(ktokarski) TODO(jlisiecki) For now it is unused,
     // adjust NVJPEG to (full capacity of) H100
     (void) num_hw_engines_;
-#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
-    unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001 ?
-                                  NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
-#else
     unsigned int nvjpeg_flags = 0;
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+    if (use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001) {
+      nvjpeg_flags |= NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION;
+    }
 #endif
+
 #if IS_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
@@ -112,9 +113,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       hw_decoder_load_ = 0;
     }
 
-    if (try_init_hw_decoder &&
-        nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, NULL, NULL, nvjpeg_flags, &handle_)
-                                                                        == NVJPEG_STATUS_SUCCESS) {
+    if (try_init_hw_decoder && nvjpegCreateEx(NVJPEG_BACKEND_HARDWARE, NULL, NULL, nvjpeg_flags,
+                                              &handle_) == NVJPEG_STATUS_SUCCESS) {
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
@@ -1072,8 +1072,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   DALIImageType output_image_type_;
 
   unsigned int hybrid_huffman_threshold_;
-  bool use_fast_idct_;
-  bool use_jpeg_fancy_upsampling_;
+  bool use_fast_idct_ = false;
+  bool use_jpeg_fancy_upsampling_ = false;
 
   TensorListShape<> output_shape_;
 

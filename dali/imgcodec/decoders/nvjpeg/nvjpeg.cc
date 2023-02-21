@@ -49,11 +49,12 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   SetParams(params);
-#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
-  unsigned int nvjpeg_flags = use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001 ?
-                                NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION : 0;
-#else
+
   unsigned int nvjpeg_flags = 0;
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+  if (use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001) {
+    nvjpeg_flags |= NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION;
+  }
 #endif
 
   DeviceGuard dg(device_id_);
