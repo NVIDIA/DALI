@@ -34,11 +34,9 @@ test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 fn_dev_pairs = [(fn.crop_mirror_normalize, 'cpu'),
-                (fn.crop_mirror_normalize, 'gpu'),
-                (fn.experimental.crop_mirror_normalize, 'gpu')]
+                (fn.crop_mirror_normalize, 'gpu')]
 op_dev_pairs = [(ops.CropMirrorNormalize, 'cpu'),
-                (ops.CropMirrorNormalize, 'gpu'),
-                (ops.experimental.CropMirrorNormalize, 'gpu')]
+                (ops.CropMirrorNormalize, 'gpu')]
 
 
 def next_power_of_two(x):

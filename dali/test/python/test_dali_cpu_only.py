@@ -1340,7 +1340,6 @@ excluded_methods = [
     "experimental.filter",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
     "experimental.remap",  # operator is GPU-only
-    "experimental.crop_mirror_normalize",  # not supported for CPU
 ]
 
 
