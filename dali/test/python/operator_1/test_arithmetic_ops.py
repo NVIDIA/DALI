@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,8 +72,7 @@ integer_types = [
     np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64
 ]
 
-# float16 is marked as TODO in backend for gpu
-float_types = [np.float32, np.float64]
+float_types = [np.float16, np.float32, np.float64]
 
 input_types = integer_types + float_types
 

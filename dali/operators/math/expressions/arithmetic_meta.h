@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -261,10 +261,9 @@ DALI_HOST_DEV constexpr bool IsComparison(ArithmeticOp op) {
   }
 }
 
-
-// TODO(klecki): float16
-#define ARITHMETIC_ALLOWED_TYPES \
-  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double)
+#define ARITHMETIC_ALLOWED_TYPES                                                                   \
+  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
+  double)
 
 /**
  * @brief Type promotion rules
