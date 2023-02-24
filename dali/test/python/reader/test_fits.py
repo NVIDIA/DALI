@@ -41,10 +41,16 @@ def delete_fits_file(filename):
 
 
 def FitsReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
-                       file_filter="*.fits", num_threads=1, device_id=0):
+                       file_filter="*.fits", num_threads=1, device_id=0,
+                       hdu_indices=None, dtype=None):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    data = fn.readers.fits(device=device, file_list=file_list, files=files, file_root=path,
-                           file_filter=file_filter, shard_id=0, num_shards=1)
+    data = fn.readers.fits(device=device,
+                           file_list=file_list,
+                           files=files,
+                           file_root=path,
+                           file_filter=file_filter,
+                           shard_id=0,
+                           num_shards=1)
     pipe.set_outputs(data)
     return pipe
 
@@ -78,7 +84,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
 
     nsamples = len(shapes)
     # setup files
-    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+    with tempfile.TemporaryDirectory() as test_data_root:
         # setup file
         filenames = ["test_{:02d}.fits".format(i) for i in range(nsamples)]
         full_paths = [os.path.join(test_data_root, fname) for fname in filenames]
