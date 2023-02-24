@@ -181,12 +181,30 @@ def test_lazy_eval_with_oob():
     compare_pipelines(*pipes, bs, iters)
 
 
+def logical_true_false_random():
+    """ Return an External Source that returns batch of [True, False, <random booleans>]
+    so we always have at least one sample that is True or False.
+    Otherwise we may end up with fully short-cutting part of the expression we want to test.
+    """
+    rng = np.random.default_rng(seed=101)
+
+    def get_true_false_random(sample_info):
+        if sample_info.idx_in_batch == 0:
+            return np.array(True)
+        elif sample_info.idx_in_batch == 1:
+            return np.array(False)
+        else:
+            return rng.choice([np.array(True), np.array(False)])
+
+    return fn.external_source(source=get_true_false_random, batch=False)
+
+
 logical_expressions = [
     lambda x: not x,
-    lambda x: x and fn.random.coin_flip(dtype=types.DALIDataType.BOOL),
-    lambda x: fn.random.coin_flip(dtype=types.DALIDataType.BOOL) and x,
-    lambda x: x or fn.random.coin_flip(dtype=types.DALIDataType.BOOL),
-    lambda x: fn.random.coin_flip(dtype=types.DALIDataType.BOOL) or x,
+    lambda x: x and logical_true_false_random(),
+    lambda x: logical_true_false_random() and x,
+    lambda x: x or logical_true_false_random(),
+    lambda x: logical_true_false_random() or x,
 ]
 
 
