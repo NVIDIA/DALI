@@ -87,6 +87,15 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
+    .AddOptionalArg<vector<vector<int>>>("HDUs", R"(HDU indexes for each file listed in
+``filenames`` argument. If not provided, first HDU after primary 
+  will be yielded (i.e. for each file [2]).)",
+                                 nullptr)
+    .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
+
+The default output data types are UINT8. However, if set, each output data type should be specified.")code",
+                    DALI_DATA_TYPE_VEC,
+                    nullptr)  // default is a vector of uint8
     .AddParent("LoaderBase");
 
 void FitsReaderCPU::RunImpl(Workspace &ws) {
