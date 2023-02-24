@@ -24,6 +24,17 @@
 
 namespace dali {
 
+namespace {
+
+int FitsReaderOutputFn(const OpSpec &spec) {
+  if (spec.HasArgument("hdu_indices"))
+    return static_cast<int>(spec.GetArgument<vector<int>>("hdu_indices").size());
+  else
+    return 0;
+}
+
+}  // namespace
+
 static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                        ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
   auto *out_ptr = static_cast<uint8_t *>(output.raw_mutable_data());
@@ -87,8 +98,8 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
-    .AddOptionalArg<vector<vector<int>>>("HDUs", R"(HDU indexes for each file listed in
-``filenames`` argument. If not provided, first HDU after primary 
+    .AddOptionalArg<vector<int>>("hdu_indices",
+                                 R"(HDU indexes to read. If not provided, first HDU after primary 
   will be yielded (i.e. for each file [2]).)",
                                  nullptr)
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
