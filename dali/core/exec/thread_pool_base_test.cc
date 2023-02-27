@@ -13,11 +13,10 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "dali/pipeline/util/thread_pool_base.h"
+#include "dali/core/exec/thread_pool_base.h"
 #include "dali/core/format.h"
 
 namespace dali {
-namespace experimental {
 
 struct SerialExecutor {
   template <typename Runnable>
@@ -142,5 +141,4 @@ TEST(NewThreadPool, Reentrant) {
   job.Run(tp, true);
 }
 
-}  // namespace experimental
 }  // namespace dali
