@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_THREAD_POOL_BASE_H_
-#define DALI_PIPELINE_UTIL_THREAD_POOL_BASE_H_
+#ifndef DALI_CORE_EXEC_THREAD_POOL_BASE_H_
+#define DALI_CORE_EXEC_THREAD_POOL_BASE_H_
 
 #include <cassert>
 #include <functional>
@@ -30,9 +30,6 @@
 #include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
-namespace experimental {
-
-class ThreadPoolBase;
 
 /**
  * @brief A collection of tasks, ordered by priority
@@ -164,7 +161,6 @@ class DLL_PUBLIC ThreadPoolBase {
   std::vector<std::thread> threads_;
 };
 
-}  // namespace experimental
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_UTIL_THREAD_POOL_BASE_H_
+#endif  // DALI_CORE_EXEC_THREAD_POOL_BASE_H_

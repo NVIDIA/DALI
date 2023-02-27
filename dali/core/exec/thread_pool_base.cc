@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/util/thread_pool_base.h"
+#include "dali/core/exec/thread_pool_base.h"
 #include "dali/core/call_at_exit.h"
 
 namespace dali {
-namespace experimental {
 
 Job::~Job() noexcept(false) {
   if (!tasks_.empty() && !waited_for_)  {
@@ -151,6 +150,4 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
   return condition();
 }
 
-
-}  // namespace experimental
 }  // namespace dali
