@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ void BbFlipCPU::RunImpl(Workspace &ws) {
   TensorLayout layout = ltrb_ ? "xyXY" : "xyWH";
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    tp.AddWork(
+    tp.AddTask(
       [&, sample_idx](int thread_id) {
         bool vertical = vert_[sample_idx].data[0];
         bool horizontal = horz_[sample_idx].data[0];

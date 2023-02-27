@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ void OneHotCPU::RunImpl(Workspace &ws) {
     auto in_tensor = view<const InputType, DynamicDimensions>(input);
     auto out_tensor = view<OutputType, DynamicDimensions>(output);
     for (int sample_id = 0; sample_id < num_samples; ++sample_id) {
-      tp.AddWork(
+      tp.AddTask(
               [&, sample_id](int thread_id) {
                   auto in = in_tensor[sample_id];
                   auto out = out_tensor[sample_id];

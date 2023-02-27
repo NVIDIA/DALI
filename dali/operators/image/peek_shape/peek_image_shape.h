@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ class PeekImageShape : public Operator<CPUBackend> {
     DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded JPEG bit stream.");
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
-      thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {
+      thread_pool.AddTask([sample_id, &input, &output, this] (int tid) {
         const auto& image = input[sample_id];
         auto img =
             ImageFactory::CreateImage(image.data<uint8>(), image.shape().num_elements(), {});

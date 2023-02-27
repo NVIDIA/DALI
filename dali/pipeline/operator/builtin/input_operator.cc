@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
     target.SetLayout(tensor_list_elm.front()->GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
-      thread_pool.AddWork(
+      thread_pool.AddTask(
               [&target, sample_id, &tensor_list_elm](int tid) {
                   target.CopySample(sample_id, *tensor_list_elm.front(), sample_id,
                                     AccessOrder::host());
@@ -168,7 +168,7 @@ void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
     target.SetLayout(tensor_list_elm.front()->GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
-      thread_pool.AddWork(
+      thread_pool.AddTask(
               [&target, sample_id, &tensor_list_elm](int tid) {
                   target.CopySample(sample_id, *tensor_list_elm.front(), sample_id,
                                     AccessOrder::host());

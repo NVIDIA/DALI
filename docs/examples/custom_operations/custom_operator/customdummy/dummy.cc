@@ -11,7 +11,7 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::Workspace &ws) {
   auto &tp = ws.GetThreadPool();
   const auto &in_shape = input.shape();
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
-    tp.AddWork(
+    tp.AddTask(
         [&, sample_id](int thread_id) {
           type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(output.raw_mutable_tensor(sample_id),
                                                             input.raw_tensor(sample_id),

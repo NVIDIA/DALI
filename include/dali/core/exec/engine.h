@@ -26,7 +26,7 @@ concept ExecutionEngine {
   /// @param priority    priority hint for the job, the higher, the earlier it should start
   /// @param start_immediately        if true, all jobs can start - it's just a hint
   ///                                 and implementations may start running the jobs earlier
-  void AddWork(CallableWithInt f, int64_t priority, bool start_immediately = false);
+  void AddTask(CallableWithInt f, int64_t priority, bool start_immediately = false);
 
   /// @brief Starts the work and waits for it to complete.
   /// If there was an exception in one of the jobs, rethrows one of them.
@@ -46,7 +46,7 @@ class SequentialExecutionEngine {
    * @brief Immediately execute a callable object `f` with thread index 0.
    */
   template <typename FunctionLike>
-  void AddWork(FunctionLike &&f, int64_t priority = 0) {
+  void AddTask(FunctionLike &&f, int64_t priority = 0) {
     const int idx = 0;  // use of 0 literal would successfully call f expecting a pointer
     f(idx);
   }

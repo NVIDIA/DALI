@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class DecoderBase : public Operator<Backend> {
     auto *decoder = GetDecoderInstance();
 
     for (int i = 0; i < shapes.size(); i++) {
-      tp.AddWork([i, decoder, &input, &shapes, &ws, &spec, this] (int tid) {
+      tp.AddTask([i, decoder, &input, &shapes, &ws, &spec, this] (int tid) {
         srcs_[i] = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
         src_ptrs_[i] = &srcs_[i];
         auto info = decoder->GetInfo(src_ptrs_[i]);

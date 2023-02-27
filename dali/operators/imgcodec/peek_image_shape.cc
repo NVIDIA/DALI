@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
                 "The input must be a raw, undecoded file stored as a flat uint8 array.");
 
   for (int i = 0; i < input.num_samples(); i++) {
-    thread_pool.AddWork([i, &input, &output, this] (int tid) {
+    thread_pool.AddTask([i, &input, &output, this] (int tid) {
       auto src = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
       auto *format = ImageFormatRegistry::instance().GetImageFormat(&src);
       DALI_ENFORCE(format, make_string("Cannot parse the image: ", src.SourceInfo()));

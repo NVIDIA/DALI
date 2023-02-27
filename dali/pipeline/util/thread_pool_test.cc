@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,30 +20,30 @@ namespace dali {
 
 namespace test {
 
-TEST(ThreadPool, AddWork) {
+TEST(ThreadPool, AddTask) {
   ThreadPool tp(16, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
-    tp.AddWork(increase);
+    tp.AddTask(increase);
   }
   ASSERT_EQ(count, 0);
   tp.RunAll();
   ASSERT_EQ(count, 64);
 }
 
-TEST(ThreadPool, AddWorkImmediateStart) {
+TEST(ThreadPool, AddTaskImmediateStart) {
   ThreadPool tp(16, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
-    tp.AddWork(increase, 0, true);
+    tp.AddTask(increase, 0, true);
   }
   tp.WaitForWork();
   ASSERT_EQ(count, 64);
 }
 
-TEST(ThreadPool, AddWorkWithPriority) {
+TEST(ThreadPool, AddTaskWithPriority) {
   // only one thread to ensure deterministic behavior
   ThreadPool tp(1, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
@@ -57,12 +57,12 @@ TEST(ThreadPool, AddWorkWithPriority) {
     int val = count.load();
     while (!count.compare_exchange_weak(val, val * 2)) {}
   };
-  tp.AddWork(increase_by_1, 2);
-  tp.AddWork(mult_by_2, 7);
-  tp.AddWork(mult_by_2, 9);
-  tp.AddWork(mult_by_2, 8);
-  tp.AddWork(increase_by_1, 100);
-  tp.AddWork(set_to_1, 1000);
+  tp.AddTask(increase_by_1, 2);
+  tp.AddTask(mult_by_2, 7);
+  tp.AddTask(mult_by_2, 9);
+  tp.AddTask(mult_by_2, 8);
+  tp.AddTask(increase_by_1, 100);
+  tp.AddTask(set_to_1, 1000);
 
   tp.RunAll();
   ASSERT_EQ(((1+1) << 3) + 1, count);
@@ -79,7 +79,7 @@ TEST(ThreadPool, CheckName) {
   auto set_name = [&read_thread_pool_name](int thread_id) {
     pthread_getname_np(pthread_self(), read_thread_pool_name, sizeof(read_thread_pool_name));
   };
-  tp.AddWork(set_name, 1);
+  tp.AddTask(set_name, 1);
 
   tp.RunAll();
   // skip terminating \0 character

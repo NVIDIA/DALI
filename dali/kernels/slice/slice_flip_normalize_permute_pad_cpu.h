@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -260,7 +260,7 @@ void SliceFlipNormalizePermutePadKernel(
                             req_nblocks > 0 ? req_nblocks : exec_engine.NumThreads() * 8,
                             min_blk_sz, skip_dim_mask);
   if (nblocks == 1) {
-    exec_engine.AddWork([=](int) {
+    exec_engine.AddTask([=](int) {
       SliceFlipNormalizePermutePadKernel(output, input, args.in_strides, args.out_strides,
                                          args.anchor, args.in_shape, args.out_shape,
                                          GetPtr<OutputType>(fill_values),
@@ -288,7 +288,7 @@ void SliceFlipNormalizePermutePadKernel(
         blk_anchor[d] = args.anchor[d] + blk_start[d];
       }
 
-      exec_engine.AddWork([=](int) {
+      exec_engine.AddTask([=](int) {
         SliceFlipNormalizePermutePadKernel(output_ptr, input_ptr, args.in_strides, args.out_strides,
                                            blk_anchor, args.in_shape, blk_shape,
                                            GetPtr<OutputType>(fill_values),

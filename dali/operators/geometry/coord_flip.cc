@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ void CoordFlipCPU::RunImpl(Workspace &ws) {
     mirrored_origin[z_dim_] = 2.0f * spec_.GetArgument<float>("center_z", &ws, sample_id);
 
     auto in_size = volume(input.tensor_shape(sample_id));
-    thread_pool.AddWork(
+    thread_pool.AddTask(
         [this, &input, in_size, &output, sample_id, flip_dim, mirrored_origin](int thread_id) {
           const auto *in = input.tensor<float>(sample_id);
           auto *out = output.mutable_tensor<float>(sample_id);

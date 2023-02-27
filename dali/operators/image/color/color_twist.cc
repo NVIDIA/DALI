@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ void ColorTwistCpu::RunImplHelper(Workspace &ws) {
     auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view[i], in_view[i]);
     const auto &in_range = planes_range.template get<1>();
     for (auto &&views : planes_range) {
-      tp.AddWork(
+      tp.AddTask(
           [&, i, views](int thread_id) {
             kernels::KernelContext ctx;
             auto &[tvout, tvin] = views;

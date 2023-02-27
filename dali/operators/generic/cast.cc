@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ void CastCPU::RunImpl(Workspace &ws) {
         auto *out = output.mutable_tensor<OType>(sample_id);
         const auto *in = input.tensor<IType>(sample_id);
         auto size = input_shape.tensor_size(sample_id);
-        tp.AddWork([out, in, size](int thread_id) { CpuHelper<OType, IType>(out, in, size); },
+        tp.AddTask([out, in, size](int thread_id) { CpuHelper<OType, IType>(out, in, size); },
                    size);
       }
 

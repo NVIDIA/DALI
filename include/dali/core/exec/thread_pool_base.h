@@ -43,15 +43,17 @@ class DLL_PUBLIC Job {
   using priority_t = int64_t;
 
   template <typename Runnable>
-  std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
-  AddTask(Runnable &&runnable, priority_t priority = {}) {
+  void AddTask(Runnable &&runnable, priority_t priority = {}) {
     if (started_)
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
     auto it = tasks_.emplace(priority, Task());
     try {
-      it->second.func = [this, task = &it->second, f = std::move(runnable)]() noexcept {
+      it->second.func = [this, task = &it->second, f = std::move(runnable)](int tid) noexcept {
         try {
-          f();
+          if constexpr (std::is_invocable_v<Runnable, int>)
+            f(tid);
+          else
+            f();
         } catch (...) {
           task->error = std::current_exception();
         }
@@ -93,7 +95,7 @@ class DLL_PUBLIC Job {
   bool waited_for_ = false;
 
   struct Task {
-    std::function<void()> func;
+    std::function<void(int)> func;
     std::exception_ptr error;
   };
 
@@ -104,7 +106,7 @@ class DLL_PUBLIC Job {
 
 class DLL_PUBLIC ThreadPoolBase {
  public:
-  using TaskFunc = std::function<void()>;
+  using TaskFunc = std::function<void(int)>;
 
   ThreadPoolBase() = default;
   explicit ThreadPoolBase(int num_threads) {
@@ -118,6 +120,8 @@ class DLL_PUBLIC ThreadPoolBase {
   }
 
   void AddTask(TaskFunc f);
+
+  int NumThreads() const { return threads_.size(); }
 
   /**
    * @brief Returns the thread pool that owns the calling thread (or nullptr)
@@ -135,8 +139,11 @@ class DLL_PUBLIC ThreadPoolBase {
     return this_thread_idx_;
   }
 
- protected:
   void Shutdown();
+
+  bool ShutdownPending() const {
+    return shutdown_pending_;
+  }
 
  private:
   friend class Job;
@@ -162,16 +169,15 @@ class DLL_PUBLIC ThreadPoolBase {
 };
 
 
-template <typename ThreadPool>
 class ThreadedExecutionengine {
  public:
-  ThreadedExecutionengine(ThreadPool &tp) : tp_(tp) {}  // NOLINT
+  ThreadedExecutionengine(ThreadPoolBase &tp) : tp_(tp) {}  // NOLINT
 
   /**
    * @brief Immediately execute a callable object `f` with thread index 0.
    */
   template <typename FunctionLike>
-  void AddWork(FunctionLike &&f, int64_t priority = 0) {
+  void AddTask(FunctionLike &&f, int64_t priority = 0) {
     job_.AddTask(std::forward<FunctionLike>(f), priority);
   }
 
@@ -183,12 +189,12 @@ class ThreadedExecutionengine {
     return tp_.NumThreads();
   }
 
-  ThreadPool &GetThreadPool() const noexcept {
+  ThreadPoolBase &GetThreadPool() const noexcept {
     return tp_;
   }
 
  private:
-  ThreadPool &tp_;
+  ThreadPoolBase &tp_;
   Job job_;
 };
 

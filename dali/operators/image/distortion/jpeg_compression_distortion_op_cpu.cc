@@ -102,7 +102,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
     int64_t width = shape[w_dim];
     int64_t height = shape[h_dim];
     for (int elem_idx = 0; elem_idx < nframes; elem_idx++) {
-      thread_pool.AddWork(
+      thread_pool.AddTask(
           [&, sample_idx, elem_idx, width, height, frame_size,
            quality = quality_arg_[sample_idx].data[0]](int thread_id) {
             auto *in = in_view[sample_idx].data + elem_idx * frame_size;

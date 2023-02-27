@@ -20,9 +20,10 @@ namespace dali {
 
 struct SerialExecutor {
   template <typename Runnable>
-  std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
+  std::enable_if_t<std::is_convertible_v<Runnable, std::function<void(int)>>>
   AddTask(Runnable &&runnable) {
-    runnable();
+    const int idx = 0;
+    runnable(idx);
   }
 };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -168,7 +168,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     auto &tp = ws.GetThreadPool();
 
     for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      tp.AddWork([&, sample_idx](int thread_idx) { RunSample(ws, sample_idx, thread_idx); },
+      tp.AddTask([&, sample_idx](int thread_idx) { RunSample(ws, sample_idx, thread_idx); },
                  shape.tensor_size(sample_idx));
     }
 

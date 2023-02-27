@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::Workspace &ws) {
   auto &tp = ws.GetThreadPool();
   const auto &in_shape = input.shape();
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
-    tp.AddWork(
+    tp.AddTask(
         [&, sample_id](int thread_id) {
           type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(output.raw_mutable_tensor(sample_id),
                                                             input.raw_tensor(sample_id),

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ bool VideoDecoderMixed::SetupImpl(
   auto stream = ws.stream();
   frames_decoders_.resize(batch_size);
   for (int i = 0; i < batch_size; ++i) {
-    thread_pool_.AddWork([this, i, &input, stream](int) {
+    thread_pool_.AddTask([this, i, &input, stream](int) {
       auto sample = input[i];
       auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
       size_t size = sample.shape().num_elements();
@@ -43,7 +43,7 @@ void VideoDecoderMixed::Run(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
   for (int s = 0; s < batch_size; ++s) {
-    thread_pool_.AddWork([this, s, &output](int) {
+    thread_pool_.AddTask([this, s, &output](int) {
       DecodeSample(output[s], s);
       // when the decoding is done release the decoder,
       // so it can be reused by the next sample in the batch

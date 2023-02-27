@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ void PowerSpectrum<CPUBackend>::RunImpl(Workspace &ws) {
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
 
     for (int i = 0; i < input.shape().num_samples(); i++) {
-      thread_pool.AddWork(
+      thread_pool.AddTask(
         [this, &input, &output, i](int thread_id) {
           kernels::KernelContext ctx;
           auto in_view = view<const InputType, Dims>(input[i]);

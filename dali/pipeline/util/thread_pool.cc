@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ ThreadPool::~ThreadPool() {
 #endif
 }
 
-void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
+void ThreadPool::AddTask(Work work, int64_t priority, bool start_immediately) {
   bool started_before = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);

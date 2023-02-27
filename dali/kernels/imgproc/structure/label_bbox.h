@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -245,7 +245,7 @@ void GetLabelBoundingBoxes(span<Box<ndim, Coord>> boxes,
       part_boxes = make_span(&tmp_boxes[(i - 1)*boxes.size()], boxes.size());
     part.size[max_d] = end - start;
     part.data = in.data + start * stride;
-    engine.AddWork([=](int) {
+    engine.AddTask([=](int) {
       i64vec<ndim> origin = {};
       origin[dim_mapping[max_d]] = start;
       GetLabelBoundingBoxes(part_boxes, part, dim_mapping, background, origin);

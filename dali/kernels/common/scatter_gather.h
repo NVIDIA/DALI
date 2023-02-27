@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -170,7 +170,7 @@ class DLL_PUBLIC ScatterGatherCPU : public ScatterGatherBase {
     } else {
       MakeBlocks(exec_engine.NumThreads() * kTasksMultiplier);
       for (auto &r : blocks_) {
-        exec_engine.AddWork([=](int thread_id) { std::memcpy(r.dst, r.src, r.size); }, r.size);
+        exec_engine.AddTask([=](int thread_id) { std::memcpy(r.dst, r.src, r.size); }, r.size);
       }
       exec_engine.RunAll();
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -320,7 +320,7 @@ void Normalize<CPUBackend>::RunTyped(Workspace &ws) {
   if (batch_norm_) {
     if (ShouldCalcMean()) {
       for (int i = 0; i < nsamples; i++) {
-        tp.AddWork([&, i](int thread_idx) {
+        tp.AddTask([&, i](int thread_idx) {
           kernels::MeanCPU<float, InputType> mean;
           mean.Setup(mutable_mean[i], in_view[i], make_span(axes_));
           // Reset per-sample values, but don't postprocess
@@ -335,7 +335,7 @@ void Normalize<CPUBackend>::RunTyped(Workspace &ws) {
     if (ShouldCalcStdDev()) {
       auto sample_mean = mean_view[0];
       for (int i = 0; i < nsamples; i++) {
-        tp.AddWork([&, i](int thread_idx) {
+        tp.AddTask([&, i](int thread_idx) {
           kernels::VarianceCPU<float, InputType> stddev;
           stddev.Setup(mutable_stddev[i], in_view[i], make_span(axes_), sample_mean);
           // Reset per-sample values, but don't postprocess
@@ -353,7 +353,7 @@ void Normalize<CPUBackend>::RunTyped(Workspace &ws) {
 
 
   for (int i = 0; i < nsamples; i++) {
-    tp.AddWork([&, i](int thread_idx) {
+    tp.AddTask([&, i](int thread_idx) {
       auto sample_mean = mean_view.num_samples() == 1 || batch_norm_
                               ? mean_view[0]
                               : mean_view[i];

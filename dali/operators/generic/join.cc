@@ -233,7 +233,7 @@ void TensorJoin<Backend, new_axis>::RunTyped(
   in_shapes.resize(num_threads * njoin);
 
   for (int i = 0; i < N; i++) {
-    tp.AddWork([&, i](int tid) {
+    tp.AddTask([&, i](int tid) {
       kernels::KernelContext ctx;
       auto sample_in_tensors = make_span(&in_tensors[tid * njoin], njoin);
       auto sample_in_shapes = make_span(&in_shapes[tid * njoin], njoin);

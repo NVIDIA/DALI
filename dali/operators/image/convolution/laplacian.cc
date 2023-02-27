@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       auto priority = volume(input.tensor_shape(sample_idx)) * args.GetTotalWindowSizes(sample_idx);
 
-      thread_pool.AddWork(
+      thread_pool.AddTask(
           [this, &input, &output, sample_idx](int thread_id) {
             const auto& scales = args.GetScales(sample_idx);
             const auto& shape = input.tensor_shape(sample_idx);

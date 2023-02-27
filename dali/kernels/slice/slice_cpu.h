@@ -321,7 +321,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
       int64_t b_start = prev_b_end;
       int64_t b_end = prev_b_end = total_sz * (b + 1) / nblocks;
       int64_t b_nbytes = (b_end - b_start) * sizeof(OutputType);
-      exec_engine.AddWork([=](int tid) {
+      exec_engine.AddTask([=](int tid) {
         std::memcpy(out_data + b_start, in_data + b_start, b_nbytes);
       }, b_nbytes, false);  // do not start work immediately
     }
@@ -355,7 +355,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
         blk_anchor[d] = args.anchor[d] + blk_start[d];
         blk_step[d] = args.step[d];
       }
-      exec_engine.AddWork([=](int) {
+      exec_engine.AddTask([=](int) {
         SliceKernel(output_ptr, in_data, out_strides, in_strides, blk_shape, in_shape,
                     blk_anchor, blk_step, GetPtr<OutputType>(args.fill_values), args.channel_dim);
       }, kSliceCost * volume(blk_shape), false);  // do not start work immediately

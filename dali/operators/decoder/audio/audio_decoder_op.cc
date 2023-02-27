@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ void AudioDecoderCpu::DecodeBatch(Workspace &ws) {
   scratch_resampler_.resize(tp.NumThreads());
 
   for (int i = 0; i < batch_size; i++) {
-    tp.AddWork([&, i](int thread_id) {
+    tp.AddTask([&, i](int thread_id) {
       try {
         DecodeSample<OutputType>(decoded_output[i], thread_id, i);
         sample_rate_output[i].data[0] = use_resampling_

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ void PreemphasisFilterCPU::RunImplTyped(Workspace &ws) {
   auto nsamples = shape.num_samples();
 
   for (int sample_id = 0; sample_id < nsamples; sample_id++) {
-    tp.AddWork(
+    tp.AddTask(
       [this, &output, &input, sample_id](int thread_id) {
         const auto *in_ptr = input.tensor<InputType>(sample_id);
         auto *out_ptr = output.mutable_tensor<OutputType>(sample_id);

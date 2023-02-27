@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend
   auto nelements = input.shape().num_elements();
   auto nbytes = nelements * TypeTable::GetTypeInfo(input.type()).size();
   if (nelements <= min_blk_sz) {
-    thread_pool.AddWork([=](int tid) {
+    thread_pool.AddTask([=](int tid) {
       std::memcpy(out_ptr, in_ptr, nbytes);
     }, nelements);
   } else {
@@ -42,7 +42,7 @@ static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend
       int64_t b_start = prev_b_start;
       int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
       int64_t b_size = b_end - b_start;
-      thread_pool.AddWork([=](int tid) {
+      thread_pool.AddTask([=](int tid) {
         std::memcpy(out_ptr + b_start, in_ptr + b_start, b_size);
       }, b_size);
     }
@@ -352,7 +352,7 @@ void NumpyReaderCPU::RunImpl(Workspace &ws) {
                   blocks_per_sample);
     } else if (need_transpose_[i]) {
       // TODO(janton): Parallelize when Transpose supports tiling
-      thread_pool.AddWork([&, i, input_sample](int tid) {
+      thread_pool.AddTask([&, i, input_sample](int tid) {
         numpy::FromFortranOrder(output[i], input_sample);
       }, sample_sz * 8);  // 8 x (heuristic)
     } else {

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       auto roi = rois.empty() ? no_roi : rois[i];
-      ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) mutable {
+      ctx.tp->AddTask([=, out = out[i], in = in[i]](int tid) mutable {
           try {
             promise.set(i, DecodeImplTask(tid, out, in, opts, roi));
           } catch (...) {
@@ -128,7 +128,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       auto roi = rois.empty() ? no_roi : rois[i];
-      ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) mutable {
+      ctx.tp->AddTask([=, out = out[i], in = in[i]](int tid) mutable {
           try {
             promise.set(i, DecodeImplTask(tid, ctx.stream, out, in, opts, roi));
           } catch (...) {

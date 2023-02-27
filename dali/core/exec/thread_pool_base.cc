@@ -125,7 +125,7 @@ void ThreadPoolBase::PopAndRunTask(std::unique_lock<std::mutex> &lock) {
   TaskFunc t = std::move(tasks_.front());
   tasks_.pop();
   lock.unlock();
-  t();
+  t(this_thread_idx());
   lock.lock();
 }
 
