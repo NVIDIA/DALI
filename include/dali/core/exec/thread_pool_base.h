@@ -161,6 +161,38 @@ class DLL_PUBLIC ThreadPoolBase {
   std::vector<std::thread> threads_;
 };
 
+
+template <typename ThreadPool>
+class ThreadedExecutionengine {
+ public:
+  ThreadedExecutionengine(ThreadPool &tp) : tp_(tp) {}  // NOLINT
+
+  /**
+   * @brief Immediately execute a callable object `f` with thread index 0.
+   */
+  template <typename FunctionLike>
+  void AddWork(FunctionLike &&f, int64_t priority = 0) {
+    job_.AddTask(std::forward<FunctionLike>(f), priority);
+  }
+
+  void RunAll() {
+    job_.Run(tp_, true);
+  }
+
+  int NumThreads() const noexcept {
+    return tp_.NumThreads();
+  }
+
+  ThreadPool &GetThreadPool() const noexcept {
+    return tp_;
+  }
+
+ private:
+  ThreadPool &tp_;
+  Job job_;
+};
+
+
 }  // namespace dali
 
 #endif  // DALI_CORE_EXEC_THREAD_POOL_BASE_H_
