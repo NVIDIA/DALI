@@ -67,7 +67,7 @@ def create_coco_pipeline(default_boxes, args):
                                     brightness = brightness,
                                     contrast = contrast)
 
-    dtype = types.FLOAT16 if args.fp16 else types.FLOAT
+    dtype = types.FLOAT16 if args.fp16_mode else types.FLOAT
 
     bboxes = fn.bb_flip(bboxes, ltrb=True, horizontal=flip_coin)
     images = fn.crop_mirror_normalize(images,

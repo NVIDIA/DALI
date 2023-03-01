@@ -22,7 +22,7 @@ fi
 LOG=dali.log
 
 SECONDS=0
-python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128  --loss-scale 128.0 --workers 4 --lr=0.4 --opt-level O2 ./ 2>&1 | tee $LOG
+python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
