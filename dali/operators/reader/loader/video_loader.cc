@@ -382,6 +382,8 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       "Variable frame rate videos are unsupported. This heuristic can yield false positives. "
       "The check can be disabled via the skip_vfr_check flag. Check failed for file: " + filename);
     av_packet_unref(&pkt);
+    // empty the read buffer from av_read_frame to save the memory usage
+    avformat_flush(file.fmt_ctx_.get());
 
     auto duration = stream->duration;
     // if no info in the stream check the container
@@ -685,6 +687,8 @@ void VideoLoader::read_file() {
 
   // flush the decoder
   vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
+  // empty the read buffer from av_read_frame to save the memory usage
+  avformat_flush(file.fmt_ctx_.get());
 }
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
