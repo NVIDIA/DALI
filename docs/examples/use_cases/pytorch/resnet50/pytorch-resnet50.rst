@@ -13,7 +13,7 @@ To run use the following commands
 
    ln -s /path/to/train/jpeg/ train
    ln -s /path/to/validation/jpeg/ val
-   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./
+   torchrun --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./
 
 Requirements
 ------------

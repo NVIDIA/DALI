@@ -70,8 +70,6 @@ def parse():
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true')
 
-    parser.add_argument("--local_rank", default=0, type=int)
-
     parser.add_argument('--fp16-mode', default=True, action='store_true',
                         help='Enable half precision mode.')
     parser.add_argument('--loss-scale', type=float, default=1)
@@ -157,6 +155,10 @@ def main():
     args.distributed = False
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
+    if 'LOCAL_RANK' in os.environ:
+        args.local_rank = int(os.environ['LOCAL_RANK'])
+    else:
+        args.local_rank = 0
 
     print("fp16_mode = {}".format(args.fp16_mode))
     print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))

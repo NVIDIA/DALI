@@ -102,12 +102,6 @@ def make_parser():
     parser.add_argument('--num-workers', type=int, default=4)
     parser.add_argument('--fp16-mode', default=True, action='store_true',
         help='Enable half precision mode')
-
-    # Distributed
-    parser.add_argument('--local_rank', default=0, type=int,
-        help='Used for multi-process training. Can either be manually set ' +
-            'or automatically set by using \'python -m multiproc\'.')
-
     # Pipeline control
     parser.add_argument(
         '--data_pipeline', type=str, default='dali', choices=['dali', 'no_dali'],
@@ -180,6 +174,10 @@ def train(args):
 if __name__ == "__main__":
     parser = make_parser()
     args = parser.parse_args()
+    if 'LOCAL_RANK' in os.environ:
+        args.local_rank = int(os.environ['LOCAL_RANK'])
+    else:
+        args.local_rank = 0
     if args.local_rank == 0:
         os.makedirs('./models', exist_ok=True)
 
