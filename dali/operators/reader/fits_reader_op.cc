@@ -23,37 +23,13 @@
 #include "dali/pipeline/data/backend.h"
 
 namespace dali {
-
-namespace {
-
-int FitsReaderOutputFn(const OpSpec &spec) {
-  if (spec.HasArgument("hdu_indices"))
-    return static_cast<int>(spec.GetArgument<vector<int>>("hdu_indices").size());
-  else
-    return 0;
+namespace detail {
+inline int FitsReaderOutputFn(const OpSpec &spec) {
+  return spec.HasArgument("hdu_indices") ?
+             spec.GetRepeatedArgument<std::string>("hdu_indices").size() : 1;
 }
 
-}  // namespace
-
-static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
-                       ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
-  auto *out_ptr = static_cast<uint8_t *>(output.raw_mutable_data());
-  const auto *in_ptr = static_cast<const uint8_t *>(input.raw_data());
-  auto nelements = input.shape().num_elements();
-  auto nbytes = nelements * TypeTable::GetTypeInfo(input.type()).size();
-  if (nelements <= min_blk_sz) {
-    thread_pool.AddWork([=](int tid) { std::memcpy(out_ptr, in_ptr, nbytes); }, nelements);
-  } else {
-    int64_t prev_b_start = 0;
-    for (int b = 0; b < req_nblocks; b++) {
-      int64_t b_start = prev_b_start;
-      int64_t b_end = prev_b_start = nbytes * (b + 1) / req_nblocks;
-      int64_t b_size = b_end - b_start;
-      thread_pool.AddWork(
-          [=](int tid) { std::memcpy(out_ptr + b_start, in_ptr + b_start, b_size); }, b_size);
-    }
-  }
-}
+}  // namespace detail
 
 DALI_REGISTER_OPERATOR(experimental_readers__Fits, FitsReaderCPU, CPU);
 
@@ -67,7 +43,7 @@ This operator can be used in the following modes:
 3. Read files listed in ``files`` argument.
 )")
     .NumInput(0)
-    .NumOutput(1)  // (Arrays)
+    .OutputFn(detail::FitsReaderOutputFn)
     .AddOptionalArg<string>("file_root",
                             R"(Path to a directory that contains the data files.
 
@@ -100,7 +76,7 @@ This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
     .AddOptionalArg<vector<int>>("hdu_indices",
                                  R"(HDU indexes to read. If not provided, first HDU after primary 
-  will be yielded (i.e. for each file [2]).)",
+  will be yielded (i.e. will default to  hdu_indices=[2]).)",
                                  nullptr)
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
 
@@ -110,24 +86,31 @@ The default output data types are UINT8. However, if set, each output data type 
     .AddParent("LoaderBase");
 
 void FitsReaderCPU::RunImpl(Workspace &ws) {
-  auto &output = ws.Output<CPUBackend>(0);
-  const auto &out_sh = output.shape();
-  int nsamples = out_sh.num_samples();
-  auto &thread_pool = ws.GetThreadPool();
-  int nthreads = thread_pool.NumThreads();
+  int num_outputs = ws.NumOutput();
+  int num_samples = GetCurrBatchSize();
 
-  // From 1 to 10 blocks per sample depending on the nthreads/nsamples ratio
-  int blocks_per_sample = std::max(1, 10 * nthreads / nsamples);
-  constexpr int kThreshold = kernels::kSliceMinBlockSize;  // smaller samples will not be subdivided
-
-  for (int i = 0; i < nsamples; i++) {
-    const auto &file_i = GetSample(i);
-    const auto &file_sh = file_i.get_shape();
-    int64_t sample_sz = volume(file_i.get_shape());
-    auto input_sample = const_sample_view(file_i.data);
-    CopyHelper(output[i], input_sample, thread_pool, kThreshold, blocks_per_sample);
+  bool threaded = ws.GetThreadPool().NumThreads() > 1;
+  // maybe we should loop first on files then on outputs? 
+  // also what about types? 
+  for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+    auto &output = ws.Output<CPUBackend>(output_idx);
+    for (int file_idx = 0; file_idx < num_samples; file_idx++) {
+      auto &sample = GetSample(file_idx);
+      ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = file_idx, &output,
+                                    &sample](int) {
+        std::memcpy(output.raw_mutable_tensor(data_idx), sample.data[output_idx].raw_data(),
+                    sample.data[output_idx].nbytes());
+      };
+      if (threaded) {
+        ws.GetThreadPool().AddWork(std::move(copy_task), -file_idx);
+      } else {
+        copy_task(0);
+      }
+    }
   }
-  thread_pool.RunAll();
+  if (threaded) {
+    ws.GetThreadPool().RunAll();
+  }
 }
 
 }  // namespace dali

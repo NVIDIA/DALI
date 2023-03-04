@@ -40,23 +40,27 @@ class FitsReader : public DataReader<Backend, Target> {
   using DataReader<Backend, Target>::GetSample;
   using Operator<Backend>::spec_;
 
-
+  // rewrite this part given new approach with multiple outputs
+  // do i
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+    int num_outputs = ws.NumOutput();
+    int num_samples = GetCurrBatchSize();  // samples here are synonymous with files
 
-    int batch_size = GetCurrBatchSize();
-    const auto& file_0 = GetSample(0);
-    DALIDataType output_type = file_0.get_type();
-    int ndim = file_0.get_shape().sample_dim();
-    TensorListShape<> sh(batch_size, ndim);
+    output_desc.resize(num_outputs);
+    for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+      output_desc[output_idx].shape = TensorListShape<>(num_samples, 1);
+    }
 
-    // TODO: implement checking that all images have same dimensions
-    // also all general calculations for all images such as roi
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto& sample = GetSample(sample_idx);
+      for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+        output_desc[output_idx].shape.set_tensor_shape(sample_idx, sample.data[output_idx].shape());
+        output_desc[output_idx].type = sample.data[output_idx].type();
+      }
+    }
 
-    output_desc.resize(1);
-    output_desc[0].shape = std::move(sh);
-    output_desc[0].type = output_type;
     return true;
   }
 };
