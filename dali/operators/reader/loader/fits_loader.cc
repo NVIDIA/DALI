@@ -30,28 +30,12 @@
 namespace dali {
 
 void FitsLoader::ReadSample(FitsFileWrapper& target) {
-  auto filename = files_[current_index_];
-  fitsfile* current_file;
-  int status = 0, hdunum;
-  Index pastIndex = current_index_;
+  auto filename = files_[current_index_++];
+  fitsfile* current_file = nullptr;
+  int status = 0, num_hdus = 0;
 
-  // hanlde moving through HDUs, assuming that primary hdu is for meta data
-  auto path = filesystem::join_path(file_root_, filename);
-  fits_open_file(&current_file, path.c_str(), READONLY, &status);
-  fits_get_num_hdus(current_file, &hdunum, &status);
-  fits_movabs_hdu(current_file, hdu_index_, NULL, &status);
-
-  if (hdu_index_ < hdunum) {
-    hdu_index_++;
-  } else {
-    hdu_index_ = 2;    // skiping primary hdu
-    current_index_++;  // moving to next file
-  }
-
-  // handle wrap-around, TODO: overwrite move to next shard
+  // handle wrap-around
   MoveToNextShard(current_index_);
-  if (pastIndex != current_index_)
-    hdu_index_ = 2;
 
   // metadata info
   DALIMeta meta;
@@ -59,34 +43,47 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   meta.SetSkipSample(false);
 
 
-  if (status != 0) {
-    fits_report_error(stderr, status);
+  auto path = filesystem::join_path(file_root_, filename);
+  fits_open_file(&current_file, path.c_str(), READONLY, &status);
+  fits_get_num_hdus(current_file, &num_hdus, &status);
+
+  for (int output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
+    // move to approriate hdu
+    fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status);
+
+    // read the header
+    fits::HeaderData header;
+    try {
+      fits::ParseHeader(header, current_file);
+    } catch (const std::runtime_error& e) {
+      DALI_FAIL(e.what() + ". File: " + filename);
+    }
+
+    int anynul = 0, nulval = 0;
+    Index nbytes = header.nbytes();
+
+    // reset, resize target
+    if (target.data[output_idx].shares_data()) {
+      target.data[output_idx].Reset();
+    }
+    target.data[output_idx].Resize(header.shape, header.type());
+
+    // copy the image
+    fits_read_img(current_file, TBYTE, 1, nbytes, &nulval,
+                  static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul,
+                  &status);
+    DALI_ENFORCE(status != 0, make_string("Failed to read file: ", filename));
+
+
+    // close the file handle
+    fits_close_file(current_file, &status);
+
+    // set metadata
+    target.data[output_idx].SetMeta(meta);
+
+    // set file path
+    target.filename = std::move(path);
   }
-
-  // read the header
-  fits::HeaderData header;
-  try {
-    fits::ParseHeader(header, current_file);
-  } catch (const std::runtime_error& e) {
-    DALI_FAIL(e.what() + ". File: " + filename);
-  }
-
-  // copy the image
-  int anynul = 0, nulval = 0;
-  Index nbytes = header.nbytes();
-
-  target.data.Resize(header.shape, header.type());
-  fits_read_img(current_file, TBYTE, 1, nbytes, &nulval,
-                static_cast<uint8_t*>(target.data.raw_mutable_data()), &anynul, &status);
-
-  // close the file handle
-  fits_close_file(current_file, &status);
-
-  // set metadata
-  target.data.SetMeta(meta);
-
-  // set file path
-  target.filename = std::move(path);
 }
 
 }  // namespace dali

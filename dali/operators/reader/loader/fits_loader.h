@@ -39,41 +39,22 @@
 namespace dali {
 
 struct FitsFileWrapper {
-  Tensor<CPUBackend> data;
+  std::vector<Tensor<CPUBackend>> data;
   std::string filename;
-
-  DALIDataType get_type() const {
-    return data.type();
-  }
-
-  const TensorShape<>& get_shape() const {
-    return data.shape();
-  }
-
-  const DALIMeta& get_meta() const {
-    return data.GetMeta();
-  }
 };
 
 
 class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
  public:
-  explicit inline FitsLoader(
-    const OpSpec& spec, 
-    bool shuffle_after_epoch = false)
-      : FileLoader(spec, shuffle_after_epoch) {
-        hdu_index_ = 2; // we try to ommit primary hdu 
-      }
+  explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
+      : FileLoader(spec, shuffle_after_epoch),
+        hdu_indices_(spec.GetArgument<vector<int>>("hdu_indices_")) {}
 
-  void PrepareEmpty(FitsFileWrapper& target) override {
-    target = {};
-  }
+  void PrepareEmpty(FitsFileWrapper&) override;
+  void ReadSample(FitsFileWrapper&) override;
 
-  // we want to make it possible to override this function as well
-  void ReadSample(FitsFileWrapper& target) override;
-  
-private:
-  int hdu_index_; 
+ private:
+  std::vector<int> hdu_indices_;
 };
 
 
