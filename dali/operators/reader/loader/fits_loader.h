@@ -50,7 +50,9 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
       : FileLoader(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetArgument<vector<int>>("hdu_indices_")) {}
 
-  void PrepareEmpty(FitsFileWrapper&) override;
+  void PrepareEmpty(FitsFileWrapper& target) override {
+    target = {};
+  }
   void ReadSample(FitsFileWrapper&) override;
 
  private:
