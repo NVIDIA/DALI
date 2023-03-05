@@ -74,10 +74,10 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
-    .AddOptionalArg<vector<int>>("hdu_indices",
+    .AddOptionalArg("hdu_indices",
                                  R"(HDU indexes to read. If not provided, first HDU after primary 
   will be yielded (i.e. will default to  hdu_indices=[2]).)",
-                                 nullptr)
+                                 std::vector<int>{2})
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
 
 The default output data types are UINT8. However, if set, each output data type should be specified.")code",
