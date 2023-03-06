@@ -51,12 +51,7 @@ from image_classification.mixup import NLLMultiLabelSmooth, MixUpWrapper
 from image_classification.dataloaders import *
 from image_classification.training import *
 from image_classification.utils import *
-from image_classification.models import (
-    efficientnet_b0,
-    efficientnet_b4,
-    efficientnet_widese_b0,
-    efficientnet_widese_b4,
-)
+from image_classification.models import efficientnet_b0
 from image_classification.optimizers import (
     get_optimizer,
     lr_cosine_policy,
@@ -68,15 +63,7 @@ import dllogger
 
 
 def available_models():
-    models = {
-        m.name: m
-        for m in [
-            efficientnet_b0,
-            efficientnet_b4,
-            efficientnet_widese_b0,
-            efficientnet_widese_b4,
-        ]
-    }
+    models = {m.name: m for m in [efficientnet_b0]}
     return models
 
 
@@ -652,7 +639,7 @@ if __name__ == "__main__":
         model_help = "\n".join(ep.parser().format_help().split("\n")[2:])
         epilog.append(model_help)
     parser = argparse.ArgumentParser(
-        description="PyTorch ImageNet Training",
+        description="PyTorch EfficientNet Training",
         epilog="\n".join(epilog),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

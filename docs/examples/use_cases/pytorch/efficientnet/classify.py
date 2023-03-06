@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the BSD 3-Clause License  (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,28 +22,11 @@ import torch.backends.cudnn as cudnn
 from image_classification import models
 import torchvision.transforms as transforms
 
-from image_classification.models import (
-    efficientnet_b0,
-    efficientnet_b4,
-    efficientnet_widese_b0,
-    efficientnet_widese_b4,
-    efficientnet_quant_b0,
-    efficientnet_quant_b4,
-)
+from image_classification.models import efficientnet_b0
 
 
 def available_models():
-    models = {
-        m.name: m
-        for m in [
-            efficientnet_b0,
-            efficientnet_b4,
-            efficientnet_widese_b0,
-            efficientnet_widese_b4,
-            efficientnet_quant_b0,
-            efficientnet_quant_b4,
-        ]
-    }
+    models = {m.name: m for m in [efficientnet_b0]}
     return models
 
 

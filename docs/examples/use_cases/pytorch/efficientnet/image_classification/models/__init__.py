@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the BSD 3-Clause License  (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,4 @@
 # limitations under the License.
 
 from .entrypoints import nvidia_convnets_processing_utils, nvidia_efficientnet
-from .efficientnet import (
-    efficientnet_b0,
-    efficientnet_b4,
-    efficientnet_widese_b0,
-    efficientnet_widese_b4,
-    efficientnet_quant_b0,
-    efficientnet_quant_b4,
-)
+from .efficientnet import efficientnet_b0
