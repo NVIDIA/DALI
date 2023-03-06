@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
+#include "dali/core/util.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
@@ -28,6 +29,20 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+
+int nvjpegGetVersion() {
+  int major = -1;
+  int minor = -1;
+  int patch = -1;
+  GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
+  return GetVersionNumber(major, minor, patch);
+}
+
+}  // namespace
+
 NvJpegDecoderInstance::
 NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 : BatchParallelDecoderImpl(device_id, params)
@@ -35,8 +50,16 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   SetParams(params);
 
+  unsigned int nvjpeg_flags = 0;
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+  if (use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001) {
+    nvjpeg_flags |= NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION;
+  }
+#endif
+
   DeviceGuard dg(device_id_);
-  CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
+
+  CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &nvjpeg_handle_));
 
   tp_ = std::make_unique<ThreadPool>(num_threads_, device_id, true, "NvJpegDecoderInstance");
   resources_.reserve(tp_->NumThreads());
@@ -167,6 +190,9 @@ bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
     num_threads_ = any_cast<int>(value);
     return true;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    use_jpeg_fancy_upsampling_ = any_cast<bool>(value);
+    return true;
   }
 
   return false;
@@ -179,6 +205,8 @@ any NvJpegDecoderInstance::GetParam(const char *name) const {
     return host_memory_padding_;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
     return num_threads_;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    return use_jpeg_fancy_upsampling_;
   } else {
     return {};
   }

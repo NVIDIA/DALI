@@ -70,6 +70,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   size_t host_memory_padding_ = 0;
   nvjpegDevAllocator_t device_allocator_;
   nvjpegPinnedAllocator_t pinned_allocator_;
+  bool use_jpeg_fancy_upsampling_ = false;
 
   struct DecoderData {
     nvjpegJpegDecoder_t decoder = nullptr;
