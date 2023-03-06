@@ -81,8 +81,8 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--interpolation",
         metavar="INTERPOLATION",
-        default="bilinear",
-        help="interpolation type for resizing images: bilinear, bicubic or triangular(DALI only)",
+        default="bicubic",
+        help="interpolation type for resizing images: bilinear, bicubic or triangular (DALI only)",
     )
     if not skip_arch:
         model_names = available_models().keys()
@@ -100,21 +100,22 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "-j",
         "--workers",
-        default=5,
+        default=4,
         type=int,
         metavar="N",
-        help="number of data loading workers (default: 5)",
+        help=("number of data loading workers (default: 4)."
+              " The number of workers for PyTorch loader is doubled."),
     )
     parser.add_argument(
         "--prefetch",
-        default=2,
+        default=4,
         type=int,
         metavar="N",
         help="number of samples prefetched by each loader",
     )
     parser.add_argument(
         "--epochs",
-        default=90,
+        default=400,
         type=int,
         metavar="N",
         help="number of total epochs to run",
@@ -134,20 +135,20 @@ def add_parser_arguments(parser, skip_arch=False):
         help="early stopping after N epochs without validation accuracy improving",
     )
     parser.add_argument(
-        "--image-size", default=None, type=int, help="resolution of image"
+        "--image-size", default=224, type=int, help="resolution of image"
     )
     parser.add_argument(
         "-b",
         "--batch-size",
-        default=256,
+        default=64,
         type=int,
         metavar="N",
-        help="mini-batch size (default: 256) per gpu",
+        help="mini-batch size (default: 64) per gpu",
     )
 
     parser.add_argument(
         "--optimizer-batch-size",
-        default=-1,
+        default=4096,
         type=int,
         metavar="N",
         help="size of a total batch size, for simulating bigger batches using gradient accumulation",
@@ -156,14 +157,14 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--lr",
         "--learning-rate",
-        default=0.1,
+        default=0.08,
         type=float,
         metavar="LR",
         help="initial learning rate",
     )
     parser.add_argument(
         "--lr-schedule",
-        default="step",
+        default="cosine",
         type=str,
         metavar="SCHEDULE",
         choices=["step", "linear", "cosine"],
@@ -173,21 +174,21 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument("--end-lr", default=0, type=float)
 
     parser.add_argument(
-        "--warmup", default=0, type=int, metavar="E", help="number of warmup epochs"
+        "--warmup", default=16, type=int, metavar="E", help="number of warmup epochs"
     )
 
     parser.add_argument(
         "--label-smoothing",
-        default=0.0,
+        default=0.1,
         type=float,
         metavar="S",
         help="label smoothing",
     )
     parser.add_argument(
-        "--mixup", default=0.0, type=float, metavar="ALPHA", help="mixup alpha"
+        "--mixup", default=0.2, type=float, metavar="ALPHA", help="mixup alpha"
     )
     parser.add_argument(
-        "--optimizer", default="sgd", type=str, choices=("sgd", "rmsprop")
+        "--optimizer", default="rmsprop", type=str, choices=("sgd", "rmsprop")
     )
 
     parser.add_argument(
@@ -196,10 +197,10 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--weight-decay",
         "--wd",
-        default=1e-4,
+        default=1e-05,
         type=float,
         metavar="W",
-        help="weight decay (default: 1e-4)",
+        help="weight decay (default: 1e-5)",
     )
     parser.add_argument(
         "--bn-weight-decay",
@@ -214,9 +215,9 @@ def add_parser_arguments(parser, skip_arch=False):
     )
     parser.add_argument(
         "--rmsprop-eps",
-        default=1e-3,
+        default=0.01,
         type=float,
-        help="value of eps parameter in rmsprop optimizer (default: 1e-3)",
+        help="value of eps parameter in rmsprop optimizer (default: 0.01)",
     )
 
     parser.add_argument(
@@ -228,10 +229,10 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--print-freq",
         "-p",
-        default=10,
+        default=100,
         type=int,
         metavar="N",
-        help="print frequency (default: 10)",
+        help="print frequency (default: 100)",
     )
     parser.add_argument(
         "--resume",
@@ -324,7 +325,7 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--gpu-affinity",
         type=str,
-        default="none",
+        default="socket_unique_contiguous",
         required=False,
         choices=[am.name for am in AffinityMode],
     )
@@ -476,6 +477,7 @@ def prepare_for_training(args, model_args, model_arch):
 
     # Create data loaders and optimizers as needed
     if args.data_backend == "pytorch":
+        args.workers = args.workers * 2
         get_train_loader = get_pytorch_train_loader
         get_val_loader = get_pytorch_val_loader
     elif args.data_backend == "dali-gpu":
