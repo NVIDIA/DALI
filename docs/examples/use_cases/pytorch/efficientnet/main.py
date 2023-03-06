@@ -72,11 +72,11 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--data-backend",
         metavar="BACKEND",
-        default="dali-cpu",
+        default="dali",
         choices=DATA_BACKEND_CHOICES,
         help="data backend: "
         + " | ".join(DATA_BACKEND_CHOICES)
-        + " (default: dali-cpu)",
+        + " (default: dali)",
     )
     parser.add_argument(
         "--interpolation",
@@ -111,7 +111,14 @@ def add_parser_arguments(parser, skip_arch=False):
         default=4,
         type=int,
         metavar="N",
-        help="number of samples prefetched by each loader",
+        help="number of samples prefetched by each loader (PyTorch only)",
+    )
+    parser.add_argument(
+        "--dali-device",
+        default="gpu",
+        type=str,
+        choices=["cpu", "gpu"],
+        help=("The placement of DALI decode and random resized crop operations (default: gpu)"),
     )
     parser.add_argument(
         "--epochs",
@@ -309,17 +316,17 @@ def add_parser_arguments(parser, skip_arch=False):
     parser.add_argument(
         "--memory-format",
         type=str,
-        default="nchw",
+        default="nhwc",
         choices=["nchw", "nhwc"],
         help="memory layout, nchw or nhwc",
     )
     parser.add_argument("--use-ema", default=None, type=float, help="use EMA")
     parser.add_argument(
-        "--augmentation",
+        "--automatic-augmentation",
         type=str,
-        default=None,
-        choices=[None, "autoaugment"],
-        help="augmentation method",
+        default="autoaugment",
+        choices=["disabled", "autoaugment", "trivialaugment"],
+        help="Automatic augmentation method, trivialaugment is supported only for DALI data backend",
     )
 
     parser.add_argument(
@@ -480,11 +487,8 @@ def prepare_for_training(args, model_args, model_arch):
         args.workers = args.workers * 2
         get_train_loader = get_pytorch_train_loader
         get_val_loader = get_pytorch_val_loader
-    elif args.data_backend == "dali-gpu":
-        get_train_loader = get_dali_train_loader(dali_cpu=False)
-        get_val_loader = get_dali_val_loader()
-    elif args.data_backend == "dali-cpu":
-        get_train_loader = get_dali_train_loader(dali_cpu=True)
+    elif args.data_backend == "dali":
+        get_train_loader = get_dali_train_loader(dali_device=args.dali_device)
         get_val_loader = get_dali_val_loader()
     elif args.data_backend == "synthetic":
         get_val_loader = get_synthetic_loader
@@ -500,7 +504,7 @@ def prepare_for_training(args, model_args, model_arch):
         model_args.num_classes,
         args.mixup > 0.0,
         interpolation=args.interpolation,
-        augmentation=args.augmentation,
+        augmentation=args.automatic_augmentation,
         start_epoch=start_epoch,
         workers=args.workers,
         _worker_init_fn=_worker_init_fn,
