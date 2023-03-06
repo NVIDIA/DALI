@@ -25,7 +25,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(MedianBlur)
+DALI_SCHEMA(experimental__MedianBlur)
   .NumInput(1)
   .NumOutput(1)
   .InputLayout({"HWC", "FHWC", "CHW", "FCHW"})
