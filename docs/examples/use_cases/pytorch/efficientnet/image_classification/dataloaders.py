@@ -135,8 +135,8 @@ def get_dali_train_loader(dali_device="gpu"):
         }
 
         pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
-                             dali_device=dali_device, rank=rank, world_size=world_size,
-                             **pipeline_kwargs)
+                             automatic_augmentation=augmentation, dali_device=dali_device,
+                             rank=rank, world_size=world_size, **pipeline_kwargs)
 
         pipe.build()
         train_loader = DALIClassificationIterator(

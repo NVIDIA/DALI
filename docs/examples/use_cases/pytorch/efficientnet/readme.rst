@@ -131,7 +131,7 @@ To run training benchmarks with different data loaders and automatic augmentatio
   export RESULT_WORKSPACE=./
 
   # synthetic benchmark
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 1 --prof 100 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --raport-file bench_report_synthetic.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 1 --prof 1000 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --raport-file bench_report_synthetic.json $PATH_TO_IMAGENET
 
   # DALI without automatic augmentations
   python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --raport-file bench_report_dali.json $PATH_TO_IMAGENET

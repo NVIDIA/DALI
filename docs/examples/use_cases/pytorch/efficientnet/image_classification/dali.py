@@ -69,8 +69,8 @@ def training_pipe(data_dir, interpolation, image_size, automatic_augmentation, d
 
 @pipeline_def
 def validation_pipe(data_dir, interpolation, image_size, image_crop, rank=0, world_size=1):
-    jpegs, label = fn.readers.file(file_root=data_dir, shard_id=rank, num_shards=world_size,
-                                   random_shuffle=False, pad_last_batch=True)
+    jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
+                                   num_shards=world_size, random_shuffle=False, pad_last_batch=True)
 
     images = fn.decoders.image(jpegs, device="mixed", output_type=types.RGB)
 
