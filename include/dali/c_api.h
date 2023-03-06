@@ -30,13 +30,7 @@ extern "C" {
  * @note Beware, the C API is just C-like API for handling some mangling issues and
  * it can throw exceptions.
  */
-typedef struct {
-  void *pipe;
-  void *ws;
-  void *batch_size_map;      /// @see batch_size_map_t
-  cudaStream_t copy_stream;  /// Stream to perform copy operations on
-  void *data_id_map;         /// @see data_id_map_t
-} daliPipelineHandle;
+typedef struct DALIPipeline *daliPipelineHandle;
 
 typedef enum {
   CPU = 0,
@@ -627,14 +621,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  *  @param reader_name Name of the reader to query
  *  @param meta Pointer to metadata to be filled by the function
  */
-DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle *pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
 
 /**
  * @brief Returns the backend of the operator with a given \p operator_name
  * @param operator_name Name of the operator to query
  */
-DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle *pipe_handle,
                                                  const char *operator_name);
 
 /**
@@ -645,7 +639,7 @@ DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle
  *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
  *                           (operators) have been files
  */
-DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle *pipe_handle,
                                         daliExecutorMetadata **operator_meta,
                                         size_t *operator_meta_num);
 
