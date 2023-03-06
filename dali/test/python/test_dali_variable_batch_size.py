@@ -1559,7 +1559,8 @@ excluded_methods = [
 
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn",
+                               allowed_private_modules=["_conditional"])
     methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join([
         "(^" + x.replace(".", "\\.").replace("*", ".*").replace("?", ".") + "$)"
