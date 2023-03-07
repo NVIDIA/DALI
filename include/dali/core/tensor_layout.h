@@ -311,7 +311,7 @@ class TensorLayout {
    */
   char data_[max_ndim + 1] = { 0 };
   DALI_HOST_DEV
-  void set_size(int n) {
+  constexpr void set_size(int n) {
     assert(n >= 0 && n <= max_ndim);
     data_[max_ndim] = max_ndim - n;
   }
