@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -347,6 +347,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::vector<IterationData> iteration_data_;
   size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
   size_t output_iteration_id_ = 0;
+  bool has_conditionals_ = false;  // true iff the graph that is executed contains if statements
 
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
@@ -372,6 +373,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       batch_size_providers_.emplace_back(bsp);
     }
   }
+
+  /**
+   * @brief Traverses the Graph to check if there is a _conditional.split with _if_stmt argument
+   * specified, indicating that the `if` statement was used and the graph is operating in
+   * conditional mode (enable_conditionals=True).
+   *
+   * TODO(klecki): Consider adding a specific callback to Pipeline so the frontend can indicate
+   * it directly.
+   */
+  void DetectConditionals();
 
   int InferBatchSize(const std::vector<BatchSizeProvider *> &batch_size_providers) const;
 
@@ -499,6 +510,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   SetupOutputQueuesForGraph();
 
   DiscoverBatchSizeProviders();
+  DetectConditionals();
 
   InitIterationData();
 

@@ -23,10 +23,11 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/source_info_propagation.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
-#include "dali/pipeline/executor/source_info_propagation.h"
 
 namespace dali {
 
@@ -398,6 +399,38 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
                              ws.GetRequestedBatchSize(i), " <= ", max_batch_size_));
   }
 
+  // If we are using conditional statements try to keep smaller memory footprint by not keeping
+  // the largest batch produced in conditional block as reserved memory.
+  // If the conditionals were detected in this graph (split operator with `_if_stmt` argument)
+  // see if the operator is executed in conditional scope - seeing a partial batch processed
+  // would indicate it in most cases (unless someone mixes partial batches and conditionals).
+  // In such case reset the outputs before adjusting their size so we free the reserved memory
+  // and allocated only batch of currently needed size.
+  if (has_conditionals_) {
+    bool any_tensor_partial = false;
+    if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
+      for (int i = 0; i < ws.NumInput(); i++) {
+        any_tensor_partial = any_tensor_partial || ws.GetInputBatchSize(i) < max_batch_size_;
+      }
+      const ArgumentWorkspace &argument_ws = ws;
+      for (const auto &[name, arg] : argument_ws) {
+        any_tensor_partial = any_tensor_partial || arg.tvec->num_samples() < max_batch_size_;
+      }
+    }
+    for (int i = 0; i < spec.NumOutput(); i++) {
+      any_tensor_partial = any_tensor_partial || ws.GetRequestedBatchSize(i) < max_batch_size_;
+    }
+    if (any_tensor_partial) {
+      for (int i = 0; i < spec.NumOutput(); i++) {
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template Output<CPUBackend>(i).Reset();
+        } else {
+          ws.template Output<GPUBackend>(i).Reset();
+        }
+      }
+    }
+  }
+
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     bool had_empty_layout = false;
     if (ws.InputIsType<CPUBackend>(i)) {
@@ -570,6 +603,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
     id.operator_traces = std::make_shared<operator_trace_map_t>();
+  }
+}
+
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::DetectConditionals() {
+  for (Index i = 0; i < graph_->NumOp(); i++) {
+    const auto &spec = graph_->Node(i).spec;
+    if (IsSplit(spec.GetSchema())) {
+      if (spec.GetArgument<bool>("_if_stmt")) {
+        has_conditionals_ = true;
+      }
+    }
   }
 }
 
