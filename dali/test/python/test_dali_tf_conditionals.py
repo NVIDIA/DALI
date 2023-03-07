@@ -19,7 +19,10 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
 
+from nose.tools import with_setup
+from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 
+@with_setup(skip_inputs_for_incompatible_tf)
 def test_both_tf_and_dali_conditionals():
 
     @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0)
