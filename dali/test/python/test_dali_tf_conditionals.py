@@ -22,6 +22,7 @@ import nvidia.dali.plugin.tf as dali_tf
 from nose.tools import with_setup
 from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 
+
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_both_tf_and_dali_conditionals():
 
