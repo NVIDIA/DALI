@@ -25,6 +25,7 @@ from functools import partial
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 import test_utils
@@ -99,6 +100,10 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
         return list(ret)
+    elif np.issubdtype(dtype, bool):
+        assert isinstance(lo, bool)
+        assert isinstance(hi, bool)
+        return [np.random.choice(a=[lo, hi], size=(bs, ) + size_fn()) for bs in batch_sizes]
     else:
         raise RuntimeError(f"Invalid type argument: {dtype}")
 
@@ -1297,7 +1302,71 @@ def test_cast_like():
     check_pipeline(input_data, pipeline_fn=pipe)
 
 
+def test_conditional():
+
+    def conditional_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_condition = fn.external_source(source=input_data, cycle=False, device=device)
+            variable_data = variable_condition + 42.0
+            if variable_condition:
+                other_variable_data = variable_condition + 100
+                output = variable_data + other_variable_data
+            else:
+                output = types.Constant(np.array(42.0), device="cpu")
+            logical_expr = variable_condition or not variable_condition
+            logical_expr2 = not variable_condition and variable_condition
+            return output, variable_condition, variable_data, logical_expr, logical_expr2
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=conditional_wrapper, devices=['cpu'])
+
+    def split_merge_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            variable_data = variable_pred + 42.0
+            true, false = fn._conditional.split(variable_data, predicate=variable_pred)
+            true = true + 10.0
+            merged = fn._conditional.merge(true, false, predicate=variable_pred)
+            return merged, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=split_merge_wrapper, devices=['cpu'])
+
+    def not_validate_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            negated = fn._conditional.not_(variable_pred)
+            validated = fn._conditional.validate_logical(variable_pred, expression_name="or",
+                                                         expression_side="right")
+            return negated, validated, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=not_validate_wrapper, devices=['cpu'])
+
+
 tested_methods = [
+    "_conditional.merge",
+    "_conditional.split",
+    "_conditional.not_",
+    "_conditional.validate_logical",
     "arithmetic_generic_op",
     "audio_decoder",
     "audio_resample",
@@ -1455,6 +1524,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "_conditional.hidden.*",
     "multi_paste",                   # ToDo - crashes
     "coco_reader",                   # readers do not support variable batch size yet
     "sequence_reader",               # readers do not support variable batch size yet
@@ -1487,7 +1557,8 @@ excluded_methods = [
 
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn",
+                               allowed_private_modules=["_conditional"])
     methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join([
         "(^" + x.replace(".", "\\.").replace("*", ".*").replace("?", ".") + "$)"

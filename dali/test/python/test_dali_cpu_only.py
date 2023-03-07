@@ -25,6 +25,7 @@ from collections.abc import Iterable
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 from nose_utils import assert_raises
@@ -1154,7 +1155,44 @@ def test_video_input():
         p.run()
 
 
+def test_conditional():
+
+    @experimental_pipeline_def(enable_conditionals=True)
+    def conditional_pipeline():
+        true = types.Constant(np.array(True), device="cpu")
+        false = types.Constant(np.array(False), device="cpu")
+        if true and true or not false:
+            output = types.Constant(np.array([42]), device="cpu")
+        else:
+            output = types.Constant(np.array([0]), device="cpu")
+        return output
+
+    cond_pipe = conditional_pipeline(batch_size=5, num_threads=1, device_id=None)
+    cond_pipe.build()
+    cond_pipe.run()
+
+    @pipeline_def
+    def explicit_conditional_ops_pipeline():
+        value = types.Constant(np.array([42]), device="cpu")
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred_validated = fn._conditional.validate_logical(pred, expression_name="or",
+                                                          expression_side="right")
+        true, false = fn._conditional.split(value, predicate=pred)
+        true = true + 10
+        merged = fn._conditional.merge(true, false, predicate=pred)
+        negated = fn._conditional.not_(pred)
+        return merged, negated, pred_validated
+
+    pipe = explicit_conditional_ops_pipeline(batch_size=5, num_threads=1, device_id=None)
+    pipe.build()
+    pipe.run()
+
+
 tested_methods = [
+    "_conditional.merge",
+    "_conditional.split",
+    "_conditional.not_",
+    "_conditional.validate_logical",
     "audio_decoder",
     "image_decoder",
     "image_decoder_slice",
@@ -1327,6 +1365,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "_conditional.hidden.*",
     "jitter",  # not supported for CPU
     "video_reader",  # not supported for CPU
     "video_reader_resize",  # not supported for CPU
@@ -1344,7 +1383,8 @@ excluded_methods = [
 
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn",
+                               allowed_private_modules=["_conditional"])
     methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join([
         "(^" + x.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
