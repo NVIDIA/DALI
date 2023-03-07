@@ -31,26 +31,27 @@ def test_both_tf_and_dali_conditionals():
             output = types.Constant(np.array(1), device="cpu")
         return output
 
-    dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-        pipeline=dali_conditional_pipeline(),
-        batch_size=5,
-        output_shapes=(5, ),
-        output_dtypes=(tf.int32),
-        num_threads=4,
-        device_id=0,
-    )
+    with tf.device("/cpu:0"):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            pipeline=dali_conditional_pipeline(),
+            batch_size=5,
+            output_shapes=(5, ),
+            output_dtypes=(tf.int32),
+            num_threads=4,
+            device_id=0,
+        )
 
-    @tf.function
-    def tf_function_with_conditionals(dali_dataset):
-        negative = tf.constant(0)
-        positive = tf.constant(0)
-        for input in dali_dataset:
-            if tf.reduce_sum(input) < 0:
-                negative = negative + 1
-            else:
-                positive = positive + 1
-        return negative, positive
+        @tf.function
+        def tf_function_with_conditionals(dali_dataset):
+            negative = tf.constant(0)
+            positive = tf.constant(0)
+            for input in dali_dataset:
+                if tf.reduce_sum(input) < 0:
+                    negative = negative + 1
+                else:
+                    positive = positive + 1
+            return negative, positive
 
-    pos, neg = tf_function_with_conditionals(dali_dataset.take(5))
-    assert pos == 3
-    assert neg == 2
+        pos, neg = tf_function_with_conditionals(dali_dataset.take(5))
+        assert pos == 3
+        assert neg == 2
