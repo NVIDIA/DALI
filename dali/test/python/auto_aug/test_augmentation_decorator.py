@@ -79,8 +79,8 @@ def test_lo_hi_mag_range():
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, 5, [const_bin] * batch_size)
     dyn_mag_ref = ref_param(mag_range, 11, list(range(batch_size)))
-    check_batch(const_mag, const_mag_ref)
-    check_batch(dyn_mag, dyn_mag_ref)
+    check_batch(const_mag, const_mag_ref, max_allowed_error=0)
+    check_batch(dyn_mag, dyn_mag_ref, max_allowed_error=0)
 
 
 def test_explicit_mag_range():
@@ -104,8 +104,8 @@ def test_explicit_mag_range():
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, None, [const_bin] * batch_size)
     dyn_mag_ref = ref_param(mag_range, None, list(range(batch_size)))
-    check_batch(const_mag, const_mag_ref)
-    check_batch(dyn_mag, dyn_mag_ref)
+    check_batch(const_mag, const_mag_ref, max_allowed_error=0)
+    check_batch(dyn_mag, dyn_mag_ref, max_allowed_error=0)
 
 
 @params((((201, 260), 60, False, 0)), (((301, 330), 30, True, 29)), (((101, 150), 50, False, None)),
@@ -148,7 +148,7 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
     ]
     ref_magnitudes = ref_param(mag_range, num_magnitude_bins, magnitude_bin,
                                mag_signs_batch=mag_sign)
-    check_batch(magnitudes, ref_magnitudes)
+    check_batch(magnitudes, ref_magnitudes, max_allowed_error=0)
 
 
 @params((4, ), (None, ))
@@ -178,7 +178,7 @@ def test_no_randomly_negate(const_mag):
         i % num_magnitude_bins for i in range(batch_size)
     ]
     ref_magnitudes = ref_param(mag_range, 11, magnitude_bin)
-    check_batch(magnitudes, ref_magnitudes)
+    check_batch(magnitudes, ref_magnitudes, max_allowed_error=0)
 
 
 @params((((201, 211), 11, 7, np.uint16, "cpu")), (((101, 107), 7, None, np.float32, "gpu")))
@@ -219,7 +219,7 @@ def test_as_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device)
     ref_magnitudes = ref_param(mag_range, num_magnitude_bins, magnitude_bin,
                                mag_signs_batch=mag_sign, as_param=as_param)
     assert np.array(magnitudes).dtype == np.array(ref_magnitudes).dtype
-    check_batch(magnitudes, ref_magnitudes)
+    check_batch(magnitudes, ref_magnitudes, max_allowed_error=0)
 
 
 def test_augmentation_setup_update():
@@ -344,13 +344,13 @@ def test_no_required_kwargs():
     pipeline(aug, {'extra': None, 'another_extra': 42, 'extra_with_default': 7})
     pipeline(aug, {'extra': None, 'another_extra': 42})
 
-    with assert_raises(Exception, glob=f"not provided to the call: another_extra"):
+    with assert_raises(Exception, glob="not provided to the call: another_extra"):
         pipeline(aug, {'extra': None})
 
-    with assert_raises(Exception, glob=f"not provided to the call: extra"):
+    with assert_raises(Exception, glob="not provided to the call: extra"):
         pipeline(aug, {'another_extra': 42})
 
-    with assert_raises(Exception, glob=f"not provided to the call: extra, another_extra"):
+    with assert_raises(Exception, glob="not provided to the call: extra, another_extra"):
         pipeline(aug, {})
 
 
