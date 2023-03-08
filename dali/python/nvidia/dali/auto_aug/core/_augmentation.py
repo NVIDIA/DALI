@@ -36,6 +36,67 @@ class _UndefinedParam:
     and not specifying the kwarg"""
 
 
+class _SignedMagnitudeBin:
+
+    def __init__(self, magnitude_bin: Union[int, _DataNode],
+                 random_sign: Optional[_DataNode] = None, seed=None):
+        if not isinstance(magnitude_bin, (int, _DataNode)):
+            raise Exception(f"The `magnitude_bin` must be an int or _DataNode (output of DALI op "
+                            f"or `types.Constant`) representing batch of ints from "
+                            f"`[0..num_magnitude_bins-1]` range. Got {magnitude_bin} instead.")
+        self._magnitude_bin = magnitude_bin
+        if random_sign is None:
+            random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32, seed=seed)
+        self._random_sign = random_sign
+        # it is important to compute it as soon as possible - we may be created at the top level
+        # in the pipeline, while it may be read in conditional split
+        self._signed_magnitude_idx = 2 * self._magnitude_bin + self._random_sign
+
+    @staticmethod
+    def _remap_to_signed_magnitudes(magnitudes):
+
+        def remap_bin_idx(bin_idx):
+            magnitude = magnitudes[bin_idx // 2]
+            if bin_idx % 2:
+                magnitude = -magnitude
+            return magnitude
+
+        return np.array([remap_bin_idx(bin_idx) for bin_idx in range(2 * len(magnitudes))])
+
+    @property
+    def bin(self):
+        return self._magnitude_bin
+
+    @property
+    def random_sign(self):
+        return self._random_sign
+
+    @property
+    def signed_magnitude_idx(self):
+        return self._signed_magnitude_idx
+
+
+def signed_bin(magnitude_bin: Optional[Union[int, _DataNode]],
+               random_sign: Optional[_DataNode] = None, seed=None) -> _SignedMagnitudeBin:
+    """
+    Combines the `magnitude_bin` with information about the sign of the magnitude.
+    The Augmentation wrapper can generate and handle the random sign on its own. Yet,
+    if the augmentation is called inside conditional split, it is better to combine
+    magnitude_bins and sign in advance, before the split, so that the sign handling is done
+    once for the whole batch rather than multiple times for each op operating on the split batch.
+
+    Parameter
+    ---------
+    magnitude_bin: int or DataNode
+        The magnitude bin from range `[0, num_magnitude_bins - 1]`. Can be plain int or
+        a batch (_DataNode) of ints.
+    random_sign : DataNode
+        A batch of {0, 1} integers. For augmentations declared with `random_negate=True`,
+        it determines if the magnitude is negated (for 1) or not (for 0).
+    """
+    return _SignedMagnitudeBin(magnitude_bin, random_sign, seed)
+
+
 class Augmentation:
     """
     Wrapper for transformations implemented with DALI that are meant to be used with
@@ -66,9 +127,9 @@ class Augmentation:
         ]
         return f"Augmentation({', '.join([repr(self.op)] + params)})"
 
-    def __call__(self, sample: _DataNode, *, magnitude_bin: Optional[Union[int, _DataNode]] = None,
-                 num_magnitude_bins: Optional[int] = None, random_sign: Optional[_DataNode] = None,
-                 **kwargs) -> _DataNode:
+    def __call__(self, sample: _DataNode, *,
+                 magnitude_bin: Optional[Union[int, _DataNode, _SignedMagnitudeBin]] = None,
+                 num_magnitude_bins: Optional[int] = None, **kwargs) -> _DataNode:
         """
         Applies the decorated transformation to the `sample` as if by calling
         `self.op(sample, param, **kwargs)` where
@@ -78,19 +139,15 @@ class Augmentation:
         ---------
         sample : DataNode
             A batch of samples to be transformed.
-        magnitude_bin: int or DataNode
+        magnitude_bin: int, DataNode, or _SignedMagnitudeBin
             The magnitude bin from range `[0, num_magnitude_bins - 1]`. The bin is used to get
             parameter for the transformation. The parameter is computed as if by calling
             `as_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
             `magnitudes=linspace(mag_range[0], mag_range[1], num_magnitude_bins)`.
-            If the `mag_range` is custom `nd.array`, it will be used as `magnitudes` directly.
+            If the `mag_range` is custom `np.ndarray`, it will be used as `magnitudes` directly.
         num_magnitude_bins: int
             The total number of magnitude bins (limits the accepted range of
             `magnitude_bin` to `[0, num_magnitude_bins - 1]`).
-        random_sign : DataNode
-            A batch of {0, 1} integers that, in principle, should be sampled uniformly at random.
-            For augmentations declared with `random_negate=True`, it determines if the magnitude
-            is negated (for 1) or not (for 0).
         kwargs
             Dictionary with extra arguments to pass to the `self.op`. The op's signature
             is checked for any additional arguments (apart from the sample and parameter) and the
@@ -101,9 +158,8 @@ class Augmentation:
         DataNode
             A batch of transformed samples.
     """
-        assert magnitude_bin is None or isinstance(magnitude_bin, (_DataNode, int))
         num_mandatory_positional_args = 2
-        params = self._get_param(magnitude_bin, num_magnitude_bins, random_sign)
+        params = self._get_param(magnitude_bin, num_magnitude_bins)
         op_kwargs = filter_extra_accepted_kwargs(self.op, kwargs, num_mandatory_positional_args)
         missing_args = get_missing_kwargs(self.op, kwargs, num_mandatory_positional_args)
         if missing_args:
@@ -223,16 +279,7 @@ class Augmentation:
         lo, hi = mag_range
         return np.linspace(lo, hi, num_magnitude_bins, dtype=np.float32)
 
-    def _get_param(self, magnitude_bin, num_magnitude_bins, random_sign=None):
-        assert random_sign is None or isinstance(random_sign, _DataNode)
-        if self.randomly_negate and random_sign is None:
-            warnings.warn(
-                f"The augmentation `{self.name}` was declared with `random_negate=True`, "
-                f"but was called without `random_sign`. A default random source will be "
-                f"created for this call instead. However, if you split batch processing "
-                f"between multiple augmentations, it is best to provide a single common "
-                f"`random_sign` batch manually.", Warning)
-            random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32)
+    def _get_param(self, magnitude_bin, num_magnitude_bins):
         magnitudes = self._get_magnitudes(num_magnitude_bins)
         if magnitudes is None:
             return None
@@ -241,30 +288,40 @@ class Augmentation:
                 f"The augmentation `{self.name}` has `mag_range` specified, so when called, "
                 f"it requires `magnitude_bin` parameter to select the magnitude from the "
                 f"`mag_range`.\nError in augmentation: {self}.")
-        # if the bin is runtime defined, create Constant node with the array of params
-        # for any possible bin and use subscript to take the right one at each iteration
-        if isinstance(magnitude_bin, _DataNode):
-            if self.randomly_negate:
-                magnitudes = _remap_bins_to_signed_magnitudes(magnitudes)
-                magnitude_bin = 2 * magnitude_bin + random_sign
+        if self.randomly_negate and not isinstance(magnitude_bin, _SignedMagnitudeBin):
+            magnitude_bin = signed_bin(magnitude_bin)
+            warnings.warn(
+                f"The augmentation `{self.name}` was declared with `random_negate=True`, "
+                f"but unsigned `magnitude_bin` was passed to the augmentation call. "
+                f"The augmentation will randomly negate the magnitudes manually. "
+                f"However, for better performance, if you conditionally split batch "
+                f"between multiple augmentations, please call "
+                f"`signed_magnitude_bin = signed_bin(magnitude_bin)` and pass the "
+                f"signed bins instead.", Warning)
+        if self.randomly_negate:
+            assert isinstance(magnitude_bin, _SignedMagnitudeBin)  # by the two checks above
+            if isinstance(magnitude_bin.bin, int):
+                magnitudes = [magnitudes[magnitude_bin.bin]]
+                param_idx = magnitude_bin.random_sign
+            else:
+                param_idx = magnitude_bin.signed_magnitude_idx
+            magnitudes = _SignedMagnitudeBin._remap_to_signed_magnitudes(magnitudes)
             params = self._map_mags_to_params(magnitudes)
             params = types.Constant(params, device=self.param_device)
-            return params[magnitude_bin]
+            return params[param_idx]
         else:
-            # if the bin is static int, then just compute the corresponding param and
-            # make it a constant node
-            if not self.randomly_negate:
-                magnitude = magnitudes[magnitude_bin]
+            # other augmentations in the suite may need sign and we got it along the magnitude bin,
+            # just unpack the plain magnitude bin
+            bin_idx = magnitude_bin.bin if isinstance(magnitude_bin,
+                                                      _SignedMagnitudeBin) else magnitude_bin
+            if isinstance(bin_idx, int):
+                magnitude = magnitudes[bin_idx]
                 param = self._map_mag_to_param(magnitude)
                 return types.Constant(param, device=self.param_device)
-            # if the magnitude is randomly negated, compute param for negated and not
-            # negated magnitude and choose the param on runtime with a sub-script op
             else:
-                magnitudes = [magnitudes[magnitude_bin]]
-                magnitudes = _remap_bins_to_signed_magnitudes(magnitudes)
                 params = self._map_mags_to_params(magnitudes)
                 params = types.Constant(params, device=self.param_device)
-                return params[random_sign]
+                return params[bin_idx]
 
     def _validate_op_sig(self):
         num_positional = get_num_positional_args(self.op)
@@ -277,17 +334,6 @@ class Augmentation:
 
 def _np_wrap(mag):
     return np.array(mag)
-
-
-def _remap_bins_to_signed_magnitudes(magnitudes):
-
-    def remap_bin_idx(bin_idx):
-        magnitude = magnitudes[bin_idx // 2]
-        if bin_idx % 2:
-            magnitude = -magnitude
-        return magnitude
-
-    return np.array([remap_bin_idx(bin_idx) for bin_idx in range(2 * len(magnitudes))])
 
 
 def _contains_data_node(obj):

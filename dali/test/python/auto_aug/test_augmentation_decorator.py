@@ -16,7 +16,7 @@ import numpy as np
 
 import nvidia.dali.tensors as _tensors
 from nvidia.dali import pipeline_def, fn, types
-from nvidia.dali.auto_aug.core import augmentation
+from nvidia.dali.auto_aug.core import augmentation, signed_bin
 from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs
 from nose2.tools import params
 
@@ -65,7 +65,7 @@ def test_lo_hi_mag_range():
     def pass_through_mag(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
         idx_in_batch = sample_info(lambda info: info.idx_in_batch)
         const_mag = pass_through_mag(types.Constant(42), magnitude_bin=const_bin,
@@ -74,7 +74,7 @@ def test_lo_hi_mag_range():
                                    num_magnitude_bins=11)
         return const_mag, dyn_mag
 
-    p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+    p = pipeline()
     p.build()
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, 5, [const_bin] * batch_size)
@@ -92,14 +92,14 @@ def test_explicit_mag_range():
     def pass_through_mag(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
         idx_in_batch = sample_info(lambda info: info.idx_in_batch)
         const_mag = pass_through_mag(types.Constant(42), magnitude_bin=const_bin)
         dyn_mag = pass_through_mag(types.Constant(42), magnitude_bin=idx_in_batch)
         return const_mag, dyn_mag
 
-    p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+    p = pipeline()
     p.build()
     const_mag, dyn_mag = p.run()
     const_mag_ref = ref_param(mag_range, None, [const_bin] * batch_size)
@@ -117,21 +117,23 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
     def pass_through_mag(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
-        mag_sign = None if use_implicit_sign else sample_info(lambda info: info.idx_in_batch % 2)
         magnitude_bin = const_mag if const_mag is not None else sample_info(
             lambda info: info.idx_in_batch % num_magnitude_bins)
+        if not use_implicit_sign:
+            magnitude_sign = sample_info(lambda info: info.idx_in_batch % 2)
+            magnitude_bin = signed_bin(magnitude_bin, magnitude_sign)
 
         return pass_through_mag(types.Constant(42), magnitude_bin=magnitude_bin,
-                                num_magnitude_bins=num_magnitude_bins, random_sign=mag_sign)
+                                num_magnitude_bins=num_magnitude_bins)
 
     if not use_implicit_sign:
-        p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+        p = pipeline()
     else:
-        warn_glob = "The augmentation `pass_through_mag` was * called without `random_sign`"
+        warn_glob = "but unsigned `magnitude_bin` was passed to the augmentation call"
         with assert_warns(Warning, glob=warn_glob):
-            p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+            p = pipeline()
     p.build()
     magnitudes, = p.run()
     magnitudes = [np.array(el) for el in magnitudes]
@@ -155,23 +157,22 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
 def test_no_randomly_negate(const_mag):
     mag_range = (0, 10)
     num_magnitude_bins = 11
-    batch_size = 17
+    batch_size = 32
 
     @augmentation(mag_range=mag_range)
     def pass_through_mag(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
-        mag_sign = sample_info(lambda info: info.idx_in_batch % 2)
         magnitude_bin = const_mag if const_mag is not None else sample_info(
             lambda info: info.idx_in_batch % num_magnitude_bins)
 
-        # make sure that the augmentation declared without `randomly_negate` ignores the random_sign
-        return pass_through_mag(types.Constant(42), magnitude_bin=magnitude_bin,
-                                num_magnitude_bins=num_magnitude_bins, random_sign=mag_sign)
+        # make sure that the augmentation declared without `randomly_negate` ignores the signed_bin
+        return pass_through_mag(types.Constant(42), magnitude_bin=signed_bin(magnitude_bin),
+                                num_magnitude_bins=num_magnitude_bins)
 
-    p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+    p = pipeline()
     p.build()
     magnitudes, = p.run()
     magnitude_bin = [const_mag] * batch_size if const_mag is not None else [
@@ -193,16 +194,17 @@ def test_as_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device)
     def pass_through_mag(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
     def pipeline():
         mag_sign = sample_info(lambda info: info.idx_in_batch % 2)
         magnitude_bin = const_mag if const_mag is not None else sample_info(
             lambda info: info.idx_in_batch % num_magnitude_bins)
 
-        return pass_through_mag(types.Constant(42), magnitude_bin=magnitude_bin,
-                                num_magnitude_bins=num_magnitude_bins, random_sign=mag_sign)
+        return pass_through_mag(types.Constant(42),
+                                magnitude_bin=signed_bin(magnitude_bin, mag_sign),
+                                num_magnitude_bins=num_magnitude_bins)
 
-    p = pipeline(num_threads=4, device_id=0, batch_size=batch_size)
+    p = pipeline()
     p.build()
     magnitudes, = p.run()
     if param_device == "cpu":
@@ -274,14 +276,14 @@ def test_as_param_data_node_fail():
     def illegal_shear(sample, shear_mt):
         return fn.warp_affine(sample, mt=shear_mt)
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=8, seed=42)
     def pipeline():
         sample = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
         return illegal_shear(sample, magnitude_bin=5, num_magnitude_bins=10)
 
     glob_msg = "callback must return parameter that is `np.ndarray` or"
     with assert_raises(Exception, glob=glob_msg):
-        pipeline(num_threads=4, device_id=0, batch_size=8)
+        pipeline()
 
 
 @params((True, False), (False, True))
@@ -298,7 +300,7 @@ def test_as_param_non_uniform_fail(non_uniform_shape, non_uniform_type):
     def pass_param(sample, param):
         return param
 
-    @pipeline_def
+    @pipeline_def(num_threads=4, device_id=0, batch_size=8, seed=42)
     def pipeline():
         sample = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
         mag_bin = sample_info(lambda si: si.idx_in_batch)
@@ -308,7 +310,7 @@ def test_as_param_non_uniform_fail(non_uniform_shape, non_uniform_type):
                 f"has shape {shape_hi if non_uniform_shape else shape_lo} and type "
                 f"{'uint16' if non_uniform_type else 'uint8'}.")
     with assert_raises(Exception, glob=glob_msg):
-        pipeline(num_threads=4, device_id=0, batch_size=8)
+        pipeline()
 
 
 def test_lack_of_positional_args_fail():
@@ -337,7 +339,7 @@ def test_no_required_kwargs():
     def aug(sample, param, extra, another_extra, extra_with_default=None):
         pass
 
-    @pipeline_def(batch_size=3, num_threads=4, device_id=0)
+    @pipeline_def(batch_size=3, num_threads=4, device_id=0, seed=42)
     def pipeline(aug, aug_kwargs):
         return aug(types.Constant(42), **aug_kwargs)
 
