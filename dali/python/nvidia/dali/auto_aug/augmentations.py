@@ -45,21 +45,21 @@ def warp_y_param(magnitude):
 
 
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, as_param=warp_x_param)
-def shear_x(sample, shear, fill_value=0, interp_type=None):
+def shear_x(sample, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, as_param=warp_y_param)
-def shear_y(sample, shear, fill_value=0, interp_type=None):
+def shear_y(sample, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, as_param=warp_x_param)
-def translate_x(sample, rel_offset, shape, fill_value=0, interp_type=None):
+def translate_x(sample, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[-2]
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
@@ -67,14 +67,14 @@ def translate_x(sample, rel_offset, shape, fill_value=0, interp_type=None):
 
 
 @augmentation(mag_range=(0, 250), randomly_negate=True, as_param=warp_x_param, name="translate_x")
-def translate_x_no_shape(sample, offset, fill_value=0, interp_type=None):
+def translate_x_no_shape(sample, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, as_param=warp_y_param)
-def translate_y(sample, rel_offset, shape, fill_value=0, interp_type=None):
+def translate_y(sample, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[-3]
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
@@ -82,15 +82,16 @@ def translate_y(sample, rel_offset, shape, fill_value=0, interp_type=None):
 
 
 @augmentation(mag_range=(0, 250), randomly_negate=True, as_param=warp_y_param, name="translate_y")
-def translate_y_no_shape(sample, offset, fill_value=0, interp_type=None):
+def translate_y_no_shape(sample, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 30), randomly_negate=True)
-def rotate(sample, angle, fill_value=0, interp_type=None):
-    return fn.rotate(sample, angle=angle, fill_value=fill_value, interp_type=interp_type)
+def rotate(sample, angle, fill_value=128, interp_type=None, rotate_keep_size=True):
+    return fn.rotate(sample, angle=angle, fill_value=fill_value, interp_type=interp_type,
+                     keep_size=rotate_keep_size)
 
 
 def shift_enhance_range(magnitude):
@@ -108,7 +109,26 @@ def brightness(sample, parameter):
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=shift_enhance_range)
 def contrast(sample, parameter):
+    """
+    This variant is not PIL-conformant as it scales the contrast around the center of
+    type range rather than a channel-weighted mean as PIL does. See `contrast_mean_centered`.
+    """
     return fn.contrast(sample, contrast=parameter)
+
+
+@augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=shift_enhance_range)
+def contrast_mean_centered(sample, parameter):
+    """
+    This variant follows PIL implementation of Contrast enhancement, which does not use
+    the middle of the `dtype` range as the contrast center, but a channel-weighted mean.
+    """
+    mean = fn.reductions.mean(sample, axes=[0, 1])
+    rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
+    center = fn.reductions.sum(mean * rgb_weights)
+    # it could be just `fn.contrast(sample, contrast=parameter, contrast_center=center)`
+    # but for GPU `sample` the `center` is in GPU mem, and that cannot be passed
+    # as named arg (i.e. `contrast_center`) to the operator
+    return fn.cast_like(center + (sample - center) * parameter, sample)
 
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=shift_enhance_range)
@@ -131,6 +151,11 @@ def sharpness_kernel_shifted(magnitude):
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=sharpness_kernel,
               param_device="gpu")
 def sharpness(sample, kernel):
+    """
+    The outputs correspond to PIL's ImageEnhance.Sharpness with the exception for 1px
+    border around the output. PIL computes convolution with smoothing filter only for
+    valid positions (no out-of-bounds filter positions) and pads the output with the input.
+    """
     return fn.experimental.filter(sample, kernel)
 
 
@@ -184,6 +209,11 @@ def invert(sample, _):
 
 @augmentation
 def equalize(sample, _):
+    """
+    DALI's equalize follows OpenCV's histogram equalization.
+    The PIL uses slightly different formula when transforming histogram's
+    cumulative sum into lookup table.
+    """
     return fn.experimental.equalize(sample)
 
 
