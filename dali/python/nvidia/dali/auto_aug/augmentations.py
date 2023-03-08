@@ -110,17 +110,8 @@ def brightness(sample, parameter):
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=shift_enhance_range)
 def contrast(sample, parameter):
     """
-    This variant is not PIL-conformant as it scales the contrast around the center of
-    type range rather than a channel-weighted mean as PIL does. See `contrast_mean_centered`.
-    """
-    return fn.contrast(sample, contrast=parameter)
-
-
-@augmentation(mag_range=(0, 0.9), randomly_negate=True, as_param=shift_enhance_range)
-def contrast_mean_centered(sample, parameter):
-    """
-    This variant follows PIL implementation of Contrast enhancement, which does not use
-    the middle of the `dtype` range as the contrast center, but a channel-weighted mean.
+    It follows PIL implementation of Contrast enhancement which uses a channel-weighted
+    mean as a contrast center.
     """
     mean = fn.reductions.mean(sample, axes=[0, 1])
     rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))

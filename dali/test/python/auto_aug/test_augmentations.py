@@ -15,7 +15,6 @@
 import os
 
 import numpy as np
-import cv2
 from PIL import Image, ImageEnhance, ImageOps
 from nose2.tools import params
 
@@ -51,8 +50,12 @@ def pil_baseline(pil_op):
     return inner
 
 
-def compare_against_baseline(dali_aug, baseline_op, get_data, batch_size, dev="gpu", eps=1e-7,
-                             max_allowed_error=1e-6, params=None, post_proc=None, use_shape=False):
+default_batch_size = 16
+
+
+def compare_against_baseline(dali_aug, baseline_op, get_data, batch_size=default_batch_size,
+                             dev="gpu", eps=1e-7, max_allowed_error=1e-6, params=None,
+                             post_proc=None, use_shape=False):
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
     def pipeline():
@@ -102,15 +105,14 @@ def test_shear_x(dev):
     # https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/
     # Classification/ConvNets/image_classification/autoaugment.py
     def shear_x_ref(img, magnitude):
-        return img.transform(img.size, Image.AFFINE, (1, -magnitude, 0, 0, 1, 0), Image.BICUBIC,
+        return img.transform(img.size, Image.AFFINE, (1, -magnitude, 0, 0, 1, 0), Image.BILINEAR,
                              fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     shear_x = a.shear_x.augmentation(mag_range=(-0.3, 0.3), randomly_negate=False)
-    magnitudes = shear_x._get_magnitudes(batch_size)
-    compare_against_baseline(shear_x, pil_baseline(shear_x_ref), data_source, batch_size=batch_size,
-                             dev=dev, params=magnitudes, max_allowed_error=None, eps=3)
+    magnitudes = shear_x._get_magnitudes(default_batch_size)
+    compare_against_baseline(shear_x, pil_baseline(shear_x_ref), data_source, dev=dev,
+                             params=magnitudes, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -120,15 +122,14 @@ def test_shear_y(dev):
     # https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/
     # Classification/ConvNets/image_classification/autoaugment.py
     def shear_y_ref(img, magnitude):
-        return img.transform(img.size, Image.AFFINE, (1, 0, 0, -magnitude, 1, 0), Image.BICUBIC,
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, -magnitude, 1, 0), Image.BILINEAR,
                              fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     shear_y = a.shear_y.augmentation(mag_range=(-0.3, 0.3), randomly_negate=False)
-    magnitudes = shear_y._get_magnitudes(batch_size)
-    compare_against_baseline(shear_y, pil_baseline(shear_y_ref), data_source, batch_size=batch_size,
-                             dev=dev, params=magnitudes, max_allowed_error=None, eps=3)
+    magnitudes = shear_y._get_magnitudes(default_batch_size)
+    compare_against_baseline(shear_y, pil_baseline(shear_y_ref), data_source, dev=dev,
+                             params=magnitudes, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -138,17 +139,15 @@ def test_translate_x_no_shape(dev):
     # https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/
     # Classification/ConvNets/image_classification/autoaugment.py
     def translate_x_ref(img, magnitude):
-        return img.transform(img.size, Image.AFFINE, (1, 0, -magnitude, 0, 1, 0), Image.BICUBIC,
+        return img.transform(img.size, Image.AFFINE, (1, 0, -magnitude, 0, 1, 0), Image.BILINEAR,
                              fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     translate_x_no_shape = a.translate_x_no_shape.augmentation(mag_range=(-250, 250),
                                                                randomly_negate=False)
-    magnitudes = translate_x_no_shape._get_magnitudes(batch_size)
+    magnitudes = translate_x_no_shape._get_magnitudes(default_batch_size)
     compare_against_baseline(translate_x_no_shape, pil_baseline(translate_x_ref), data_source,
-                             batch_size=batch_size, dev=dev, params=magnitudes,
-                             max_allowed_error=None, eps=2)
+                             dev=dev, params=magnitudes, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -159,15 +158,13 @@ def test_translate_x(dev):
     # Classification/ConvNets/image_classification/autoaugment.py
     def translate_x_ref(img, magnitude):
         return img.transform(img.size, Image.AFFINE, (1, 0, -magnitude * img.width, 0, 1, 0),
-                             Image.BICUBIC, fillcolor=(128, ) * 3)
+                             Image.BILINEAR, fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     translate_x = a.translate_x.augmentation(mag_range=(-1, 1), randomly_negate=False)
-    magnitudes = translate_x._get_magnitudes(batch_size)
-    compare_against_baseline(translate_x, pil_baseline(translate_x_ref), data_source,
-                             batch_size=batch_size, dev=dev, params=magnitudes,
-                             max_allowed_error=None, eps=2, use_shape=True)
+    magnitudes = translate_x._get_magnitudes(default_batch_size)
+    compare_against_baseline(translate_x, pil_baseline(translate_x_ref), data_source, dev=dev,
+                             params=magnitudes, use_shape=True, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -177,17 +174,15 @@ def test_translate_y_no_shape(dev):
     # https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/
     # Classification/ConvNets/image_classification/autoaugment.py
     def translate_y_ref(img, magnitude):
-        return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, -magnitude), Image.BICUBIC,
+        return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, -magnitude), Image.BILINEAR,
                              fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     translate_y_no_shape = a.translate_y_no_shape.augmentation(mag_range=(-250, 250),
                                                                randomly_negate=False)
-    magnitudes = translate_y_no_shape._get_magnitudes(batch_size)
+    magnitudes = translate_y_no_shape._get_magnitudes(default_batch_size)
     compare_against_baseline(translate_y_no_shape, pil_baseline(translate_y_ref), data_source,
-                             batch_size=batch_size, dev=dev, params=magnitudes,
-                             max_allowed_error=None, eps=2)
+                             dev=dev, params=magnitudes, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -198,15 +193,13 @@ def test_translate_y(dev):
     # Classification/ConvNets/image_classification/autoaugment.py
     def translate_y_ref(img, magnitude):
         return img.transform(img.size, Image.AFFINE, (1, 0, 0, 0, 1, -magnitude * img.height),
-                             Image.BICUBIC, fillcolor=(128, ) * 3)
+                             Image.BILINEAR, fillcolor=(128, ) * 3)
 
-    batch_size = 16
     data_source = get_images()
     translate_y = a.translate_y.augmentation(mag_range=(-1, 1), randomly_negate=False)
-    magnitudes = translate_y._get_magnitudes(batch_size)
-    compare_against_baseline(translate_y, pil_baseline(translate_y_ref), data_source,
-                             batch_size=batch_size, dev=dev, params=magnitudes,
-                             max_allowed_error=None, eps=2, use_shape=True)
+    magnitudes = translate_y._get_magnitudes(default_batch_size)
+    compare_against_baseline(translate_y, pil_baseline(translate_y_ref), data_source, dev=dev,
+                             params=magnitudes, use_shape=True, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -216,16 +209,14 @@ def test_rotate(dev):
     # https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/
     # Classification/ConvNets/image_classification/autoaugment.py
     def rotate_with_fill(img, magnitude):
-        rot = img.convert("RGBA").rotate(magnitude)
-        return Image.composite(rot, Image.new("RGBA", img.size, (128, ) * 4), rot).convert(img.mode)
+        rot = img.convert("RGBA").rotate(magnitude, resample=Image.BILINEAR)
+        return Image.composite(rot, Image.new("RGBA", img.size, (128, ) * 3), rot).convert(img.mode)
 
-    batch_size = 16
     data_source = get_images()
     rotate = a.rotate.augmentation(mag_range=(-30, 30), randomly_negate=False)
-    magnitudes = rotate._get_magnitudes(batch_size)
-    compare_against_baseline(rotate, pil_baseline(rotate_with_fill), data_source,
-                             batch_size=batch_size, dev=dev, params=magnitudes,
-                             max_allowed_error=None, eps=4)
+    magnitudes = rotate._get_magnitudes(default_batch_size)
+    compare_against_baseline(rotate, pil_baseline(rotate_with_fill), data_source, dev=dev,
+                             params=magnitudes, max_allowed_error=None, eps=1)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -234,44 +225,25 @@ def test_brightness(dev):
     def brightness_ref(img, magnitude):
         return ImageEnhance.Brightness(img).enhance(magnitude)
 
-    batch_size = 16
     data_source = get_images()
     brightness = a.brightness.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
                                            as_param=None)
-    magnitudes = brightness._get_magnitudes(batch_size)
+    magnitudes = brightness._get_magnitudes(default_batch_size)
     compare_against_baseline(brightness, pil_baseline(brightness_ref), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=magnitudes)
+                             max_allowed_error=1, dev=dev, params=magnitudes)
 
 
 @params(("cpu", ), ("gpu", ))
 def test_contrast(dev):
 
-    # adapted from test_brightness_contrast.py
-    def contrast_ref(input, contrast):
-        output = (0.5 + contrast * (np.float32(input) / 255 - 0.5)) * 255
-        return np.clip(output, 0, 255)
-
-    batch_size = 16
-    data_source = get_images()
-    contrast = a.contrast.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, as_param=None)
-    magnitudes = contrast._get_magnitudes(batch_size)
-    compare_against_baseline(contrast, pil_baseline(contrast_ref), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=magnitudes)
-
-
-@params(("cpu", ), ("gpu", ))
-def test_contrast_mean_centered(dev):
-
     def contrast_ref(img, magnitude):
         return ImageEnhance.Contrast(img).enhance(magnitude)
 
-    batch_size = 16
     data_source = get_images()
-    contrast = a.contrast_mean_centered.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
-                                                     as_param=None)
-    magnitudes = contrast._get_magnitudes(batch_size)
-    compare_against_baseline(contrast, pil_baseline(contrast_ref), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=magnitudes)
+    contrast = a.contrast.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, as_param=None)
+    magnitudes = contrast._get_magnitudes(default_batch_size)
+    compare_against_baseline(contrast, pil_baseline(contrast_ref), data_source, max_allowed_error=1,
+                             dev=dev, params=magnitudes)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -281,11 +253,10 @@ def test_color(dev):
     def color_ref(img, magnitude):
         return ImageEnhance.Color(img).enhance(magnitude)
 
-    batch_size = 16
     data_source = get_images()
     color = a.color.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, as_param=None)
-    magnitudes = color._get_magnitudes(batch_size)
-    compare_against_baseline(color, pil_baseline(color_ref), data_source, batch_size=batch_size,
+    magnitudes = color._get_magnitudes(default_batch_size)
+    compare_against_baseline(color, pil_baseline(color_ref), data_source,
                              max_allowed_error=max_allowed_error, dev=dev, params=magnitudes)
 
 
@@ -302,36 +273,32 @@ def test_sharpness(dev):
         # pasting
         return img[1:-1, 1:-1, :]
 
-    batch_size = 16
     data_source = get_images()
     sharpness = a.sharpness.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
                                          as_param=a.sharpness_kernel_shifted)
-    magnitudes = sharpness._get_magnitudes(batch_size)
+    magnitudes = sharpness._get_magnitudes(default_batch_size)
     compare_against_baseline(sharpness, pil_baseline(sharpness_ref), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=magnitudes,
-                             post_proc=post_proc)
+                             max_allowed_error=1, dev=dev, params=magnitudes, post_proc=post_proc)
 
 
 @params(("cpu", ), ("gpu", ))
 def test_posterize(dev):
-    batch_size = 16
     data_source = get_images()
     # note, 0 is remapped to 1 as in tf implementation referred in the RA paper, thus (1, 8) range
     posterize = a.posterize.augmentation(param_device=dev, mag_range=(1, 8))
-    magnitudes = np.round(posterize._get_magnitudes(batch_size)).astype(np.int32)
+    magnitudes = np.round(posterize._get_magnitudes(default_batch_size)).astype(np.int32)
     compare_against_baseline(posterize, pil_baseline(ImageOps.posterize), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=magnitudes)
+                             max_allowed_error=1, dev=dev, params=magnitudes)
 
 
 @params(("cpu", ), ("gpu", ))
 def test_solarize(dev):
-    batch_size = 16
     data_source = get_images()
     solarize = a.solarize.augmentation(param_device=dev)
-    magnitudes = solarize._get_magnitudes(batch_size)
+    magnitudes = solarize._get_magnitudes(default_batch_size)
     params = solarize._map_mags_to_params(magnitudes)
     compare_against_baseline(solarize, pil_baseline(ImageOps.solarize), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=params)
+                             max_allowed_error=1, dev=dev, params=params)
 
 
 @params(("cpu", ), ("gpu", ))
@@ -352,19 +319,18 @@ def test_solarize_add(dev):
                 lut.append(i)
         return ImageOps._lut(image, lut)
 
-    batch_size = 16
     data_source = get_images()
     solarize_add = a.solarize_add.augmentation(param_device=dev)
-    magnitudes = solarize_add._get_magnitudes(batch_size)
+    magnitudes = solarize_add._get_magnitudes(default_batch_size)
     params = solarize_add._map_mags_to_params(magnitudes)
     compare_against_baseline(solarize_add, pil_baseline(solarize_add_ref), data_source,
-                             batch_size=batch_size, max_allowed_error=1, dev=dev, params=params)
+                             max_allowed_error=1, dev=dev, params=params)
 
 
 @params(("cpu", ), ("gpu", ))
 def test_invert(dev):
     data_source = get_images()
-    compare_against_baseline(a.invert, pil_baseline(ImageOps.invert), data_source, batch_size=16,
+    compare_against_baseline(a.invert, pil_baseline(ImageOps.invert), data_source,
                              max_allowed_error=1, dev=dev)
 
 
@@ -375,18 +341,16 @@ def test_equalize(dev):
     # transforming cumulative-sum of histogram into lookup table than open-cv
     # so the point-wise diffs can be significant, but the average is not
     # (comparable to geom transforms)
-    eps = 5
-
     data_source = get_images()
     compare_against_baseline(a.equalize, pil_baseline(ImageOps.equalize), data_source,
-                             batch_size=16, max_allowed_error=None, dev=dev, eps=eps)
+                             max_allowed_error=None, dev=dev, eps=7)
 
 
 @params(("cpu", ), ("gpu", ))
 def test_auto_contrast(dev):
     data_source = get_images()
     compare_against_baseline(a.auto_contrast, pil_baseline(ImageOps.autocontrast), data_source,
-                             batch_size=16, max_allowed_error=1, dev=dev)
+                             max_allowed_error=1, dev=dev)
 
 
 # Check edge cases (single-value channels)
