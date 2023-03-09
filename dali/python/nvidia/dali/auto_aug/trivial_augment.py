@@ -85,7 +85,7 @@ def get_translations(use_shape: bool = False, max_translate_abs: int = None,
 
 
 def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
-                         shape: Optional[_DataNode] = None, fill_value: Optional[int] = 0,
+                         shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
                          interp_type: Optional[types.DALIInterpType] = None,
                          max_translate_abs: Optional[int] = None,
                          max_translate_rel: Optional[float] = None, seed: Optional[int] = None,

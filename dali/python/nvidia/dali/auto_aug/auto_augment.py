@@ -54,14 +54,7 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: int = None,
         in the translation augmentations. If tuple is specified, the first component limits
         height, the second the width.
     """
-    _, max_translate_width = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
-                                                    max_translate_rel=max_translate_rel,
-                                                    default_translate_abs=250,
-                                                    default_translate_rel=1.)
-    if use_shape:
-        translate_y = a.translate_y.augmentation((0, max_translate_width), True)
-    else:
-        translate_y = a.translate_y_no_shape.augmentation((0, max_translate_width), True)
+    translate_y = _get_translate_y(use_shape, max_translate_abs, max_translate_rel)
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -102,8 +95,20 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: int = None,
         ])
 
 
+def _get_translate_y(use_shape: bool = False, max_translate_abs: int = None,
+                     max_translate_rel: float = None):
+    _, max_translate_width = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
+                                                    max_translate_rel=max_translate_rel,
+                                                    default_translate_abs=250,
+                                                    default_translate_rel=1.)
+    if use_shape:
+        return a.translate_y.augmentation((0, max_translate_width), True)
+    else:
+        return a.translate_y_no_shape.augmentation((0, max_translate_width), True)
+
+
 def auto_augment_image_net(sample: _DataNode, shape: Optional[_DataNode] = None,
-                           fill_value: Optional[int] = 0,
+                           fill_value: Optional[int] = 128,
                            interp_type: Optional[types.DALIInterpType] = None,
                            max_translate_abs: Optional[int] = None,
                            max_translate_rel: Optional[float] = None, seed: Optional[int] = None):
