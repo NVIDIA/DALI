@@ -20,7 +20,7 @@ from nose2.tools import params
 
 from nvidia.dali import fn
 from nvidia.dali.pipeline import experimental
-from nvidia.dali.auto_aug import auto_augment
+from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
 from test_utils import get_dali_extra_path
@@ -61,63 +61,6 @@ def test_run_auto_aug(i, args):
         p.run()
 
 
-def test_unused_arg_fail():
-
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
-                               seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image_net_policy = auto_augment.get_image_net_policy()
-        return auto_augment.apply_auto_augment(image_net_policy, image, misspelled_kwarg=100)
-
-    msg = "The kwarg `misspelled_kwarg` is not used by any of the augmentations."
-    with assert_raises(Exception, glob=msg):
-        pipeline()
-
-
-def test_missing_shape_fail():
-
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
-                               seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image_net_policy = auto_augment.get_image_net_policy(use_shape=True)
-        return auto_augment.apply_auto_augment(image_net_policy, image)
-
-    msg = "`translate_y` * provide it as `shape` argument to `apply_auto_augment` call"
-    with assert_raises(Exception, glob=msg):
-        pipeline()
-
-
-def test_clashing_names():
-
-    def get_first_augment():
-
-        @augmentation
-        def clashing_name(sample, _):
-            pass
-
-        return clashing_name
-
-    def get_second_augment():
-
-        @augmentation
-        def clashing_name(sample, _):
-            pass
-
-        return clashing_name
-
-    one = get_first_augment()
-    another = get_second_augment()
-    policy = Policy(name="DummyPolicy", num_magnitude_bins=11, sub_policies=[[(one, 0.1, 5),
-                                                                              (another, 0.4, 7)]])
-    policy_str = str(policy)
-    assert 'clashing_name__0' in policy_str
-    assert 'clashing_name__1' in policy_str
-
-
 @params((True, 0), (True, 1), (False, 0), (False, 1))
 def test_translation(use_shape, offset_fraction):
     # make sure the translation helper processes the args properly
@@ -154,3 +97,112 @@ def test_translation(use_shape, offset_fraction):
             assert np.all(sample == fill_value), f"sample_idx: {i}"
         else:
             assert np.sum(sample == fill_value) / sample.size < 0.1, f"sample_idx: {i}"
+
+
+def test_policy_presentation():
+
+    empty_policy = Policy("EmptyPolicy", num_magnitude_bins=31, sub_policies=[])
+    empty_policy_str = str(empty_policy)
+    assert "sub_policies=[]" in empty_policy_str, empty_policy_str
+    assert "augmentations={}" in empty_policy_str, empty_policy_str
+
+    def get_first_augment():
+
+        @augmentation
+        def clashing_name(sample, _):
+            return sample
+
+        return clashing_name
+
+    def get_second_augment():
+
+        @augmentation
+        def clashing_name(sample, _):
+            return sample
+
+        return clashing_name
+
+    one = get_first_augment()
+    another = get_second_augment()
+    sub_policies = [[(one, 0.1, 5), (another, 0.4, 7)], [(another, 0.2, 1), (one, 0.5, 2)],
+                    [(another, 0.7, 1)]]
+    policy = Policy(name="DummyPolicy", num_magnitude_bins=11, sub_policies=sub_policies)
+    assert policy.sub_policies[0][0][0] is policy.sub_policies[1][1][0]
+    assert policy.sub_policies[0][1][0] is policy.sub_policies[1][0][0]
+    assert policy.sub_policies[0][1][0] is policy.sub_policies[2][0][0]
+    assert len(sub_policies) == len(policy.sub_policies)
+    for sub_pol, pol_sub_pol in zip(sub_policies, policy.sub_policies):
+        assert len(sub_pol) == len(pol_sub_pol)
+        for (aug, p, mag), (pol_aug, pol_p, pol_mag) in zip(sub_pol, pol_sub_pol):
+            assert p == pol_p, f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
+            assert mag == pol_mag, f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
+
+    @augmentation
+    def yet_another_aug(sample, _):
+        return sample
+
+    sub_policies = [[(yet_another_aug, 0.5, i), (one.augmentation(mag_range=(0, i)), 0.24, i)]
+                    for i in range(1, 107)]
+    bigger_policy = Policy(name="BiggerPolicy", num_magnitude_bins=200, sub_policies=sub_policies)
+    for i, (first, second) in enumerate(bigger_policy.sub_policies):
+        assert first[0].name == '000__yet_another_aug', f"{second[0].name}"
+        assert second[0].name == f'{(i + 1):03}__clashing_name', f"{second[0].name}"
+
+
+def test_unused_arg_fail():
+
+    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
+                               seed=43)
+    def pipeline():
+        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(encoded_image, device="mixed")
+        image_net_policy = auto_augment.get_image_net_policy()
+        return auto_augment.apply_auto_augment(image_net_policy, image, misspelled_kwarg=100)
+
+    msg = "The kwarg `misspelled_kwarg` is not used by any of the augmentations."
+    with assert_raises(Exception, glob=msg):
+        pipeline()
+
+
+def test_missing_shape_fail():
+
+    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
+                               seed=43)
+    def pipeline():
+        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(encoded_image, device="mixed")
+        image_net_policy = auto_augment.get_image_net_policy(use_shape=True)
+        return auto_augment.apply_auto_augment(image_net_policy, image)
+
+    msg = "`translate_y` * provide it as `shape` argument to `apply_auto_augment` call"
+    with assert_raises(Exception, glob=msg):
+        pipeline()
+
+
+def test_wrong_sub_policy_format_fail():
+
+    with assert_raises(Exception,
+                       glob="The `num_magnitude_bins` must be a positive integer, got 0"):
+        Policy("ShouldFail", 0.25, a.rotate)
+
+    with assert_raises(Exception,
+                       glob="The `sub_policies` must be a list or tuple of sub policies"):
+        Policy("ShouldFail", 9, a.rotate)
+
+    with assert_raises(Exception, glob="Each sub policy must be a list or tuple"):
+        Policy("ShouldFail", 9, [a.rotate])
+
+    with assert_raises(
+            Exception,
+            glob="as a triple: (augmentation, probability, magnitude). Got Augmentation"):
+        Policy("ShouldFail", 9, [(a.rotate, a.shear_x)])
+
+    with assert_raises(Exception, glob="must be an instance of Augmentation. Got 0.5"):
+        Policy("ShouldFail", 9, [[(0.5, a.rotate, 3)]])
+
+    with assert_raises(Exception,
+                       glob="Probability * must be a number from `[[]0, 1[]]` range. Got 2"):
+        Policy("ShouldFail", 9, [[(a.rotate, 2, 2)]])
+
+    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got -1"):
+        Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])
