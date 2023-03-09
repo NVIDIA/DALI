@@ -23,7 +23,7 @@ RandAugment and TrivialAugmentWide. The augmentations are implemented in terms o
 
 The `@augmentation` decorator handles computation of the decorated transformations's parameter.
 When called, the decorated augmentation expects:
-* a single positional argument: batch o samples
+* a single positional argument: batch of samples
 * `magnitude_bin` and `num_magnitude_bins` instead of the parameter.
   The parameter is computed as if by calling
   `as_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where

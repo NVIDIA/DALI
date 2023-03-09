@@ -18,7 +18,7 @@ import os
 import numpy as np
 from nose2.tools import params
 
-from nvidia.dali import fn
+from nvidia.dali import fn, types
 from nvidia.dali.pipeline import experimental
 from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
@@ -97,6 +97,111 @@ def test_translation(use_shape, offset_fraction):
             assert np.all(sample == fill_value), f"sample_idx: {i}"
         else:
             assert np.sum(sample == fill_value) / sample.size < 0.1, f"sample_idx: {i}"
+
+
+@params(
+    (False, "cpu", 256),
+    (False, "gpu", 512),
+    (True, "cpu", 128),
+    (True, "gpu", 348),
+)
+def test_sub_policy(randomly_negate, dev, batch_size):
+
+    num_magnitude_bins = 10
+
+    def as_param_with_op_id(op_id):
+
+        def as_param(magnitude):
+            return np.array([op_id, magnitude], dtype=np.int32)
+
+        return as_param
+
+    @augmentation(
+        mag_range=(0, 9),
+        as_param=as_param_with_op_id(1),
+        param_device=dev,
+    )
+    def first(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(10, 19),
+        as_param=as_param_with_op_id(2),
+        randomly_negate=randomly_negate,
+        param_device=dev,
+    )
+    def second(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(20, 29),
+        as_param=as_param_with_op_id(3),
+        param_device=dev,
+    )
+    def third(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    sub_policies = [
+        [(first, 1, 0), (second, 1, 5), (third, 1, 3)],
+        [(first, 1, 1), (third, 1, 4), (first, 1, 2)],
+        [(second, 1, 2), (first, 1, 3), (third, 1, 4)],
+        [(second, 1, 3), (third, 1, 2), (first, 1, 5)],
+        [(third, 1, 4), (first, 1, 1), (second, 1, 1)],
+        [(third, 1, 5), (second, 1, 9), (first, 1, 2)],
+        [(first, 1, 6), (first, 1, 1)],
+        [(third, 1, 7)],
+        [(first, 1, 8), (first, 1, 4), (second, 1, 7), (second, 1, 6)],
+    ]
+
+    policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
+
+    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
+                               device_id=0, seed=44)
+    def pipeline():
+        sample = types.Constant(np.array([], dtype=np.int32), device=dev)
+        if dev == "gpu":
+            sample = sample.gpu()
+        sample = auto_augment.apply_auto_augment(policy, sample)
+        return fn.reshape(sample, shape=(-1, 2))
+
+    p = pipeline()
+    p.build()
+
+    sub_policy_outputs = []
+    for sub_policy in sub_policies:
+        out = []
+        for aug, _, mag_bin in sub_policy:
+            magnitudes = aug._get_magnitudes(num_magnitude_bins)
+            param = aug._map_mag_to_param(magnitudes[mag_bin])
+            out.append(param)
+        sub_policy_outputs.append(out)
+
+    # magnitudes are chosen so that the magnitude of the first op in
+    # each sub-policy identifies the sub-policy
+    output_cases = {out[0][1]: np.array(out) for out in sub_policy_outputs}
+
+    for _ in range(5):
+        output, = p.run()
+        if dev == "gpu":
+            output = output.as_cpu()
+        output = [np.array(sample) for sample in output]
+        for sample in output:
+            test_sample = sample if not randomly_negate else np.abs(sample)
+            np.testing.assert_equal(np.abs(test_sample), output_cases[test_sample[0][1]])
+        if randomly_negate:
+            count = 0
+            for sample in output:
+                for op_mag in sample:
+                    if op_mag[1] < 0:
+                        # only the `second` augmentation is marked as randomly_negated
+                        assert op_mag[0] == 2, f"{sample}"
+                        count += 1
+            # 1/9 (prob of particular policy) * 5 (sub policy with exactly one `second` aug)
+            # * 1/2 (random sign) + 1/9 * 2 * 1/2 (last sub policy) = 5/18 + 2/18 = 7/18
+            expected_negated = batch_size * 7 / 18
+            eps = 0.1 * batch_size  # just a guess
+            assert expected_negated - eps <= count <= expected_negated + eps,\
+                  f"{count} {expected_negated}"
 
 
 def test_policy_presentation():
