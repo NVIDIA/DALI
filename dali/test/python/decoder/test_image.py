@@ -22,6 +22,7 @@ import os
 import random
 from nvidia.dali import pipeline_def
 
+from nose2.tools import params
 from nose_utils import assert_raises
 from test_utils import check_output_pattern
 from test_utils import compare_pipelines
@@ -216,12 +217,18 @@ def check_fancy_upsampling_body(batch_size, img_type, device):
         batch_size=batch_size, N_iterations=3, eps=1)
 
 
-def test_fancy_upsampling():
+@params(1, 8)
+def test_fancy_upsampling(batch_size):
     if nvidia.dali.backend.GetNvjpegVersion() < 12001:
         from nose import SkipTest
         raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
-    for batch_size in {1, 8}:
-        yield check_fancy_upsampling_body, batch_size, 'jpeg', 'mixed'
+    data_path = os.path.join(test_data_root, good_path, 'jpeg')
+    compare_pipelines(
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device='mixed', jpeg_fancy_upsampling=True),
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device='cpu'),
+        batch_size=batch_size, N_iterations=3, eps=1)
 
 
 def test_image_decoder_memory_stats():
