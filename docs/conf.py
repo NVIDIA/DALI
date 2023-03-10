@@ -82,10 +82,12 @@ if "dev" in version_long:
     release_opt = option_off
     main_opt = option_on
     option_nr = 1
+    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
 else:
     release_opt = option_on
     main_opt = option_off
     option_nr = 0
+    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
