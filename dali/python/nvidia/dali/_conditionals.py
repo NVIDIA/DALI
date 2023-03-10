@@ -581,4 +581,5 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 _OVERLOADS = DaliOperatorOverload()
 
 _autograph.initialize_autograph(_OVERLOADS,
+                                convert_modules=["nvidia.dali.auto_aug"],
                                 do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"])
