@@ -31,9 +31,9 @@ inline int FitsReaderOutputFn(const OpSpec &spec) {
 
 }  // namespace detail
 
-DALI_REGISTER_OPERATOR(experimental_readers__Fits, FitsReaderCPU, CPU);
+DALI_REGISTER_OPERATOR(experimental__readers__Fits, FitsReaderCPU, CPU);
 
-DALI_SCHEMA(experimental_readers__Fits)
+DALI_SCHEMA(experimental__readers__Fits)
     .DocStr(R"(Reads Fits image HDUs from a directory.
 
 This operator can be used in the following modes:
@@ -90,8 +90,6 @@ void FitsReaderCPU::RunImpl(Workspace &ws) {
   int num_samples = GetCurrBatchSize();
 
   bool threaded = ws.GetThreadPool().NumThreads() > 1;
-  // maybe we should loop first on files then on outputs? 
-  // also what about types? 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<CPUBackend>(output_idx);
     for (int file_idx = 0; file_idx < num_samples; file_idx++) {

@@ -25,8 +25,6 @@
 #include "dali/util/file.h"
 #include "dali/util/fits.h"
 
-#define max_number_of_axes 999
-
 namespace dali {
 
 void FitsLoader::ReadSample(FitsFileWrapper& target) {
@@ -47,6 +45,9 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   fits_open_file(&current_file, path.c_str(), READONLY, &status);
   fits_get_num_hdus(current_file, &num_hdus, &status);
 
+  // resize ouput vector according to the number of HDUs
+  target.data.resize(hdu_indices_.size()); 
+
   for (int output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to approriate hdu
     fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status);
@@ -62,7 +63,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     int anynul = 0, nulval = 0;
     Index nbytes = header.nbytes();
 
-    // reset, resize target
+    // reset, resize specific output in target
     if (target.data[output_idx].shares_data()) {
       target.data[output_idx].Reset();
     }
