@@ -30,6 +30,35 @@ data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 
+def as_param_with_op_id(op_id):
+
+    def as_param(magnitude):
+        return np.array([op_id, magnitude], dtype=np.int32)
+
+    return as_param
+
+
+@experimental.pipeline_def(enable_conditionals=True, num_threads=4, device_id=0, seed=44)
+def concat_aug_pipeline(dev, policy):
+    sample = types.Constant(np.array([], dtype=np.int32), device=dev)
+    if dev == "gpu":
+        sample = sample.gpu()
+    sample = auto_augment.apply_auto_augment(policy, sample)
+    return fn.reshape(sample, shape=(-1, 2))
+
+
+def collect_sub_policy_outputs(sub_policies, num_magnitude_bins):
+    sub_policy_outputs = []
+    for sub_policy in sub_policies:
+        out = []
+        for aug, _, mag_bin in sub_policy:
+            magnitudes = aug._get_magnitudes(num_magnitude_bins)
+            param = aug._map_mag_to_param(magnitudes[mag_bin])
+            out.append(param)
+        sub_policy_outputs.append(out)
+    return sub_policy_outputs
+
+
 @params(*tuple(enumerate(itertools.product((True, False), (True, False), (None, 0),
                                            (True, False)))))
 def test_run_auto_aug(i, args):
@@ -102,19 +131,12 @@ def test_translation(use_shape, offset_fraction):
 @params(
     (False, "cpu", 256),
     (False, "gpu", 512),
-    (True, "cpu", 128),
+    (True, "cpu", 400),
     (True, "gpu", 348),
 )
 def test_sub_policy(randomly_negate, dev, batch_size):
 
     num_magnitude_bins = 10
-
-    def as_param_with_op_id(op_id):
-
-        def as_param(magnitude):
-            return np.array([op_id, magnitude], dtype=np.int32)
-
-        return as_param
 
     @augmentation(
         mag_range=(0, 9),
@@ -154,30 +176,13 @@ def test_sub_policy(randomly_negate, dev, batch_size):
     ]
 
     policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
-
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=44)
-    def pipeline():
-        sample = types.Constant(np.array([], dtype=np.int32), device=dev)
-        if dev == "gpu":
-            sample = sample.gpu()
-        sample = auto_augment.apply_auto_augment(policy, sample)
-        return fn.reshape(sample, shape=(-1, 2))
-
-    p = pipeline()
+    p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
     p.build()
 
-    sub_policy_outputs = []
-    for sub_policy in sub_policies:
-        out = []
-        for aug, _, mag_bin in sub_policy:
-            magnitudes = aug._get_magnitudes(num_magnitude_bins)
-            param = aug._map_mag_to_param(magnitudes[mag_bin])
-            out.append(param)
-        sub_policy_outputs.append(out)
-
+    sub_policy_outputs = collect_sub_policy_outputs(sub_policies, num_magnitude_bins)
     # magnitudes are chosen so that the magnitude of the first op in
     # each sub-policy identifies the sub-policy
+    assert len({out[0][1] for out in sub_policy_outputs}) == len(sub_policy_outputs)
     output_cases = {out[0][1]: np.array(out) for out in sub_policy_outputs}
 
     for _ in range(5):
@@ -199,9 +204,148 @@ def test_sub_policy(randomly_negate, dev, batch_size):
             # 1/9 (prob of particular policy) * 5 (sub policy with exactly one `second` aug)
             # * 1/2 (random sign) + 1/9 * 2 * 1/2 (last sub policy) = 5/18 + 2/18 = 7/18
             expected_negated = batch_size * 7 / 18
-            eps = 0.1 * batch_size  # just a guess
+            eps = 0.1 * expected_negated  # just a guess
             assert expected_negated - eps <= count <= expected_negated + eps, \
-                f"{count} {expected_negated}"
+                f"{batch_size}: {count} {expected_negated} ({eps})"
+
+
+@params(("cpu", ), ("gpu", ))
+def test_magnitude_negation_in_sub_policy(dev):
+    # test if negation sign is independent
+
+    num_magnitude_bins = 7
+    batch_size = 1024
+
+    @augmentation(
+        mag_range=(100, 112),
+        as_param=as_param_with_op_id(1),
+        randomly_negate=True,
+        param_device=dev,
+    )
+    def first(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(10, 22),
+        as_param=as_param_with_op_id(2),
+        randomly_negate=True,
+        param_device=dev,
+    )
+    def second(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    sub_policies = [
+        [(first, 1, 1), (first, 1, 1)],
+        [(second, 1, 2), (second, 1, 2)],
+        [(first, 1, 3), (second, 1, 6)],
+        [(second, 1, 4), (first, 1, 2)],
+    ]
+
+    policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
+    p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
+    p.build()
+
+    sub_policy_outputs = collect_sub_policy_outputs(sub_policies, num_magnitude_bins)
+    # magnitudes are chosen so that the magnitude of the first op in
+    # each sub-policy identifies the sub-policy
+    assert len({out[0][1] for out in sub_policy_outputs}) == len(sub_policy_outputs)
+    output_cases = {out[0][1]: np.array(out) for out in sub_policy_outputs}
+
+    for _ in range(5):
+        output, = p.run()
+        if dev == "gpu":
+            output = output.as_cpu()
+        output = [np.array(sample) for sample in output]
+        for sample in output:
+            test_sample = np.abs(sample)
+            np.testing.assert_equal(np.abs(test_sample), output_cases[test_sample[0][1]])
+        sub_policy_signs = {
+            policy_id: {(left_neg, right_neg): 0
+                        for left_neg in (True, False) for right_neg in (True, False)}
+            for policy_id in output_cases
+        }
+        for sample in output:
+            policy_id = np.abs(sample[0][1])
+            left_neg = sample[0][1] < 0
+            right_neg = sample[1][1] < 0
+            sub_policy_signs[policy_id][(left_neg, right_neg)] += 1
+        sub_policy_occurrences = [(policy_id, sum(signs_freq.values()))
+                                  for policy_id, signs_freq in sub_policy_signs.items()]
+        assert len(sub_policy_occurrences) == 4, f"{sub_policy_occurrences}"
+        expected = batch_size // 4
+        eps = 0.15 * expected  # just a guess
+        for sub_policy_id, count in sub_policy_occurrences:
+            assert expected - eps <= count <= expected + eps, \
+                f"{sub_policy_id}: {count}, {expected} {eps}"
+
+
+@params(("cpu", ), ("gpu", ))
+def test_op_skipping(dev):
+
+    num_magnitude_bins = 7
+    batch_size = 703
+
+    @augmentation(
+        mag_range=(100, 112),
+        as_param=as_param_with_op_id(1),
+        randomly_negate=True,
+        param_device=dev,
+    )
+    def first(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(10, 22),
+        as_param=as_param_with_op_id(2),
+        randomly_negate=True,
+        param_device=dev,
+    )
+    def second(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(20, 29),
+        as_param=as_param_with_op_id(3),
+        param_device=dev,
+    )
+    def third(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    sub_policies = [
+        [(first, 0.5, 1), (first, 0.25, 1)],
+        [(second, 0.1, 2), (second, 0.2, 2)],
+        [(first, 0.07, 3), (second, 0.9, 6)],
+        [(second, 0.3, 4), (first, 0.11, 2)],
+        [(third, 1, 4), (third, 0, 2)],
+    ]
+
+    expected_aug_count = {first: 0, second: 0, third: 0}
+    for sub_policy in sub_policies:
+        sub_policy_expected_freq = {first: 0, second: 0, third: 0}
+        for (aug, p, _) in sub_policy:
+            sub_policy_expected_freq[aug] += p
+        for aug in sub_policy_expected_freq:
+            expected_aug_count[aug] += sub_policy_expected_freq[aug] / len(sub_policies)
+    expected_aug_count = {aug: freq * batch_size for aug, freq in expected_aug_count.items()}
+
+    policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
+    p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)
+    p.build()
+
+    for _ in range(5):
+        output, = p.run()
+        if dev == "gpu":
+            output = output.as_cpu()
+        output = [np.array(sample) for sample in output]
+        op_occurrences = {1: 0, 2: 0, 3: 0}
+        for sample in output:
+            for sub_aug in sample:
+                op_occurrences[sub_aug[0]] += 1
+        for i, aug in enumerate((first, second, third), 1):
+            expected = expected_aug_count[aug]
+            eps = 0.15 * expected  # just a guess
+            assert expected - eps <= op_occurrences[i] <= expected + eps, \
+                f"{i}: {op_occurrences[i]}, {expected} {eps}"
 
 
 def test_policy_presentation():
