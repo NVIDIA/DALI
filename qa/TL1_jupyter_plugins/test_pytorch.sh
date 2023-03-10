@@ -19,7 +19,7 @@ test_body() {
                   --to notebook --inplace --execute \
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600 {}
-  python${PYVER:0:1} use_cases/pytorch/resnet50/main.py -t
+  python${PYVER:0:1} use_cases/pytorch/resnet50/main.py -a resnet50 --b 64 --epochs 1 --loss-scale 128.0 --workers 4 --fp16-mode -t /data/imagenet/train-jpeg/ /data/imagenet/val-jpeg/
 }
 
 pushd ../..

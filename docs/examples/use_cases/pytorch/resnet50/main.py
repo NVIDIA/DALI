@@ -12,11 +12,11 @@ import torch.distributed as dist
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import torchvision.models as models
 
 import numpy as np
+
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 try:
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator, LastBatchPolicy
@@ -70,13 +70,9 @@ def parse():
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true')
 
-    parser.add_argument("--local_rank", default=0, type=int)
-    parser.add_argument('--sync_bn', action='store_true',
-                        help='enabling apex sync BN.')
-
-    parser.add_argument('--opt-level', type=str, default=None)
-    parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
-    parser.add_argument('--loss-scale', type=str, default=None)
+    parser.add_argument('--fp16-mode', default=True, action='store_true',
+                        help='Enable half precision mode.')
+    parser.add_argument('--loss-scale', type=float, default=1)
     parser.add_argument('--channels-last', type=bool, default=False)
     parser.add_argument('-t', '--test', action='store_true',
                         help='Launch test mode with preset arguments')
@@ -150,37 +146,21 @@ def main():
     best_prec1 = 0
     args = parse()
 
-    # test mode, use default args for sanity test
-    if args.test:
-        args.opt_level = None
-        args.epochs = 1
-        args.start_epoch = 0
-        args.arch = 'resnet50'
-        args.batch_size = 64
-        args.data = []
-        args.sync_bn = False
-        args.data.append('/data/imagenet/train-jpeg/')
-        args.data.append('/data/imagenet/val-jpeg/')
-        print("Test mode - no DDP, no apex, RN50, 10 iterations")
-
     if not len(args.data):
         raise Exception("error: No data set provided")
+
+    if args.test:
+        print("Test mode - only 10 iterations")
 
     args.distributed = False
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
+    if 'LOCAL_RANK' in os.environ:
+        args.local_rank = int(os.environ['LOCAL_RANK'])
+    else:
+        args.local_rank = 0
 
-    # make apex optional
-    if args.opt_level is not None or args.distributed or args.sync_bn:
-        try:
-            global DDP, amp, optimizers, parallel
-            from apex.parallel import DistributedDataParallel as DDP
-            from apex import amp, optimizers, parallel
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
-
-    print("opt_level = {}".format(args.opt_level))
-    print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
+    print("fp16_mode = {}".format(args.fp16_mode))
     print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
 
     print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
@@ -214,10 +194,6 @@ def main():
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
 
-    if args.sync_bn:
-        print("using apex synced BN")
-        model = parallel.convert_syncbn_model(model)
-
     if hasattr(torch, 'channels_last') and  hasattr(torch, 'contiguous_format'):
         if args.channels_last:
             memory_format = torch.channels_last
@@ -233,25 +209,12 @@ def main():
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    # Initialize Amp.  Amp accepts either values or strings for the optional override arguments,
-    # for convenient interoperation with argparse.
-    if args.opt_level is not None:
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level=args.opt_level,
-                                          keep_batchnorm_fp32=args.keep_batchnorm_fp32,
-                                          loss_scale=args.loss_scale
-                                          )
-
-    # For distributed training, wrap the model with apex.parallel.DistributedDataParallel.
-    # This must be done AFTER the call to amp.initialize.  If model = DDP(model) is called
-    # before model, ... = amp.initialize(model, ...), the call to amp.initialize may alter
-    # the types of model's parameters in a way that disrupts or destroys DDP's allreduce hooks.
     if args.distributed:
-        # By default, apex.parallel.DistributedDataParallel overlaps communication with
-        # computation in the backward pass.
-        # model = DDP(model)
-        # delay_allreduce delays all communication to the end of the backward pass.
-        model = DDP(model, delay_allreduce=True)
+        s = torch.cuda.Stream()
+        s.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(s):
+            model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank)
+        torch.cuda.current_stream().wait_stream(s)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
@@ -322,10 +285,17 @@ def main():
         validate(val_loader, model, criterion)
         return
 
+    scaler = torch.cuda.amp.GradScaler(
+        init_scale=args.loss_scale,
+        growth_factor=2,
+        backoff_factor=0.5,
+        growth_interval=100,
+        enabled=args.fp16_mode
+    )
     total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
-        avg_train_time = train(train_loader, model, criterion, optimizer, epoch)
+        avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)
         total_time.update(avg_train_time)
         if args.test:
             break
@@ -355,7 +325,7 @@ def main():
         train_loader.reset()
         val_loader.reset()
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, scaler, optimizer, epoch):
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -381,26 +351,26 @@ def train(train_loader, model, criterion, optimizer, epoch):
             if i > 10:
                 break
 
+        with torch.cuda.amp.autocast(enabled=args.fp16_mode):
+            output = model(input)
+            loss = criterion(output, target)
+
         # compute output
         if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
-        output = model(input)
+
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
-        loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
         if args.prof >= 0: torch.cuda.nvtx.range_push("backward")
-        if args.opt_level is not None:
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
-        else:
-             loss.backward()
+        scaler.scale(loss).backward()
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
         if args.prof >= 0: torch.cuda.nvtx.range_push("optimizer.step()")
-        optimizer.step()
+        scaler.step(optimizer)
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
+        scaler.update()
 
         if i%args.print_freq == 0:
             # Every print_freq iterations, check the loss, accuracy, and speed.
@@ -568,7 +538,7 @@ def accuracy(output, target, topk=(1,)):
 
 def reduce_tensor(tensor):
     rt = tensor.clone()
-    dist.all_reduce(rt, op=dist.reduce_op.SUM)
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
     rt /= args.world_size
     return rt
 

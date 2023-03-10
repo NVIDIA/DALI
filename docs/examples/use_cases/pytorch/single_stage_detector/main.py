@@ -17,15 +17,6 @@ from src.evaluate import evaluate
 from src.train import train_loop, tencent_trick
 from src.data import *
 
-# Apex imports
-try:
-    from apex.parallel.LARC import LARC
-    from apex import amp
-    from apex.fp16_utils import *
-except ImportError:
-    raise ImportError("Please install APEX from https://github.com/nvidia/apex")
-
-
 class Logger:
     def __init__(self, batch_size, local_rank, n_gpu, print_freq=20):
         self.batch_size = batch_size
@@ -109,26 +100,17 @@ def make_parser():
         '--backbone', type=str, default='resnet50',
         choices=['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'])
     parser.add_argument('--num-workers', type=int, default=4)
-    parser.add_argument('--fp16-mode', type=str, default='static', choices=['off', 'static', 'amp'],
-        help='Half precission mode to use')
-
-    # Distributed
-    parser.add_argument('--local_rank', default=0, type=int,
-        help='Used for multi-process training. Can either be manually set ' +
-            'or automatically set by using \'python -m multiproc\'.')
-
+    parser.add_argument('--fp16-mode', default=True, action='store_true',
+        help='Enable half precision mode')
     # Pipeline control
     parser.add_argument(
         '--data_pipeline', type=str, default='dali', choices=['dali', 'no_dali'],
-        help='data preprocessing pipline to use')
+        help='data preprocessing pipeline to use')
 
     return parser
 
 
 def train(args):
-    if args.amp:
-        amp_handle = amp.init(enabled=args.fp16)
-
     args.distributed = False
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
@@ -145,6 +127,7 @@ def train(args):
     cocoGt = get_coco_ground_truth(args)
 
     ssd300 = model(args)
+
     args.learning_rate = args.learning_rate * args.N_gpu * (args.batch_size / 32)
     iteration = 0
     loss_func = Loss(dboxes)
@@ -152,34 +135,30 @@ def train(args):
     loss_func.cuda()
 
     optimizer = torch.optim.SGD(
-        tencent_trick(ssd300), 
+        tencent_trick(ssd300),
         lr=args.learning_rate,
         momentum=args.momentum,
         weight_decay=args.weight_decay)
 
     scheduler = MultiStepLR(
-        optimizer=optimizer, 
-        milestones=args.multistep, 
+        optimizer=optimizer,
+        milestones=args.multistep,
         gamma=0.1)
 
-    if args.fp16:
-        if args.amp:
-            optimizer = amp_handle.wrap_optimizer(optimizer)
-        else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=128.)
+    scaler = torch.cuda.amp.GradScaler(enabled=args.fp16_mode)
 
     val_dataloader, inv_map = get_val_dataloader(args)
     train_loader = get_train_loader(args, dboxes)
 
     acc = 0
     logger = Logger(args.batch_size, args.local_rank, args.N_gpu)
-    
+
     for epoch in range(0, args.epochs):
         logger.start_epoch()
         scheduler.step()
 
         iteration = train_loop(
-            ssd300, loss_func, epoch, optimizer, 
+            ssd300, loss_func, scaler, epoch, optimizer,
             train_loader, iteration, logger, args)
 
         logger.end_epoch()
@@ -190,22 +169,19 @@ def train(args):
                 print('Epoch {:2d}, Accuracy: {:4f} mAP'.format(epoch, acc))
 
     return acc, logger.average_speed()
-        
+
 
 if __name__ == "__main__":
     parser = make_parser()
     args = parser.parse_args()
+    if 'LOCAL_RANK' in os.environ:
+        args.local_rank = int(os.environ['LOCAL_RANK'])
+    else:
+        args.local_rank = 0
     if args.local_rank == 0:
         os.makedirs('./models', exist_ok=True)
 
     torch.backends.cudnn.benchmark = True
-
-    if args.fp16_mode != 'off':
-        args.fp16 = True
-        args.amp = (args.fp16_mode == 'amp')
-    else:
-        args.fp16 = False
-        args.amp = False
 
     start_time = time.time()
     acc, avg_speed = train(args)

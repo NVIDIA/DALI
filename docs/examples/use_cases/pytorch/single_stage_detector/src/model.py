@@ -1,13 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision.models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
-
-# Apex imports
-try:
-    from apex.fp16_utils import *
-    from apex.parallel import DistributedDataParallel as DDP
-except ImportError:
-    raise ImportError("Please install APEX from https://github.com/nvidia/apex")
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 class ResNet(nn.Module):
@@ -122,12 +116,8 @@ class SSD300(nn.Module):
 def model(args):
     ssd300 = SSD300(backbone=args.backbone)
     ssd300.cuda()
-
-    if args.fp16 and not args.amp:
-        ssd300 = network_to_half(ssd300)
-
     if args.distributed:
-        ssd300 = DDP(ssd300)
+        ssd300 = DDP(ssd300, device_ids=[args.local_rank], output_device=args.local_rank)
 
     return ssd300
 
@@ -144,12 +134,12 @@ class Loss(nn.Module):
         self.scale_xy = 1.0/dboxes.scale_xy
         self.scale_wh = 1.0/dboxes.scale_wh
 
-        self.sl1_loss = nn.SmoothL1Loss(reduce=False)
+        self.sl1_loss = nn.SmoothL1Loss(reduction="none")
         self.dboxes = nn.Parameter(dboxes(order="xywh").transpose(0, 1).unsqueeze(dim = 0),
             requires_grad=False)
         # Two factor are from following links
         # http://jany.st/post/2017-11-05-single-shot-detector-ssd-from-scratch-in-tensorflow.html
-        self.con_loss = nn.CrossEntropyLoss(reduce=False)
+        self.con_loss = nn.CrossEntropyLoss(reduction="none")
 
     def _loc_vec(self, loc):
         """
