@@ -48,7 +48,6 @@ except ImportError as e:
         "Please install DALI from https://www.github.com/NVIDIA/DALI to run this example."
     )
 
-# TODO(klecki): Move it back again
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 

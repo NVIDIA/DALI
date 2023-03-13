@@ -13,8 +13,8 @@ Differences to the Deep Learning Examples configuration
 * ``--data-backend`` parameter was changed to accept ``dali``, ``pytorch``, or ``synthetic``. It is set to ``dali`` by default.
 * ``--dali-device`` was added to control placement of some of DALI operators.
 * ``--augmentation`` was replaced with ``--automatic-augmentation``, now supporting ``disabled``, ``autoaugment``, and ``trivialaugment`` values.
-* ``--workers`` defaults were halved to accommodate DALI. The value is automatically doubled when ``pytorch`` data loader is used.
-* the model is restricted to EfficientNet-B0 architecture.
+* ``--workers`` defaults were halved to accommodate DALI. The value is automatically doubled when ``pytorch`` data loader is used. Thanks to this the default value performs well with both loaders.
+* The model is restricted to EfficientNet-B0 architecture.
 
 
 Data backends
@@ -35,14 +35,14 @@ This model uses the following data augmentation:
 
 * For inference:
 
-  * Scale to target image size + 32
-  * Center crop to target image size
+  * Scale to target image size + additional size margin (in this case it is 224 + 32 = 266)
+  * Center crop to target image size (in this case 224)
   * Normalization
 
 
 
-Requirements
-^^^^^^^^^^^^
+Setup
+^^^^^
 
 The EfficientNet script operates on ImageNet 1k, a widely popular image classification dataset from the ILSVRC challenge.
 
@@ -77,18 +77,18 @@ Running the model
 Training
 --------
 
-To run training on 1GPU, use the ``main.py`` entry point:
+To run training on a single GPU, use the ``main.py`` entry point:
 
-* For FP32: ``python ./main.py $PATH_TO_IMAGENET``
-* For AMP: ``python ./main.py --amp --static-loss-scale 128 $PATH_TO_IMAGENET``
+* For FP32: ``python ./main.py --batch-size 64 $PATH_TO_IMAGENET``
+* For AMP: ``python ./main.py --batch-size 64 --amp --static-loss-scale 128 $PATH_TO_IMAGENET``
 
 You may need to adjust ``--batch-size`` parameter for your machine.
 
 You can change the data loader and automatic augmentation scheme that are used by adding:
 
-* ``--data-backend``: dali | pytorch | synthetic,
-* ``--automatic-augmentation``: disabled | autoaugment | trivialaugment (the last one only for DALI),
-* ``--dali-device``: cpu | gpu (only for DALI).
+* ``--data-backend``: ``dali`` | ``pytorch`` | ``synthetic``,
+* ``--automatic-augmentation``: ``disabled`` | ``autoaugment`` | ``trivialaugment`` (the last one only for DALI),
+* ``--dali-device``: ``cpu`` | ``gpu`` (only for DALI).
 
 By default DALI GPU-variant with AutoAugment is used.
 
