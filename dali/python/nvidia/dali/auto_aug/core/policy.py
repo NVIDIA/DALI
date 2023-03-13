@@ -41,7 +41,7 @@ class Policy:
         self.num_magnitude_bins = num_magnitude_bins
         if not isinstance(num_magnitude_bins, int) or num_magnitude_bins < 1:
             raise Exception(
-                f"The `num_magnitude_bins` must be a positive integer, got {num_magnitude_bins}")
+                f"The `num_magnitude_bins` must be a positive integer, got {num_magnitude_bins}.")
         if not isinstance(sub_policies, (list, tuple)):
             raise Exception(f"The `sub_policies` must be a list or tuple of sub policies, "
                             f"got {type(sub_policies)}.")

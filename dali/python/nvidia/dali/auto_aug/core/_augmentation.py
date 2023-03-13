@@ -76,8 +76,8 @@ class _SignedMagnitudeBin:
         return self._signed_magnitude_idx
 
 
-def signed_bin(magnitude_bin: Optional[Union[int, _DataNode]],
-               random_sign: Optional[_DataNode] = None, seed=None) -> _SignedMagnitudeBin:
+def signed_bin(magnitude_bin: Union[int, _DataNode], random_sign: Optional[_DataNode] = None,
+               seed=None) -> _SignedMagnitudeBin:
     """
     Combines the `magnitude_bin` with information about the sign of the magnitude.
     The Augmentation wrapper can generate and handle the random sign on its own. Yet,
@@ -90,8 +90,8 @@ def signed_bin(magnitude_bin: Optional[Union[int, _DataNode]],
     magnitude_bin: int or DataNode
         The magnitude bin from range `[0, num_magnitude_bins - 1]`. Can be plain int or
         a batch (_DataNode) of ints.
-    random_sign : DataNode
-        A batch of {0, 1} integers. For augmentations declared with `random_negate=True`,
+    random_sign : DataNode, optional
+        A batch of {0, 1} integers. For augmentations declared with `randomly_negate=True`,
         it determines if the magnitude is negated (for 1) or not (for 0).
     """
     return _SignedMagnitudeBin(magnitude_bin, random_sign, seed)
@@ -295,9 +295,9 @@ class Augmentation:
                 f"but unsigned `magnitude_bin` was passed to the augmentation call. "
                 f"The augmentation will randomly negate the magnitudes manually. "
                 f"However, for better performance, if you conditionally split batch "
-                f"between multiple augmentations, please call "
-                f"`signed_magnitude_bin = signed_bin(magnitude_bin)` and pass the "
-                f"signed bins instead.", Warning)
+                f"between multiple augmentations, it is better to call "
+                f"`signed_magnitude_bin = signed_bin(magnitude_bin)` before the split "
+                f"and pass the signed bins instead.", Warning)
         if self.randomly_negate:
             assert isinstance(magnitude_bin, _SignedMagnitudeBin)  # by the two checks above
             if isinstance(magnitude_bin.bin, int):

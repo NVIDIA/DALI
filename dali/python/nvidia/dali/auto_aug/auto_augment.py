@@ -102,7 +102,7 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
         A batch of transformed samples.
     """
     if len(policy.sub_policies) == 0:
-        return sample
+        raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
     max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
     should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT)
     sub_policy_id = fn.random.uniform(values=list(range(len(policy.sub_policies))), seed=seed,
@@ -191,14 +191,14 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: int = None,
 
 def _get_translate_y(use_shape: bool = False, max_translate_abs: int = None,
                      max_translate_rel: float = None):
-    _, max_translate_width = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
-                                                    max_translate_rel=max_translate_rel,
-                                                    default_translate_abs=250,
-                                                    default_translate_rel=1.)
+    max_translate_height, _ = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
+                                                     max_translate_rel=max_translate_rel,
+                                                     default_translate_abs=250,
+                                                     default_translate_rel=1.)
     if use_shape:
-        return a.translate_y.augmentation((0, max_translate_width), True)
+        return a.translate_y.augmentation((0, max_translate_height), True)
     else:
-        return a.translate_y_no_shape.augmentation((0, max_translate_width), True)
+        return a.translate_y_no_shape.augmentation((0, max_translate_height), True)
 
 
 def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:

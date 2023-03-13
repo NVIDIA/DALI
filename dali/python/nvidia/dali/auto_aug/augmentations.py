@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    raise RuntimeError(
+        "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
+        "Please install numpy to use the examples.")
 
 from nvidia.dali import fn
 from nvidia.dali import types
@@ -60,7 +65,7 @@ def shear_y(sample, shear, fill_value=128, interp_type=None):
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, as_param=warp_x_param)
 def translate_x(sample, rel_offset, shape, fill_value=128, interp_type=None):
-    offset = rel_offset * shape[-2]
+    offset = rel_offset * shape[1]
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
@@ -75,7 +80,7 @@ def translate_x_no_shape(sample, offset, fill_value=128, interp_type=None):
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, as_param=warp_y_param)
 def translate_y(sample, rel_offset, shape, fill_value=128, interp_type=None):
-    offset = rel_offset * shape[-3]
+    offset = rel_offset * shape[0]
     mt = fn.transforms.translation(offset=offset)
     return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
