@@ -20,6 +20,7 @@
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
+#include "dali/core/version_util.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
