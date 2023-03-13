@@ -125,6 +125,8 @@ def get_dali_train_loader(dali_device="gpu"):
             "triangular": types.INTERP_TRIANGULAR,
         }[interpolation]
 
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
         traindir = os.path.join(data_path, "train")
 
         pipeline_kwargs = {
@@ -135,8 +137,9 @@ def get_dali_train_loader(dali_device="gpu"):
         }
 
         pipe = training_pipe(data_dir=traindir, interpolation=interpolation, image_size=image_size,
-                             automatic_augmentation=augmentation, dali_device=dali_device,
-                             rank=rank, world_size=world_size, **pipeline_kwargs)
+                             output_layout=output_layout, automatic_augmentation=augmentation,
+                             dali_device=dali_device, rank=rank, world_size=world_size,
+                             **pipeline_kwargs)
 
         pipe.build()
         train_loader = DALIClassificationIterator(
@@ -178,6 +181,8 @@ def get_dali_val_loader():
             "triangular": types.INTERP_TRIANGULAR,
         }[interpolation]
 
+        output_layout = "HWC" if memory_format == torch.channels_last else "CHW"
+
         valdir = os.path.join(data_path, "val")
 
         pipeline_kwargs = {
@@ -189,7 +194,7 @@ def get_dali_val_loader():
 
         pipe = validation_pipe(data_dir=valdir, interpolation=interpolation,
                                image_size=image_size + crop_padding, image_crop=image_size,
-                               **pipeline_kwargs)
+                               output_layout=output_layout, **pipeline_kwargs)
 
         pipe.build()
         val_loader = DALIClassificationIterator(

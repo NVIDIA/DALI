@@ -21,8 +21,8 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 
 @pipeline_def(enable_conditionals=True)
-def training_pipe(data_dir, interpolation, image_size, automatic_augmentation, dali_device="gpu",
-                  rank=0, world_size=1):
+def training_pipe(data_dir, interpolation, image_size, output_layoyut, automatic_augmentation,
+                  dali_device="gpu", rank=0, world_size=1):
     rng = fn.random.coin_flip(probability=0.5)
 
     jpegs, labels = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
@@ -35,6 +35,8 @@ def training_pipe(data_dir, interpolation, image_size, automatic_augmentation, d
         decoder_device = "cpu"
         rrc_device = "cpu"
 
+    # This padding sets the size of the internal nvJPEG buffers to be able to handle all images
+    # from full-sized ImageNet without additional reallocations
     images = fn.decoders.image(jpegs, device=decoder_device, output_type=types.RGB,
                                device_memory_padding=211025920, host_memory_padding=140544512)
 
@@ -59,7 +61,7 @@ def training_pipe(data_dir, interpolation, image_size, automatic_augmentation, d
     else:
         output = images
 
-    output = fn.crop_mirror_normalize(output, dtype=types.FLOAT, output_layout=types.NCHW,
+    output = fn.crop_mirror_normalize(output, dtype=types.FLOAT, output_layout=output_layoyut,
                                       crop=(image_size, image_size),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
@@ -68,7 +70,8 @@ def training_pipe(data_dir, interpolation, image_size, automatic_augmentation, d
 
 
 @pipeline_def
-def validation_pipe(data_dir, interpolation, image_size, image_crop, rank=0, world_size=1):
+def validation_pipe(data_dir, interpolation, image_size, image_crop, output_layout, rank=0,
+                    world_size=1):
     jpegs, label = fn.readers.file(name="Reader", file_root=data_dir, shard_id=rank,
                                    num_shards=world_size, random_shuffle=False, pad_last_batch=True)
 
@@ -77,7 +80,7 @@ def validation_pipe(data_dir, interpolation, image_size, image_crop, rank=0, wor
     images = fn.resize(images, resize_shorter=image_size, interp_type=interpolation,
                        antialias=False)
 
-    output = fn.crop_mirror_normalize(images, dtype=types.FLOAT, output_layout=types.NCHW,
+    output = fn.crop_mirror_normalize(images, dtype=types.FLOAT, output_layout=output_layout,
                                       crop=(image_crop, image_crop),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
