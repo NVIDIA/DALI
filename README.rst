@@ -207,9 +207,9 @@ Additional Resources
 .. |event2021| replace:: event
 .. _event2021: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/
 .. |talkIntro2022| replace:: event
-.. _talkIntro2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM
+.. _talkIntro2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41443/
 .. |talkAdvanced2022| replace:: event
-.. _talkAdvanced2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG
+.. _talkAdvanced2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/
 
 ----
 
