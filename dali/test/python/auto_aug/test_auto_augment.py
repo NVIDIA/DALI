@@ -105,10 +105,12 @@ def test_translation(use_shape, offset_fraction, extent):
         param_name = "max_translate_abs"
     if extent == 'both':
         param = shape[0] * offset_fraction
-    if extent == 'height':
+    elif extent == 'height':
         param = [shape[0] * offset_fraction, 0]
     elif extent == 'width':
         param = [0, shape[1] * offset_fraction]
+    else:
+        assert False, f"Unrecognized extent={extent}"
     params[param_name] = param
     translate_y = auto_augment._get_translate_y(use_shape=use_shape, **params)
     policy = Policy(f"Policy_{use_shape}_{offset_fraction}", num_magnitude_bins=21,
@@ -300,7 +302,6 @@ def test_op_skipping(dev):
             else:
                 expected_counts[(mag, )] = prob / 2
                 expected_counts[(-mag, )] = prob / 2
-        only_right_p = (1 - left_p) * right_p / len(sub_policies)
         sign_cases = [(-1, 1) if aug.randomly_negate else (1, ) for aug in (left_aug, right_aug)]
         sign_cases = list(itertools.product(*sign_cases))
         prob = left_p * right_p / len(sub_policies)
