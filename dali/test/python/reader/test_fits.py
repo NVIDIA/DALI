@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import Pipeline
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import os
 from astropy.io import fits
@@ -35,36 +35,18 @@ def create_fits_file(filename, shape, type=np.int32, compressed=False):
     hdu.writeto(filename)
 
 
-def delete_fits_file(filename):
-    if os.path.isfile(filename):
-        os.remove(filename)
-
-
-def FitsReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
-                       file_filter="*.fits", num_threads=1, device_id=0,
+@pipeline_def
+def FitsReaderPipeline(path, device="cpu", file_list=None, files=None, file_filter="*.fits",
                        hdu_indices=None, dtype=None):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    data = fn.readers.fits(device=device,
-                           file_list=file_list,
-                           files=files,
-                           file_root=path,
-                           file_filter=file_filter,
-                           shard_id=0,
-                           num_shards=1)
-    pipe.set_outputs(data)
-    return pipe
+    data = fn.experimental.readers.fits(device=device, file_list=file_list, files=files,
+                                        file_root=path, file_filter=file_filter, shard_id=0,
+                                        num_shards=1)
+    return data
 
 
-all_numpy_types = set([
-    np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
-    np.longlong, np.ulonglong, np.half, np.float16, np.single, np.double, np.longdouble, np.csingle,
-    np.cdouble, np.clongdouble, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16,
-    np.uint32, np.uint64, np.intp, np.uintp, np.float32, np.float64, np.float_, np.complex64,
-    np.complex128, np.complex_
-])
-unsupported_numpy_types = set([
-    np.bool_, np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
-    np.complex_
+supported_numpy_types = set([
+    np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16,
+    np.uint32, np.uint64, np.float32, np.float64,
 ])
 
 # Test shapes, for each number of dims
@@ -137,7 +119,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
 def test_reading_uncompressed():
     compressed = False
     device = "cpu"
-    for type in all_numpy_types - unsupported_numpy_types:
+    for type in supported_numpy_types:
         for ndim in test_shapes.keys():
             shapes = test_shapes[ndim]
             file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
@@ -150,7 +132,7 @@ def test_reading_uncompressed():
 def test_reading_compressed():
     compressed = True
     device = "cpu"
-    for type in all_numpy_types - unsupported_numpy_types:
+    for type in supported_numpy_types:
         for ndim in test_shapes.keys():
             shapes = test_shapes[ndim]
             file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
