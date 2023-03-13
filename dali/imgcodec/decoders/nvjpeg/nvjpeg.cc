@@ -16,7 +16,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"

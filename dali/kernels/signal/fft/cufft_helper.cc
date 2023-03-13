@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/kernels/signal/fft/cufft_helper.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 
 namespace dali {
 

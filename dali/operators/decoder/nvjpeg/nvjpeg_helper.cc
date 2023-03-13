@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 
 namespace dali {
 
