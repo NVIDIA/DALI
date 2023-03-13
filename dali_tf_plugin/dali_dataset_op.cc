@@ -318,13 +318,9 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
         if (dataset()->fail_on_device_mismatch_) {
 #if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 13
-
           return Status(absl::StatusCode::kInternal, msg);
-
 #else
-
           return Status(tensorflow::error::Code::INTERNAL, msg);
-
 #endif
         }
       }
