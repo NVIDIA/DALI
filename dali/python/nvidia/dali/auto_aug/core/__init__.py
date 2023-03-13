@@ -15,5 +15,6 @@
 from nvidia.dali.auto_aug.core._augmentation import signed_bin, Augmentation as _Augmentation
 from nvidia.dali.auto_aug.core.decorator import augmentation
 from nvidia.dali.auto_aug.core._select import select
+from nvidia.dali.auto_aug.core.policy import Policy
 
-__all__ = ("signed_bin", "augmentation", "select", "_Augmentation")
+__all__ = ("signed_bin", "augmentation", "select", "Policy", "_Augmentation")
