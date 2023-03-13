@@ -40,8 +40,6 @@ class FitsReader : public DataReader<Backend, Target> {
   using DataReader<Backend, Target>::GetSample;
   using Operator<Backend>::spec_;
 
-  // rewrite this part given new approach with multiple outputs
-  // do i
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
