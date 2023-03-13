@@ -76,9 +76,25 @@ def load_jpeg_from_file(path, cuda=True):
     return input
 
 class DALIWrapper(object):
+
     def gen_wrapper(dalipipeline, num_classes, one_hot, memory_format):
         for data in dalipipeline:
-            input = data[0]["data"].contiguous(memory_format=memory_format)
+            if memory_format == torch.channels_last:
+                # If we requested the data in channels_last form, utilize the fact that DALI
+                # can return it as NHWC. The network expects NCHW shape with NHWC internal memory,
+                # so we can keep the memory and just create a view with appropriate shape and
+                # strides reflacting that memory layouyt
+                shape = data[0]["data"].shape
+                stride = data[0]["data"].stride()
+
+                # permute shape and stride from NHWC to NCHW
+                def nhwc_to_nchw(t):
+                    return t[0], t[3], t[1], t[2]
+
+                input = torch.as_strided(data[0]["data"], size=nhwc_to_nchw(shape),
+                                         stride=nhwc_to_nchw(stride))
+            else:
+                input = data[0]["data"].contiguous(memory_format=memory_format)
             target = torch.reshape(data[0]["label"], [-1]).cuda().long()
             if one_hot:
                 target = expand(num_classes, torch.float, target)

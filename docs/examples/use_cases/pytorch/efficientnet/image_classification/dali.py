@@ -21,7 +21,7 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 
 
 @pipeline_def(enable_conditionals=True)
-def training_pipe(data_dir, interpolation, image_size, output_layoyut, automatic_augmentation,
+def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_augmentation,
                   dali_device="gpu", rank=0, world_size=1):
     rng = fn.random.coin_flip(probability=0.5)
 
@@ -30,20 +30,21 @@ def training_pipe(data_dir, interpolation, image_size, output_layoyut, automatic
 
     if dali_device == "gpu":
         decoder_device = "mixed"
-        rrc_device = "gpu"
+        resize_device = "gpu"
     else:
         decoder_device = "cpu"
-        rrc_device = "cpu"
+        resize_device = "cpu"
 
     # This padding sets the size of the internal nvJPEG buffers to be able to handle all images
     # from full-sized ImageNet without additional reallocations
-    images = fn.decoders.image(jpegs, device=decoder_device, output_type=types.RGB,
-                               device_memory_padding=211025920, host_memory_padding=140544512)
+    images = fn.decoders.image_random_crop(jpegs, device=decoder_device, output_type=types.RGB,
+                                           device_memory_padding=211025920,
+                                           host_memory_padding=140544512,
+                                           random_aspect_ratio=[0.75, 4.0 / 3.0],
+                                           random_area=[0.08, 1.0])
 
-    images = fn.random_resized_crop(images, device=rrc_device, size=[image_size, image_size],
-                                    interp_type=interpolation,
-                                    random_aspect_ratio=[0.75, 4.0 / 3.0], random_area=[0.08, 1.0],
-                                    num_attempts=100, antialias=False)
+    images = fn.resize(images, device=resize_device, size=[image_size, image_size],
+                       interp_type=interpolation, antialias=False)
 
     # Make sure that from this point we are processing on GPU regardless of dali_device parameter
     images = images.gpu()
@@ -61,7 +62,7 @@ def training_pipe(data_dir, interpolation, image_size, output_layoyut, automatic
     else:
         output = images
 
-    output = fn.crop_mirror_normalize(output, dtype=types.FLOAT, output_layout=output_layoyut,
+    output = fn.crop_mirror_normalize(output, dtype=types.FLOAT, output_layout=output_layout,
                                       crop=(image_size, image_size),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
