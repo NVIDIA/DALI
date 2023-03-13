@@ -38,7 +38,7 @@ int nvjpegGetVersion() {
   GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
-  return GetVersionNumber(major, minor, patch);
+  return MakeVersionNumber(major, minor, patch);
 }
 
 }  // namespace

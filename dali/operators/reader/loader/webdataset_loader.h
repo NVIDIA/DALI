@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/bitmask.h"
+#include "dali/core/version_util.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/util/file.h"
@@ -38,10 +39,6 @@ constexpr char kExtDelim = ';';
 const std::set<DALIDataType> kSupportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                 DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
                                                 DALI_FLOAT16, DALI_FLOAT,  DALI_FLOAT64};
-
-constexpr int MakeVersion(int major, int minor) {
-  return major * 1000 * minor;
-}
 
 enum class MissingExtBehavior {
   Empty,

@@ -70,7 +70,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (components_stream >> component.ext) {
-    if (index_version == MakeVersion(1, 2)) {
+    if (index_version == MakeVersionNumber(1, 2)) {
       DALI_ENFORCE(
           components_stream >> component.offset >> component.size >> component.filename,
           IndexFileErrMsg(
@@ -106,7 +106,7 @@ inline int ParseIndexVersion(const string& version_str) {
   assert(s);
   s++;
   int minor = atoi(s);
-  return MakeVersion(major, minor);
+  return MakeVersionNumber(major, minor);
 }
 
 inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
