@@ -31,12 +31,12 @@ data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 
-def as_param_with_op_id(op_id):
+def mag_to_param_with_op_id(op_id):
 
-    def as_param(magnitude):
+    def mag_to_param(magnitude):
         return np.array([op_id, magnitude], dtype=np.int32)
 
-    return as_param
+    return mag_to_param
 
 
 @experimental.pipeline_def(enable_conditionals=True, num_threads=4, device_id=0, seed=44)
@@ -154,7 +154,7 @@ def test_sub_policy(randomly_negate, dev, batch_size):
 
     @augmentation(
         mag_range=(0, 9),
-        as_param=as_param_with_op_id(1),
+        mag_to_param=mag_to_param_with_op_id(1),
         param_device=dev,
     )
     def first(sample, op_id_mag_id):
@@ -162,7 +162,7 @@ def test_sub_policy(randomly_negate, dev, batch_size):
 
     @augmentation(
         mag_range=(10, 19),
-        as_param=as_param_with_op_id(2),
+        mag_to_param=mag_to_param_with_op_id(2),
         randomly_negate=randomly_negate,
         param_device=dev,
     )
@@ -171,7 +171,7 @@ def test_sub_policy(randomly_negate, dev, batch_size):
 
     @augmentation(
         mag_range=(20, 29),
-        as_param=as_param_with_op_id(3),
+        mag_to_param=mag_to_param_with_op_id(3),
         randomly_negate=randomly_negate,
         param_device=dev,
     )
@@ -255,7 +255,7 @@ def test_op_skipping(dev):
 
     @augmentation(
         mag_range=(0, 15),
-        as_param=as_param_with_op_id(1),
+        mag_to_param=mag_to_param_with_op_id(1),
         randomly_negate=True,
         param_device=dev,
     )
@@ -264,7 +264,7 @@ def test_op_skipping(dev):
 
     @augmentation(
         mag_range=(0, 15),
-        as_param=as_param_with_op_id(2),
+        mag_to_param=mag_to_param_with_op_id(2),
         randomly_negate=True,
         param_device=dev,
     )
@@ -273,7 +273,7 @@ def test_op_skipping(dev):
 
     @augmentation(
         mag_range=(0, 15),
-        as_param=as_param_with_op_id(3),
+        mag_to_param=mag_to_param_with_op_id(3),
         param_device=dev,
     )
     def third(sample, op_id_mag_id):

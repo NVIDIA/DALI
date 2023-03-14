@@ -37,7 +37,7 @@ except ImportError:
 def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
                  mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
                  randomly_negate: Optional[bool] = None,
-                 as_param: Optional[Callable[[float], _ArrayLike]] = None,
+                 mag_to_param: Optional[Callable[[float], _ArrayLike]] = None,
                  param_device: Optional[str] = None, name: Optional[str] = None,
                  augmentation_cls: Optional[Type[Augmentation]] = None):
     """
@@ -48,7 +48,7 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
     The decorator handles computation of the parameter. Instead of the parameter, the
     decorated augmentation accepts magnitude bin and the total number of bins.
     Then, the bin is used to compute the parameter as if by calling
-    `as_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
+    `mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
     `magnitudes=linspace(mag_range[0], mag_range[1], num_magnitude_bins)`.
 
     Parameter
@@ -66,7 +66,7 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
         If no `mag_range` is specified, the parameter passed to the `function` will be `None`.
     randomly_negate: bool
         If `True`, the magnitude from the mag_range will be randomly negated for every sample.
-    as_param: callable
+    mag_to_param: callable
         A callback that transforms the magnitude into a parameter. The parameter will be passed to
         the decorated operation instead of the plain magnitude. This way, the parameters for the
         range of magnitudes can be computed once in advance and stored as a Constant node.
@@ -87,7 +87,7 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
 
     def decorator(function):
         cls = augmentation_cls or Augmentation
-        return cls(function, mag_range=mag_range, as_param=as_param,
+        return cls(function, mag_range=mag_range, mag_to_param=mag_to_param,
                    randomly_negate=randomly_negate, param_device=param_device, name=name)
 
     if function is None:
