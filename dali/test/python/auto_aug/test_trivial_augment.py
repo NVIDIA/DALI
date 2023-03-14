@@ -122,12 +122,12 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
     # num_magnitude_bins * num_ops * (2**use_signs)
     batch_size = 2048
 
-    def as_param_with_op_id(op_id):
+    def mag_to_param_with_op_id(op_id):
 
-        def as_param(magnitude):
+        def mag_to_param(magnitude):
             return np.array([op_id, magnitude], dtype=np.int32)
 
-        return as_param
+        return mag_to_param
 
     @augmentation(param_device=dev)
     def op(sample, op_id_mag_id):
@@ -135,7 +135,7 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
 
     augmentations = [
         op.augmentation(mag_range=(10 * i + 1, 10 * i + num_magnitude_bins),
-                        as_param=as_param_with_op_id(i + 1), randomly_negate=use_sign
+                        mag_to_param=mag_to_param_with_op_id(i + 1), randomly_negate=use_sign
                         and i % 3 == 0) for i in range(num_ops)
     ]
 
@@ -146,10 +146,10 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         assert len(magnitudes) == num_magnitude_bins
         for mag in magnitudes:
             if not aug.randomly_negate:
-                expected_counts[tuple(aug.as_param(mag))] = prob
+                expected_counts[tuple(aug.mag_to_param(mag))] = prob
             else:
-                expected_counts[tuple(aug.as_param(mag))] = prob / 2
-                expected_counts[tuple(aug.as_param(-mag))] = prob / 2
+                expected_counts[tuple(aug.mag_to_param(mag))] = prob / 2
+                expected_counts[tuple(aug.mag_to_param(-mag))] = prob / 2
     expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
 
     @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,

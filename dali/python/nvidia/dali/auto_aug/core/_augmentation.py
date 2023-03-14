@@ -116,14 +116,14 @@ class Augmentation:
         op: Callable[..., _DataNode],
         mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         randomly_negate: Optional[bool] = None,
-        as_param: Optional[Callable[[float], _ArrayLike]] = None,
+        mag_to_param: Optional[Callable[[float], _ArrayLike]] = None,
         param_device: Optional[str] = None,
         name: Optional[str] = None,
     ):
         self._op = op
         self._mag_range = mag_range
         self._randomly_negate = randomly_negate
-        self._as_param = as_param
+        self._mag_to_param = mag_to_param
         self._param_device = param_device
         self._name = name
         self._validate_op_sig()
@@ -140,7 +140,7 @@ class Augmentation:
         """
         Applies the decorated transformation to the `sample` as if by calling
         `self.op(sample, param, **kwargs)` where
-        `param = as_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`.
+        `param = mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`.
 
         Parameter
         ---------
@@ -149,7 +149,7 @@ class Augmentation:
         magnitude_bin: int, DataNode, or _SignedMagnitudeBin
             The magnitude bin from range `[0, num_magnitude_bins - 1]`. The bin is used to get
             parameter for the transformation. The parameter is computed as if by calling
-            `as_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
+            `mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
             `magnitudes=linspace(mag_range[0], mag_range[1], num_magnitude_bins)`.
             If the `mag_range` is custom `np.ndarray`, it will be used as `magnitudes` directly.
         num_magnitude_bins: int
@@ -186,8 +186,8 @@ class Augmentation:
         return self._mag_range
 
     @property
-    def as_param(self):
-        return self._as_param or _np_wrap
+    def mag_to_param(self):
+        return self._mag_to_param or _np_wrap
 
     @property
     def randomly_negate(self):
@@ -202,8 +202,8 @@ class Augmentation:
         return self._name or self.op.__name__
 
     def augmentation(self, mag_range=_UndefinedParam, randomly_negate=_UndefinedParam,
-                     as_param=_UndefinedParam, param_device=_UndefinedParam, name=_UndefinedParam,
-                     augmentation_cls=None):
+                     mag_to_param=_UndefinedParam, param_device=_UndefinedParam,
+                     name=_UndefinedParam, augmentation_cls=None):
         """
         The method to update augmentation parameters specified with `@augmentation` decorator.
         Returns a new augmentation with the original operation decorated but updated parameters.
@@ -212,7 +212,8 @@ class Augmentation:
         cls = augmentation_cls or self.__class__
         config = self._get_config()
         for key, value in dict(mag_range=mag_range, randomly_negate=randomly_negate,
-                               as_param=as_param, param_device=param_device, name=name).items():
+                               mag_to_param=mag_to_param, param_device=param_device,
+                               name=name).items():
             assert key in config
             if value is not _UndefinedParam:
                 config[key] = value
@@ -221,7 +222,7 @@ class Augmentation:
     def _get_config(self):
         return {
             "mag_range": self._mag_range,
-            "as_param": self._as_param,
+            "mag_to_param": self._mag_to_param,
             "randomly_negate": self._randomly_negate,
             "param_device": self._param_device,
             "name": self._name,
@@ -231,16 +232,16 @@ class Augmentation:
         return isinstance(self.mag_range, np.ndarray)
 
     def _map_mag_to_param(self, magnitude):
-        param = self.as_param(magnitude)
+        param = self.mag_to_param(magnitude)
         if _contains_data_node(param):
             raise Exception(
-                f"The `as_param` callback of `{self.name}` augmentation returned `DataNode`, "
+                f"The `mag_to_param` callback of `{self.name}` augmentation returned `DataNode`, "
                 f"i.e. an output of DALI pipelined operator, which is not supported there. "
-                f"Instead, the `as_param` callback must return parameter that is `np.ndarray` "
+                f"Instead, the `mag_to_param` callback must return parameter that is `np.ndarray` "
                 f"or is directly convertible to `np.ndarray`, so that the all parameters can "
                 f"be precomputed and reused across iterations.\n\n"
-                f"You can move DALI operators from `as_param` callback to the "
-                f"decorated augmentation code or replace the DALI operators in `as_param` "
+                f"You can move DALI operators from `mag_to_param` callback to the "
+                f"decorated augmentation code or replace the DALI operators in `mag_to_param` "
                 f"callback with their `dali.experimental.eger` counterparts.\n\n"
                 f"Error in augmentation: {self}.")
         return np.array(param)
@@ -253,8 +254,8 @@ class Augmentation:
             for param, mag in zip(params, magnitudes):
                 if param.shape != ref_shape or param.dtype != ref_dtype:
                     raise Exception(
-                        f"The `as_param` callback of `{self.name}` augmentation must return the "
-                        f"arrays of the same type and shape for different magnitudes. "
+                        f"The `mag_to_param` callback of `{self.name}` augmentation must return "
+                        f"the arrays of the same type and shape for different magnitudes. "
                         f"Got param of shape {ref_shape} and {ref_dtype} type for magnitude "
                         f"{magnitudes[0]}, but for magnitude {mag} the returned array "
                         f"has shape {param.shape} and type {param.dtype}.\n\n"

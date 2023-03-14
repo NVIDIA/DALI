@@ -223,7 +223,7 @@ def test_brightness(dev):
 
     data_source = get_images
     brightness = a.brightness.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
-                                           as_param=None)
+                                           mag_to_param=None)
     magnitudes = brightness._get_magnitudes(default_batch_size)
     compare_against_baseline(brightness, pil_baseline(brightness_ref), data_source,
                              max_allowed_error=1, dev=dev, params=magnitudes)
@@ -236,7 +236,8 @@ def test_contrast(dev):
         return ImageEnhance.Contrast(img).enhance(magnitude)
 
     data_source = get_images
-    contrast = a.contrast.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, as_param=None)
+    contrast = a.contrast.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
+                                       mag_to_param=None)
     magnitudes = contrast._get_magnitudes(default_batch_size)
     compare_against_baseline(contrast, pil_baseline(contrast_ref), data_source, max_allowed_error=1,
                              dev=dev, params=magnitudes)
@@ -250,7 +251,7 @@ def test_color(dev):
         return ImageEnhance.Color(img).enhance(magnitude)
 
     data_source = get_images
-    color = a.color.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, as_param=None)
+    color = a.color.augmentation(mag_range=(0.1, 1.9), randomly_negate=False, mag_to_param=None)
     magnitudes = color._get_magnitudes(default_batch_size)
     compare_against_baseline(color, pil_baseline(color_ref), data_source,
                              max_allowed_error=max_allowed_error, dev=dev, params=magnitudes)
@@ -271,7 +272,7 @@ def test_sharpness(dev):
 
     data_source = get_images
     sharpness = a.sharpness.augmentation(mag_range=(0.1, 1.9), randomly_negate=False,
-                                         as_param=a.sharpness_kernel_shifted)
+                                         mag_to_param=a.sharpness_kernel_shifted)
     magnitudes = sharpness._get_magnitudes(default_batch_size)
     compare_against_baseline(sharpness, pil_baseline(sharpness_ref), data_source,
                              max_allowed_error=1, dev=dev, params=magnitudes, post_proc=post_proc)

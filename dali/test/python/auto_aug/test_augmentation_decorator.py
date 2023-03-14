@@ -32,7 +32,8 @@ def sample_info(cb):
     return fn.external_source(idx_in_batch_cb, batch=False)
 
 
-def ref_param(mag_range, mag_range_num_elements, bins_batch, mag_signs_batch=None, as_param=None):
+def ref_param(mag_range, mag_range_num_elements, bins_batch, mag_signs_batch=None,
+              mag_to_param=None):
     if isinstance(mag_range, tuple):
         assert len(mag_range) == 2
         lo, hi = mag_range
@@ -41,8 +42,8 @@ def ref_param(mag_range, mag_range_num_elements, bins_batch, mag_signs_batch=Non
     if mag_signs_batch is not None:
         assert len(mag_signs_batch) == len(magnitudes)
         magnitudes = [mag * ((-1)**negate) for mag, negate in zip(magnitudes, mag_signs_batch)]
-    as_param = as_param if as_param is not None else np.array
-    return np.array([as_param(mag) for mag in magnitudes])
+    mag_to_param = mag_to_param if mag_to_param is not None else np.array
+    return np.array([mag_to_param(mag) for mag in magnitudes])
 
 
 def test_magnitude_is_none():
@@ -183,13 +184,13 @@ def test_no_randomly_negate(const_mag):
 
 
 @params((((201, 211), 11, 7, np.uint16, "cpu")), (((101, 107), 7, None, np.float32, "gpu")))
-def test_as_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device):
+def test_mag_to_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device):
     batch_size = 31
 
-    def as_param(magnitude):
+    def mag_to_param(magnitude):
         return np.array([magnitude, magnitude + 2, 42], dtype=dtype)
 
-    @augmentation(mag_range=mag_range, randomly_negate=True, as_param=as_param,
+    @augmentation(mag_range=mag_range, randomly_negate=True, mag_to_param=mag_to_param,
                   param_device=param_device)
     def pass_through_mag(sample, param):
         return param
@@ -219,20 +220,20 @@ def test_as_param(mag_range, num_magnitude_bins, const_mag, dtype, param_device)
         i % num_magnitude_bins for i in range(batch_size)
     ]
     ref_magnitudes = ref_param(mag_range, num_magnitude_bins, magnitude_bin,
-                               mag_signs_batch=mag_sign, as_param=as_param)
+                               mag_signs_batch=mag_sign, mag_to_param=mag_to_param)
     assert np.array(magnitudes).dtype == np.array(ref_magnitudes).dtype
     check_batch(magnitudes, ref_magnitudes, max_allowed_error=0)
 
 
 def test_augmentation_setup_update():
 
-    def dummy_as_param(magnitude):
+    def dummy_mag_to_param(magnitude):
         return magnitude + 1
 
     initial = {
         "mag_range": (0, 10),
         "randomly_negate": True,
-        "as_param": dummy_as_param,
+        "mag_to_param": dummy_mag_to_param,
         "param_device": "gpu",
         "name": "some_other_dummy_name",
     }
@@ -267,12 +268,12 @@ def test_augmentation_nested_decorator_fail():
         augmentation(dummy, mag_range=(5, 10))
 
 
-def test_as_param_data_node_fail():
+def test_mag_to_param_data_node_fail():
 
     def shear(magnitude):
         return fn.transforms.shear(shear=magnitude)
 
-    @augmentation(mag_range=(0, 250), as_param=shear)
+    @augmentation(mag_range=(0, 250), mag_to_param=shear)
     def illegal_shear(sample, shear_mt):
         return fn.warp_affine(sample, mt=shear_mt)
 
@@ -287,16 +288,16 @@ def test_as_param_data_node_fail():
 
 
 @params((True, False), (False, True))
-def test_as_param_non_uniform_fail(non_uniform_shape, non_uniform_type):
+def test_mag_to_param_non_uniform_fail(non_uniform_shape, non_uniform_type):
     shape_lo = (2, )
     shape_hi = (3, )
 
-    def as_param(magnitude):
+    def mag_to_param(magnitude):
         shape = shape_lo if not non_uniform_shape or magnitude < 5 else shape_hi
         dtype = np.uint8 if not non_uniform_type or magnitude < 3 else np.uint16
         return np.full(shape, 42, dtype=dtype)
 
-    @augmentation(mag_range=(0, 10), as_param=as_param)
+    @augmentation(mag_range=(0, 10), mag_to_param=mag_to_param)
     def pass_param(sample, param):
         return param
 
