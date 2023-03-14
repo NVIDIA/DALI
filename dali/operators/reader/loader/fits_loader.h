@@ -48,7 +48,7 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
  public:
   explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
       : FileLoader(spec, shuffle_after_epoch),
-        hdu_indices_(spec.GetArgument<std::vector<int>>("hdu_indices")) {}
+        hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {}
 
   void PrepareEmpty(FitsFileWrapper& target) override {
     target = {};
