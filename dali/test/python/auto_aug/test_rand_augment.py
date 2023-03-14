@@ -137,12 +137,12 @@ def test_ops_selection_and_mags(case_idx, args):
     magnitude_cases = list(range(num_magnitude_bins))
     m = magnitude_cases[case_idx % len(magnitude_cases)]
 
-    def as_param_with_op_id(op_id):
+    def mag_to_param_with_op_id(op_id):
 
-        def as_param(magnitude):
+        def mag_to_param(magnitude):
             return np.array([op_id, magnitude], dtype=np.int32)
 
-        return as_param
+        return mag_to_param
 
     @augmentation(param_device=dev)
     def op(sample, op_id_mag_id):
@@ -150,7 +150,7 @@ def test_ops_selection_and_mags(case_idx, args):
 
     augmentations = [
         op.augmentation(mag_range=(10 * i + 1, 10 * i + num_magnitude_bins),
-                        as_param=as_param_with_op_id(i + 1), randomly_negate=use_sign
+                        mag_to_param=mag_to_param_with_op_id(i + 1), randomly_negate=use_sign
                         and i % 3 == 0) for i in range(num_ops)
     ]
 
@@ -165,7 +165,7 @@ def test_ops_selection_and_mags(case_idx, args):
             outs = []
             for aug, sign in zip(aug_sequence, signs):
                 mag = aug._get_magnitudes(num_magnitude_bins)[m]
-                op_id_mag = aug.as_param(mag * sign)
+                op_id_mag = aug.mag_to_param(mag * sign)
                 outs.append(op_id_mag)
             expected_counts[tuple(el for out in outs for el in out)] = prob
     expected_counts = {output: p * batch_size for output, p in expected_counts.items()}

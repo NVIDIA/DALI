@@ -50,7 +50,7 @@ def as_square_shape(edge_len):
     return [edge_len, edge_len]
 
 
-@augmentation(mag_range=(0.1, 0.7), as_param=as_square_shape)
+@augmentation(mag_range=(0.1, 0.7), mag_to_param=as_square_shape)
 def cutout(image, shape):
     return fn.erase(image, shape=shape, anchor=[0, 0], normalized=True, fill_value=120)
 
