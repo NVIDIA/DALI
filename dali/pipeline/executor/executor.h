@@ -84,6 +84,12 @@ class DLL_PUBLIC ExecutorBase {
   // virtual to allow the TestPruneWholeGraph test in gcc
   virtual void PruneUnusedGraphNodes() = 0;
 
+  /**
+   * @brief Returns true if conditionals are used in the executed graph, @see DetectConditionals().
+   * Valid after Build().
+   */
+  virtual bool HasConditionals() const = 0;
+
   template <typename T>
   friend class ExecutorTest;
 };
@@ -244,6 +250,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void PruneUnusedGraphNodes() override;
 
+  bool HasConditionals() const override;
+
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
 
   virtual void SetupOutputInfo(OpGraph &graph);
@@ -347,7 +355,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::vector<IterationData> iteration_data_;
   size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
   size_t output_iteration_id_ = 0;
-  bool has_conditionals_ = false;  // true iff the graph that is executed contains if statements
+
+  // true iff the graph that is executed contains if statements, set by DetectConditionals()
+  bool has_conditionals_ = false;
 
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);

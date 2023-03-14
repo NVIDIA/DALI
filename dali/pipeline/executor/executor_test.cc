@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,10 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
 
   inline void PruneGraph(ExecutorBase *exe) const {
     exe->PruneUnusedGraphNodes();
+  }
+
+  bool HasConditionals(ExecutorBase &exe) const {
+    return exe.HasConditionals();
   }
 
   // TODO(klecki): adjust to refactored code
@@ -678,6 +682,53 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   EXPECT_TRUE(ws.Output<CPUBackend>(2).is_pinned());   // pass_through_0_cpu
   EXPECT_TRUE(ws.Output<CPUBackend>(3).is_pinned());   // copy_2_cpu
   EXPECT_TRUE(ws.Output<CPUBackend>(4).is_pinned());   // pass_through_1_cpu
+}
+
+
+TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
+  auto exe_no_cond = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  auto exe_with_cond = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe_no_cond->Init();
+  exe_with_cond->Init();
+
+  // Build a basic graph without conditionals.
+  OpGraph graph_no_cond;
+  graph_no_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                            .AddArg("device", "cpu")
+                                            .AddArg("device_id", 0)
+                                            .AddOutput("data", "cpu")),
+                      "ExternalSource");
+
+  // Build a basic graph without conditionals.
+  OpGraph graph_with_cond;
+  graph_with_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                            .AddArg("device", "cpu")
+                                            .AddArg("device_id", 0)
+                                            .AddOutput("input", "cpu")),
+                      "ExternalSource");
+
+  graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Split")
+                                              .AddArg("device", "cpu")
+                                              .AddInput("input", "cpu")
+                                              .AddArgumentInput("predicate", "input")
+                                              .AddOutput("true_output", "cpu")
+                                              .AddOutput("false_output", "cpu")
+                                              .AddArg("_if_stmt", true)),
+                        "split");
+
+  graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Merge")
+                                              .AddArg("device", "cpu")
+                                              .AddInput("true_output", "cpu")
+                                              .AddInput("false_output", "cpu")
+                                              .AddArgumentInput("predicate", "input")
+                                              .AddOutput("output", "cpu")),
+                        "merge");
+
+  exe_no_cond->Build(&graph_no_cond, {"data_cpu"});
+  exe_with_cond->Build(&graph_with_cond, {"output_cpu"});
+
+  EXPECT_FALSE(this->HasConditionals(*exe_no_cond));
+  EXPECT_TRUE(this->HasConditionals(*exe_with_cond));
 }
 
 }  // namespace dali
