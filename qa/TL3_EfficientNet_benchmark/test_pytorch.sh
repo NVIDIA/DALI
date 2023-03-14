@@ -24,6 +24,8 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/pytorch/efficientnet
 
+pip install --no-cache-dir -r requirements.txt
+
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 if [ $NUM_GPUS -ne 8 ];
