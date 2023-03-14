@@ -126,8 +126,8 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
     return sample
 
 
-def get_image_net_policy(use_shape: bool = False, max_translate_abs: int = None,
-                         max_translate_rel: float = None) -> Policy:
+def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,
+                         max_translate_rel: Optional[float] = None) -> Policy:
     """
     Creates augmentation policy tuned for the ImageNet as described in AutoAugment
     (https://arxiv.org/abs/1805.09501).
@@ -189,8 +189,8 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: int = None,
         ])
 
 
-def _get_translate_y(use_shape: bool = False, max_translate_abs: int = None,
-                     max_translate_rel: float = None):
+def _get_translate_y(use_shape: bool = False, max_translate_abs: Optional[int] = None,
+                     max_translate_rel: Optional[float] = None):
     max_translate_height, _ = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
                                                      max_translate_rel=max_translate_rel,
                                                      default_translate_abs=250,

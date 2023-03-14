@@ -90,7 +90,7 @@ class Policy:
 
 def _sub_policy_with_unique_names(
     sub_policies: Sequence[Sequence[Tuple[Augmentation, float, int]]]
-) -> Tuple[Tuple[Tuple[Augmentation, float, int]]]:
+) -> Sequence[Sequence[Tuple[Augmentation, float, int]]]:
     """
     Check if the augmentations used in the sub-policies have unique names.
     If not, rename them by adding enumeration to the names.

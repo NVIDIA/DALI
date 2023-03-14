@@ -39,7 +39,7 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
                  randomly_negate: Optional[bool] = None,
                  as_param: Optional[Callable[[float], _ArrayLike]] = None,
                  param_device: Optional[str] = None, name: Optional[str] = None,
-                 augmentation_cls: Type[Augmentation] = None):
+                 augmentation_cls: Optional[Type[Augmentation]] = None):
     """
     A decorator turning transformations implemented with DALI into augmentations that
     can be used by automatic augmentations (e.g. AutoAugment, RandAugment, TrivialAugment).
