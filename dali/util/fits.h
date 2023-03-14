@@ -29,6 +29,19 @@
 namespace dali {
 namespace fits {
 
+const std::set<DALIDataType> supportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
+                                               DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
+                                               DALI_FLOAT16, DALI_FLOAT,  DALI_FLOAT64};
+
+inline std::string SupportedTypesListGen() {
+  std::stringstream out;
+  for (auto& dtype : supportedTypes) {
+    out << dtype << ", ";
+  }
+  std::string out_str = out.str();
+  return out_str.substr(0, out_str.size() - 2 * (supportedTypes.size() > 0));
+}
+
 class DLL_PUBLIC HeaderData {
  public:
   TensorShape<> shape;

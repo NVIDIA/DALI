@@ -43,12 +43,26 @@ struct FitsFileWrapper {
   std::string filename;
 };
 
-
 class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
  public:
   explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
       : FileLoader(spec, shuffle_after_epoch),
-        hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {}
+        hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
+    // default to DALI_UINT8, if argument dtypes not provided
+    dtypes_ = spec.HasArgument("dtypes") ?
+                  spec.GetRepeatedArgument<DALIDataType>("dtypes") :
+                  std::vector<DALIDataType>(hdu_indices_.size(), DALI_UINT8);
+
+    // verify if provided types are supported
+    for (DALIDataType dtype : dtypes_) {
+      DALI_ENFORCE(fits::supportedTypes.count(dtype),
+                   make_string("Unsupported output dtype ", dtype,
+                               ". Supported types are: ", fits::SupportedTypesListGen()));
+    }
+
+    DALI_ENFORCE(hdu_indices_.size() == dtypes_.size(),
+                 "Number of extensions does not match the number of provided types");
+  }
 
   void PrepareEmpty(FitsFileWrapper& target) override {
     target = {};
@@ -57,6 +71,7 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
 
  private:
   std::vector<int> hdu_indices_;
+  std::vector<DALIDataType> dtypes_;
 };
 
 
