@@ -254,8 +254,8 @@ class Augmentation:
             for param, mag in zip(params, magnitudes):
                 if param.shape != ref_shape or param.dtype != ref_dtype:
                     raise Exception(
-                        f"The `mag_to_param` callback of `{self.name}` augmentation must return the "
-                        f"arrays of the same type and shape for different magnitudes. "
+                        f"The `mag_to_param` callback of `{self.name}` augmentation must return "
+                        f"the arrays of the same type and shape for different magnitudes. "
                         f"Got param of shape {ref_shape} and {ref_dtype} type for magnitude "
                         f"{magnitudes[0]}, but for magnitude {mag} the returned array "
                         f"has shape {param.shape} and type {param.dtype}.\n\n"
