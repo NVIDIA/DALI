@@ -142,7 +142,13 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     return "DALI::DatasetOp()::Dataset";
   }
 
-#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 13
+
+  int64_t CardinalityInternal(CardinalityOptions options) const override {
+    return data::kInfiniteCardinality;
+  }
+
+#elif TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8
 
   tensorflow::int64 CardinalityInternal() const override {
     return data::kInfiniteCardinality;
@@ -155,6 +161,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
   }
 
 #endif
+
 
  protected:
   PipelineDef pipeline_def_;
@@ -310,7 +317,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
             " for output ", i);
 
         if (dataset()->fail_on_device_mismatch_) {
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 13
+          return Status(absl::StatusCode::kInternal, msg);
+#else
           return Status(tensorflow::error::Code::INTERNAL, msg);
+#endif
         }
       }
     }
