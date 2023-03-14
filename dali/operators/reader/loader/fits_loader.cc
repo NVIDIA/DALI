@@ -37,7 +37,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
 
   // metadata info
   DALIMeta meta;
-  meta.SetSourceInfo(filename);
+  // meta.SetSourceInfo(filename); // it adds ./before a filename for some reason
   meta.SetSkipSample(false);
 
 
