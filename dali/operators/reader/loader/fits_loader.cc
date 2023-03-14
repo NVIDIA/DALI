@@ -44,13 +44,16 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto path = filesystem::join_path(file_root_, filename);
   fits_open_file(&current_file, path.c_str(), READONLY, &status);
   fits_get_num_hdus(current_file, &num_hdus, &status);
+  DALI_ENFORCE(status != 0, make_string("Failed to open a file: ", path, " Make sure it exists!"));
 
   // resize ouput vector according to the number of HDUs
-  target.data.resize(hdu_indices_.size()); 
+  target.data.resize(hdu_indices_.size());
 
   for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to approriate hdu
     fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status);
+    DALI_ENFORCE(status != 0, make_string("Issue moving to hdu with an index: ",
+                                          hdu_indices_[output_idx], ", in a file: ", filename));
 
     // read the header
     fits::HeaderData header;
@@ -73,7 +76,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     fits_read_img(current_file, TBYTE, 1, nbytes, &nulval,
                   static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul,
                   &status);
-    DALI_ENFORCE(status != 0, make_string("Failed to read file: ", filename));
+    DALI_ENFORCE(status != 0, make_string("Failed to read a file: ", filename));
 
 
     // close the file handle
