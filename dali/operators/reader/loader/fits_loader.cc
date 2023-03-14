@@ -48,7 +48,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   // resize ouput vector according to the number of HDUs
   target.data.resize(hdu_indices_.size()); 
 
-  for (int output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
+  for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to approriate hdu
     fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status);
 
