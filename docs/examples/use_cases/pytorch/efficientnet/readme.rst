@@ -24,14 +24,14 @@ This model uses the following data augmentation:
 
 * For training:
 
-    * Random resized crop to target images size (in this case 224)
+  * Random resized crop to target images size (in this case 224)
 
-      * Scale from 8% to 100%
-      * Aspect ratio from 3/4 to 4/3
+    * Scale from 8% to 100%
+    * Aspect ratio from 3/4 to 4/3
 
-    * Random horizontal flip
-    * [Optional: AutoAugment or TrivialAugment]
-    * Normalization
+  * Random horizontal flip
+  * [Optional: AutoAugment or TrivialAugment]
+  * Normalization
 
 * For inference:
 
