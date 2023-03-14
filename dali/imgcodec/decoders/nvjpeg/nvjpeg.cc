@@ -16,7 +16,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
@@ -38,7 +38,7 @@ int nvjpegGetVersion() {
   GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
-  return GetVersionNumber(major, minor, patch);
+  return MakeVersionNumber(major, minor, patch);
 }
 
 }  // namespace

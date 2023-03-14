@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include "dali/npp/npp.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 
 namespace dali {
 
@@ -23,7 +23,7 @@ DLL_PUBLIC int NPPGetVersion() {
   auto version_s = nppGetLibVersion();
   int version = -1;
   if (version_s) {
-    version = GetVersionNumber(version_s->major, version_s->minor, version_s->build);
+    version = MakeVersionNumber(version_s->major, version_s->minor, version_s->build);
   }
   return version;
 }

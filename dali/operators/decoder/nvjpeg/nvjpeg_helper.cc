@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
-#include "dali/core/util.h"
+#include "dali/core/version_util.h"
 
 namespace dali {
 
@@ -24,7 +24,7 @@ DLL_PUBLIC int nvjpegGetVersion() {
   GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
   GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
-  return GetVersionNumber(major, minor, patch);
+  return MakeVersionNumber(major, minor, patch);
 }
 
 }  // namespace dali
