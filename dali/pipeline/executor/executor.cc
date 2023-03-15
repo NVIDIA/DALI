@@ -23,16 +23,73 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
-#include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/workspace/workspace_data_factory.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
+#include "dali/pipeline/graph/op_graph_storage.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
 
-inline bool HasTensorArgInputs(const ArgumentWorkspace& argument_ws) {
+namespace {
+
+bool HasTensorArgInputs(const ArgumentWorkspace& argument_ws) {
   return begin(argument_ws) != end(argument_ws);
 }
+
+/**
+ * @brief Returns true if all the inputs (regular and argument inputs) held in this ws are empty.
+ */
+bool AllInputsEmpty(const Workspace &ws) {
+  bool all_inputs_empty = true;
+  for (int i = 0; i < ws.NumInput(); i++) {
+    all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
+  }
+  const ArgumentWorkspace &argument_ws = ws;
+  for (const auto &[name, arg] : argument_ws) {
+    all_inputs_empty = all_inputs_empty && arg.tvec->num_samples() == 0;
+  }
+  return all_inputs_empty;
+}
+
+/**
+ * @brief Returns true if any of the inputs (regular and argument inputs) or the requested output
+ * for this workspace are smaller than the max batch size indicating partial batch being processed
+ * in a conditional scope (or due to variable BS).
+ */
+bool AnyBatchPartial(const Workspace &ws, const OpSpec &spec, int max_batch_size) {
+  bool any_batch_partial = false;
+  if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
+    for (int i = 0; i < ws.NumInput(); i++) {
+      any_batch_partial = any_batch_partial || ws.GetInputBatchSize(i) < max_batch_size;
+    }
+    const ArgumentWorkspace &argument_ws = ws;
+    for (const auto &[name, arg] : argument_ws) {
+      any_batch_partial = any_batch_partial || arg.tvec->num_samples() < max_batch_size;
+    }
+  }
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    any_batch_partial = any_batch_partial || ws.GetRequestedBatchSize(i) < max_batch_size;
+  }
+  return any_batch_partial;
+}
+
+/**
+ * @brief Reset the outputs held in the workspace, releasing the current memory and setting the
+ * effective batch size to 0 for every output.
+ */
+void ClearOutputs(Workspace &ws, const OpSpec &spec) {
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    if (ws.template OutputIsType<CPUBackend>(i)) {
+      ws.template Output<CPUBackend>(i).Reset();
+    } else {
+      ws.template Output<GPUBackend>(i).Reset();
+    }
+  }
+}
+
+}  // namespace
 
 /**
  * @brief Takes the batch size from any of the op's tensor inputs.
@@ -362,24 +419,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   // Assuming that most operators don't expect empty input, and expect consistent input.
   if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
-    bool all_inputs_empty = true;
-    for (int i = 0; i < ws.NumInput(); i++) {
-      all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
-    }
-    const ArgumentWorkspace &argument_ws = ws;
-    for (const auto &[name, arg] : argument_ws) {
-      all_inputs_empty = all_inputs_empty && arg.tvec->num_samples() == 0;
-    }
-    if (all_inputs_empty) {
+    if (AllInputsEmpty(ws)) {
       // We skip the execution of this operator and Reset the outputs in case some state was still
       // present.
-      for (int i = 0; i < spec.NumOutput(); i++) {
-        if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template Output<CPUBackend>(i).Reset();
-        } else {
-          ws.template Output<GPUBackend>(i).Reset();
-        }
-      }
+      ClearOutputs(ws, spec);
       // TODO(klecki): Instead of skipping the execution, rework all DALI operators to correctly
       // propagate the dim, type and do validation (arguments, types, etc) with empty input batches.
       return;
@@ -396,6 +439,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     DALI_ENFORCE(ws.GetRequestedBatchSize(i) <= max_batch_size_,
                  make_string("Expected batch size lower or equal to max batch size. Actual: ",
                              ws.GetRequestedBatchSize(i), " <= ", max_batch_size_));
+  }
+
+  // If we are using conditional statements try to keep smaller memory footprint by not keeping
+  // the largest batch produced in conditional block as reserved memory.
+  // If the conditionals were detected in this graph (split operator with `_if_stmt` argument)
+  // see if the operator is executed in conditional scope - seeing a partial batch processed
+  // would indicate it in most cases (unless someone mixes partial batches and conditionals).
+  // In such case reset the outputs before adjusting their size so we free the reserved memory
+  // and allocated only batch of currently needed size.
+  if (HasConditionals() && AnyBatchPartial(ws, spec, max_batch_size_)) {
+    ClearOutputs(ws, spec);
   }
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
@@ -572,6 +626,25 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
     id.operator_traces = std::make_shared<operator_trace_map_t>();
   }
 }
+
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::DetectConditionals() {
+  for (Index i = 0; i < graph_->NumOp(); i++) {
+    const auto &spec = graph_->Node(i).spec;
+    if (IsSplit(spec.GetSchema())) {
+      if (spec.GetArgument<bool>("_if_stmt")) {
+        has_conditionals_ = true;
+      }
+    }
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+bool Executor<WorkspacePolicy, QueuePolicy>::HasConditionals() const {
+  return has_conditionals_;
+}
+
 
 
 template<typename WorkspacePolicy, typename QueuePolicy>

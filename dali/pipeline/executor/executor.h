@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,6 +83,12 @@ class DLL_PUBLIC ExecutorBase {
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
   virtual void PruneUnusedGraphNodes() = 0;
+
+  /**
+   * @brief Returns true if conditionals are used in the executed graph, @see DetectConditionals().
+   * Valid after Build().
+   */
+  virtual bool HasConditionals() const = 0;
 
   template <typename T>
   friend class ExecutorTest;
@@ -244,6 +250,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void PruneUnusedGraphNodes() override;
 
+  bool HasConditionals() const override;
+
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
 
   virtual void SetupOutputInfo(OpGraph &graph);
@@ -348,6 +356,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
   size_t output_iteration_id_ = 0;
 
+  // true iff the graph that is executed contains if statements, set by DetectConditionals()
+  bool has_conditionals_ = false;
+
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
@@ -372,6 +383,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       batch_size_providers_.emplace_back(bsp);
     }
   }
+
+  /**
+   * @brief Traverses the Graph to check if there is a _conditional.split with _if_stmt argument
+   * specified, indicating that the `if` statement was used and the graph is operating in
+   * conditional mode (enable_conditionals=True).
+   *
+   * TODO(klecki): Consider adding a specific callback to Pipeline so the frontend can indicate
+   * it directly.
+   */
+  void DetectConditionals();
 
   int InferBatchSize(const std::vector<BatchSizeProvider *> &batch_size_providers) const;
 
@@ -499,6 +520,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   SetupOutputQueuesForGraph();
 
   DiscoverBatchSizeProviders();
+  DetectConditionals();
 
   InitIterationData();
 
