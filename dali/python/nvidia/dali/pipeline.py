@@ -1047,19 +1047,52 @@ Parameters
         :meth:`share_outputs` and
         :meth:`release_outputs`
 
-        :param pipeline_inputs: Optional argument that can be used to provide inputs to DALI
+        Parameters
+        ----------
+        pipeline_inputs :
+            Optional argument that can be used to provide inputs to DALI.
+            When DALI has any input operators defined (e.g. fn.external_source), you can provide the
+            inputs to those using named arguments in this function. The assumption is that
+            DALI pipeline has them defined and named properly::
 
-        :return:
+                @pipeline_def
+                def my_pipe():
+                    inp = fn.external_source(name="my_inp")
+                    return inp
+
+            With the example pipeline above, you can provide ``"my_inp"`` input into the
+            :meth:`run()` function::
+
+                p = my_pipe(prefetch_queue_depth=1, ...)
+                p.build()
+                p.run(my_inp=np.random((2,3,2)))
+
+            Such keyword argument specified in the :meth:`run()` function has to have a
+            corresponding input operator node declared in DALI pipeline.
+
+            As always when working with DALI, the value passed to the keyword argument has to
+            denote a whole batch of data.
+
+            Please note, that using this feature requires setting either ``prefetch_queue_depth=1``
+            or ``exec_pipelined=False`` in DALI Pipeline constructor.
+
+            This feature can be considered as a syntactic sugar over :meth:`feed_input` function.
+
+        Returns
+        -------
             A list of `TensorList` objects for respective pipeline outputs
         """
-        if len(pipeline_inputs) > 0 and self.prefetch_queue_depth > 1:
+        if len(pipeline_inputs) > 0 and (self.prefetch_queue_depth > 1 and self.exec_pipelined):
             raise RuntimeError(f"""
-                When using pipeline_inputs named arguments, 
-                prefetch_queue_depth in Pipeline constructor shall be set to 1. 
-                Received: prefetch_queue_depth={self.prefetch_queue_depth}. 
-                Please set the prefetch_queue_depth argument in the Pipeline constructor or provide 
-                inputs to DALI Pipeline via another mean (e.g. `feed_input` function or `source` 
-                argument in the `fn.external_source` operator.)""")
+                When using pipeline_inputs named arguments, either
+                `prefetch_queue_depth` in Pipeline constructor shall be set to 1 or
+                `exec_pipelined` shall be set to False. 
+                Received: prefetch_queue_depth={self.prefetch_queue_depth},
+                exec_pipelined={self.exec_pipelined}. 
+                Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline 
+                constructor properly or provide inputs to DALI Pipeline via another mean 
+                (e.g. `feed_input` function or `source` argument in the `fn.external_source` 
+                operator.)""")
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run(**pipeline_inputs)
             return self.outputs()
@@ -1081,9 +1114,6 @@ Parameters
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
-        assert len(pipeline_inputs) == 0 or self.prefetch_queue_depth == 1, \
-            f"Prefetching shouldn't happen when pipeline_inputs are provided. " \
-            f"Received len(pipeline_inputs)=={len(pipeline_inputs)}."
         try:
             if not self._last_iter:
                 self._iter_setup()
