@@ -1037,7 +1037,8 @@ Parameters
         return self._pipe.Outputs()
 
     def run(self, **pipeline_inputs):
-        """Run the pipeline and return the result.
+        """
+        Run the pipeline and return the result.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
@@ -1046,9 +1047,19 @@ Parameters
         :meth:`share_outputs` and
         :meth:`release_outputs`
 
+        :param pipeline_inputs: Optional argument that can be used to provide inputs to DALI
+
         :return:
             A list of `TensorList` objects for respective pipeline outputs
         """
+        if len(pipeline_inputs) > 0 and self.prefetch_queue_depth > 1:
+            raise RuntimeError(f"""
+                When using pipeline_inputs named arguments, 
+                prefetch_queue_depth in Pipeline constructor shall be set to 1. 
+                Received: prefetch_queue_depth={self.prefetch_queue_depth}. 
+                Please set the prefetch_queue_depth argument in the Pipeline constructor or provide 
+                inputs to DALI Pipeline via another mean (e.g. `feed_input` function or `source` 
+                argument in the `fn.external_source` operator.)""")
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run(**pipeline_inputs)
             return self.outputs()
@@ -1070,6 +1081,9 @@ Parameters
 
         If the pipeline was created with `exec_async` option set to `True`,
         this function will return without waiting for the execution to end."""
+        assert len(pipeline_inputs) == 0 or self.prefetch_queue_depth == 1, \
+            f"Prefetching shouldn't happen when pipeline_inputs are provided. " \
+            f"Received len(pipeline_inputs)=={len(pipeline_inputs)}."
         try:
             if not self._last_iter:
                 self._iter_setup()
