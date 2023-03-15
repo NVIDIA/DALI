@@ -16,6 +16,7 @@
 #define DALI_UTIL_FITS_H_
 
 #include <fitsio.h>
+#include <set>
 #include <string>
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
@@ -35,7 +36,7 @@ const std::set<DALIDataType> supportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_U
 
 inline std::string SupportedTypesListGen() {
   std::stringstream out;
-  for (auto& dtype : supportedTypes) {
+  for (auto &dtype : supportedTypes) {
     out << dtype << ", ";
   }
   std::string out_str = out.str();
