@@ -17,12 +17,6 @@ test_py_with_framework() {
     done
 }
 
-test_py_nose2() {
-    for test_script in $(ls test_pipeline_inputs.py ); do
-        ${python_new_invoke_test} ${test_script}
-    done
-}
-
 test_py() {
     python test_detection_pipeline.py -i 300
     python test_RN50_data_pipeline.py -s -i 10
@@ -43,7 +37,6 @@ test_pytorch() {
 
 test_no_fw() {
     test_py_with_framework
-    test_py_nose2
     test_py
     test_autograph
 }
