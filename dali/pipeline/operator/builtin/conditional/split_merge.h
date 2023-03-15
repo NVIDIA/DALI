@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,11 @@
 #define DALI_PIPELINE_OPERATOR_BUILTIN_CONDITIONAL_SPLIT_MERGE_H_
 
 #include <string>
+#include "dali/core/static_switch.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/builtin/conditional/validation.h"
 #include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
@@ -30,10 +33,16 @@ namespace dali {
  * @param condition_idx Index of the sample that this condition applies to (input for split, output
  * for merge)
  */
-inline int get_group_index(const TensorList<CPUBackend>& condition, int condition_idx,
-                              bool is_logical = true) {
+inline int get_group_index(const TensorList<CPUBackend> &condition, int condition_idx,
+                           bool is_logical = true) {
   assert(is_logical && "Numerical conditions are not implemented");
-  bool cond_val = *condition.tensor<bool>(condition_idx);
+  bool cond_val = {};
+
+  TYPE_SWITCH(condition.type(), type2id, T, LOGICALLY_EVALUATABLE_TYPES, (
+    // evaluate as bool here by narrowing conversion
+    cond_val = *condition.tensor<T>(condition_idx);
+  ), (DALI_FAIL(make_string("Can't evaluate ", condition.type(), " as boolean value."))));  // NOLINT
+
   return cond_val ? 0 : 1;
 }
 
