@@ -53,24 +53,23 @@ const TypeInfo &TypeFromFitsImageType(int imgtype) {
 }
 
 void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
-  int hdu_type, img_type, n_dims, status = 0, i = 0;
+  int hdu_type, img_type, n_dims, status = 0;
 
   fits_get_hdu_type(src, &hdu_type, &status);
   bool is_image = (hdu_type == IMAGE_HDU);
   DALI_ENFORCE(is_image, "Only IMAGE_HDUs are supported!");
-  parsed_header.hdu_type = hdu_type;
 
   fits_get_img_type(src, &img_type, &status);        /* get BITPIX value */
   fits_get_img_dim(src, &n_dims, &status);           /* get NAXIS value */
   std::vector<long> dims(n_dims, 0);                 /* create vector for storing img dims*/
   fits_get_img_size(src, n_dims, &dims[0], &status); /* get NAXISn values */
 
+  parsed_header.hdu_type = hdu_type;
   parsed_header.type_info = &TypeFromFitsImageType(img_type);
   parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
 
-  while (i < n_dims && dims[i] > 0) {
-    parsed_header.shape.shape.push_back(static_cast<int64_t>(dims[i]));
-    i++;
+  for (auto it = dims.rbegin(); it != dims.rend(); ++it) {
+    parsed_header.shape.shape.push_back(static_cast<int64_t>(*it));
   }
 
   if (status)
