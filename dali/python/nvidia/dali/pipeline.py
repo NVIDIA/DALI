@@ -952,7 +952,7 @@ Parameters
             self._gpu_batches_to_consume -= 1
             return self._outputs()
 
-    def schedule_run(self, **pipeline_inputs):
+    def schedule_run(self):
         """Run the pipeline without returning the resulting buffers.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
@@ -965,9 +965,9 @@ Parameters
         Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
-                self._prefetch(**pipeline_inputs)
+                self._prefetch()
             else:
-                self._run_once(**pipeline_inputs)
+                self._run_once()
 
     # for the backward compatibility
     def _run(self):
@@ -1093,11 +1093,13 @@ Parameters
                 constructor properly or provide inputs to DALI Pipeline via another mean
                 (e.g. `feed_input` function or `source` argument in the `fn.external_source`
                 operator.)""")
+        for inp_name, inp_value in pipeline_inputs.items():
+            self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
-            self.schedule_run(**pipeline_inputs)
+            self.schedule_run()
             return self.outputs()
 
-    def _prefetch(self, **pipeline_inputs):
+    def _prefetch(self):
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
@@ -1106,10 +1108,10 @@ Parameters
             self._fill_separated_queues()
         else:
             for _ in range(self._prefetch_queue_depth):
-                self._run_once(**pipeline_inputs)
+                self._run_once()
         self._first_iter = False
 
-    def _run_once(self, **pipeline_inputs):
+    def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
 
         If the pipeline was created with `exec_async` option set to `True`,
@@ -1121,8 +1123,6 @@ Parameters
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
-            for inp_name, inp_value in pipeline_inputs.items():
-                self.feed_input(inp_name, inp_value)
             self._run_cpu()
             self._run_gpu()
         except StopIteration:
