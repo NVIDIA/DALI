@@ -1036,7 +1036,6 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
-
     def _are_pipeline_inputs_possible(self):
         """
         Returns True if using pipeline_inputs argument in .run() function is possible.
@@ -1046,7 +1045,6 @@ Parameters
         if self.exec_separated:
             return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
         return self.prefetch_queue_depth <= 1
-
 
     def run(self, **pipeline_inputs):
         """
