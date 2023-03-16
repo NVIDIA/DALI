@@ -415,6 +415,7 @@ Following CMake parameters could be helpful in setting the right paths:
 * libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
 * protobuf options can be obtained from |protobuf_cmake link|_
 
+.. _jetson build:
 
 Cross-compiling for aarch64 Jetson Linux (Docker)
 -------------------------------------------------
