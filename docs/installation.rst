@@ -34,7 +34,8 @@ DALI in NGC Containers
 
 DALI is preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`_,
 `PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`_,
-and `NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_
+`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_,
+and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`_
 containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 ----
