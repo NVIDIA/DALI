@@ -21,6 +21,12 @@
 
 namespace dali {
 
+// Types that can be used as input to not expression or in a predicate and be evaluated to boolean.
+#define LOGICALLY_EVALUATABLE_TYPES                                                                \
+  (bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float16, float, \
+  double)
+
+
 /**
  * @brief Check if the inputs to logical expression are scalars (and optionally booleans).
  *

@@ -853,25 +853,6 @@ def test_error_condition():
         print(pipe.run())
 
     @experimental.pipeline_def(**kwargs)
-    def non_bool_condition():
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.INT32)
-        if pred:
-            output = np.array(1)
-        else:
-            output = np.array(0)
-        return output
-
-    # TODO(klecki): The boolean as if-condition requirement should be lifted and this test removed.
-    with assert_raises(
-            RuntimeError, glob=("Conditions inside `if` statements are restricted to scalar"
-                                " (0-d tensors) inputs of `bool` type, that are placed on CPU."
-                                " Got an input of type `int32` as a condition of the `if`"
-                                " statement.")):
-        pipe = non_bool_condition()
-        pipe.build()
-        pipe.run()
-
-    @experimental.pipeline_def(**kwargs)
     def non_scalar_condition():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         stacked = fn.stack(pred, pred)
@@ -883,8 +864,47 @@ def test_error_condition():
 
     with assert_raises(
             RuntimeError, glob=("Conditions inside `if` statements are restricted to scalar"
-                                " (0-d tensors) inputs of `bool` type, that are placed on CPU."
+                                " (0-d tensors) inputs, that are placed on CPU."
                                 " Got a 1-d input as a condition of the `if` statement.")):
         pipe = non_scalar_condition()
         pipe.build()
         pipe.run()
+
+
+boolable_types = [
+    bool, np.uint8, np.uint16, np.uint32, np.uint64, np.int8, np.int16, np.int32, np.int64,
+    np.float16, np.float32, np.float64
+]
+
+
+@params(*boolable_types)
+def test_predicate_any_type(input_type):
+    batch_size = 10
+    kwargs = {
+        "enable_conditionals": True,
+        "batch_size": batch_size,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    def get_truthy_falsy(sample_info):
+        if sample_info.idx_in_batch < batch_size / 2:
+            return np.array(7, dtype=input_type)
+        else:
+            return np.array(0, dtype=input_type)
+
+    @experimental.pipeline_def(**kwargs)
+    def non_bool_predicate():
+        predicate = fn.external_source(source=get_truthy_falsy, batch=False)
+        if predicate:
+            output = types.Constant(np.array(42), device="cpu")
+        else:
+            output = types.Constant(np.array(0), device="cpu")
+        return output
+
+    pipe = non_bool_predicate()
+    pipe.build()
+    batch, = pipe.run()
+
+    target = [42 if i < batch_size / 2 else 0 for i in range(batch_size)]
+    check_batch(batch, target)

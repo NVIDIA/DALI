@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,8 +28,7 @@ bool Split<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
   const auto &input = ws.template Input<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
   if (if_stmt_implementation_) {
-    // TODO(klecki): As a next step, lift the restriction on boolean input type.
-    EnforceConditionalInputKind(predicate, "if", "if-stmt", true);
+    EnforceConditionalInputKind(predicate, "if", "if-stmt", false);
   }
 
   DALI_ENFORCE(

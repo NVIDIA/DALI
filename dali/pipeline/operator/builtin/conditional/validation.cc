@@ -74,7 +74,7 @@ std::string GetRestrictionMessage(const std::string &name, bool enforce_type) {
  * @brief Get the string describing the placement of the input.
  *
  * @param name One of kAllowedNames, name of the expression of statement that is checked
- * @param where One of kAllowedNames, name of the expression of statement that is checked
+ * @param where One of kAllowedWheres, argument position that is checked
  */
 std::string GetSourcePlacementMessage(const std::string &name, const std::string &where) {
   if (name == "if") {

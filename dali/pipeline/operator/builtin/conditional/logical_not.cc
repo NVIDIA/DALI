@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "dali/core/format.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
@@ -26,10 +27,7 @@ namespace dali {
 bool LogicalNot::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
 
-  // TODO(klecki): Lift this restriction for input type, as it should be safe to do.
-  // Do it at the same time as lifting such restriction for the Split operator `predicate`
-  // that implements `if` statement, so we do not introduce the `if not not x` idiom.
-  EnforceConditionalInputKind(input, name_, "", true);
+  EnforceConditionalInputKind(input, name_, "", false);
 
   output_desc.resize(1);
   output_desc[0] = {input.shape(), DALI_BOOL};
@@ -40,9 +38,11 @@ bool LogicalNot::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace
 void LogicalNot::RunImpl(Workspace &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
-  for (int i = 0; i < output.shape().num_samples(); i++) {
-    *output.mutable_tensor<bool>(i) = !(*input.tensor<bool>(i));
-  }
+  TYPE_SWITCH(input.type(), type2id, T, LOGICALLY_EVALUATABLE_TYPES, (
+    for (int i = 0; i < output.shape().num_samples(); i++) {
+      *output.mutable_tensor<bool>(i) = !(*input.tensor<T>(i));
+    }
+  ), (DALI_FAIL(make_string("Can't evaluate ", input.type(), " as boolean value to negate it."))));  // NOLINT
 }
 
 DALI_SCHEMA(_conditional__Not_)

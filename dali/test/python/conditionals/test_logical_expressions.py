@@ -16,7 +16,7 @@ from nvidia.dali.pipeline import pipeline_def, experimental
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, check_batch
 from nose_utils import assert_raises
 from nose2.tools import params
 
@@ -235,12 +235,42 @@ def test_error_input(expression):
         pipe.run()
 
     @experimental.pipeline_def(**kwargs)
+    def non_scalar_input():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        stacked = fn.stack(pred, pred)
+        return expression(stacked)
+
+    with assert_raises(
+            RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
+                                " inputs*, that are placed on CPU. Got a 1-d input"
+                                " *in logical expression.")):
+        pipe = non_scalar_input()
+        pipe.build()
+        pipe.run()
+
+
+boolean_restricted_logical_expressions = [
+    lambda x: x and logical_true_false_random(),
+    lambda x: logical_true_false_random() and x,
+    lambda x: x or logical_true_false_random(),
+    lambda x: logical_true_false_random() or x,
+]
+
+
+@params(*boolean_restricted_logical_expressions)
+def test_non_boolean_input_error(expression):
+    kwargs = {
+        "enable_conditionals": True,
+        "batch_size": 10,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    @experimental.pipeline_def(**kwargs)
     def non_bool_input():
         input = fn.random.coin_flip(dtype=types.DALIDataType.INT32)
         return expression(input)
 
-    # TODO(klecki): The boolean as if-condition requirement can be lifted for `not`, but not
-    # the other (`and` and `or`) logical expressions.
     with assert_raises(
             RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
                                 " inputs of `bool` type, that are placed on CPU. Got an input"
@@ -249,16 +279,37 @@ def test_error_input(expression):
         pipe.build()
         pipe.run()
 
-    @experimental.pipeline_def(**kwargs)
-    def non_scalar_input():
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
-        stacked = fn.stack(pred, pred)
-        return expression(stacked)
 
-    with assert_raises(
-            RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
-                                " inputs of `bool` type, that are placed on CPU. Got a 1-d input"
-                                " *in logical expression.")):
-        pipe = non_scalar_input()
-        pipe.build()
-        pipe.run()
+boolable_types = [
+    bool, np.uint8, np.uint16, np.uint32, np.uint64, np.int8, np.int16, np.int32, np.int64,
+    np.float16, np.float32, np.float64
+]
+
+
+@params(*boolable_types)
+def test_not_any_type(input_type):
+    batch_size = 10
+    kwargs = {
+        "enable_conditionals": True,
+        "batch_size": batch_size,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    def get_truthy_falsy(sample_info):
+        if sample_info.idx_in_batch < batch_size / 2:
+            return np.array(42, dtype=input_type)
+        else:
+            return np.array(0, dtype=input_type)
+
+    @experimental.pipeline_def(**kwargs)
+    def non_bool_input():
+        input = fn.external_source(source=get_truthy_falsy, batch=False)
+        return not input
+
+    pipe = non_bool_input()
+    pipe.build()
+    batch, = pipe.run()
+
+    target = [False if i < batch_size / 2 else True for i in range(batch_size)]
+    check_batch(batch, target)
