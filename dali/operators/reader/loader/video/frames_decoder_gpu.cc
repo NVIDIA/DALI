@@ -520,7 +520,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
-        copyD2D(data, frame.frame_.data(), FrameSize());
+        copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
       LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
         std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
@@ -670,7 +670,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   copyD2D(
     current_frame_output_,
     frame_buffer_[frame_to_return_index].frame_.data(),
-    FrameSize());
+    FrameSize(),
+    stream_);
   LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
           std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
           ", current copy " << copy_to_output << std::endl;
