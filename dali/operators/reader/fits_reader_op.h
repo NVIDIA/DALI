@@ -47,8 +47,11 @@ class FitsReader : public DataReader<Backend, Target> {
     int num_samples = GetCurrBatchSize();  // samples here are synonymous with files
 
     output_desc.resize(num_outputs);
+    const auto& sample_0 = GetSample(0);
+
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      output_desc[output_idx].shape = TensorListShape<>(num_samples, 1);
+      int ndim = sample_0.data[output_idx].shape().sample_dim();
+      output_desc[output_idx].shape = TensorListShape<>(num_samples, ndim);
     }
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
