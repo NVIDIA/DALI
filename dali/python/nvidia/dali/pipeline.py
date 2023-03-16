@@ -1036,6 +1036,18 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
+
+    def _are_pipeline_inputs_possible(self):
+        """
+        Returns True if using pipeline_inputs argument in .run() function is possible.
+        """
+        if not self.exec_pipelined:
+            return True
+        if self.exec_separated:
+            return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
+        return self.prefetch_queue_depth <= 1
+
+
     def run(self, **pipeline_inputs):
         """
         Run the pipeline and return the result.
@@ -1082,11 +1094,11 @@ Parameters
         -------
             A list of `TensorList` objects for respective pipeline outputs
         """
-        if len(pipeline_inputs) > 0 and (self.prefetch_queue_depth > 1 and self.exec_pipelined):
+        if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
             raise RuntimeError(f"""
                 When using pipeline_inputs named arguments, either
-                `prefetch_queue_depth` in Pipeline constructor shall be set to 1 or
-                `exec_pipelined` shall be set to False.
+                `prefetch_queue_depth` in Pipeline constructor shall be set to 1 (for both devices)
+                or `exec_pipelined` shall be set to False.
                 Received: prefetch_queue_depth={self.prefetch_queue_depth},
                 exec_pipelined={self.exec_pipelined}.
                 Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline
