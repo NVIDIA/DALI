@@ -1086,12 +1086,12 @@ Parameters
             raise RuntimeError(f"""
                 When using pipeline_inputs named arguments, either
                 `prefetch_queue_depth` in Pipeline constructor shall be set to 1 or
-                `exec_pipelined` shall be set to False. 
+                `exec_pipelined` shall be set to False.
                 Received: prefetch_queue_depth={self.prefetch_queue_depth},
-                exec_pipelined={self.exec_pipelined}. 
-                Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline 
-                constructor properly or provide inputs to DALI Pipeline via another mean 
-                (e.g. `feed_input` function or `source` argument in the `fn.external_source` 
+                exec_pipelined={self.exec_pipelined}.
+                Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline
+                constructor properly or provide inputs to DALI Pipeline via another mean
+                (e.g. `feed_input` function or `source` argument in the `fn.external_source`
                 operator.)""")
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run(**pipeline_inputs)
