@@ -54,11 +54,12 @@ def training_pipe(data_dir, interpolation, image_size, output_layout, automatic_
     # Based on the specification, apply the automatic augmentation policy. Note, that from the point
     # of Pipeline definition, this `if` statement relies on static scalar parameter, so it is
     # evaluated exactly once during build - we either include automatic augmentations or not.
+    # We pass the shape of the image after the resize so the translate operations are done
+    # relative to the image size.
     if automatic_augmentation == "autoaugment":
-        shapes = fn.peek_image_shape(jpegs)
-        output = auto_augment.auto_augment_image_net(images, shapes)
+        output = auto_augment.auto_augment_image_net(images, shape=[image_size, image_size])
     elif automatic_augmentation == "trivialaugment":
-        output = trivial_augment.trivial_augment_wide(images)
+        output = trivial_augment.trivial_augment_wide(images, shape=[image_size, image_size])
     else:
         output = images
 
