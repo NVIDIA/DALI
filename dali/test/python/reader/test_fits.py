@@ -132,7 +132,7 @@ def test_reading_uncompressed():
             num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
             batch_size = random.choice([1, 3, 4, 8, 16])
             yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                        num_threads, compressed, file_arg_type,
+                num_threads, compressed, file_arg_type,
 
 
 def test_reading_compressed():
@@ -147,4 +147,4 @@ def test_reading_compressed():
             num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
             batch_size = random.choice([1, 3, 4, 8, 16])
             yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                        num_threads, compressed, file_arg_type,
+                num_threads, compressed, file_arg_type,

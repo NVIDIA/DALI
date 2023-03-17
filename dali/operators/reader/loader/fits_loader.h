@@ -17,6 +17,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fitsio.h>
 #include <sys/stat.h>
 
 #include <algorithm>
@@ -29,7 +30,6 @@
 #include <utility>
 #include <vector>
 
-#include <fitsio.h>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/pipeline/data/types.h"

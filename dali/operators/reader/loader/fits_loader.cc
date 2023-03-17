@@ -14,10 +14,10 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fitsio.h>
 #include <cstdlib>
 #include <memory>
 
-#include <fitsio.h>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/fits_loader.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -64,7 +64,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     }
 
     int anynul = 0, nulval = 0;
-    Index nelem = header.size(); 
+    Index nelem = header.size();
 
     // reset, resize specific output in target
     if (target.data[output_idx].shares_data()) {

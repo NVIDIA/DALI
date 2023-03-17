@@ -87,7 +87,7 @@ const TypeInfo &TypeFromFitsDatatypeCode(int datatype) {
 }
 
 void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
-  int hdu_type, img_type, n_dims, status = 0;
+  int32_t hdu_type, img_type, n_dims, status = 0;
 
   fits_get_hdu_type(src, &hdu_type, &status);
   bool is_image = (hdu_type == IMAGE_HDU);
@@ -95,7 +95,7 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
 
   fits_get_img_equivtype(src, &img_type, &status);   /* get IMG_TYPE code value */
   fits_get_img_dim(src, &n_dims, &status);           /* get NAXIS value */
-  std::vector<long> dims(n_dims, 0);                 /* create vector for storing img dims*/
+  std::vector<int64_t> dims(n_dims, 0);                 /* create vector for storing img dims*/
   fits_get_img_size(src, n_dims, &dims[0], &status); /* get NAXISn values */
 
   parsed_header.hdu_type = hdu_type;
