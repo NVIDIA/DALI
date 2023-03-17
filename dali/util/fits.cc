@@ -43,9 +43,9 @@ int ImgTypeToDatatypeCode(int img_type) {
     case USHORT_IMG:
       return TUSHORT;
     case LONG_IMG:
-      return TLONGLONG;
+      return TINT;
     case ULONG_IMG:
-      return TULONGLONG;
+      return TUINT;
     case LONGLONG_IMG:
       return TLONGLONG;
     case ULONGLONG_IMG:
@@ -69,9 +69,9 @@ const TypeInfo &TypeFromFitsDatatypeCode(int datatype) {
       return TypeTable::GetTypeInfo<int16_t>();
     case TUSHORT:
       return TypeTable::GetTypeInfo<uint16_t>();
-    case TLONG:
+    case TINT:
       return TypeTable::GetTypeInfo<int32_t>();
-    case TULONG:
+    case TUINT:
       return TypeTable::GetTypeInfo<uint32_t>();
     case TLONGLONG:
       return TypeTable::GetTypeInfo<int64_t>();
@@ -93,7 +93,7 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
   bool is_image = (hdu_type == IMAGE_HDU);
   DALI_ENFORCE(is_image, "Only IMAGE_HDUs are supported!");
 
-  fits_get_img_equivtype(src, &img_type, &status);     /* get IMG_TYPE code value */
+  fits_get_img_equivtype(src, &img_type, &status);   /* get IMG_TYPE code value */
   fits_get_img_dim(src, &n_dims, &status);           /* get NAXIS value */
   std::vector<long> dims(n_dims, 0);                 /* create vector for storing img dims*/
   fits_get_img_size(src, n_dims, &dims[0], &status); /* get NAXISn values */

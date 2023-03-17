@@ -49,8 +49,15 @@ supported_numpy_types = set([
     np.uint32, np.uint64, np.float32, np.float64,
 ])
 
+# Astropy doesn't support writing those types to compressed image
+unsupported_compression_numpy_types = set([
+    np.int64,
+    np.uint64,
+])
+
 # Test shapes, for each number of dims, astropy & fits do not handle dims = ()
 test_shapes = {
+    # 1: [(10, )],
     1: [(10, ), (12, ), (10, ), (20, ), (10, ), (12, ), (13, ), (19, )],
     2: [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)],
     3: [(6, 2, 5), (5, 6, 2), (3, 3, 3), (10, 1, 8), (8, 8, 3), (2, 2, 3), (8, 4, 3), (1, 10, 1)],
@@ -131,8 +138,10 @@ def test_reading_uncompressed():
 def test_reading_compressed():
     compressed = True
     device = "cpu"
-    for type in supported_numpy_types:
+    for type in supported_numpy_types - unsupported_compression_numpy_types:
         for ndim in test_shapes.keys():
+            if ndim > 3:  # astropy doesn't support compression of images with more dimensions
+                continue
             shapes = test_shapes[ndim]
             file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
             num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
