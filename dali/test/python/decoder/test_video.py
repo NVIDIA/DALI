@@ -158,6 +158,8 @@ def test_multi_gpu_video(device):
 
     def input_gen(batch_size):
         filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+        # test overflow of frame_buffer_
+        filenames.append(f'{get_dali_extra_path()}/db/video/cfr_test.mp4')
         filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
         filenames = filter(lambda filename: 'hevc' not in filename, filenames)
         filenames = cycle(filenames)
