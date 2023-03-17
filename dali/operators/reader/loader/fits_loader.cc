@@ -64,7 +64,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     }
 
     int anynul = 0, nulval = 0;
-    Index nbytes = header.nbytes();
+    Index nelem = header.size(); 
 
     // reset, resize specific output in target
     if (target.data[output_idx].shares_data()) {
@@ -73,7 +73,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     target.data[output_idx].Resize(header.shape, header.type());
 
     // copy the image
-    fits_read_img(current_file, TBYTE, 1, nbytes, &nulval,
+    fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
                   static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul,
                   &status);
     DALI_ENFORCE(status == 0, make_string("Failed to read a file: ", filename));

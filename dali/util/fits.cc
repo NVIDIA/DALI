@@ -32,24 +32,58 @@ void HandleFitsError(int status) {
   }
 }
 
-const TypeInfo &TypeFromFitsImageType(int imgtype) {
-  if (imgtype == BYTE_IMG)
-    return TypeTable::GetTypeInfo<uint8_t>();
-  if (imgtype == SHORT_IMG)
-    return TypeTable::GetTypeInfo<int16_t>();
-  if (imgtype == LONG_IMG)
-    return TypeTable::GetTypeInfo<int32_t>();
-  if (imgtype == LONGLONG_IMG)
-    return TypeTable::GetTypeInfo<int64_t>();
-  if (imgtype == ULONG_IMG)
-    return TypeTable::GetTypeInfo<uint64_t>();
-  if (imgtype == ULONGLONG_IMG)
-    return TypeTable::GetTypeInfo<uint64_t>();
-  if (imgtype == FLOAT_IMG)
-    return TypeTable::GetTypeInfo<float>();
-  if (imgtype == DOUBLE_IMG)
-    return TypeTable::GetTypeInfo<double>();
-  DALI_FAIL("Unknown FITS image type type string");
+int ImgTypeToDatatypeCode(int img_type) {
+  switch (img_type) {
+    case SBYTE_IMG:
+      return TSBYTE;
+    case BYTE_IMG:
+      return TBYTE;
+    case SHORT_IMG:
+      return TSHORT;
+    case USHORT_IMG:
+      return TUSHORT;
+    case LONG_IMG:
+      return TLONGLONG;
+    case ULONG_IMG:
+      return TULONGLONG;
+    case LONGLONG_IMG:
+      return TLONGLONG;
+    case ULONGLONG_IMG:
+      return TULONGLONG;
+    case FLOAT_IMG:
+      return TFLOAT;
+    case DOUBLE_IMG:
+      return TDOUBLE;
+    default:
+      DALI_FAIL("Unknown BITPIX value! Refer to the CFITSIO documentation.");
+  }
+}
+
+const TypeInfo &TypeFromFitsDatatypeCode(int datatype) {
+  switch (datatype) {
+    case TSBYTE:
+      return TypeTable::GetTypeInfo<int8_t>();
+    case TBYTE:
+      return TypeTable::GetTypeInfo<uint8_t>();
+    case TSHORT:
+      return TypeTable::GetTypeInfo<int16_t>();
+    case TUSHORT:
+      return TypeTable::GetTypeInfo<uint16_t>();
+    case TLONG:
+      return TypeTable::GetTypeInfo<int32_t>();
+    case TULONG:
+      return TypeTable::GetTypeInfo<uint32_t>();
+    case TLONGLONG:
+      return TypeTable::GetTypeInfo<int64_t>();
+    case TULONGLONG:
+      return TypeTable::GetTypeInfo<uint64_t>();
+    case TFLOAT:
+      return TypeTable::GetTypeInfo<float>();
+    case TDOUBLE:
+      return TypeTable::GetTypeInfo<double>();
+    default:
+      DALI_FAIL("Unknown datatype code value! Refer to the CFITSIO documentation.");
+  }
 }
 
 void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
@@ -59,13 +93,14 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
   bool is_image = (hdu_type == IMAGE_HDU);
   DALI_ENFORCE(is_image, "Only IMAGE_HDUs are supported!");
 
-  fits_get_img_type(src, &img_type, &status);        /* get BITPIX value */
+  fits_get_img_equivtype(src, &img_type, &status);     /* get IMG_TYPE code value */
   fits_get_img_dim(src, &n_dims, &status);           /* get NAXIS value */
   std::vector<long> dims(n_dims, 0);                 /* create vector for storing img dims*/
   fits_get_img_size(src, n_dims, &dims[0], &status); /* get NAXISn values */
 
   parsed_header.hdu_type = hdu_type;
-  parsed_header.type_info = &TypeFromFitsImageType(img_type);
+  parsed_header.datatype_code = ImgTypeToDatatypeCode(img_type);
+  parsed_header.type_info = &TypeFromFitsDatatypeCode(parsed_header.datatype_code);
   parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
 
   for (auto it = dims.rbegin(); it != dims.rend(); ++it) {

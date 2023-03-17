@@ -47,6 +47,7 @@ class DLL_PUBLIC HeaderData {
  public:
   TensorShape<> shape;
   int hdu_type;
+  int datatype_code;
   const TypeInfo *type_info = nullptr;
   bool compressed = false;
 
