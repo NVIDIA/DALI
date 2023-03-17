@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_utils.h"
@@ -225,6 +226,7 @@ EagerOperator<Backend>::Run(
                        DomainTimeRange::kBlue1);
     ws_.Clear();
     ws_.SetThreadPool(thread_pool);
+    std::cout << "running operator " << op_spec_.GetSchema().name() << " " << op_spec_.name() << std::endl;
 
     return RunImpl(inputs, kwargs, batch_size);
   } catch (std::exception &e) {
@@ -270,9 +272,11 @@ EagerOperator<Backend>::RunImpl(
       batch_size = cur_batch_size;
     }
 
-    DALI_ENFORCE(cur_batch_size == batch_size,
-                 make_string("Expected uniform batch size in a single operator. Expected: ",
-                             batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
+    if (!IsSplitOrMerge(op_spec_.GetSchema())) {
+      DALI_ENFORCE(cur_batch_size == batch_size,
+                  make_string("Expected uniform batch size in a single operator. Expected: ",
+                              batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
+    }
     DALI_ENFORCE(
         cur_batch_size <= max_batch_size_,
         make_string("Expected batch size lower or equal to max batch size. Expected at most: ",
@@ -316,12 +320,13 @@ EagerOperator<Backend>::RunImpl(
   for (size_t i = 0; i < num_outputs_; ++i) {
     outputs[i] = AsContiguousOutput<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
   }
-
-  for (size_t i = 0; i < outputs.size(); ++i) {
-    int cur_batch_size = outputs[i]->num_samples();
-    DALI_ENFORCE(cur_batch_size == batch_size,
-                 make_string("Unexpected batch size for output ", i, ". Expected: ", batch_size,
-                             ", returned: ", cur_batch_size));
+  if (!IsSplitOrMerge(op_spec_.GetSchema())) {
+    for (size_t i = 0; i < outputs.size(); ++i) {
+      int cur_batch_size = outputs[i]->num_samples();
+      DALI_ENFORCE(cur_batch_size == batch_size,
+                  make_string("Unexpected batch size for output ", i, ". Expected: ", batch_size,
+                              ", returned: ", cur_batch_size));
+    }
   }
 
   return outputs;

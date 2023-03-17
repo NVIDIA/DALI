@@ -420,6 +420,9 @@ class _OperatorInstance(object):
             inputs = tuple(inputs)
 
         if _conditionals.conditionals_enabled():
+            # TODO(klecki): DO NOT DO THIS IF THE DEBUG MODE IS ON?
+            # WE DO IT STEP HIGHER
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TRORORORO")
             inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
 
         self._inputs = inputs
@@ -669,6 +672,7 @@ def python_op_factory(name, schema_name=None):
             if _conditionals.conditionals_enabled():
                 if len(op_instances) != 1:
                     raise ValueError("Multiple input sets are not supported with conditionals.")
+                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> TRORORORO2")
                 _conditionals.register_data_nodes(result, input_sets[0], kwargs)
             return result
 

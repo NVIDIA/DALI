@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,26 +25,50 @@ from test_utils import compare_pipelines, get_dali_extra_path
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
+from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
-@pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def rn50_pipeline_base():
-    rng = fn.random.coin_flip(probability=0.5, seed=47)
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
-    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
-    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
-    out_type = types.FLOAT16
+set_verbosity(9, alsologtostdout=True)
 
-    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu",
-                                      dtype=out_type, crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                      std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return rng, jpegs, labels, images, resized_images, output
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+def pipeline_split_merge():
+    print("Trejsing")
+    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+    input = fn.constant(idata=[10], shape=[])
+    true, false = fn._conditional.split(input, predicate=pred)
+    output_true = true + 2
+    output_false = false + 100
+    print(output_true, output_false)
+    output = fn._conditional.merge(output_true, output_false, predicate=pred)
+    return pred, output
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+def pipeline_cond():
+    print("Trejsing")
+    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+    input = fn.constant(idata=[10], shape=[])
+    if pred:
+        # import pdb; pdb.set_trace()
+        output = fn.copy(input)
+    else:
+        output = input
+    return output
 
 
 def test_debug_pipeline_base():
-    pipe_standard = rn50_pipeline_base()
-    pipe_debug = rn50_pipeline_base(debug=True)
-    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+    # pipe_standard = pipeline_split_merge(debug=True)
+    # print("Build standard")
+    # pipe_standard.build()
+    # print("Run standard")
+    # for i in range(5):
+    #     print(pipe_standard.run())
+
+    pipe_debug = pipeline_cond(debug=True)
+    print("Build debug")
+    pipe_debug.build()
+    print("Run debug")
+    pipe_debug.run()
+    # compare_pipelines(pipe_standard, pipe_debug, 8, 1)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)

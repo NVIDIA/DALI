@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ from nvidia.dali._utils.external_source_impl import (
     get_callback_from_source as _get_callback_from_source,
     accepted_arg_count as _accepted_arg_count)
 
+
+
+from nvidia.dali import _conditionals
 
 class DataNodeDebug(_DataNode):
     """Wrapper class around Tensor, implementing all of the DataNode attributes."""
@@ -347,6 +350,9 @@ class _OperatorManager:
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
 
+    # def __repr__(self):
+    #     return f"[{self._op_name}]: {self._device}, {self.op_spec}"
+
     def _separate_kwargs(self, kwargs):
         self._init_args = {}
         self._call_args = {}
@@ -374,12 +380,18 @@ class _OperatorManager:
 
         return data_nodes
 
-    def _pack_to_data_node_debug(self, data):
+    def _pack_to_data_node_debug(self, data, position=None):
         if isinstance(data, (list, tuple)):
-            return [self._pack_to_data_node_debug(elem) for elem in data]
+            return [self._pack_to_data_node_debug(elem, pos) for pos, elem in enumerate(data)]
+
+        def position_to_suffix(position):
+            if position is None:
+                return ""
+            else:
+                return f"[{position}]"
 
         return DataNodeDebug(data,
-                             self._op_name,
+                             self._op_name + position_to_suffix(position),
                              'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu',
                              self)
 
@@ -459,9 +471,10 @@ class _OperatorManager:
             if expected_data.dtype != actual_data.dtype:
                 raise_err('dtype', actual_data.dtype, expected_data.dtype)
 
-            expected_ndim, actual_ndim = len(expected_data[0].shape()), len(actual_data[0].shape())
-            if expected_ndim != actual_ndim:
-                raise_err('ndim', actual_ndim, expected_ndim)
+            # TODO(klecki): What if we encounter empty tensor, we need to skip this
+            # expected_ndim, actual_ndim = len(expected_data[0].shape()), len(actual_data[0].shape())
+            # if expected_ndim != actual_ndim:
+            #     raise_err('ndim', actual_ndim, expected_ndim)
 
     def _prep_input_sets(self, inputs):
         inputs = list(inputs)
@@ -483,9 +496,16 @@ class _OperatorManager:
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
         self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyword arguments')
+        print(f"\n\n\nStart Running {self._op_name} with {inputs}\n\n\n")
+
+        # TODO(klecki): Tis will work only with DataNodes
+        if _conditionals.conditionals_enabled():
+            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
+            input_data_nodes_bkp = inputs
 
         call_args = {}
         inputs = list(inputs)
+
 
         # Check inputs classification as batches and extract data from DataNodeDebugs.
         for i, (input,
@@ -501,8 +521,14 @@ class _OperatorManager:
                                               'Input',
                                               i)
 
+
+            # if _conditionals.conditionals_enabled():
+            #     print(f">>>> {_conditionals.this_condition_stack()}\n\n\n")
+
             if classification.is_batch:
-                self._check_batch_size(classification, i)
+                # TODO(klecki): We need to turn off checks of the BS consistency within iteration
+                # as it no longer applies.
+                # self._check_batch_size(classification, i)
                 self._check_call_arg_meta_data(
                     expected_classification.data, classification.data, 'Input', i)
 
@@ -549,8 +575,20 @@ class _OperatorManager:
             res = self.op_helper._repack_output_sets(res)
             res = self._pack_to_data_node_debug(res)
 
+        # {self.op_spec}
+        print(f"\n\n\nEnd Running {self._op_name} with {inputs}\n\n\n")
+
+        if _conditionals.conditionals_enabled():
+            print(f"Trying to register with {input_data_nodes_bkp}, {kwargs}")
+            # THIS IS THE KEY ELEMENT, WE NEED TO KEEP THINGS WRAPPED IN DATA NODES SO WE PUT THEM IN CORRECT SCOPES
+            _conditionals.register_data_nodes(res, input_data_nodes_bkp, kwargs)
+
+        print(f"\n\n\nEnd Running {self._op_name} -> {res}::{[_conditionals._data_node_repr(r) for r in res]}\n\n\n")
+
         if len(res) == 1:
             return res[0]
+
+
 
         return res
 
@@ -695,15 +733,17 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
+        # TODO(klecki): Removing the expected batch size, as it should be based on scope info
+        # with split/merge we don't have scope, so we have to allow anything.
         if device == 'gpu':
             return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+                                             -1)
         if device == 'cpu':
             return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+                                             -1)
         if device == 'mixed':
             return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs,
-                                               self._cur_iter_batch_info.size)
+                                               -1)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 
