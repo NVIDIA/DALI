@@ -1553,6 +1553,7 @@ excluded_methods = [
                                      # batch_size varies and is tested in this operator's test.
     "experimental.readers.video",    # readers do not support variable batch size yet
     "experimental.audio_resample",   # Alias of audio_resample (already tested)
+    "experimental.readers.fits",     # readers do not support variable batch size yet
 ]
 
 

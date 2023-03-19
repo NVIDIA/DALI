@@ -721,6 +721,10 @@ def test_video_reader():
                    sequence_length=10)
 
 
+def test_fits_reader_cpu():
+    check_no_input(fn.experimental.readers.fits, path=caffe2_dir, shard_id=0, num_shards=1)
+
+
 def test_copy_cpu():
     check_single_input(fn.copy)
 
@@ -1361,6 +1365,7 @@ tested_methods = [
     "dl_tensor_python_function",
     "audio_resample",
     "experimental.decoders.video"
+    "experimental.readers.fits"
 ]
 
 excluded_methods = [
