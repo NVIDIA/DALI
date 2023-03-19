@@ -75,10 +75,8 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
     .AddOptionalArg("hdu_indices",
-                    R"(HDU indexes to read. If not provided, first HDU after primary 
-                                 R"(HDU indexes to read. If not provided, first HDU after primary 
-                    R"(HDU indexes to read. If not provided, first HDU after primary 
-  will be yielded (i.e. will default to  hdu_indices=[2]).)",
+                    R"(HDU indices to read. If not provided, first HDU after primary 
+  will be yielded. Since, HDUs are indexed starting from 1, the default value is as follows: hdu_indices = [2].)",
                     std::vector<int>{2})
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
 
