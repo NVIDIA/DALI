@@ -1036,8 +1036,19 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
-    def run(self):
-        """Run the pipeline and return the result.
+    def _are_pipeline_inputs_possible(self):
+        """
+        Returns True if using pipeline_inputs argument in .run() function is possible.
+        """
+        if not self.exec_pipelined:
+            return True
+        if self.exec_separated:
+            return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
+        return self.prefetch_queue_depth <= 1
+
+    def run(self, **pipeline_inputs):
+        """
+        Run the pipeline and return the result.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
@@ -1046,9 +1057,54 @@ Parameters
         :meth:`share_outputs` and
         :meth:`release_outputs`
 
-        :return:
+        Parameters
+        ----------
+        pipeline_inputs :
+            Optional argument that can be used to provide inputs to DALI.
+            When DALI has any input operators defined (e.g. fn.external_source), you can provide the
+            inputs to those using named arguments in this function. The assumption is that
+            DALI pipeline has them defined and named properly::
+
+                @pipeline_def
+                def my_pipe():
+                    inp = fn.external_source(name="my_inp")
+                    return inp
+
+            With the example pipeline above, you can provide ``"my_inp"`` input into the
+            :meth:`run()` function::
+
+                p = my_pipe(prefetch_queue_depth=1, ...)
+                p.build()
+                p.run(my_inp=np.random((2,3,2)))
+
+            Such keyword argument specified in the :meth:`run()` function has to have a
+            corresponding input operator node declared in DALI pipeline.
+
+            As always when working with DALI, the value passed to the keyword argument has to
+            denote a whole batch of data.
+
+            Please note, that using this feature requires setting either ``prefetch_queue_depth=1``
+            or ``exec_pipelined=False`` in DALI Pipeline constructor.
+
+            This feature can be considered as a syntactic sugar over :meth:`feed_input` function.
+
+        Returns
+        -------
             A list of `TensorList` objects for respective pipeline outputs
         """
+        if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
+            raise RuntimeError(f"""
+                When using pipeline_inputs named arguments, either
+                `prefetch_queue_depth` in Pipeline constructor shall be set to 1 (for both devices)
+                or `exec_pipelined` shall be set to False.
+                Received: prefetch_queue_depth={self.prefetch_queue_depth},
+                exec_pipelined={self.exec_pipelined}.
+                Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline
+                constructor properly or provide inputs to DALI Pipeline via another mean
+                (e.g. `feed_input` function or `source` argument in the `fn.external_source`
+                operator.)""")
+        for inp_name, inp_value in pipeline_inputs.items():
+            self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
             return self.outputs()
