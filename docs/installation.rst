@@ -26,7 +26,7 @@ Prerequisites
 1. Linux x64.
 2. |driver link|_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e. 450.80.02 or later driver releases).
 3. |cuda toolkit link|_ - for DALI based on CUDA 12, the toolkit is linked dynamically and it is required to be installed. For CUDA 11 builds it is optional.
-4. (Optional) One or more of the following deep learning frameworks:
+4. [Optional] One or more of the following deep learning frameworks:
 
   - |mxnet link|_
   - |pytorch link|_
