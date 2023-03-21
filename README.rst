@@ -1,5 +1,4 @@
 |License|  |Documentation|
-|LGTM Python badge|
 
 NVIDIA DALI
 ===========
@@ -134,15 +133,22 @@ GitHub issue.
 Installing DALI
 ---------------
 
-To install the latest DALI release for the latest CUDA version (11.x)::
+To install the latest DALI release for the latest CUDA version (12.x)::
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
 
-DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
-(versions 18.07 and later).
+DALI requires `NVIDIA driver <https://www.nvidia.com/drivers>`_ supporting the appropriate CUDA version.
+In case of DALI based on CUDA 12, it requires `CUDA Toolkit <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_
+to be installed.
+
+DALI comes preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`_,
+`PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`_,
+`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_,
+and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`_
+containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),
-please refer to the |docs_install|_.
+and specific requirements please refer to the |docs_install|_.
 
 To build DALI from source, please refer to the |dali_compile|_.
 
@@ -251,7 +257,3 @@ Simon Layton, Andrei Ivanov and Serge Panev.
 
 .. |Documentation| image:: https://img.shields.io/badge/NVIDIA%20DALI-documentation-brightgreen.svg?longCache=true
    :target: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
-
-.. |LGTM Python badge| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/DALI.svg?logo=lgtm&logoWidth=18
-   :target: https://lgtm.com/projects/g/NVIDIA/DALI/context:python
-   :alt: Language grade: Python
