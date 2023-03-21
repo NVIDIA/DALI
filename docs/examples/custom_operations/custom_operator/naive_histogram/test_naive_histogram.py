@@ -19,12 +19,11 @@ import nvidia.dali.fn as fn
 
 # Load the Custom Operator
 import nvidia.dali.plugin_manager as plugin_manager
-
-plugin_manager.load_library("./build/libnaivehistogram.so")
+plugin_manager.load_library('./build/libnaivehistogram.so')
 
 
 # List test files. This step should be customized.
-dali_extra_path = os.environ["DALI_EXTRA_PATH"]
+dali_extra_path = os.environ['DALI_EXTRA_PATH']
 test_file_list = [
     dali_extra_path + "/db/single/jpeg/100/swan-3584559_640.jpg",
     dali_extra_path + "/db/single/jpeg/113/snail-4368154_1280.jpg",
@@ -39,14 +38,14 @@ test_file_list = [
 @pipeline_def
 def naive_hist_pipe():
     img, _ = fn.readers.file(files=test_file_list)
-    # The naive_histogram accepts single-channels image, thus we conert the image to Grayscale.
-    img = fn.decoders.image(img, device="mixed", output_type=DALIImageType.GRAY)
+    # The naive_histogram accepts single-channels image, thus we convert the image to Grayscale.
+    img = fn.decoders.image(img, device='mixed', output_type=DALIImageType.GRAY)
     img = img.gpu()
     img = fn.naive_histogram(img, n_bins=24)
     return img
 
-
-pipe = naive_hist_pipe(batch_size=2, num_threads=1, device_id=0)
-pipe.build()
-out = pipe.run()
-print(out[0].as_cpu().as_array())
+def test_naive_histogram():
+    pipe = naive_hist_pipe(batch_size=2, num_threads=1, device_id=0)
+    pipe.build()
+    out = pipe.run()
+    print(out[0].as_cpu().as_array())
