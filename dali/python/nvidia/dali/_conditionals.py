@@ -163,14 +163,6 @@ class _ConditionStack:
     and where they are used.
     """
 
-    def __str__(self):
-        result = "[\n"
-        for e in self._stack:
-            result += f"  [{e}],\n"
-        result += "]"
-        return result
-
-
     def __init__(self):
         self._stack = [_StackEntry(None)]
         self._is_registration_allowed = True
@@ -228,7 +220,7 @@ class _ConditionStack:
             if self._stack[level].has(data_node):
                 return level
 
-        raise ValueError(f"{data_node} was not produced within this trace. {_data_node_repr(data_node)} not found in {self}")
+        raise ValueError(f"{data_node} was not produced within this trace.")
 
     def _realize_split(self, data_node, stack_level):
         """The data_node was produced (or last accessed as via split) in scope earlier than the
@@ -260,7 +252,6 @@ class _ConditionStack:
             logging.log(9, (f"{self._indent()}[IF] Inserting split"
                             f" at {self.stack_depth() -1}:"
                             f" split({produced_data_node}, predicate={predicate}."))
-            # import pdb; pdb.set_trace()
             self._is_registration_allowed = False
             true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate,
                                                           _if_stmt=True)
@@ -298,9 +289,7 @@ class _ConditionStack:
             return
         logging.log(8, (f"{self._indent()}[IF/Register] {data_node} at {self.stack_depth() -1}"))
         scope = self._stack[0] if global_scope else self.top()
-        print(f"Stack registering to global_scope={global_scope} when registering {self}")
         scope.add_produced(data_node)
-        print(f"Stack after registering {self} in {scope}")
 
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
@@ -400,10 +389,10 @@ def register_data_nodes(data_node, inputs=[], args={}):
         Optional dictionary containing the arguments of the operator whose outputs we are
         registering.
     """
+
     any_positional_input = any(isinstance(input, _DataNode) for input in inputs)
     any_arg_input = any(isinstance(arg, _DataNode) for arg_name, arg in args.items())
     any_input = any_positional_input or any_arg_input
-    print(f"In register dn: {inputs}, {args}, {any_positional_input}, {any_arg_input} {any_input}")
     # TODO(klecki): In theory we have two approaches for inputless operators. Here we insert their
     # outputs to top level and let the automatic splitting handle the situation. Otherwise we could
     # pass the scope information and batch_size within that scope to all operators that are invoked
@@ -475,7 +464,6 @@ class DaliOperatorOverload(_autograph.OperatorBase):
         return isinstance(v, _DataNode)
 
     def ld(self, v):
-        print(f"\nRunning ld for {v}\n")
         branch_v = apply_conditional_split(v)
         return branch_v
 
@@ -495,9 +483,6 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 body_state = get_state()
                 _verify_branch_outputs(body_state, symbol_names, "if")
                 body_outputs = body_state[:nouts]
-
-                # import pdb; pdb.set_trace()
-                print("Handling true outputs:")
                 body_outputs = apply_conditional_split_to_branch_outputs(body_outputs)
 
             # Do the same for else block.
@@ -508,7 +493,6 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 orelse_state = get_state()
                 _verify_branch_outputs(orelse_state, symbol_names, "else")
                 orelse_outputs = orelse_state[:nouts]
-                print("Handling else outputs:")
                 orelse_outputs = apply_conditional_split_to_branch_outputs(orelse_outputs)
 
             # Build the state that is the combination of both branches. Only the actual outputs

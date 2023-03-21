@@ -226,7 +226,6 @@ EagerOperator<Backend>::Run(
                        DomainTimeRange::kBlue1);
     ws_.Clear();
     ws_.SetThreadPool(thread_pool);
-    std::cout << "running operator " << op_spec_.GetSchema().name() << " " << op_spec_.name() << std::endl;
 
     return RunImpl(inputs, kwargs, batch_size);
   } catch (std::exception &e) {
