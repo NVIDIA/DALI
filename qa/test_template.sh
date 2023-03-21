@@ -5,6 +5,9 @@ set -e
 # Force tests to be verbose
 set -x
 
+# launch the heartbeat  so we can see if the test hang or just is slow
+counter=0; while [ 1 ]; do echo "Heartbeat  $counter"; counter=$((counter+1)); sleep 10; done &
+
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
