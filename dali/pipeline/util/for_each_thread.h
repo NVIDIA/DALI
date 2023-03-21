@@ -54,10 +54,10 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
         err = std::current_exception();
       }
 
+      std::unique_lock lock(m);
       if (--pending == 0) {
         cv.notify_all();
       } else {
-        std::unique_lock lock(m);
         cv.wait(lock, [&]() { return pending == 0; });
       }
       if (err)  // if there's an error, we can rethrow it now
