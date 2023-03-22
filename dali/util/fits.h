@@ -90,6 +90,14 @@ class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
   }
 };
 
+
+DLL_PUBLIC std::string GetFitsErrorMessage(int status);
+
+DLL_PUBLIC void HandleFitsError(int status);
+
+/** @brief Wrapper that automatically handles cfitsio error checking.*/
+DLL_PUBLIC inline void FITS_CALL(int status);
+
 }  // namespace fits
 }  // namespace dali
 
