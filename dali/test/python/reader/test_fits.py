@@ -82,8 +82,8 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
                 compressed = random.choice([False, True])
             create_fits_file(full_paths[i], shapes[i], type, compressed)
 
-        # laod manually, we skip primary hdu since they don't have any data
-        # astropy returns data in form of ndarrays
+        # load manually, we skip primary HDU since it only stores metadata
+        # astropy returns data from each HDUs as a ndarray
         hduls = [fits.open(filename) for filename in full_paths]
         arrays = [hdu.data for hdul in hduls for hdu in hdul[1:]]
 

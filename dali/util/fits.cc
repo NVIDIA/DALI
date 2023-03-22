@@ -22,13 +22,19 @@
 namespace dali {
 namespace fits {
 
-void HandleFitsError(int status) {
-  std::string status_str;
-  status_str.reserve(FLEN_STATUS);
 
+std::string GetFitsErrorMessage(int status) {
+  std::string status_str;
+  status_str.resize(FLEN_STATUS);
+
+  fits_get_errstatus(status, &status_str[0]); /* get the error description */
+
+  return status_str;
+}
+
+void HandleFitsError(int status) {
   if (status) {
-    fits_get_errstatus(status, &status_str[0]); /* get the error description */
-    DALI_FAIL(status_str);
+    DALI_FAIL(GetFitsErrorMessage(status));
   }
 }
 
@@ -93,10 +99,15 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
   bool is_image = (hdu_type == IMAGE_HDU);
   DALI_ENFORCE(is_image, "Only IMAGE_HDUs are supported!");
 
-  fits_get_img_equivtype(src, &img_type, &status);   /* get IMG_TYPE code value */
-  fits_get_img_dim(src, &n_dims, &status);           /* get NAXIS value */
-  std::vector<int64_t> dims(n_dims, 0);                 /* create vector for storing img dims*/
+  fits_get_img_equivtype(src, &img_type, &status); /* get IMG_TYPE code value */
+  fits_get_img_dim(src, &n_dims, &status);         /* get NAXIS value */
+
+  DALI_ENFORCE(n_dims > 0, "NAXIS (image dimensions) value for each HDU has to be greater than 0!");
+  std::vector<int64_t> dims(n_dims, 0); /* create vector for storing img dims*/
+
   fits_get_img_size(src, n_dims, &dims[0], &status); /* get NAXISn values */
+
+  HandleFitsError(status);
 
   parsed_header.hdu_type = hdu_type;
   parsed_header.datatype_code = ImgTypeToDatatypeCode(img_type);
@@ -106,9 +117,6 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
   for (auto it = dims.rbegin(); it != dims.rend(); ++it) {
     parsed_header.shape.shape.push_back(static_cast<int64_t>(*it));
   }
-
-  if (status)
-    HandleFitsError(status);
 }
 
 DALIDataType HeaderData::type() const {
