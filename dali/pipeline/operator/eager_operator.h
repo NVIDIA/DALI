@@ -273,8 +273,8 @@ EagerOperator<Backend>::RunImpl(
 
     if (!IsSplitOrMerge(op_spec_.GetSchema())) {
       DALI_ENFORCE(cur_batch_size == batch_size,
-                  make_string("Expected uniform batch size in a single operator. Expected: ",
-                              batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
+                   make_string("Expected uniform batch size in a single operator. Expected: ",
+                               batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
     }
     DALI_ENFORCE(
         cur_batch_size <= max_batch_size_,

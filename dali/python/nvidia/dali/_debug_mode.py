@@ -23,16 +23,16 @@ import nvidia.dali.ops as _ops
 import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
+from nvidia.dali import _conditionals
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali._utils.external_source_impl import (
-    get_callback_from_source as _get_callback_from_source,
-    accepted_arg_count as _accepted_arg_count)
+from nvidia.dali._utils.external_source_impl import (get_callback_from_source as
+                                                     _get_callback_from_source, accepted_arg_count
+                                                     as _accepted_arg_count)
 
 
 
-from nvidia.dali import _conditionals
 
 class DataNodeDebug(_DataNode):
     """Wrapper class around Tensor, implementing all of the DataNode attributes."""
@@ -250,42 +250,77 @@ class _ExternalSourceDebug:
 
 class _IterBatchInfo:
 
-    def __init__(self, size, source_context):
+    def __init__(self, size, source_context, non_uniform_batch=False):
+        """Track information about the batch size within the iteration.
+
+        Parameters
+        ----------
+        size : int
+            The size of the detected batch size to be maintained in this iteration
+        source_context
+            Source information about where the batch size was detected for better error reporting.
+        non_uniform_batch : bool, optional
+            Should be set to True if pure Split/Merge are used by hand and not as an implementation
+            of conditional operation. In that case there can be varying batch sizes within
+            the pipeline and we don't know how to track them, by default False
+        """
         self._size = size
         self._source_context = source_context
+        self._non_uniform_batch = non_uniform_batch
 
     @property
     def size(self):
+        # We are not tracking the batch size in case of maunal Split/Merge usage
+        if self._non_uniform_batch:
+            return -1
+        # If we are in conditional scope, try to get a DataNode, that will be a reference
+        # for the batch size with which to run the operators.
+        if _conditionals.conditionals_enabled():
+            cs = _conditionals.this_condition_stack()
+            batch = cs.scope_batch_size_tracker()
+            assert (batch is None or isinstance(batch, DataNodeDebug),
+                    "Conditionals in debug mode work only with DataNodeDebug")
+            if batch is not None:
+                return len(batch.get())
         return self._size
 
     def reset(self):
+        print("DOING RESET")
         self._size = -1
         self._source_context = None
 
+    def mark_non_uniform_batch(self):
+        """Mark the usage of Split operator that is not a part of the conditional statement
+        (the _if_stmt=True was not passed). It indicates that the batch tracking is no longer
+        possible as we cannot detect the conditional scopes.
+        """
+        self._non_uniform_batch = True
+
+
     def set_if_empty(self, size, context):
-        if self._size == -1:
-            self.__init__(size, context)
+        if self.size == -1:
+            self.__init__(size, context, self._non_uniform_batch)
             return True
         return False
 
     def check_input(self, other_size, other_context, op_name, input_idx):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+        if not self.set_if_empty(other_size, other_context) and self.size != other_size:
             raise RuntimeError(f"Batch size must be uniform across an iteration. "
                                f"Input {input_idx} for operator '{op_name}' has batch "
-                               f"size = {other_size}. Expected batch size = {self._size}"
+                               f"size = {other_size}. Expected batch size = {self.size}"
                                f"from:\n{self._source_context}")
 
     def check_external_source(self, other_size, other_context, output_idx=-1):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+        if not self.set_if_empty(other_size, other_context) and self.size != other_size:
             if self._source_context == other_context and output_idx > 0:
                 raise RuntimeError(
                     f"External source must return outputs with consistent batch size. "
                     f"Output {output_idx} has batch size = {other_size}, "
-                    f"previous batch size = {self._size}")
+                    f"previous batch size = {self.size}")
             else:
                 raise RuntimeError(
                     f"Batch size must be uniform across an iteration. External Source "
-                    f"operator returned batch size: {other_size}, expected: {self._size}.\n"
+                    f"operator returned batch size: {other_size}, expected: {self.size}.\n"
                     f"If you want to use variable batch size (that is different batch size in "
                     f"each iteration) you must call all the external source operators at the "
                     f"beginning of your debug pipeline, before other DALI operators. "
@@ -325,6 +360,11 @@ class _OperatorManager:
                     raise ValueError("All argument lists for Multiple Input Sets used "
                                      f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
+
+        if _conditionals.conditionals_enabled():
+            if input_set_len != -1:
+                raise ValueError("Multiple input sets are not supported with conditionals.")
+
         self.expected_inputs_size = len(inputs)
 
         if 'device' not in self._init_args and len(inputs) > 0:
@@ -350,8 +390,11 @@ class _OperatorManager:
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
 
-    # def __repr__(self):
-    #     return f"[{self._op_name}]: {self._device}, {self.op_spec}"
+        if self.op_helper.schema_name == "_conditional__Split":
+            # TODO(klecki): Other than __repr__, there is no access to the OpSpec on Python side
+            # We need to check if this op is marked as `_if_stmt` or it is manually placed.
+            if "_if_stmt: True" not in repr(self.op_spec):
+                self._pipe._cur_iter_batch_info.mark_non_uniform_batch()
 
     def _separate_kwargs(self, kwargs):
         self._init_args = {}
@@ -496,10 +539,10 @@ class _OperatorManager:
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
         self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyword arguments')
-        print(f"\n\n\nStart Running {self._op_name} with {inputs}\n\n\n")
 
         # TODO(klecki): Tis will work only with DataNodes
         if _conditionals.conditionals_enabled():
+            print(inputs, kwargs)
             inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
             input_data_nodes_bkp = inputs
 
@@ -521,14 +564,9 @@ class _OperatorManager:
                                               'Input',
                                               i)
 
-
-            # if _conditionals.conditionals_enabled():
-            #     print(f">>>> {_conditionals.this_condition_stack()}\n\n\n")
-
             if classification.is_batch:
-                # TODO(klecki): We need to turn off checks of the BS consistency within iteration
-                # as it no longer applies.
-                # self._check_batch_size(classification, i)
+                if self.op_helper.schema_name != "_conditional__Merge":
+                    self._check_batch_size(classification, i)
                 self._check_call_arg_meta_data(
                     expected_classification.data, classification.data, 'Input', i)
 
@@ -538,6 +576,11 @@ class _OperatorManager:
                     f"{classification.device.upper()} input {i}.")
 
             inputs[i] = classification.data
+
+
+        if _conditionals.conditionals_enabled():
+            # print(inputs, kwargs)
+            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
 
         input_sets = self._prep_input_sets(inputs)
 
@@ -575,20 +618,12 @@ class _OperatorManager:
             res = self.op_helper._repack_output_sets(res)
             res = self._pack_to_data_node_debug(res)
 
-        # {self.op_spec}
-        print(f"\n\n\nEnd Running {self._op_name} with {inputs}\n\n\n")
-
         if _conditionals.conditionals_enabled():
-            print(f"Trying to register with {input_data_nodes_bkp}, {kwargs}")
-            # THIS IS THE KEY ELEMENT, WE NEED TO KEEP THINGS WRAPPED IN DATA NODES SO WE PUT THEM IN CORRECT SCOPES
+            # Work with not-processed input DataNodes, so we can detect which scope we should go
             _conditionals.register_data_nodes(res, input_data_nodes_bkp, kwargs)
-
-        print(f"\n\n\nEnd Running {self._op_name} -> {res}::{[_conditionals._data_node_repr(r) for r in res]}\n\n\n")
 
         if len(res) == 1:
             return res[0]
-
-
 
         return res
 
@@ -643,6 +678,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._debug_on = True
         self._cur_operator_id = -1
         self._cur_iter_batch_info.reset()
+        # TODO(klecki): Check for conditionals, clear the stack
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
@@ -733,17 +769,15 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
-        # TODO(klecki): Removing the expected batch size, as it should be based on scope info
-        # with split/merge we don't have scope, so we have to allow anything.
         if device == 'gpu':
             return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs,
-                                             -1)
+                                             self._cur_iter_batch_info.size)
         if device == 'cpu':
             return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs,
-                                             -1)
+                                             self._cur_iter_batch_info.size)
         if device == 'mixed':
             return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs,
-                                               -1)
+                                               self._cur_iter_batch_info.size)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 

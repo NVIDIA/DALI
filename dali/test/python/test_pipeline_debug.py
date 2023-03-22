@@ -27,7 +27,7 @@ file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
 from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
-set_verbosity(9, alsologtostdout=True)
+# set_verbosity(9, alsologtostdout=True)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
@@ -35,7 +35,7 @@ def pipeline_split_merge():
     print("Trejsing")
     pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
     input = fn.constant(idata=[10], shape=[])
-    true, false = fn._conditional.split(input, predicate=pred)
+    true, false = fn._conditional.split(input.get(), predicate=pred)
     output_true = true + 2
     output_false = false + 100
     print(output_true, output_false)
@@ -48,7 +48,6 @@ def pipeline_cond():
     pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
     input = fn.constant(idata=[10], shape=[])
     if pred:
-        # import pdb; pdb.set_trace()
         output = fn.copy(input)
     else:
         output = input
@@ -56,12 +55,13 @@ def pipeline_cond():
 
 
 def test_debug_pipeline_base():
-    # pipe_standard = pipeline_split_merge(debug=True)
-    # print("Build standard")
-    # pipe_standard.build()
-    # print("Run standard")
-    # for i in range(5):
-    #     print(pipe_standard.run())
+    pipe_standard = pipeline_split_merge(debug=True)
+    print("Build standard")
+    pipe_standard.build()
+    print("Run standard")
+    for i in range(5):
+        print(pipe_standard.run())
+    # return
 
     pipe_debug = pipeline_cond(debug=True)
     print("Build debug")
