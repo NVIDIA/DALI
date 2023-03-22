@@ -29,7 +29,6 @@ namespace dali {
 
 void FitsLoader::ReadSample(FitsFileWrapper& target) {
   auto filename = files_[current_index_++];
-  fitsfile* current_file = nullptr;
   int status = 0, num_hdus = 0;
 
   // handle wrap-around
@@ -42,7 +41,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
 
 
   auto path = filesystem::join_path(file_root_, filename);
-  fits_open_file(&current_file, path.c_str(), READONLY, &status);
+  auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
   fits_get_num_hdus(current_file, &num_hdus, &status);
   DALI_ENFORCE(status == 0, make_string("Failed to open a file: ", path, " Make sure it exists!"));
 
@@ -77,10 +76,6 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
                   static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul,
                   &status);
     DALI_ENFORCE(status == 0, make_string("Failed to read a file: ", filename));
-
-
-    // close the file handle
-    fits_close_file(current_file, &status);
 
     // set metadata
     target.data[output_idx].SetMeta(meta);

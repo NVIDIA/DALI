@@ -22,10 +22,12 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/stream.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/unique_handle.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
+
 
 namespace dali {
 namespace fits {
@@ -59,6 +61,34 @@ class DLL_PUBLIC HeaderData {
 };
 
 DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
+
+
+class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
+ public:
+  DALI_INHERIT_UNIQUE_HANDLE(fitsfile *, FitsHandle)
+  constexpr FitsHandle() = default;
+
+  /** @brief Opens the FITS file with fits_open_file*/
+  static FitsHandle OpenFile(const char *path, int mode) {
+    int status = 0;
+    fitsfile *ff = nullptr;
+
+    fits_open_file(&ff, path, mode, &status);
+    DALI_ENFORCE(status == 0,
+                 make_string("Failed to open a file: ", path, " Make sure it exists!"));
+
+    return FitsHandle(ff);
+  }
+
+
+  /** @brief Calls fits_close_file on the file handle */
+  static void DestroyHandle(fitsfile *ff) {
+    int status = 0;
+    fits_close_file(ff, &status);
+    DALI_ENFORCE(status == 0,
+                 make_string("Failed while executing fits_close_file! Status code: ", status));
+  }
+};
 
 }  // namespace fits
 }  // namespace dali
