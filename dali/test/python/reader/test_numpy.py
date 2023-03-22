@@ -85,8 +85,7 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                             num_shards=1,
                             cache_header_information=cache_header_information,
                             pad_last_batch=pad_last_batch)
-    properties = fn.get_property(data, key='source_info')
-    pipe.set_outputs(data, properties)
+    pipe.set_outputs(data)
     return pipe
 
 
@@ -670,9 +669,9 @@ def test_pad_last_sample(device):
                 pipe_out = pipe.run()
                 for i in range(batch_size):
                     out_arr = to_array(pipe_out[0][i])
-                    out_prop = to_array(pipe_out[1][i])
+                    out_prop = pipe_out[0][i].source_info()
                     ref_arr = arr_np_list[i]
-                    assert uint8_tensor_to_string(out_prop) == ref_filenames[i]
+                    assert out_prop == ref_filenames[i]
                     assert_array_equal(out_arr, ref_arr)
         finally:
             del pipe
