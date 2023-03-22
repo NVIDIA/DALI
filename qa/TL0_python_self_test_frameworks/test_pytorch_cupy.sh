@@ -4,7 +4,7 @@ pip_packages='${python_test_runner_package} numpy librosa==0.8.1 torch psutil cu
 target_dir=./dali/test/python
 
 test_body() {
-  ${python_new_invoke_test} test_pipeline_inputs.py
+  ${python_new_invoke_test} test_pipeline_inputs
 }
 
 pushd ../..
