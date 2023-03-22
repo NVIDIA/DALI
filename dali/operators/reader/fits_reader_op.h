@@ -43,20 +43,42 @@ class FitsReader : public DataReader<Backend, Target> {
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+
     int num_outputs = ws.NumOutput();
-    int num_samples = GetCurrBatchSize();  // samples here are synonymous with files
+    int num_samples = GetCurrBatchSize();             // samples here are synonymous with files
+    vector<int> ndims(num_outputs);                   // to store dimensions of each output
+    vector<DALIDataType> output_dtypes(num_outputs);  // to store dtype of each output
 
     output_desc.resize(num_outputs);
     const auto& sample_0 = GetSample(0);
 
     for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
-      int ndim = sample_0.data[output_idx].shape().sample_dim();
-      output_desc[output_idx].shape = TensorListShape<>(num_samples, ndim);
+      ndims[output_idx] = sample_0.data[output_idx].shape().sample_dim();
+      output_dtypes[output_idx] = sample_0.data[output_idx].type();
+      output_desc[output_idx].shape = TensorListShape<>(num_samples, ndims[output_idx]);
     }
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      auto& sample = GetSample(sample_idx);
+      const auto& sample = GetSample(sample_idx);
       for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
+        DALI_ENFORCE(
+            sample.data[output_idx].shape().sample_dim() == ndims[output_idx],
+            make_string("Inconsistent data: All samples in the batch must have the same number of "
+                        "dimensions for outputs with the same idx. "
+                        "Got \"",
+                        sample_0.filename, "\" with ", ndims[output_idx], " dimensions and \"",
+                        sample.filename, "\" with ", sample.data[output_idx].shape().sample_dim(),
+                        " dimensions on ouput with idx = ", output_idx));
+
+        DALI_ENFORCE(
+            sample.data[output_idx].type() == output_dtypes[output_idx],
+            make_string("Inconsistent data: All samples in the batch must have the same data type "
+                        "for outputs with the same idx. "
+                        "Got \"",
+                        sample_0.filename, "\" with data type ", output_dtypes[output_idx],
+                        " and \"", sample.filename, "\" with data type ",
+                        sample.data[output_idx].type()));
+
         output_desc[output_idx].shape.set_tensor_shape(sample_idx, sample.data[output_idx].shape());
         output_desc[output_idx].type = sample.data[output_idx].type();
       }
