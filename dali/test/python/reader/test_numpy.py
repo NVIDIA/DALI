@@ -22,6 +22,7 @@ import platform
 import random
 import tempfile
 from nose_utils import assert_raises
+from nose import SkipTest
 from nose2.tools import params
 from test_utils import compare_pipelines, to_array
 
@@ -627,12 +628,19 @@ def test_numpy_reader_roi_error():
                     fill_value
 
 
-def check_pad_last_sample(device):
+@params('cpu', 'gpu')
+def test_pad_last_sample(device):
+    def uint8_tensor_to_string(t):
+        return np.array(t).tobytes().decode()
+
+    if not is_gds_supported() and device == 'gpu':
+        raise SkipTest("GDS is not supported in this platform")
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
         num_samples = 2
         batch_size = 5
         filenames = []
+        ref_filenames = []
         arr_np_list = []
         last_file_name = None
         for index in range(0, num_samples):
@@ -641,8 +649,10 @@ def check_pad_last_sample(device):
             filenames.append(filename)
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
+            ref_filenames.append(filename)
         while len(arr_np_list) < batch_size:
             arr_np_list.append(np.load(last_file_name))
+            ref_filenames.append(last_file_name)
         pipe = NumpyReaderPipeline(path=test_data_root,
                                    files=filenames,
                                    file_list=None,
@@ -658,13 +668,10 @@ def check_pad_last_sample(device):
             for _ in range(2):
                 pipe_out = pipe.run()
                 for i in range(batch_size):
-                    pipe_arr = to_array(pipe_out[0][i])
+                    out_arr = to_array(pipe_out[0][i])
+                    out_prop = pipe_out[0][i].source_info()
                     ref_arr = arr_np_list[i]
-                    assert_array_equal(pipe_arr, ref_arr)
+                    assert out_prop == ref_filenames[i]
+                    assert_array_equal(out_arr, ref_arr)
         finally:
             del pipe
-
-
-def test_pad_last_sample():
-    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-        yield check_pad_last_sample, device

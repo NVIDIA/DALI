@@ -165,6 +165,9 @@ void NumpyReaderGPU::RunImplTyped(Workspace &ws) {
     kmgr_transpose_.Setup<TransposeKernel>(0, ctx, from.shape, make_span(perm), dtype.size());
     kmgr_transpose_.Run<TransposeKernel>(0, ctx, to, from);
   }
+  for (int i = 0; i < nsamples; i++) {
+    output.SetMeta(i, GetSample(i).get_meta());
+  }
 }
 
 void NumpyReaderGPU::RunImpl(Workspace &ws) {

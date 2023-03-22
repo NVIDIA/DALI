@@ -256,6 +256,7 @@ void NumpyReaderCPU::RunImpl(Workspace &ws) {
     } else {
       CopyHelper(output[i], input_sample, thread_pool, kThreshold, blocks_per_sample);
     }
+    output.SetMeta(i, file_i.get_meta());
   }
   thread_pool.RunAll();
 }
