@@ -41,6 +41,8 @@ This operator can be used in the following modes:
 1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
 2. Read file names from a text file indicated in ``file_list`` argument.
 3. Read files listed in ``files`` argument.
+4. Number of outputs per sample corresponds to the length of ``hdu_indices`` argument. By default,
+first HDU with data is read from each file, so the number of outputs defaults to 1. 
 )")
     .NumInput(0)
     .OutputFn(detail::FitsReaderOutputFn)
@@ -76,7 +78,8 @@ This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
     .AddOptionalArg("hdu_indices",
                     R"(HDU indices to read. If not provided, the first HDU after the primary 
-will be yielded. Since HDUs are indexed starting from 1, the default value is as follows: hdu_indices = [2].)",
+will be yielded. Since HDUs are indexed starting from 1, the default value is as follows: hdu_indices = [2].
+Size of the provided list hdu_indices defines number of outputs per sample.)",
                     std::vector<int>{2})
     .AddOptionalArg("dtypes", R"code(Data types of the respective outputs.
 
