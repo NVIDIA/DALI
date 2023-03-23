@@ -285,7 +285,6 @@ class _IterBatchInfo:
         return self._size
 
     def reset(self):
-        print("DOING RESET")
         self._size = -1
         self._source_context = None
 
@@ -577,7 +576,6 @@ class _OperatorManager:
         for i, (input,
                 expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
             classification = _Classification(input, f'Input {i}')
-            print(f"Old {expected_classification.data}, new {classification.data}")
             expected_classification = self._update_classification(self._inputs_classification, i,
                                                                   classification)
 
@@ -743,6 +741,8 @@ class _PipelineDebug(_pipeline.Pipeline):
                 outputs.append(
                     _tensors.TensorListCPU(
                         np.tile(val, (self._max_batch_size, *[1] * np.array(val).ndim))))
+        # Reset the stack, so we retrace for the next iteration
+        self._condition_stack = _conditionals._ConditionStack()
         return tuple(outputs)
 
     def feed_input(self, data_node, data, **kwargs):

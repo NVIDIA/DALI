@@ -32,26 +32,28 @@ from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
 def pipeline_split_merge():
-    print("Trejsing")
     pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
     input = fn.constant(idata=[10], shape=[])
     true, false = fn._conditional.split(input.get(), predicate=pred)
     output_true = true + 2
     output_false = false + 100
-    print(output_true, output_false)
     output = fn._conditional.merge(output_true, output_false, predicate=pred)
+    print(f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
     return pred, output
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
 def pipeline_cond():
-    print("Trejsing")
     pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
     input = fn.constant(idata=[10], shape=[])
+    print(f"Pred: {pred}")
     if pred:
-        output = fn.copy(input)
+        output = input + 2
+        print(f"Output if: {output}")
     else:
-        output = input
-    return output
+        output = input + 100
+        print(f"Output else: {output}")
+    print(f"Output: {output}")
+    return pred, output
 
 
 def test_debug_pipeline_base():
@@ -59,16 +61,17 @@ def test_debug_pipeline_base():
     print("Build standard")
     pipe_standard.build()
     print("Run standard")
-    for i in range(5):
-        print(pipe_standard.run())
+    # for i in range(5):
+    #     print(pipe_standard.run())
     # return
 
-    pipe_debug = pipeline_cond(debug=True)
+    pipe_cond = pipeline_cond(debug=True)
     print("Build debug")
-    pipe_debug.build()
+    pipe_cond.build()
     print("Run debug")
-    pipe_debug.run()
-    # compare_pipelines(pipe_standard, pipe_debug, 8, 1)
+    # for i in range(5):
+    #     pipe_debug.run()
+    compare_pipelines(pipe_standard, pipe_cond, 8, 5)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
