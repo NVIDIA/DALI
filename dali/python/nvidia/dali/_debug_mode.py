@@ -508,16 +508,18 @@ class _OperatorManager:
             for expected_elem, actual_elem in zip(expected_data, actual_data):
                 self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)
         else:
+            if len(actual_data) == 0:
+                # Skip the validation on empty batches
+                return
             if expected_data.layout() != actual_data.layout():
                 raise_err('layout', actual_data.layout(), expected_data.layout())
 
             if expected_data.dtype != actual_data.dtype:
                 raise_err('dtype', actual_data.dtype, expected_data.dtype)
 
-            # TODO(klecki): What if we encounter empty tensor, we need to skip this
-            # expected_ndim, actual_ndim = len(expected_data[0].shape()), len(actual_data[0].shape())
-            # if expected_ndim != actual_ndim:
-            #     raise_err('ndim', actual_ndim, expected_ndim)
+            expected_ndim, actual_ndim = len(expected_data[0].shape()), len(actual_data[0].shape())
+            if expected_ndim != actual_ndim:
+                raise_err('ndim', actual_ndim, expected_ndim)
 
     def _prep_input_sets(self, inputs):
         inputs = list(inputs)
@@ -535,6 +537,28 @@ class _OperatorManager:
 
         return self.op_helper._build_input_sets(inputs)
 
+    def _update_classification(self, old_collection, position, new_classification):
+        """Keeps the data classification up to date in case of running the conditional mode or
+        split and merge operations producing empty batches.
+        Otherwise it is no-op.
+
+        Parameters
+        ----------
+        old_collection : list or dict
+            The old classification - list of input classification or dictionary of kwarg
+            classification
+        position : int or str
+            The lookup to the currently examinet element in the `old_collection`
+        new_classification : _Classification
+            New classification of the input/kwarg
+        """
+        # If the old classification was empty, it may be invalid due to the pass-through
+        # behaviour on emtpy batches, so we need to update it with the new one
+        if old_collection[position].is_batch and len(old_collection[position].data) == 0:
+            old_collection[position] = new_classification
+            return new_classification
+        return old_collection[position]
+
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
@@ -542,7 +566,6 @@ class _OperatorManager:
 
         # TODO(klecki): Tis will work only with DataNodes
         if _conditionals.conditionals_enabled():
-            print(inputs, kwargs)
             inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
             input_data_nodes_bkp = inputs
 
@@ -554,6 +577,9 @@ class _OperatorManager:
         for i, (input,
                 expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
             classification = _Classification(input, f'Input {i}')
+            print(f"Old {expected_classification.data}, new {classification.data}")
+            expected_classification = self._update_classification(self._inputs_classification, i,
+                                                                  classification)
 
             self._check_batch_classification(expected_classification.is_batch,
                                              classification.is_batch,
@@ -579,8 +605,17 @@ class _OperatorManager:
 
 
         if _conditionals.conditionals_enabled():
-            # print(inputs, kwargs)
-            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
+            for i, (original, extracted) in enumerate(zip(input_data_nodes_bkp, inputs)):
+                # Did we manage to succefuly extract a input batch
+                extracted_is_batch = isinstance(extracted,
+                                                (_tensors.TensorListCPU, _tensors.TensorListGPU))
+                # But the input was not directly produced by DALI
+                original_is_custom = not isinstance(original, DataNodeDebug)
+                if  extracted_is_batch and original_is_custom:
+                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
+                                     f" of operator outputs by libraries other than DALI. Expected"
+                                     f" `DataNodeDebug` as an input, got {type(original)} at input"
+                                     f" {i}.")
 
         input_sets = self._prep_input_sets(inputs)
 
@@ -588,6 +623,8 @@ class _OperatorManager:
         for key, value in kwargs.items():
             classification = _Classification(value, f'Argument {key}',
                                              arg_constant_len=self._batch_size)
+
+            self._update_classification(self._kwargs_classification, key, classification)
 
             self._check_batch_classification(self._kwargs_classification[key].is_batch,
                                              classification.is_batch, 'Argument', key)
