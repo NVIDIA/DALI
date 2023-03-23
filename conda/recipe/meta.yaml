@@ -75,9 +75,6 @@ requirements:
     - protobuf
     - libprotobuf-static
     - libjpeg-turbo
-    - tensorflow-gpu =2.6.2
-    - tensorflow-estimator =2.6.2
-    - tensorboard
     - dali-opencv
     - dali-ffmpeg
     - lmdb
@@ -90,13 +87,12 @@ requirements:
     - libwebp-base
     - openjpeg
     - cfitsio
+    - astunparse >=1.6.0
+    - gast >=0.2.1, <=0.4.0
   run:
     - python
     - future
     - libjpeg-turbo
-    - tensorflow-gpu =2.6.2
-    - tensorflow-estimator =2.6.2
-    - tensorboard
     - lmdb
     - libtiff
     - libsndfile
@@ -106,3 +102,5 @@ requirements:
     - libwebp-base
     - openjpeg
     - cfitsio
+    - astunparse >=1.6.0
+    - gast >=0.2.1, <=0.4.0
