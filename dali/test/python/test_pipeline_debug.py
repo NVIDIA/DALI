@@ -25,53 +25,26 @@ from test_utils import compare_pipelines, get_dali_extra_path
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
-from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
-# set_verbosity(9, alsologtostdout=True)
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def rn50_pipeline_base():
+    rng = fn.random.coin_flip(probability=0.5, seed=47)
+    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
+    resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
+    out_type = types.FLOAT16
 
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
-def pipeline_split_merge():
-    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-    input = fn.constant(idata=[10], shape=[])
-    true, false = fn._conditional.split(input.get(), predicate=pred)
-    output_true = true + 2
-    output_false = false + 100
-    output = fn._conditional.merge(output_true, output_false, predicate=pred)
-    print(f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
-    return pred, output
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
-def pipeline_cond():
-    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-    input = fn.constant(idata=[10], shape=[])
-    print(f"Pred: {pred}")
-    if pred:
-        output = input + 2
-        print(f"Output if: {output}")
-    else:
-        output = input + 100
-        print(f"Output else: {output}")
-    print(f"Output: {output}")
-    return pred, output
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu",
+                                      dtype=out_type, crop=(224, 224),
+                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                      std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    return rng, jpegs, labels, images, resized_images, output
 
 
 def test_debug_pipeline_base():
-    pipe_standard = pipeline_split_merge(debug=True)
-    print("Build standard")
-    pipe_standard.build()
-    print("Run standard")
-    # for i in range(5):
-    #     print(pipe_standard.run())
-    # return
-
-    pipe_cond = pipeline_cond(debug=True)
-    print("Build debug")
-    pipe_cond.build()
-    print("Run debug")
-    # for i in range(5):
-    #     pipe_debug.run()
-    compare_pipelines(pipe_standard, pipe_cond, 8, 5)
+    pipe_standard = rn50_pipeline_base()
+    pipe_debug = rn50_pipeline_base(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
@@ -676,3 +649,39 @@ def test_nan_check():
 
     for values in [[1, 1], [np.nan, np.nan]]:
         yield _test_nan_check, values
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+def pipeline_split_merge():
+    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+    input = fn.constant(idata=[10], shape=[])
+    true, false = fn._conditional.split(input.get(), predicate=pred)
+    output_true = true + 2
+    output_false = false + 100
+    output = fn._conditional.merge(output_true, output_false, predicate=pred)
+    print(f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
+    return pred, output
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+def pipeline_cond():
+    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+    input = fn.constant(idata=[10], shape=[])
+    print(f"Pred: {pred}")
+    if pred:
+        output = input + 2
+        print(f"Output if: {output}")
+    else:
+        output = input + 100
+        print(f"Output else: {output}")
+    print(f"Output: {output}")
+    return pred, output
+
+
+def test_debug_pipeline_base():
+    pipe_standard = pipeline_split_merge(debug=True)
+    pipe_standard.build()
+
+    pipe_cond = pipeline_cond(debug=True)
+    pipe_cond.build()
+    compare_pipelines(pipe_standard, pipe_cond, 8, 5)

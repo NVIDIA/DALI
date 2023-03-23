@@ -713,7 +713,6 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._debug_on = True
         self._cur_operator_id = -1
         self._cur_iter_batch_info.reset()
-        # TODO(klecki): Check for conditionals, clear the stack
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
