@@ -51,8 +51,18 @@ class EqualizeCPU : public Equalize<CPUBackend> {
     int num_samples = in_view.num_samples();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto &in_sample = in_view[sample_idx];
-      int num_channels = sample_dim == 2 ? 1 : in_sample.shape[2];
-      DALI_ENFORCE(num_channels == 1 || num_channels == 3);
+      const auto &in_shape = in_sample.shape;
+      int64_t num_channels = sample_dim == 2 ? 1 : in_shape[2];
+      DALI_ENFORCE(
+          1 <= num_channels && num_channels <= CV_CN_MAX,
+          make_string("The CPU equalize operator supports images with number of channels in [1, ",
+                      CV_CN_MAX, "] channels. However, the sample at index ", sample_idx, " has ",
+                      num_channels, " channels."));
+      DALI_ENFORCE(in_shape[0] <= std::numeric_limits<int>::max() &&
+                       in_shape[1] <= std::numeric_limits<int>::max(),
+                   make_string("The image height and width must not exceed the ",
+                               std::numeric_limits<int>::max(), ". However, the sample at index ",
+                               sample_idx, " has shape ", in_shape, "."));
     }
     auto &tp = ws.GetThreadPool();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -71,19 +81,20 @@ class EqualizeCPU : public Equalize<CPUBackend> {
     const auto &out_sample = out_view[sample_idx];
     int sample_dim = in_sample_shape.sample_dim();
     int num_channels = sample_dim == 2 ? 1 : in_sample.shape[2];
-    int channel_flag = num_channels == 3 ? CV_8UC3 : CV_8UC1;
+    int channel_flag = CV_8UC(num_channels);
     int height = in_sample_shape[0], width = in_sample_shape[1];
     const cv::Mat cv_img = CreateMatFromPtr(height, width, channel_flag, in_sample.data);
     cv::Mat out_img = CreateMatFromPtr(height, width, channel_flag, out_sample.data);
     if (num_channels == 1) {
       cv::equalizeHist(cv_img, out_img);
     } else {
-      cv::Mat channels[3];
-      cv::split(cv_img, channels);
+      std::vector<cv::Mat> channels;
+      channels.resize(num_channels);
+      cv::split(cv_img, channels.data());
       for (int channel_idx = 0; channel_idx < num_channels; channel_idx++) {
         cv::equalizeHist(channels[channel_idx], channels[channel_idx]);
       }
-      cv::merge(channels, 3, out_img);
+      cv::merge(channels.data(), num_channels, out_img);
     }
   }
 };
