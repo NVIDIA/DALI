@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='${python_test_runner_package}'
+pip_packages='${python_test_runner_package} numpy'
 
 do_once() {
   apt-get update && apt-get -y install wget
