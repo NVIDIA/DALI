@@ -36,7 +36,12 @@ class Equalize : public SequenceOperator<Backend> {
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    output_desc[0].type = ws.GetInputDataType(0);
+    auto input_type = ws.GetInputDataType(0);
+    DALI_ENFORCE(input_type == type2id<uint8_t>::value,
+                 make_string("Unsupported input type for equalize operator: ", input_type,
+                             ". Expected input type: `uint8_t`."));
+
+    output_desc[0].type = input_type;
     // output_desc[0].shape is set by ProcessOutputDesc
     return true;
   }

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import itertools
 
 import cv2
 import numpy as np
@@ -38,32 +39,40 @@ def equalize_cv_baseline(img, layout):
 
 
 @pipeline_def
-def images_pipeline(layout):
+def images_pipeline(layout, dev):
     images, _ = fn.readers.file(name="Reader", file_root=images_dir, prefetch_queue_depth=2,
                                 random_shuffle=True, seed=42)
+    decoder = "mixed" if dev == "gpu" else "cpu"
     if layout == "HW":
-        images = fn.decoders.image(images, device="mixed", output_type=types.GRAY)
+        images = fn.decoders.image(images, device=decoder, output_type=types.GRAY)
         images = fn.squeeze(images, axes=2)
     else:
         assert layout in ["HWC", "CHW"], f"{layout}"
-        images = fn.decoders.image(images, device="mixed", output_type=types.RGB)
+        images = fn.decoders.image(images, device=decoder, output_type=types.RGB)
         if layout == "CHW":
             images = fn.transpose(images, perm=[2, 0, 1])
     equalized = fn.experimental.equalize(images)
     return equalized, images
 
 
-@params(("HWC", 1), ("HWC", 32), ("CHW", 1), ("CHW", 7), ("HW", 253), ("HW", 128))
-def test_image_pipeline(layout, batch_size):
+@params(*tuple(
+    itertools.product(("cpu", "gpu"),
+                      (("HWC", 1), ("HWC", 32), ("CHW", 1), ("CHW", 7), ("HW", 253), ("HW", 128)))))
+def test_image_pipeline(dev, layout_batch_size):
+    layout, batch_size = layout_batch_size
     num_iters = 2
 
-    pipe = images_pipeline(num_threads=4, device_id=0, batch_size=batch_size, layout=layout)
+    pipe = images_pipeline(num_threads=4, device_id=0, batch_size=batch_size, layout=layout,
+                           dev=dev)
     pipe.build()
 
     for _ in range(num_iters):
         equalized, imgs = pipe.run()
-        equalized = [np.array(img) for img in equalized.as_cpu()]
-        imgs = [np.array(img) for img in imgs.as_cpu()]
+        if dev == "gpu":
+            imgs = imgs.as_cpu()
+            equalized = equalized.as_cpu()
+        equalized = [np.array(img) for img in equalized]
+        imgs = [np.array(img) for img in imgs]
         assert len(equalized) == len(imgs)
         baseline = [equalize_cv_baseline(img, layout) for img in imgs]
         check_batch(equalized, baseline, max_allowed_error=1)

@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+#include <opencv2/opencv.hpp>
+
 #include "dali/operators/image/color/equalize.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/util/ocv.h"
 
 namespace dali {
 
@@ -24,5 +29,67 @@ The supported inputs are images and videos of uint8_t type.)code")
     .NumOutput(1)
     .InputLayout(0, {"HW", "HWC", "CHW", "FHW", "FHWC", "FCHW"})
     .AllowSequences();
+
+namespace equalize {
+
+class EqualizeCPU : public Equalize<CPUBackend> {
+ public:
+  explicit EqualizeCPU(const OpSpec &spec) : Equalize<CPUBackend>(spec) {}
+
+ protected:
+  void RunImpl(Workspace &ws) override {
+    const auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
+    auto in_view = view<const uint8_t>(input);
+    auto out_view = view<uint8_t>(output);
+    int sample_dim = in_view.shape.sample_dim();
+    // by the check in Equalize::SetupImpl
+    assert(input.type() == type2id<uint8_t>::value);
+    // enforced by the layouts specified in operator schema
+    assert(sample_dim == 2 || sample_dim == 3);
+    output.SetLayout(input.GetLayout());
+    int num_samples = in_view.num_samples();
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      const auto &in_sample = in_view[sample_idx];
+      int num_channels = sample_dim == 2 ? 1 : in_sample.shape[2];
+      DALI_ENFORCE(num_channels == 1 || num_channels == 3);
+    }
+    auto &tp = ws.GetThreadPool();
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      tp.AddWork([this, sample_idx, &in_view, &out_view](int) {
+        RunSample(in_view, out_view, sample_idx);
+      });
+    }
+    tp.RunAll();
+  }
+
+  template <int ndim>
+  void RunSample(TensorListView<StorageCPU, const uint8_t, ndim> &in_view,
+                 TensorListView<StorageCPU, uint8_t, ndim> &out_view, int sample_idx) {
+    const auto &in_sample = in_view[sample_idx];
+    auto &in_sample_shape = in_sample.shape;
+    const auto &out_sample = out_view[sample_idx];
+    int sample_dim = in_sample_shape.sample_dim();
+    int num_channels = sample_dim == 2 ? 1 : in_sample.shape[2];
+    int channel_flag = num_channels == 3 ? CV_8UC3 : CV_8UC1;
+    int height = in_sample_shape[0], width = in_sample_shape[1];
+    const cv::Mat cv_img = CreateMatFromPtr(height, width, channel_flag, in_sample.data);
+    cv::Mat out_img = CreateMatFromPtr(height, width, channel_flag, out_sample.data);
+    if (num_channels == 1) {
+      cv::equalizeHist(cv_img, out_img);
+    } else {
+      cv::Mat channels[3];
+      cv::split(cv_img, channels);
+      for (int channel_idx = 0; channel_idx < num_channels; channel_idx++) {
+        cv::equalizeHist(channels[channel_idx], channels[channel_idx]);
+      }
+      cv::merge(channels, 3, out_img);
+    }
+  }
+};
+
+}  // namespace equalize
+
+DALI_REGISTER_OPERATOR(experimental__Equalize, equalize::EqualizeCPU, CPU);
 
 }  // namespace dali
