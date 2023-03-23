@@ -278,8 +278,8 @@ class _IterBatchInfo:
         if _conditionals.conditionals_enabled():
             cs = _conditionals.this_condition_stack()
             batch = cs.scope_batch_size_tracker()
-            assert (batch is None or isinstance(batch, DataNodeDebug),
-                    "Conditionals in debug mode work only with DataNodeDebug")
+            assert batch is None or isinstance(batch, DataNodeDebug), \
+                   "Conditionals in debug mode work only with DataNodeDebug"
             if batch is not None:
                 return len(batch.get())
         return self._size
