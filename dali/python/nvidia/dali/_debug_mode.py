@@ -49,6 +49,12 @@ class DataNodeDebug(_DataNode):
     __repr__ = __str__
 
     def gpu(self):
+        if _conditionals.conditionals_enabled():
+            # Treat it the same way as regular operator would behave
+            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
+            transferred_node = DataNodeDebug(self._data._as_gpu(), self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(transferred_node, [self])
+            return transferred_node
         if self.device == 'gpu':
             return self
         return DataNodeDebug(self._data._as_gpu(), self.name, 'gpu', self.source)

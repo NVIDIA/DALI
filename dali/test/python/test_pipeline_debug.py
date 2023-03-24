@@ -27,7 +27,6 @@ from nose2.tools import params
 from conditionals.test_pipeline_conditionals import (pred_gens, impl_test_against_split_merge,
                                                      impl_test_dot_gpu,
                                                      impl_test_arg_inputs_scoped_tracking,
-                                                     impl_test_arg_inputs_scoped_tracking,
                                                      impl_test_arg_inputs_scoped_uninitialized,
                                                      impl_test_generators, impl_test_uninitialized)
 
@@ -659,34 +658,34 @@ def test_nan_check():
         yield _test_nan_check, values
 
 
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
-def pipeline_split_merge():
-    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-    input = fn.constant(idata=[10], shape=[])
-    true, false = fn._conditional.split(input.get(), predicate=pred)
-    output_true = true + 2
-    output_false = false + 100
-    output = fn._conditional.merge(output_true, output_false, predicate=pred)
-    print(f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
-    return pred, output
-
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
-def pipeline_cond():
-    pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-    input = fn.constant(idata=[10], shape=[])
-    print(f"Pred: {pred}")
-    if pred:
-        output = input + 2
-        print(f"Output if: {output}")
-    else:
-        output = input + 100
-        print(f"Output else: {output}")
-    print(f"Output: {output}")
-    return pred, output
-
-
 def test_debug_pipeline_base():
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    def pipeline_split_merge():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        input = fn.constant(idata=[10], shape=[])
+        true, false = fn._conditional.split(input.get(), predicate=pred)
+        output_true = true + 2
+        output_false = false + 100
+        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        print(
+            f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
+        return pred, output
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        input = fn.constant(idata=[10], shape=[])
+        print(f"Pred: {pred}")
+        if pred:
+            output = input + 2
+            print(f"Output if: {output}")
+        else:
+            output = input + 100
+            print(f"Output else: {output}")
+        print(f"Output: {output}")
+        return pred, output
+
     pipe_standard = pipeline_split_merge(debug=True)
     pipe_standard.build()
 
@@ -709,14 +708,16 @@ def test_dot_gpu(base_debug, conditional_debug):
 def test_arg_inputs_scoped_tracking(global_debug, scoped_debug):
     impl_test_arg_inputs_scoped_tracking({'debug': global_debug}, {'debug': scoped_debug})
 
-def test_arg_inputs_scoped_tracking():
-    impl_test_arg_inputs_scoped_tracking()
 
 def test_arg_inputs_scoped_uninitialized():
-    impl_test_arg_inputs_scoped_uninitialized()
+    impl_test_arg_inputs_scoped_uninitialized({'debug': True})
 
-def test_generators():
-    impl_test_generators()
+
+@params(*(pred_gens[:-1]))
+def test_generators(pred):
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+        impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
+
 
 def test_uninitialized():
-    impl_test_uninitialized()
+    impl_test_uninitialized({'debug': True})
