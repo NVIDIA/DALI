@@ -32,8 +32,6 @@ from nvidia.dali._utils.external_source_impl import (get_callback_from_source as
                                                      as _accepted_arg_count)
 
 
-
-
 class DataNodeDebug(_DataNode):
     """Wrapper class around Tensor, implementing all of the DataNode attributes."""
 
@@ -52,7 +50,8 @@ class DataNodeDebug(_DataNode):
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNodeDebug(self._data._as_gpu(), self_split.name, "gpu", self_split.source)
+            transferred_node = DataNodeDebug(self._data._as_gpu(), self_split.name, "gpu",
+                                             self_split.source)
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
         if self.device == 'gpu':
@@ -300,7 +299,6 @@ class _IterBatchInfo:
         possible as we cannot detect the conditional scopes.
         """
         self._non_uniform_batch = True
-
 
     def set_if_empty(self, size, context):
         if self.size == -1:
@@ -577,7 +575,6 @@ class _OperatorManager:
         call_args = {}
         inputs = list(inputs)
 
-
         # Check inputs classification as batches and extract data from DataNodeDebugs.
         for i, (input,
                 expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
@@ -607,7 +604,6 @@ class _OperatorManager:
 
             inputs[i] = classification.data
 
-
         if _conditionals.conditionals_enabled():
             for i, (original, extracted) in enumerate(zip(input_data_nodes_bkp, inputs)):
                 # Did we manage to succefuly extract a input batch
@@ -615,7 +611,7 @@ class _OperatorManager:
                                                 (_tensors.TensorListCPU, _tensors.TensorListGPU))
                 # But the input was not directly produced by DALI
                 original_is_custom = not isinstance(original, DataNodeDebug)
-                if  extracted_is_batch and original_is_custom:
+                if extracted_is_batch and original_is_custom:
                     raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
                                      f" of operator outputs by libraries other than DALI. Expected"
                                      f" `DataNodeDebug` as an input, got {type(original)} at input"

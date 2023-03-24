@@ -317,7 +317,7 @@ class _ConditionStack:
         """Return the DataNode that can be used as a reference batch size in this scope.
         None is returned if we are in the top level scope.
         """
-        if  self.stack_depth() == 1:
+        if self.stack_depth() == 1:
             return None
         if self.top().branch in {_Branch.TrueBranch, _Branch.FalseBranch}:
             # In worst case we will introduce a split on the predicate itself, but we know,
