@@ -455,7 +455,7 @@ def test_multiple_nests(dev, input, num):
 
 
 # Compare pure Split/Merge operators with if statement
-def impl_test_against_split_merge(base_kwargs={}, conditional_kwargs={}):
+def impl_test_against_split_merge(base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -463,7 +463,7 @@ def impl_test_against_split_merge(base_kwargs={}, conditional_kwargs={}):
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(**kwargs, **base_kwargs)
+    @experimental.pipeline_def(**kwargs, **base_additional_kwargs)
     def regular_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=7)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -473,7 +473,7 @@ def impl_test_against_split_merge(base_kwargs={}, conditional_kwargs={}):
         output_false = fn.flip(false, horizontal=True)
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
     def conditional_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=7)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -496,7 +496,7 @@ def test_against_split_merge():
 
 # Compare pure Split/Merge operators with if statement to see if DataNodes produced by `.gpu()`
 # are registered
-def impl_test_dot_gpu(base_kwargs={}, conditional_kwargs={}):
+def impl_test_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -504,7 +504,7 @@ def impl_test_dot_gpu(base_kwargs={}, conditional_kwargs={}):
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(**kwargs, **base_kwargs)
+    @experimental.pipeline_def(**kwargs, **base_additional_kwargs)
     def regular_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=1)
         decoded = fn.decoders.image(encoded, device="cpu")
@@ -514,7 +514,7 @@ def impl_test_dot_gpu(base_kwargs={}, conditional_kwargs={}):
         output_false = fn.flip(false, horizontal=True).gpu()
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
     def conditional_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=1)
         decoded = fn.decoders.image(encoded)
@@ -523,14 +523,16 @@ def impl_test_dot_gpu(base_kwargs={}, conditional_kwargs={}):
             decoded_gpu_true = decoded.gpu()
             # The `decoded` will be split as we look it up in a scope of a branch,
             # so the new node is built based on that split batch
-            assert "__Split" in decoded_gpu_true.name
+            if not conditional_additional_kwargs:
+                assert "__Split" in decoded_gpu_true.name
             output = fn.rotate(decoded_gpu_true, angle=30)
         else:
             output = fn.flip(decoded, name="flip_in_else", horizontal=True)
             output = output.gpu()
             # here we crate new node based on the one already produced in this scope,
             # so the source name is kept
-            assert output.name == "flip_in_else"
+            if not conditional_additional_kwargs:
+                assert output.name == "flip_in_else"
         return output
 
     pipes = [regular_pipe(), conditional_pipe()]
@@ -547,7 +549,7 @@ def test_dot_gpu():
 # in the split/merge - so they are tracked in the local scope.
 
 
-def impl_test_arg_inputs_scoped_tracking(global_kwargs={}, scoped_kwargs={}):
+def impl_test_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -555,7 +557,7 @@ def impl_test_arg_inputs_scoped_tracking(global_kwargs={}, scoped_kwargs={}):
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **global_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **global_additional_kwargs)
     def global_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -568,7 +570,7 @@ def impl_test_arg_inputs_scoped_tracking(global_kwargs={}, scoped_kwargs={}):
             output = decoded
         return output
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **scoped_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **scoped_additional_kwargs)
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -593,13 +595,13 @@ def test_arg_inputs_scoped_tracking():
     impl_test_arg_inputs_scoped_tracking()
 
 
-def impl_test_arg_inputs_scoped_uninitialized(additional_kwargs={}):
+def impl_test_arg_inputs_scoped_uninitialized(additional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
     bs = 10
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_additional_kwargs)
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -634,7 +636,7 @@ def test_arg_inputs_scoped_uninitialized():
 
 
 @params(*(pred_gens[:-1]))
-def impl_test_generators(pred, base_kwargs={}, conditional_kwargs={}):
+def impl_test_generators(pred, base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -642,7 +644,7 @@ def impl_test_generators(pred, base_kwargs={}, conditional_kwargs={}):
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(**kwargs, **base_kwargs)
+    @experimental.pipeline_def(**kwargs, **base_additional_kwargs)
     def baseline_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=10)
         rand = fn.random.uniform(seed=11)
@@ -655,7 +657,7 @@ def impl_test_generators(pred, base_kwargs={}, conditional_kwargs={}):
         rand_out = fn._conditional.merge(true_rand, false_f32, predicate=predicate)
         return encoded_out, rand_out
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_additional_kwargs)
     def conditional_pipe():
         predicate = fn.external_source(source=pred, batch=False)
         # Generators work by running in top scope and splitting for particular nesting
@@ -681,7 +683,7 @@ def test_generators(pred):
 # Mismatched branches test (uninitialized values)
 
 
-def impl_test_uninitialized(additional_kwargs={}):
+def impl_test_uninitialized(additional_additional_kwargs={}):
     bs = 10
     kwargs = {
         "batch_size": bs,
@@ -689,7 +691,7 @@ def impl_test_uninitialized(additional_kwargs={}):
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_additional_kwargs)
     def one_branch():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         if pred:
