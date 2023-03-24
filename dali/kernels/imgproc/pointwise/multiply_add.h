@@ -62,18 +62,18 @@ struct MultiplyAddElementCpu<Out, In, false> {
 
 template <typename Out, typename In>
 struct MultiplyAddElementCpu<Out, In, true> {
-  using InSigned = typename MakeUnsigned<In>::type;
-  static constexpr int kRangeSize = std::numeric_limits<InSigned>::max() + 1;
+  using InUnsigned = typename MakeUnsigned<In>::type;
+  static constexpr int kRangeSize = std::numeric_limits<InUnsigned>::max() + 1;
   // if that's deliberate you can always lift the restriction
   static_assert(kRangeSize <= 256, "Using lut for bigger types may not be a good idea");
 
   MultiplyAddElementCpu(float addend, float multiplier) : addend_{addend}, multiplier_{multiplier} {
     for (int val = std::numeric_limits<In>::min(); val <= std::numeric_limits<In>::max(); val++) {
-      lut_[static_cast<InSigned>(val)] = ConvertSat<Out>(val * multiplier_ + addend_);
+      lut_[static_cast<InUnsigned>(val)] = ConvertSat<Out>(val * multiplier_ + addend_);
     }
   }
 
-  Out operator()(InSigned element) {
+  Out operator()(InUnsigned element) {
     return lut_[element];
   }
 
