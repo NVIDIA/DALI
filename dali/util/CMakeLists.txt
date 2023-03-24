@@ -44,6 +44,11 @@ if (BUILD_CUFILE)
     "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.cc")
 endif()
 
+if (BUILD_CFITSIO)
+  set(DALI_SRCS ${DALI_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/fits.cc")
+endif()
+
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc")
