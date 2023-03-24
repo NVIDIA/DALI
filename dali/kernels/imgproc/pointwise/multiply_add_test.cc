@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
-#include <vector>
-#include <tuple>
-#include "dali/test/tensor_test_utils.h"
-#include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/multiply_add.h"
+#include <gtest/gtest.h>
+#include <limits>
+#include <tuple>
+#include <vector>
+#include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/test/cv_mat_utils.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -26,6 +27,35 @@ namespace multiply_add {
 namespace test {
 
 namespace {
+
+using LutTypes = ::testing::Types<bool, int8_t, uint8_t>;
+
+template <typename InT_>
+class MultiplyAddCpuLutTest : public ::testing::Test {
+ protected:
+  using InT = InT_;
+
+  template <typename OutT>
+  void TestLut(float addend, float multiplier) {
+    MultiplyAddElementCpu<OutT, InT, false> direct(addend, multiplier);
+    MultiplyAddElementCpu<OutT, InT, true> lut(addend, multiplier);
+    for (int val = std::numeric_limits<InT>::min(); val <= std::numeric_limits<InT>::max(); val++) {
+      InT in_val = static_cast<InT>(val);
+      EXPECT_EQ(direct(in_val), lut(in_val));
+    }
+  }
+};
+
+TYPED_TEST_SUITE(MultiplyAddCpuLutTest, LutTypes);
+
+TYPED_TEST(MultiplyAddCpuLutTest, Same) {
+  using InT = typename TestFixture::InT;
+  this->template TestLut<InT>(-12, 0.4);
+}
+
+TYPED_TEST(MultiplyAddCpuLutTest, Float) {
+  this->template TestLut<float>(-50, 1.5);
+}
 
 void fill_roi(Box<2, int> &roi) {
   roi = {{1, 2},
