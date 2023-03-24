@@ -70,8 +70,8 @@ def test_condition_stack():
     # It's already on this level
     assert len(test_stack.top().produced) == 1
     preprocessed = test_stack.preprocess_input(some_nested_op)
-    assert (_conditionals._data_node_repr(some_nested_op)
-            == _conditionals._data_node_repr(preprocessed))
+    assert (_conditionals._data_node_repr(some_nested_op) == _conditionals._data_node_repr(
+        preprocessed))
     assert len(test_stack.top().produced) == 1
 
     # This one is not
@@ -455,7 +455,7 @@ def test_multiple_nests(dev, input, num):
 
 
 # Compare pure Split/Merge operators with if statement
-def test_against_split_merge():
+def impl_test_against_split_merge(base_kwargs={}, conditional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -463,21 +463,21 @@ def test_against_split_merge():
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @pipeline_def(**kwargs)
+    @experimental.pipeline_def(**kwargs, **base_kwargs)
     def regular_pipe():
-        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=7)
         decoded = fn.decoders.image(encoded, device="mixed")
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=8)
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true, angle=30)
         output_false = fn.flip(false, horizontal=True)
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
     def conditional_pipe():
-        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=7)
         decoded = fn.decoders.image(encoded, device="mixed")
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=8)
         if pred:
             output = fn.rotate(decoded, angle=30)
         else:
@@ -490,9 +490,13 @@ def test_against_split_merge():
     compare_pipelines(*pipes, bs, iters)
 
 
+def test_against_split_merge():
+    impl_test_against_split_merge()
+
+
 # Compare pure Split/Merge operators with if statement to see if DataNodes produced by `.gpu()`
 # are registered
-def test_dot_gpu():
+def impl_test_dot_gpu(base_kwargs={}, conditional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -500,21 +504,21 @@ def test_dot_gpu():
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @pipeline_def(**kwargs)
+    @experimental.pipeline_def(**kwargs, **base_kwargs)
     def regular_pipe():
-        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=1)
         decoded = fn.decoders.image(encoded, device="cpu")
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=2)
         true, false = fn._conditional.split(decoded, predicate=pred)
         output_true = fn.rotate(true.gpu(), angle=30)
         output_false = fn.flip(false, horizontal=True).gpu()
         return fn._conditional.merge(output_true, output_false, predicate=pred)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
     def conditional_pipe():
-        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=1)
         decoded = fn.decoders.image(encoded)
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=2)
         if pred:
             decoded_gpu_true = decoded.gpu()
             # The `decoded` will be split as we look it up in a scope of a branch,
@@ -535,11 +539,15 @@ def test_dot_gpu():
     compare_pipelines(*pipes, bs, iters)
 
 
+def test_dot_gpu():
+    impl_test_dot_gpu()
+
+
 # Test if operators without positional inputs but with argument inputs are correctly handled
 # in the split/merge - so they are tracked in the local scope.
 
 
-def test_arg_inputs_scoped_tracking():
+def impl_test_arg_inputs_scoped_tracking(global_kwargs={}, scoped_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -547,7 +555,7 @@ def test_arg_inputs_scoped_tracking():
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **global_kwargs)
     def global_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -560,7 +568,7 @@ def test_arg_inputs_scoped_tracking():
             output = decoded
         return output
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **scoped_kwargs)
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -581,13 +589,17 @@ def test_arg_inputs_scoped_tracking():
     compare_pipelines(*pipes, bs, iters)
 
 
-def test_arg_inputs_scoped_uninitialized():
+def test_arg_inputs_scoped_tracking():
+    impl_test_arg_inputs_scoped_tracking()
+
+
+def impl_test_arg_inputs_scoped_uninitialized(additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
     bs = 10
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -607,7 +619,13 @@ def test_arg_inputs_scoped_uninitialized():
                                 " statement. Variables need to be initialized in every code path"
                                 " (both `if` branches). Variable 'rotate_transform' must also be"
                                 " initialized in the `else` branch.")):
-        scoped_transform_pipe()
+        pipe = scoped_transform_pipe()
+        pipe.build()
+        pipe.run()
+
+
+def test_arg_inputs_scoped_uninitialized():
+    impl_test_arg_inputs_scoped_uninitialized()
 
 
 # Unified return tests - TODO(klecki)
@@ -616,7 +634,7 @@ def test_arg_inputs_scoped_uninitialized():
 
 
 @params(*(pred_gens[:-1]))
-def test_generators(pred):
+def impl_test_generators(pred, base_kwargs={}, conditional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -624,7 +642,7 @@ def test_generators(pred):
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @pipeline_def(**kwargs)
+    @experimental.pipeline_def(**kwargs, **base_kwargs)
     def baseline_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=10)
         rand = fn.random.uniform(seed=11)
@@ -637,7 +655,7 @@ def test_generators(pred):
         rand_out = fn._conditional.merge(true_rand, false_f32, predicate=predicate)
         return encoded_out, rand_out
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **conditional_kwargs)
     def conditional_pipe():
         predicate = fn.external_source(source=pred, batch=False)
         # Generators work by running in top scope and splitting for particular nesting
@@ -655,10 +673,15 @@ def test_generators(pred):
     compare_pipelines(*pipes, bs, iters)
 
 
+@params(*(pred_gens[:-1]))
+def test_generators(pred):
+    impl_test_generators(pred)
+
+
 # Mismatched branches test (uninitialized values)
 
 
-def test_uninitialized():
+def impl_test_uninitialized(additional_kwargs={}):
     bs = 10
     kwargs = {
         "batch_size": bs,
@@ -666,7 +689,7 @@ def test_uninitialized():
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
     def one_branch():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         if pred:
@@ -678,7 +701,9 @@ def test_uninitialized():
                                 " statement. Variables need to be initialized in every code path"
                                 " (both `if` branches). Variable 'output' must also be initialized"
                                 " in the `else` branch.")):
-        one_branch()
+        p = one_branch()
+        p.build()
+        p.run()
 
     @experimental.pipeline_def(enable_conditionals=True, **kwargs)
     def one_return():
@@ -691,7 +716,13 @@ def test_uninitialized():
                                 " statement. Variables need to be initialized in every code path"
                                 " (both `if` branches). The `else` branch must also have a return"
                                 " statement.")):
-        one_return()
+        p = one_return()
+        p.build()
+        p.run()
+
+
+def test_uninitialized():
+    impl_test_uninitialized()
 
 
 def _tensor_arg_permute_batch_params():
@@ -761,8 +792,8 @@ def _tensor_arg_shape_kwarg():
 
 # Test operators that infer their batch sizes from the tensor argument inputs
 @params(fn.permute_batch, fn.roi_random_crop, fn.transforms.crop, fn.transforms.scale,
-        fn.transforms.shear, fn.transforms.translation, fn.transforms.rotation,
-        fn.random.uniform, fn.random.normal, fn.random.coin_flip)
+        fn.transforms.shear, fn.transforms.translation, fn.transforms.rotation, fn.random.uniform,
+        fn.random.normal, fn.random.coin_flip)
 def test_named_tensor_arguments(op):
 
     ops2params = {
