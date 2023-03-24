@@ -656,6 +656,8 @@ class _OperatorManager:
         if _conditionals.conditionals_enabled():
             # Work with not-processed input DataNodes, so we can detect which scope we should go
             _conditionals.register_data_nodes(res, input_data_nodes_bkp, kwargs)
+            if self.op_helper.schema_name != "_conditional__Split":
+                res = list(_conditionals.apply_conditional_split_to_branch_outputs(res))
 
         if len(res) == 1:
             return res[0]
@@ -805,15 +807,15 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
+        print(f"Running op on size: {self._cur_iter_batch_info.size}")
+        requested_size = self._cur_iter_batch_info.size
+        requested_size = -1
         if device == 'gpu':
-            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, requested_size)
         if device == 'cpu':
-            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs, requested_size)
         if device == 'mixed':
-            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs,
-                                               self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs, requested_size)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 
