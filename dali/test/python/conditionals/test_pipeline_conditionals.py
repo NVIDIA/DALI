@@ -626,8 +626,8 @@ def test_generators(pred):
 
     @pipeline_def(**kwargs)
     def baseline_pipe():
-        encoded, _ = fn.readers.caffe(path=caffe_db_folder)
-        rand = fn.random.uniform()
+        encoded, _ = fn.readers.caffe(path=caffe_db_folder, seed=10)
+        rand = fn.random.uniform(seed=11)
         predicate = fn.external_source(source=pred, batch=False)
         true_encoded, _ = fn._conditional.split(encoded, predicate=predicate)
         true_rand, _ = fn._conditional.split(rand, predicate=predicate)
@@ -642,8 +642,8 @@ def test_generators(pred):
         predicate = fn.external_source(source=pred, batch=False)
         # Generators work by running in top scope and splitting for particular nesting
         if predicate:
-            encoded_out, _ = fn.readers.caffe(path=caffe_db_folder)
-            rand_out = fn.random.uniform()
+            encoded_out, _ = fn.readers.caffe(path=caffe_db_folder, seed=10)
+            rand_out = fn.random.uniform(seed=11)
         else:
             encoded_out = types.Constant(np.uint8([0]), device="cpu")
             rand_out = types.Constant(np.float32(0.), device="cpu")

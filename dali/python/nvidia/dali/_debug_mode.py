@@ -807,9 +807,16 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
-        print(f"Running op on size: {self._cur_iter_batch_info.size}")
-        requested_size = self._cur_iter_batch_info.size
-        requested_size = -1
+        # TODO(klecki): Readers are not compatible with requesting batch size, request batch = -1
+        # for anything without input
+        def is_converted_to_batch(elem):
+            return isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorGPU))
+        batch_input = any(is_converted_to_batch(input) for input in inputs)
+        batch_input = batch_input or any(is_converted_to_batch(arg) for _, arg in kwargs.items())
+        if batch_input:
+            requested_size = self._cur_iter_batch_info.size
+        else:
+            requested_size = -1
         if device == 'gpu':
             return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, requested_size)
         if device == 'cpu':
