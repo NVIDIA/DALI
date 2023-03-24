@@ -326,7 +326,7 @@ class _ConditionStack:
             return self.preprocess_input(self.top().predicate)
         else:
             # If we are in the merge stage, just use the size of the predicate
-            self.top().predicate
+            return self.top().predicate
 
     def _indent(self):
         """Helper for indenting the log messages to resemble visited scopes"""
