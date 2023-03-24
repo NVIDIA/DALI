@@ -658,13 +658,13 @@ def test_nan_check():
         yield _test_nan_check, values
 
 
-def test_debug_pipeline_base():
+def test_debug_pipeline_conditionals():
 
     @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
     def pipeline_split_merge():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
         input = fn.constant(idata=[10], shape=[])
-        true, false = fn._conditional.split(input.get(), predicate=pred)
+        true, false = fn._conditional.split(input, predicate=pred)
         output_true = true + 2
         output_false = false + 100
         output = fn._conditional.merge(output_true, output_false, predicate=pred)
@@ -682,6 +682,45 @@ def test_debug_pipeline_base():
             print(f"Output if: {output}")
         else:
             output = input + 100
+            print(f"Output else: {output}")
+        print(f"Output: {output}")
+        return pred, output
+
+    pipe_standard = pipeline_split_merge(debug=True)
+    pipe_standard.build()
+
+    pipe_cond = pipeline_cond(debug=True)
+    pipe_cond.build()
+    compare_pipelines(pipe_standard, pipe_cond, 8, 5)
+
+
+def test_debug_pipeline_conditional_repeated_op():
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    def pipeline_split_merge():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        rng2 = fn.random.coin_flip(seed=2)
+        true, _ = fn._conditional.split(rng1, predicate=pred)
+        _, false = fn._conditional.split(rng2, predicate=pred)
+        output_true = true + 20
+        output_false = false + 10
+        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        print(
+            f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
+        return pred, output
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        rng2 = fn.random.coin_flip(seed=2)
+        print(f"Pred: {pred}")
+        if pred:
+            output = rng1 + 20
+            print(f"Output if: {output}")
+        else:
+            output = rng2 + 10
             print(f"Output else: {output}")
         print(f"Output: {output}")
         return pred, output
