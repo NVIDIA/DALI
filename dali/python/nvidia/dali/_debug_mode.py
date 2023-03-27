@@ -624,16 +624,14 @@ class _OperatorManager:
                     f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
                     f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
-                self._check_call_arg_meta_data(
-                    self._kwargs_classification[key].data, classification.data, 'Argument', key)
+                self._check_call_arg_meta_data(self._kwargs_classification[key].data,
+                                               classification.data, 'Argument', key)
                 call_args[key] = classification.data
-
-
-
 
         if _conditionals.conditionals_enabled():
             # Did we manage to succefuly extract a input batch, but the input was not directly
             # produced by DALI
+            # TODO(klecki): Add better handling of constant nodes for conditionals in debug mode.
             for i, classification in enumerate(self._inputs_classification):
                 if classification.is_batch and not classification.was_data_node:
                     raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
@@ -649,10 +647,6 @@ class _OperatorManager:
                                      f" tracking the TensorLists extracted via `.get()`. Expected"
                                      f" `DataNodeDebug` as an input, got"
                                      f" {type(classification.original)} for argument '{key}'.")
-
-
-
-
 
         res = [
             self._pipe._run_op_on_device(self._op_name, logical_id, self._device, input, call_args)

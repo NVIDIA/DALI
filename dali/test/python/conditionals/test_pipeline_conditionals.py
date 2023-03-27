@@ -651,8 +651,13 @@ def impl_test_generators(pred, base_additional_kwargs={}, conditional_additional
         predicate = fn.external_source(source=pred, batch=False)
         true_encoded, _ = fn._conditional.split(encoded, predicate=predicate)
         true_rand, _ = fn._conditional.split(rand, predicate=predicate)
-        u8_zeros = types.Constant(np.uint8([0]), device="cpu")
-        f32_zeros = types.Constant(np.float32(0.), device="cpu")
+        # TODO(klecki): Debug mode currently requires explicit constants instantiation
+        if base_additional_kwargs:
+            u8_zeros = types.Constant(np.uint8([0]), device="cpu")
+            f32_zeros = types.Constant(np.float32(0.), device="cpu")
+        else:
+            u8_zeros = np.uint8([0])
+            f32_zeros = np.float32(0.)
         _, false_u8 = fn._conditional.split(u8_zeros, predicate=predicate)
         _, false_f32 = fn._conditional.split(f32_zeros, predicate=predicate)
         encoded_out = fn._conditional.merge(true_encoded, false_u8, predicate=predicate)
