@@ -18,7 +18,6 @@ import numpy as np
 from nose2.tools import params
 
 from nvidia.dali import fn, pipeline_def, types
-from nvidia.dali.pipeline import experimental
 from nvidia.dali.auto_aug.core import augmentation, select
 
 from test_utils import get_dali_extra_path, check_batch
@@ -72,8 +71,7 @@ def test_select(dev):
     num_magnitude_bins = 4
     batch_size = num_magnitude_bins * len(ops)
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0)
     def pipeline_select():
         op_idx = sample_info(lambda info: info.idx_in_batch % len(ops))
         magnitude_bin = sample_info(lambda info: info.idx_in_batch % num_magnitude_bins)

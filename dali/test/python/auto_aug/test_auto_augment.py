@@ -20,7 +20,7 @@ from scipy.stats import chisquare
 from nose2.tools import params
 
 from nvidia.dali import fn, types
-from nvidia.dali.pipeline import experimental
+from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
@@ -39,7 +39,7 @@ def mag_to_param_with_op_id(op_id):
     return mag_to_param
 
 
-@experimental.pipeline_def(enable_conditionals=True, num_threads=4, device_id=0, seed=44)
+@pipeline_def(enable_conditionals=True, num_threads=4, device_id=0, seed=44)
 def concat_aug_pipeline(dev, policy):
     sample = types.Constant(np.array([], dtype=np.int32), device=dev)
     if dev == "gpu":
@@ -67,8 +67,8 @@ def test_run_auto_aug(i, args):
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -116,8 +116,7 @@ def test_translation(use_shape, offset_fraction, extent):
     policy = Policy(f"Policy_{use_shape}_{offset_fraction}", num_magnitude_bins=21,
                     sub_policies=[[(translate_y, 1, 20)]])
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -387,8 +386,7 @@ def test_policy_presentation():
 
 def test_unused_arg_fail():
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -402,8 +400,7 @@ def test_unused_arg_fail():
 
 def test_empty_policy_fail():
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -417,8 +414,7 @@ def test_empty_policy_fail():
 
 def test_missing_shape_fail():
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")

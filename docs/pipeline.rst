@@ -129,9 +129,6 @@ to the previous one::
 
     pipe = my_pipe(my_source)
 
-.. autoclass:: Pipeline
-   :members:
-   :special-members: __enter__, __exit__
 
 .. _pipeline_decorator:
 
@@ -140,26 +137,15 @@ Pipeline Decorator
 .. autodecorator:: pipeline_def
 
 
-DataNode
---------
-.. autoclass:: nvidia.dali.pipeline.DataNode
-   :members:
+.. _conditional_execution:
 
-Experimental Pipeline Features
-------------------------------
-Some additional experimental features can be enabled via the special variant of the pipeline
-decorator.
-
-.. autodecorator:: nvidia.dali.pipeline.experimental.pipeline_def
-
-
-Conditional Execution (experimental)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Conditional Execution
+---------------------
 
 DALI allows to execute operators conditionally for selected samples within the batch using
 ``if`` statements. To enable this feature use the
-:py:func:`experimental @pipeline_def <nvidia.dali.pipeline.experimental.pipeline_def>` variant of
-decorator with the pipeline definition and set ``enable_conditionals`` to ``True``.
+:py:func:`@pipeline_def <nvidia.dali.pipeline.pipeline_def>` decorator to define the pipeline and
+set ``enable_conditionals`` to ``True``.
 
 Every ``if`` statement that have a :meth:`~nvidia.dali.pipeline.DataNode` as a condition
 will be recognized as DALI conditional statement.
@@ -179,7 +165,38 @@ For example, this pipeline rotates each image with probabilty of 25% by a random
         return result
 
 The semantics of DALI conditionals can be understood as if the code processed one sample at a time.
+
+The condition must be represented by scalar samples - that is have a 0-d shape. It can be either
+boolean or any numerical type supported by DALI - in the latter case, non-zero values are considered
+True and zero values considered False, in accordance with typical Python semantics.
+
+Additionaly, logical expressions ``and``, ``or``, and ``not`` can be used on
+:meth:`~nvidia.dali.pipeline.DataNode`. The first two are restricted to boolean inputs, ``not``
+allows the same input types as ``if`` statement condition. Logical expression follow the shortcuting
+rules when they are evaluated.
+
 You can read more in the `conditional tutorial <examples/general/conditionals.html>`_.
+
+.. _pipeline_class:
+
+Pipeline class
+--------------
+
+.. autoclass:: Pipeline
+   :members:
+   :special-members: __enter__, __exit__
+
+DataNode
+--------
+.. autoclass:: nvidia.dali.pipeline.DataNode
+   :members:
+
+Experimental Pipeline Features
+------------------------------
+Some additional experimental features can be enabled via the special variant of the pipeline
+decorator.
+
+.. autodecorator:: nvidia.dali.pipeline.experimental.pipeline_def
 
 
 Pipeline Debug Mode (experimental)

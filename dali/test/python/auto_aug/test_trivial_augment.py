@@ -20,7 +20,7 @@ from scipy.stats import chisquare
 from nose2.tools import params
 
 from nvidia.dali import fn, types
-from nvidia.dali.pipeline import experimental
+from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import trivial_augment
 from nvidia.dali.auto_aug.core import augmentation
 from test_utils import get_dali_extra_path
@@ -38,8 +38,8 @@ def test_run_trivial(i, args):
     batch_size = batch_sizes[i % len(batch_sizes)]
     num_magnitude_bins = num_magnitude_bin_cases[i % len(num_magnitude_bin_cases)]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -79,8 +79,7 @@ def test_translation(use_shape, offset_fraction, extent):
     translation_x, translation_y = trivial_augment._get_translations(use_shape=use_shape, **params)
     augment = [translation_x] if extent == 'x' else [translation_y]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=9, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=9, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -152,8 +151,8 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
                 expected_counts[tuple(aug.mag_to_param(-mag))] = prob / 2
     expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=42)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=42)
     def pipeline():
         sample = types.Constant([], dtype=types.INT32)
         if dev == "gpu":

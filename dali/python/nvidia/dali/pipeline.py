@@ -1530,7 +1530,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
         pipe.set_outputs(*po)
 
 
-def pipeline_def(fn=None, **pipeline_kwargs):
+def pipeline_def(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
@@ -1603,21 +1603,27 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         pipe = my_pipe(batch_size=42, num_threads=3)
         ...
+
+    Keyword args
+    ------------
+
+    enable_conditionals : bool, optional
+        Enable support for conditional execution of DALI operators using ``if`` statements
+        in the pipeline definition, by default False.
     """
-    pipeline_conditionals = pipeline_kwargs.pop('enable_conditionals', False)
 
     def actual_decorator(func):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            conditionals_on = kwargs.get('enable_conditionals', pipeline_conditionals)
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
 
-            func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             pipe = Pipeline(**pipeline_args)
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 
-            _generate_graph(pipe, func, args, fn_kwargs)
+            _generate_graph(pipe, pipe_func, args, fn_kwargs)
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
@@ -1681,7 +1687,7 @@ def _collect_ops(output_nodes):
     return ops
 
 
-def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
     """Variant of :meth:`@pipeline_def <nvidia.dali.pipeline_def>` decorator that enables additional
     experimental features. It has the same API as its non-experimental variant with the addition of
     the keyword arguments listed below.
@@ -1696,11 +1702,6 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
             This mode is intended only for debugging purposes - the pipeline performance will be
             significantly worse than the non-debug mode.
 
-    enable_conditionals : bool, optional
-        Enable support for conditional execution of DALI operators using ``if`` statements
-        in pipeline definition, by default False.
-
-
     .. note::
 
         The features enabled by this decorator are experimental. The API may change and the
@@ -1708,22 +1709,21 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
     """
     from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug = pipeline_kwargs.pop('debug', False)
-    pipeline_conditionals = pipeline_kwargs.pop('enable_conditionals', False)
 
     def actual_decorator(func):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             debug_mode_on = kwargs.get('debug', pipeline_debug)
-            conditionals_on = kwargs.get('enable_conditionals', pipeline_conditionals)
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
 
-            func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             if debug_mode_on:
                 # TODO(klecki): cross-validate conditionals with eager mode
                 if conditionals_on:
                     raise NotImplementedError("Conditionals are not supported in debug mode yet.")
-                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
+                pipe = _PipelineDebug(functools.partial(pipe_func, *args, **fn_kwargs),
                                       **pipeline_args)
             else:
                 pipe = Pipeline(**pipeline_args)
@@ -1731,7 +1731,7 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 
             if not debug_mode_on:
-                _generate_graph(pipe, func, args, fn_kwargs)
+                _generate_graph(pipe, pipe_func, args, fn_kwargs)
 
             return pipe
 

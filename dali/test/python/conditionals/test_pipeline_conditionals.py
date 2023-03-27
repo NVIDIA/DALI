@@ -143,7 +143,7 @@ def generic_execute(function, input_gen_list, optional_params=None):
         fn.external_source(name=f"input_{i}", **params) for i, params in enumerate(optional_params)
     ]
 
-    pipeline_definition = experimental.pipeline_def(enable_conditionals=True)(function)
+    pipeline_definition = pipeline_def(enable_conditionals=True)(function)
 
     def gen_batch(generator, bs, iter):
         return [generator(SampleInfo(bs * iter + i, i, iter, 0)) for i in range(bs)]
