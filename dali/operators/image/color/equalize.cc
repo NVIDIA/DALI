@@ -66,19 +66,18 @@ class EqualizeCPU : public Equalize<CPUBackend> {
     }
     auto &tp = ws.GetThreadPool();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      tp.AddWork([this, sample_idx, &in_view, &out_view](int) {
-        RunSample(in_view, out_view, sample_idx);
-      });
+      auto out_sample = out_view[sample_idx];
+      auto in_sample = in_view[sample_idx];
+      tp.AddWork([this, out_sample, in_sample](int) { RunSample(out_sample, in_sample); },
+                 in_sample.shape.num_elements());
     }
     tp.RunAll();
   }
 
   template <int ndim>
-  void RunSample(TensorListView<StorageCPU, const uint8_t, ndim> &in_view,
-                 TensorListView<StorageCPU, uint8_t, ndim> &out_view, int sample_idx) {
-    const auto &in_sample = in_view[sample_idx];
+  void RunSample(TensorView<StorageCPU, uint8_t, ndim> out_sample,
+                 TensorView<StorageCPU, const uint8_t, ndim> in_sample) {
     auto &in_sample_shape = in_sample.shape;
-    const auto &out_sample = out_view[sample_idx];
     int sample_dim = in_sample_shape.sample_dim();
     int num_channels = sample_dim == 2 ? 1 : in_sample.shape[2];
     int channel_flag = CV_8UC(num_channels);
