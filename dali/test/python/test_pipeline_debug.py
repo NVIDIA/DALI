@@ -756,7 +756,7 @@ def test_arg_inputs_scoped_uninitialized():
 @params(*(pred_gens[:-1]))
 def test_generators(pred):
     for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-       impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
+        impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
 
 
 def test_uninitialized():
@@ -775,10 +775,10 @@ def test_debug_pipeline_conditional_without_data_node():
         return pred, output
 
     with assert_raises(
-        ValueError, glob=("Debug mode for conditionals doesn't allow for modification of"
-                            " operator outputs by libraries other than DALI or tracking"
-                            " the TensorLists extracted via `.get()`."
-                            " Expected `DataNodeDebug` as an input, got * at input *.")):
+            ValueError, glob=("Debug mode for conditionals doesn't allow for modification of"
+                              " operator outputs by libraries other than DALI or tracking"
+                              " the TensorLists extracted via `.get()`."
+                              " Expected `DataNodeDebug` as an input, got * at input *.")):
         pipe_cond = pipeline_cond(debug=True)
         pipe_cond.build()
         pipe_cond.run()
