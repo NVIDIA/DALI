@@ -23,6 +23,7 @@ from nvidia.dali.pipeline.experimental import pipeline_def
 from nose_utils import raises
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose2.tools import params
+from nose_utils import assert_raises
 
 from conditionals.test_pipeline_conditionals import (pred_gens, impl_test_against_split_merge,
                                                      impl_test_dot_gpu,
@@ -763,3 +764,24 @@ def test_generators(pred):
 
 def test_uninitialized():
     impl_test_uninitialized({'debug': True})
+
+
+def test_debug_pipeline_conditional_without_data_node():
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        if pred:
+            output = fn.copy(rng1.get())
+        else:
+            output = rng1 + 10
+        return pred, output
+
+    with assert_raises(
+        ValueError, glob=("Debug mode for conditionals doesn't allow for modification of"
+                            " operator outputs by libraries other than DALI or tracking"
+                            " the TensorLists extracted via `.get()`."
+                            " Expected `DataNodeDebug` as an input, got * at input *.")):
+        pipe_cond = pipeline_cond(debug=True)
+        pipe_cond.build()
+        pipe_cond.run()

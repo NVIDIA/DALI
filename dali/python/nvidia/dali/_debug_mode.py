@@ -604,19 +604,6 @@ class _OperatorManager:
 
             inputs[i] = classification.data
 
-        if _conditionals.conditionals_enabled():
-            for i, (original, extracted) in enumerate(zip(input_data_nodes_bkp, inputs)):
-                # Did we manage to succefuly extract a input batch
-                extracted_is_batch = isinstance(extracted,
-                                                (_tensors.TensorListCPU, _tensors.TensorListGPU))
-                # But the input was not directly produced by DALI
-                original_is_custom = not isinstance(original, DataNodeDebug)
-                if extracted_is_batch and original_is_custom:
-                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
-                                     f" of operator outputs by libraries other than DALI. Expected"
-                                     f" `DataNodeDebug` as an input, got {type(original)} at input"
-                                     f" {i}.")
-
         input_sets = self._prep_input_sets(inputs)
 
         # Check kwargs classification as batches and setup call args.
@@ -640,6 +627,32 @@ class _OperatorManager:
                 self._check_call_arg_meta_data(
                     self._kwargs_classification[key].data, classification.data, 'Argument', key)
                 call_args[key] = classification.data
+
+
+
+
+        if _conditionals.conditionals_enabled():
+            # Did we manage to succefuly extract a input batch, but the input was not directly
+            # produced by DALI
+            for i, classification in enumerate(self._inputs_classification):
+                if classification.is_batch and not classification.was_data_node:
+                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
+                                     f" of operator outputs by libraries other than DALI or"
+                                     f" tracking the TensorLists extracted via `.get()`. Expected"
+                                     f" `DataNodeDebug` as an input, got"
+                                     f" {type(classification.original)} at input {i}.")
+
+            for key, classification in self._kwargs_classification.items():
+                if classification.is_batch and not classification.was_data_node:
+                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
+                                     f" of operator outputs by libraries other than DALI or"
+                                     f" tracking the TensorLists extracted via `.get()`. Expected"
+                                     f" `DataNodeDebug` as an input, got"
+                                     f" {type(classification.original)} for argument '{key}'.")
+
+
+
+
 
         res = [
             self._pipe._run_op_on_device(self._op_name, logical_id, self._device, input, call_args)
