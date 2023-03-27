@@ -35,11 +35,9 @@ class EqualizeGPU : public Equalize<GPUBackend> {
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
-    auto input_type = input.type();
+    // by the check in Equalize::SetupImpl
+    assert(input.type() == type2id<uint8_t>::value);
     auto layout = input.GetLayout();
-    DALI_ENFORCE(input_type == type2id<uint8_t>::value,
-                 make_string("Unsupported input type for equalize operator: ", input_type,
-                             ". Expected input type: `uint8_t`."));
     // enforced by the layouts specified in operator schema
     assert(layout.size() == 2 || layout.size() == 3);
     output.SetLayout(layout);
