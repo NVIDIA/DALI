@@ -13,6 +13,7 @@
 // limitations under the License.
 
 
+#include <limits>
 #include <opencv2/opencv.hpp>
 
 #include "dali/operators/image/color/equalize.h"
@@ -87,8 +88,7 @@ class EqualizeCPU : public Equalize<CPUBackend> {
     if (num_channels == 1) {
       cv::equalizeHist(cv_img, out_img);
     } else {
-      std::vector<cv::Mat> channels;
-      channels.resize(num_channels);
+      std::vector<cv::Mat> channels(num_channels);
       cv::split(cv_img, channels.data());
       for (int channel_idx = 0; channel_idx < num_channels; channel_idx++) {
         cv::equalizeHist(channels[channel_idx], channels[channel_idx]);

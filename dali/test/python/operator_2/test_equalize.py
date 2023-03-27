@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import math
 import itertools
 
 import cv2
@@ -75,4 +76,44 @@ def test_image_pipeline(dev, layout_batch_size):
         imgs = [np.array(img) for img in imgs]
         assert len(equalized) == len(imgs)
         baseline = [equalize_cv_baseline(img, layout) for img in imgs]
+        check_batch(equalized, baseline, max_allowed_error=1)
+
+
+@params(("cpu", ), ("gpu", ))
+def test_multichannel(dev):
+
+    sizes = [(200, 300), (700, 500), (1024, 200), (200, 1024), (1024, 1024)]
+    num_channels = [1, 2, 3, 4, 5, 13]
+    # keep len(sizes) and len(num_channels) co-prime to have all combinations
+    assert math.gcd(len(sizes), len(num_channels)) == 1
+    batch_size = len(sizes) * len(num_channels)
+    rng = np.random.default_rng(424242)
+    num_iters = 2
+
+    def input_sample(sample_info):
+        idx_in_batch = sample_info.idx_in_batch
+        size = sizes[idx_in_batch % len(sizes)]
+        num_channel = num_channels[idx_in_batch % len(num_channels)]
+        shape = (size[0], size[1], num_channel)
+        return np.uint8(rng.uniform(0, 255, shape))
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=42)
+    def pipeline():
+        input = fn.external_source(input_sample, batch=False)
+        if dev == "gpu":
+            input = input.gpu()
+        return fn.experimental.equalize(input), input
+
+    pipe = pipeline()
+    pipe.build()
+
+    for _ in range(num_iters):
+        equalized, imgs = pipe.run()
+        if dev == "gpu":
+            imgs = imgs.as_cpu()
+            equalized = equalized.as_cpu()
+        equalized = [np.array(img) for img in equalized]
+        imgs = [np.array(img) for img in imgs]
+        assert len(equalized) == len(imgs)
+        baseline = [equalize_cv_baseline(img, "HWC") for img in imgs]
         check_batch(equalized, baseline, max_allowed_error=1)
