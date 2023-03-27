@@ -753,13 +753,10 @@ def test_arg_inputs_scoped_uninitialized():
     impl_test_arg_inputs_scoped_uninitialized({'debug': True})
 
 
-# TODO(klecki): It seems there is some cross-communication between pipelines if we do the loop
-# Need to investigate.
 @params(*(pred_gens[:-1]))
 def test_generators(pred):
-    impl_test_generators(pred, {'debug': False}, {'debug': True})
-    # for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-    #    impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+       impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
 
 
 def test_uninitialized():
