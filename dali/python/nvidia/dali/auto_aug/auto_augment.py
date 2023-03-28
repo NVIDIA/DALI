@@ -112,7 +112,7 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
     aug_ids, augmentations = _sub_policy_to_augmentation_map(policy)
     aug_ids = aug_ids[sub_policy_id]
     use_signed_magnitudes = any(aug.randomly_negate for aug in policy.augmentations.values())
-    _forbid_unused_kwargs(augmentations, kwargs, 'apply_auto_augment')
+    _forbid_unused_kwargs(policy.augmentations.values(), kwargs, 'apply_auto_augment')
     for stage_id in range(max_policy_len):
         magnitude_bin = magnitude_bins[stage_id]
         if use_signed_magnitudes:
@@ -120,7 +120,7 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
         if should_run[stage_id] < run_probabilities[stage_id]:
             op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
                              num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
-            sample = _pretty_select(augmentations, aug_ids[stage_id], op_kwargs,
+            sample = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
                                     auto_aug_name='apply_auto_augment',
                                     ref_suite_name='get_image_net_policy')
     return sample
@@ -223,15 +223,30 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
     return types.Constant(magnitude_bin)
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[_Augmentation]]:
+def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+    """
+    Creates a matrix of operators to be called for given sub policy at given stage.
+    The output is a tuple of matrix `m` and per stage operators augmentations list `augments`,
+    such that for policy `sub_policy_idx` as the `stage_idx`-ith operation in a sequence, the
+    `augments[stage_idx][m[sub_policy_idx][stage_idx]]` operator should be called.
+    """
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    augmentations = list(policy.augmentations.values()) + [a.identity]
-    identity_id = len(augmentations) - 1
-    augment_to_id = {augmentation: i for i, augmentation in enumerate(augmentations)}
-    augments_by_id = np.array([[identity_id for _ in range(max_policy_len)]
+    augmentations = []  # list of unique augmentations per stage
+    for stage_idx in range(max_policy_len):
+        stage_augments = set()
+        for sub_policy in sub_policies:
+            if stage_idx < len(sub_policy):
+                aug, _, _ = sub_policy[stage_idx]
+                stage_augments.add(aug)
+        augmentations.append(list(stage_augments) + [a.identity])
+    identity_id = [len(stage_augments) for stage_augments in augmentations]
+    augment_to_id = [{augmentation: i
+                      for i, augmentation in enumerate(stage_augments)}
+                     for stage_augments in augmentations]
+    augments_by_id = np.array([[identity_id[stage_idx] for stage_idx in range(max_policy_len)]
                                for _ in range(len(sub_policies))], dtype=np.int32)
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
-            augments_by_id[sub_policy_id, stage_idx] = augment_to_id[augment]
+            augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]
     return types.Constant(augments_by_id), augmentations
