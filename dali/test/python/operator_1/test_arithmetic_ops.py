@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -453,6 +453,12 @@ def test_unary_arithmetic_ops():
                     yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
 
+def test_unary_arithmetic_ops_big():
+    for kinds in unary_input_kinds:
+        for (op, op_desc) in unary_operations:
+            yield check_unary_op, kinds, np.int8, op, shape_big, op_desc
+
+
 def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps):
     is_integer = type not in [np.float16, np.float32, np.float64]
     limted_range = get_range(type)
@@ -476,6 +482,14 @@ def test_math_function_ops():
                 if types_in != np.bool_:
                     yield (check_math_function_op, kinds, types_in, op, np_op, shape_small,
                            get_range, op_desc, eps)
+
+
+def test_math_function_ops_big():
+    for kinds in unary_input_kinds:
+        for (op, np_op, op_desc, get_range, eps) in math_function_operations:
+            for types_in in [np.int8]:
+                yield (check_math_function_op, kinds, types_in, op, np_op, shape_big,
+                       get_range, op_desc, eps)
 
 
 def check_arithm_op(kinds, types, op, shape, get_range, op_desc):

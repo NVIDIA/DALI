@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ template <ArithmeticOp op, typename Result, typename Input>
 __global__ void ExecuteTiledUnOp(const SampleDescGPU<1> *samples, const TileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
-  auto *output = static_cast<Result *>(sample.output.data) + tile.offset;
-  const auto *in = static_cast<const Input *>(sample.args[0].data) + tile.offset;
+  auto *output = static_cast<Result *>(sample.output.data);
+  const auto *in = static_cast<const Input *>(sample.args[0].data);
   ExecuteUnOp<op>(output, in, tile.offset, tile.size);
 }
 
