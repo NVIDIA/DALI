@@ -364,7 +364,7 @@ def test_policy_presentation():
 
     def get_first_augment():
 
-        @augmentation
+        @augmentation(mag_range=(100, 200))
         def clashing_name(sample, _):
             return sample
 
@@ -380,8 +380,8 @@ def test_policy_presentation():
 
     one = get_first_augment()
     another = get_second_augment()
-    sub_policies = [[(one, 0.1, 5), (another, 0.4, 7)], [(another, 0.2, 1), (one, 0.5, 2)],
-                    [(another, 0.7, 1)]]
+    sub_policies = [[(one, 0.1, 5), (another, 0.4, None)], [(another, 0.2, None), (one, 0.5, 2)],
+                    [(another, 0.7, None)]]
     policy = Policy(name="DummyPolicy", num_magnitude_bins=11, sub_policies=sub_policies)
     assert policy.sub_policies[0][0][0] is policy.sub_policies[1][1][0]
     assert policy.sub_policies[0][1][0] is policy.sub_policies[1][0][0]
@@ -397,7 +397,7 @@ def test_policy_presentation():
     def yet_another_aug(sample, _):
         return sample
 
-    sub_policies = [[(yet_another_aug, 0.5, i), (one.augmentation(mag_range=(0, i)), 0.24, i)]
+    sub_policies = [[(yet_another_aug, 0.5, None), (one.augmentation(mag_range=(0, i)), 0.24, i)]
                     for i in range(1, 107)]
     bigger_policy = Policy(name="BiggerPolicy", num_magnitude_bins=200, sub_policies=sub_policies)
     for i, (first, second) in enumerate(bigger_policy.sub_policies):
@@ -465,12 +465,12 @@ def test_wrong_sub_policy_format_fail():
             glob="as a triple: (augmentation, probability, magnitude). Got Augmentation"):
         Policy("ShouldFail", 9, [(a.rotate, a.shear_x)])
 
-    with assert_raises(Exception, glob="must be an instance of Augmentation. Got 0.5"):
+    with assert_raises(Exception, glob="must be an instance of Augmentation. Got `0.5`"):
         Policy("ShouldFail", 9, [[(0.5, a.rotate, 3)]])
 
     with assert_raises(Exception,
-                       glob="Probability * must be a number from `[[]0, 1[]]` range. Got 2"):
+                       glob="Probability * must be a number from `[[]0, 1[]]` range. Got `2`"):
         Policy("ShouldFail", 9, [[(a.rotate, 2, 2)]])
 
-    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got -1"):
+    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got `-1`"):
         Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])

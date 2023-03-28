@@ -58,19 +58,19 @@ class Policy:
                 if not isinstance(aug, Augmentation):
                     raise Exception(
                         f"Each augmentation in sub policies must be an instance of "
-                        f"Augmentation. Got {aug}. Did you forget to use `@augmentation` "
+                        f"Augmentation. Got `{aug}`. Did you forget to use `@augmentation` "
                         f"decorator?")
                 if not isinstance(p, (float, int)) or not 0 <= p <= 1:
                     raise Exception(
                         f"Probability of applying the augmentation must be a number from "
-                        f"`[0, 1]` range. Got {p} for augmentation `{aug.name}`.")
+                        f"`[0, 1]` range. Got `{p}` for augmentation `{aug.name}`.")
                 if p == 0:
                     warnings.warn(f"The augmentation `{aug.name}` in policy `{name}` is used with "
                                   f"probability 0 in one of the sub-policies.")
                 if mag is None:
                     if aug.mag_range is not None:
                         raise Exception(
-                            f"The augmentation {aug.name} has `mag_range` specified, so the "
+                            f"The augmentation `{aug.name}` has `mag_range` specified, so the "
                             f"magnitude bin is required. However, got `None` in the policy "
                             f"`{name}`.")
                 else:
@@ -83,7 +83,7 @@ class Policy:
                     if not isinstance(mag, int) or not 0 <= mag < self.num_magnitude_bins:
                         raise Exception(f"Magnitude of the augmentation must be an integer from "
                                         f"`[0, {num_magnitude_bins - 1}]` range. "
-                                        f"Got {mag} for augmentation `{aug.name}`.")
+                                        f"Got `{mag}` for augmentation `{aug.name}`.")
         self.sub_policies = _sub_policy_with_unique_names(sub_policies)
 
     @property
