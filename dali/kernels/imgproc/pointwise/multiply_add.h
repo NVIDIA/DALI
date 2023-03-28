@@ -73,8 +73,8 @@ struct MultiplyAddElementCpu<Out, In, true> {
     }
   }
 
-  Out operator()(InUnsigned element) {
-    return lut_[element];
+  Out operator()(In val) {
+    return lut_[static_cast<InUnsigned>(val)];
   }
 
   Out lut_[kRangeSize];
