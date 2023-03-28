@@ -52,13 +52,17 @@ class _SignedMagnitudeBin:
         self._signed_magnitude_idx = signed_magnitude_idx
 
     def __getitem__(self, idx: int):
+        """
+        Indexing simplifies creation of "signed magnitude bins" in cases when a single sample
+        may be processed by a sequence of random augmentations - we can sample random signs once
+        for the full sequence and then use indexing to access each single signed magnitude bin.
+        """
         if isinstance(self._magnitude_bin, int):
             magnitude_bin = self._magnitude_bin
         else:
             magnitude_bin = self._magnitude_bin[idx]
-        random_sign = self._random_sign[idx]
-        signed_magnitude_idx = self._signed_magnitude_idx[idx]
-        return self.__class__(magnitude_bin, random_sign, signed_magnitude_idx)
+        cls = self.__class__
+        return cls(magnitude_bin, self._random_sign[idx], self._signed_magnitude_idx[idx])
 
     @classmethod
     def create_from_bin(cls, magnitude_bin: Union[int, _DataNode],
