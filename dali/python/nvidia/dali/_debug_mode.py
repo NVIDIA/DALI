@@ -27,9 +27,9 @@ from nvidia.dali import _conditionals
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali._utils.external_source_impl import (get_callback_from_source as
-                                                     _get_callback_from_source, accepted_arg_count
-                                                     as _accepted_arg_count)
+from nvidia.dali._utils.external_source_impl import (
+    get_callback_from_source as _get_callback_from_source,
+    accepted_arg_count as _accepted_arg_count)
 
 
 class DataNodeDebug(_DataNode):
@@ -50,10 +50,10 @@ class DataNodeDebug(_DataNode):
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNodeDebug(self._data._as_gpu(), self_split.name, "gpu",
-                                             self_split.source)
-            _conditionals.register_data_nodes(transferred_node, [self])
-            return transferred_node
+            data = self_split._data._as_gpu() if self.device == "cpu" else self_split._data
+            gpu_node = DataNodeDebug(data, self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(gpu_node, [self])
+            return gpu_node
         if self.device == 'gpu':
             return self
         return DataNodeDebug(self._data._as_gpu(), self.name, 'gpu', self.source)
