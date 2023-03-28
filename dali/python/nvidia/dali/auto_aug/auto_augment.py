@@ -159,30 +159,30 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
     auto_contrast = a.auto_contrast
     return Policy(
         name="ImageNetPolicy", num_magnitude_bins=11, sub_policies=[
-            [(equalize, 0.8, 1), (shear_y, 0.8, 4)],
-            [(color, 0.4, 9), (equalize, 0.6, 3)],
+            [(equalize, 0.8, None), (shear_y, 0.8, 4)],
+            [(color, 0.4, 9), (equalize, 0.6, None)],
             [(color, 0.4, 1), (rotate, 0.6, 8)],
-            [(solarize, 0.8, 3), (equalize, 0.4, 7)],
+            [(solarize, 0.8, 3), (equalize, 0.4, None)],
             [(solarize, 0.4, 2), (solarize, 0.6, 2)],
-            [(color, 0.2, 0), (equalize, 0.8, 8)],
-            [(equalize, 0.4, 8), (solarize_add, 0.8, 3)],
+            [(color, 0.2, 0), (equalize, 0.8, None)],
+            [(equalize, 0.4, None), (solarize_add, 0.8, 3)],
             [(shear_x, 0.2, 9), (rotate, 0.6, 8)],
-            [(color, 0.6, 1), (equalize, 1.0, 2)],
-            [(invert, 0.4, 9), (rotate, 0.6, 0)],
-            [(equalize, 1.0, 9), (shear_y, 0.6, 3)],
-            [(color, 0.4, 7), (equalize, 0.6, 0)],
-            [(posterize, 0.4, 6), (auto_contrast, 0.4, 7)],
+            [(color, 0.6, 1), (equalize, 1.0, None)],
+            [(invert, 0.4, None), (rotate, 0.6, 0)],
+            [(equalize, 1.0, None), (shear_y, 0.6, 3)],
+            [(color, 0.4, 7), (equalize, 0.6, None)],
+            [(posterize, 0.4, 6), (auto_contrast, 0.4, None)],
             [(solarize, 0.6, 8), (color, 0.6, 9)],
             [(solarize, 0.2, 4), (rotate, 0.8, 9)],
             [(rotate, 1.0, 7), (translate_y, 0.8, 9)],
-            [(shear_x, 0.0, 0), (solarize, 0.8, 4)],
+            [(solarize, 0.8, 4)],
             [(shear_y, 0.8, 0), (color, 0.6, 4)],
             [(color, 1.0, 0), (rotate, 0.6, 2)],
-            [(equalize, 0.8, 4)],
-            [(equalize, 1.0, 4), (auto_contrast, 0.6, 2)],
+            [(equalize, 0.8, None)],
+            [(equalize, 1.0, None), (auto_contrast, 0.6, None)],
             [(shear_y, 0.4, 7), (solarize_add, 0.6, 7)],
             [(posterize, 0.8, 2), (solarize, 0.6, 10)],
-            [(solarize, 0.6, 8), (equalize, 0.6, 1)],
+            [(solarize, 0.6, 8), (equalize, 0.6, None)],
             [(color, 0.8, 6), (rotate, 0.4, 5)],
         ])
 
@@ -217,7 +217,9 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
                              dtype=np.int32)
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
-            magnitude_bin[sub_policy_id, stage_idx] = mag
+            # use dummy value instead of None, it will be ignored anyway
+            val = mag if mag is not None else -999
+            magnitude_bin[sub_policy_id, stage_idx] = val
     return types.Constant(magnitude_bin)
 
 
