@@ -127,7 +127,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
                                       seed=seed)
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
     if use_signed_magnitudes:
-        magnitude_bin = signed_bin(magnitude_bin)
+        magnitude_bin = signed_bin(magnitude_bin, seed=seed)
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_trivial_augment')
     op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
                      num_magnitude_bins=num_magnitude_bins, **kwargs)

@@ -111,14 +111,12 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
     magnitude_bins = _sub_policy_to_magnitude_bin_map(policy)[sub_policy_id]
     aug_ids, augmentations = _sub_policy_to_augmentation_map(policy)
     aug_ids = aug_ids[sub_policy_id]
-    use_signed_magnitudes = any(aug.randomly_negate for aug in policy.augmentations.values())
+    if any(aug.randomly_negate for aug in policy.augmentations.values()):
+        magnitude_bins = signed_bin(magnitude_bins, seed=seed, shape=(max_policy_len, ))
     _forbid_unused_kwargs(policy.augmentations.values(), kwargs, 'apply_auto_augment')
     for stage_id in range(max_policy_len):
-        magnitude_bin = magnitude_bins[stage_id]
-        if use_signed_magnitudes:
-            magnitude_bin = signed_bin(magnitude_bin)
         if should_run[stage_id] < run_probabilities[stage_id]:
-            op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
+            op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bins[stage_id],
                              num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
             sample = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
                                     auto_aug_name='apply_auto_augment',
@@ -232,7 +230,7 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
     """
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    augmentations = []  # list of unique augmentations per stage
+    augmentations = []  # list of augmentations in each stage
     for stage_idx in range(max_policy_len):
         stage_augments = set()
         for sub_policy in sub_policies:

@@ -45,19 +45,39 @@ class _UndefinedParam:
 
 class _SignedMagnitudeBin:
 
-    def __init__(self, magnitude_bin: Union[int, _DataNode],
-                 random_sign: Optional[_DataNode] = None, seed=None):
+    def __init__(self, magnitude_bin: Union[int, _DataNode], random_sign: _DataNode,
+                 signed_magnitude_idx: _DataNode):
+        self._magnitude_bin = magnitude_bin
+        self._random_sign = random_sign
+        self._signed_magnitude_idx = signed_magnitude_idx
+
+    def __getitem__(self, idx: int):
+        if isinstance(self._magnitude_bin, int):
+            magnitude_bin = self._magnitude_bin
+        else:
+            magnitude_bin = self._magnitude_bin[idx]
+        random_sign = self._random_sign[idx]
+        signed_magnitude_idx = self._signed_magnitude_idx[idx]
+        return self.__class__(magnitude_bin, random_sign, signed_magnitude_idx)
+
+    @classmethod
+    def create_from_bin(cls, magnitude_bin: Union[int, _DataNode],
+                        random_sign: Optional[_DataNode] = None, seed: Optional[int] = None,
+                        shape: Optional[Tuple] = None):
         if not isinstance(magnitude_bin, (int, _DataNode)):
             raise Exception(f"The `magnitude_bin` must be an int or _DataNode (output of DALI op "
                             f"or `types.Constant`) representing batch of ints from "
                             f"`[0..num_magnitude_bins-1]` range. Got {magnitude_bin} instead.")
-        self._magnitude_bin = magnitude_bin
+        if random_sign is not None and any(arg is not None for arg in (seed, shape)):
+            raise Exception(
+                "The `random_sign` cannot be specified together with neither `seed` nor `shape`.")
         if random_sign is None:
-            random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32, seed=seed)
-        self._random_sign = random_sign
+            random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32, seed=seed,
+                                            shape=shape)
         # it is important to compute it as soon as possible - we may be created at the top level
         # in the pipeline, while it may be read in conditional split
-        self._signed_magnitude_idx = 2 * self._magnitude_bin + self._random_sign
+        signed_magnitude_idx = 2 * magnitude_bin + random_sign
+        return cls(magnitude_bin, random_sign, signed_magnitude_idx)
 
     @staticmethod
     def _remap_to_signed_magnitudes(magnitudes):
@@ -84,7 +104,7 @@ class _SignedMagnitudeBin:
 
 
 def signed_bin(magnitude_bin: Union[int, _DataNode], random_sign: Optional[_DataNode] = None,
-               seed=None) -> _SignedMagnitudeBin:
+               seed: Optional[int] = None, shape: Optional[Tuple] = None) -> _SignedMagnitudeBin:
     """
     Combines the `magnitude_bin` with information about the sign of the magnitude.
     The Augmentation wrapper can generate and handle the random sign on its own. Yet,
@@ -101,7 +121,7 @@ def signed_bin(magnitude_bin: Union[int, _DataNode], random_sign: Optional[_Data
         A batch of {0, 1} integers. For augmentations declared with `randomly_negate=True`,
         it determines if the magnitude is negated (for 1) or not (for 0).
     """
-    return _SignedMagnitudeBin(magnitude_bin, random_sign, seed)
+    return _SignedMagnitudeBin.create_from_bin(magnitude_bin, random_sign, seed, shape)
 
 
 class Augmentation:
