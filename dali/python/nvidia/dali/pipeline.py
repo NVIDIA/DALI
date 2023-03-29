@@ -1530,7 +1530,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
         pipe.set_outputs(*po)
 
 
-def pipeline_def(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
+def pipeline_def(fn=None, *, enable_conditionals=True, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
@@ -1687,7 +1687,7 @@ def _collect_ops(output_nodes):
     return ops
 
 
-def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
+def _pipeline_def_experimental(fn=None, *, enable_conditionals=True, **pipeline_kwargs):
     """Variant of :meth:`@pipeline_def <nvidia.dali.pipeline_def>` decorator that enables additional
     experimental features. It has the same API as its non-experimental variant with the addition of
     the keyword arguments listed below.
