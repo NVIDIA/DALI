@@ -146,7 +146,7 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
         in the translation augmentations. If tuple is specified, the first component limits
         height, the second the width.
     """
-    translate_y = _get_translate_y(use_shape, max_translate_abs, max_translate_rel)
+    translate_y, _ = _get_translations(use_shape, max_translate_abs, max_translate_rel)
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -187,16 +187,113 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
         ])
 
 
-def _get_translate_y(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                     max_translate_rel: Optional[float] = None):
-    max_translate_height, _ = _parse_validate_offset(use_shape, max_translate_abs=max_translate_abs,
-                                                     max_translate_rel=max_translate_rel,
-                                                     default_translate_abs=250,
-                                                     default_translate_rel=1.)
+def get_reduced_image_net_policy() -> Policy:
+    """
+    Creates augmentation policy tuned with the reduced ImageNet as described in AutoAugment
+    (https://arxiv.org/abs/1805.09501).
+    The returned policy can be run with `apply_auto_augment`.
+    """
+    shear_x = a.shear_x.augmentation((0, 0.3), True)
+    rotate = a.rotate.augmentation((0, 30), True)
+    color = a.color.augmentation((0.1, 1.9), False, None)
+    contrast = a.contrast.augmentation((0.1, 1.9), False, None)
+    sharpness = a.sharpness.augmentation((0.1, 1.9), False, None)
+    posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
+    solarize = a.solarize.augmentation((0, 256), False)
+    invert = a.invert
+    equalize = a.equalize
+    auto_contrast = a.auto_contrast
+    return Policy(
+        name="ReducedImageNetPolicy",
+        num_magnitude_bins=11, sub_policies=[[(posterize, 0.4, 8), (rotate, 0.6, 9)],
+                                             [(solarize, 0.6, 5), (auto_contrast, 0.6, 5)],
+                                             [(equalize, 0.8, 8), (equalize, 0.6, 3)],
+                                             [(posterize, 0.6, 7), (posterize, 0.6, 6)],
+                                             [(equalize, 0.4, 7), (solarize, 0.2, 4)],
+                                             [(equalize, 0.4, 4), (rotate, 0.8, 8)],
+                                             [(solarize, 0.6, 3), (equalize, 0.6, 7)],
+                                             [(posterize, 0.8, 5), (equalize, 1.0, 2)],
+                                             [(rotate, 0.2, 3), (solarize, 0.6, 8)],
+                                             [(equalize, 0.6, 8), (posterize, 0.4, 6)],
+                                             [(rotate, 0.8, 8), (color, 0.4, 0)],
+                                             [(rotate, 0.4, 9), (equalize, 0.6, 2)],
+                                             [(equalize, 0.0, 7), (equalize, 0.8, 8)],
+                                             [(invert, 0.6, 4), (equalize, 1.0, 8)],
+                                             [(color, 0.6, 4), (contrast, 1.0, 8)],
+                                             [(rotate, 0.8, 8), (color, 1.0, 2)],
+                                             [(color, 0.8, 8), (solarize, 0.8, 7)],
+                                             [(sharpness, 0.4, 7), (invert, 0.6, 8)],
+                                             [(shear_x, 0.6, 5), (equalize, 1.0, 9)],
+                                             [(color, 0.4, 0), (equalize, 0.6, 3)],
+                                             [(equalize, 0.4, 7), (solarize, 0.2, 4)],
+                                             [(solarize, 0.6, 5), (auto_contrast, 0.6, 5)],
+                                             [(invert, 0.6, 4), (equalize, 1.0, 8)],
+                                             [(color, 0.6, 4), (contrast, 1.0, 8)],
+                                             [(equalize, 0.8, 8), (equalize, 0.6, 3)]])
+
+
+def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,
+                               max_translate_rel: Optional[float] = None) -> Policy:
+    """
+    Creates augmentation policy tuned with the reduced ImageNet as described in AutoAugment
+    (https://arxiv.org/abs/1805.09501).
+    The returned policy can be run with `apply_auto_augment`.
+    """
+    translate_y, translate_x = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    shear_y = a.shear_y.augmentation((0, 0.3), True)
+    rotate = a.rotate.augmentation((0, 30), True)
+    brightness = a.brightness.augmentation((0.1, 1.9), False, None)
+    color = a.color.augmentation((0.1, 1.9), False, None)
+    contrast = a.contrast.augmentation((0.1, 1.9), False, None)
+    sharpness = a.sharpness.augmentation((0.1, 1.9), False, None)
+    posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
+    solarize = a.solarize.augmentation((0, 256), False)
+    invert = a.invert
+    equalize = a.equalize
+    auto_contrast = a.auto_contrast
+    return Policy(
+        name="ReducedCifar10Policy", num_magnitude_bins=11, sub_policies=[
+            [(invert, 0.1, 7), (contrast, 0.2, 6)],
+            [(rotate, 0.7, 2), (translate_x, 0.3, 9)],
+            [(sharpness, 0.8, 1), (sharpness, 0.9, 3)],
+            [(shear_y, 0.5, 8), (translate_y, 0.7, 9)],
+            [(auto_contrast, 0.5, 8), (equalize, 0.9, 2)],
+            [(shear_y, 0.2, 7), (posterize, 0.3, 7)],
+            [(color, 0.4, 3), (brightness, 0.6, 7)],
+            [(sharpness, 0.3, 9), (brightness, 0.7, 9)],
+            [(equalize, 0.6, 5), (equalize, 0.5, 1)],
+            [(contrast, 0.6, 7), (sharpness, 0.6, 5)],
+            [(color, 0.7, 7), (translate_x, 0.5, 8)],
+            [(equalize, 0.3, 7), (auto_contrast, 0.4, 8)],
+            [(translate_y, 0.4, 3), (sharpness, 0.2, 6)],
+            [(brightness, 0.9, 6), (color, 0.2, 8)],
+            [(solarize, 0.5, 2), (invert, 0.0, 3)],
+            [(equalize, 0.2, 0), (auto_contrast, 0.6, 0)],
+            [(equalize, 0.2, 8), (equalize, 0.6, 4)],
+            [(color, 0.9, 9), (equalize, 0.6, 6)],
+            [(auto_contrast, 0.8, 4), (solarize, 0.2, 8)],
+            [(brightness, 0.1, 3), (color, 0.7, 0)],
+            [(solarize, 0.4, 5), (auto_contrast, 0.9, 3)],
+            [(translate_y, 0.9, 9), (translate_y, 0.7, 9)],
+            [(auto_contrast, 0.9, 2), (solarize, 0.8, 3)],
+            [(equalize, 0.8, 8), (invert, 0.1, 3)],
+            [(translate_y, 0.7, 9), (auto_contrast, 0.9, 1)],
+        ])
+
+
+def _get_translations(use_shape: bool = False, max_translate_abs: Optional[int] = None,
+                      max_translate_rel: Optional[float] = None):
+    max_translate_height, max_translate_width = _parse_validate_offset(
+        use_shape, max_translate_abs=max_translate_abs, max_translate_rel=max_translate_rel,
+        default_translate_abs=250, default_translate_rel=1.)
     if use_shape:
-        return a.translate_y.augmentation((0, max_translate_height), True)
+        translate_y = a.translate_y.augmentation((0, max_translate_height), True)
+        translate_x = a.translate_x.augmentation((0, max_translate_width), True)
+        return translate_y, translate_x
     else:
-        return a.translate_y_no_shape.augmentation((0, max_translate_height), True)
+        translate_y = a.translate_y_no_shape.augmentation((0, max_translate_height), True)
+        translate_x = a.translate_x_no_shape.augmentation((0, max_translate_width), True)
+        return translate_y, translate_x
 
 
 def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
