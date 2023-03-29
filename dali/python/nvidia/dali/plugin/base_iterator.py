@@ -215,7 +215,9 @@ class _DaliBaseIterator(object):
             readers_meta = [p.reader_meta(self._reader_name) for p in self._pipes]
 
             def err_msg_gen(err_msg):
-                'Reader Operator should have the same {} in all the pipelines.'.format(err_msg)
+                return 'Reader Operator should have the same {} in all the pipelines.'.format(
+                    err_msg
+                )
 
             def check_equality_and_get(input_meta, name, err_msg):
                 assert np.all(np.equal([meta[name] for meta in input_meta], input_meta[0][name])), \
