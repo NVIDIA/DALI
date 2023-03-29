@@ -50,7 +50,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     cd /tmp/dali_deps                                                                              && \
     git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
     git submodule init                                                                             && \
-    git submodule update --depth 1 --recursive                                                     && \
+    git submodule update --depth 1 --init --recursive                                              && \
     export CC_COMP=${CC}                                                                           && \
     export CXX_COMP=${CXX}                                                                         && \
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
