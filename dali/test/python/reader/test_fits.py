@@ -124,27 +124,27 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
 
 def test_reading_uncompressed():
     compressed = False
-    device = "cpu"
-    for type in supported_numpy_types:
-        for ndim in test_shapes.keys():
-            shapes = test_shapes[ndim]
-            file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-            num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-            batch_size = random.choice([1, 3, 4, 8, 16])
-            yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                num_threads, compressed, file_arg_type,
+    for device in ["cpu", "gpu"]:
+        for type in supported_numpy_types:
+            for ndim in test_shapes.keys():
+                shapes = test_shapes[ndim]
+                file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
+                num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
+                batch_size = random.choice([1, 3, 4, 8, 16])
+                yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
+                    num_threads, compressed, file_arg_type,
 
 
 def test_reading_compressed():
     compressed = True
-    device = "cpu"
-    for type in supported_numpy_types - unsupported_compression_numpy_types:
-        for ndim in test_shapes.keys():
-            if ndim > 3:  # astropy doesn't support compression of images with more dimensions
-                continue
-            shapes = test_shapes[ndim]
-            file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-            num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-            batch_size = random.choice([1, 3, 4, 8, 16])
-            yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                num_threads, compressed, file_arg_type,
+    for device in ["cpu", "gpu"]:
+        for type in supported_numpy_types - unsupported_compression_numpy_types:
+            for ndim in test_shapes.keys():
+                if ndim > 3:  # astropy doesn't support compression of images with more dimensions
+                    continue
+                shapes = test_shapes[ndim]
+                file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
+                num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
+                batch_size = random.choice([1, 3, 4, 8, 16])
+                yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
+                    num_threads, compressed, file_arg_type,
