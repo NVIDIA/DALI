@@ -22,6 +22,7 @@ namespace dali {
 namespace numpy {
 
 const TypeInfo &TypeFromNumpyStr(const std::string &format) {
+  if (format == "b1") return TypeTable::GetTypeInfo<bool>();
   if (format == "u1") return TypeTable::GetTypeInfo<uint8_t>();
   if (format == "u2") return TypeTable::GetTypeInfo<uint16_t>();
   if (format == "u4") return TypeTable::GetTypeInfo<uint32_t>();
@@ -33,7 +34,7 @@ const TypeInfo &TypeFromNumpyStr(const std::string &format) {
   if (format == "f2") return TypeTable::GetTypeInfo<float16>();
   if (format == "f4") return TypeTable::GetTypeInfo<float>();
   if (format == "f8") return TypeTable::GetTypeInfo<double>();
-  DALI_FAIL("Unknown Numpy type string");
+  DALI_FAIL(make_string("Unknown Numpy type string: ", format));
 }
 
 inline void SkipSpaces(const char*& ptr) {

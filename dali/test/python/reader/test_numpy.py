@@ -96,7 +96,7 @@ all_numpy_types = set(
      np.uint16, np.uint32, np.uint64, np.intp, np.uintp, np.float32, np.float64, np.float_,
      np.complex64, np.complex128, np.complex_])
 unsupported_numpy_types = set(
-    [np.bool_, np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
+    [np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
      np.complex_])
 rng = np.random.RandomState(12345)
 
