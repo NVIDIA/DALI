@@ -230,18 +230,6 @@ $PYTHON -m pip install --no-deps --ignore-installed -v dali/python
 export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
 DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
 echo "DALI_PATH is ${DALI_PATH}"
-pushd $SRC_DIR/dali_tf_plugin/
-mkdir -p dali_tf_sdist_build
-cd dali_tf_sdist_build
-
-cmake .. \
-      -DCUDA_VERSION:STRING="${CUDA_VERSION}" \
-      -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} \
-      -DGIT_SHA=${GIT_SHA}
-make -j install
-$PYTHON -m pip install --no-deps --ignore-installed .
-popd
 
 # Move tfrecord2idx to host env so it can be found at runtime
 cp $SRC_DIR/tools/tfrecord2idx $PREFIX/bin
