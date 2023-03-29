@@ -26,7 +26,7 @@ namespace dali {
 
 class FitsReaderGPU : public FitsReader<GPUBackend, FitsFileWrapperGPU> {
  public:
-  explicit FitsReaderGPU(const OpSpec& spec) {
+  explicit FitsReaderGPU(const OpSpec& spec) : FitsReader<GPUBackend, FitsFileWrapperGPU>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FitsLoaderGPU>(spec, shuffle_after_epoch);
   }

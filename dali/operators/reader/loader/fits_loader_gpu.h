@@ -43,10 +43,10 @@ struct FitsFileWrapperGPU {
   std::string filename;
 };
 
-class FitsLoaderGPU : public FitsLoaderGPU<CPUBackend, FitsFileWrapper> {
+class FitsLoaderGPU : public FileLoader<GPUBackend, FitsFileWrapperGPU> {
  public:
-  explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
-      : FitsLoaderGPU(spec, shuffle_after_epoch),
+  explicit inline FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+      : FileLoader(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
     // default to DALI_UINT8, if argument dtypes not provided
     dtypes_ = spec.HasArgument("dtypes") ?

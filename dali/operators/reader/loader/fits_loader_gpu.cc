@@ -27,7 +27,7 @@
 
 namespace dali {
 
-void FitsLoader::ReadSample(FitsFileWrapperGPU& target) {
+void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
   auto filename = files_[current_index_++];
   int status = 0, num_hdus = 0;
 
@@ -69,7 +69,6 @@ void FitsLoader::ReadSample(FitsFileWrapperGPU& target) {
     target.data[output_idx].Resize(header.shape, header.type());
 
     // copy the image
-    
 
 
     fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
