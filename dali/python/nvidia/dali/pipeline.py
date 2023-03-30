@@ -1456,8 +1456,8 @@ def _discriminate_args(func, **func_kwargs):
 
 
 def _regroup_args(func, pipeline_def_kwargs, fn_call_kwargs):
-    """Regroup arguments that are directed into Pipeline object construction and those that
-    are passed into pipeline definition function.
+    """Regroup arguments that are directed into Pipeline object construction (Pipeline kwargs)
+    and those that are passed into pipeline definition function (Function kwargs).
 
     Parameters
     ----------
@@ -1492,17 +1492,20 @@ def _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs):
     is created.
     """
     if conditionals_on:
-        Pipeline.push_current(pipe)
-        pipe._conditionals_enabled = True
-        pipe._condition_stack = _conditionals._ConditionStack()
-        # Add all parameters to the pipeline as "know" nodes in the top scope.
-        for arg in args:
-            if isinstance(arg, DataNode):
-                _conditionals.register_data_nodes(arg)
-        for _, arg in fn_kwargs.items():
-            if isinstance(arg, DataNode):
-                _conditionals.register_data_nodes(arg)
-        Pipeline.pop_current()
+        # We push and pop manually to be compatible with _PipelineDebug
+        try:
+            Pipeline.push_current(pipe)
+            pipe._conditionals_enabled = True
+            pipe._condition_stack = _conditionals._ConditionStack()
+            # Add all parameters to the pipeline as "know" nodes in the top scope.
+            for arg in args:
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+            for _, arg in fn_kwargs.items():
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+        finally:
+            Pipeline.pop_current()
 
 
 def _generate_graph(pipe, func, fn_args, fn_kwargs):
