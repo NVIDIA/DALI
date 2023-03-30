@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import os
 
 import numpy as np
@@ -19,8 +20,9 @@ from PIL import Image, ImageEnhance, ImageOps
 from nose2.tools import params
 
 import nvidia.dali.tensors as _tensors
-from nvidia.dali import pipeline_def, fn
+from nvidia.dali import fn, pipeline_def
 from nvidia.dali.auto_aug import augmentations as a
+from nvidia.dali.auto_aug.core._utils import get_translations as _get_translations
 
 from test_utils import get_dali_extra_path, check_batch
 
@@ -375,3 +377,64 @@ def test_auto_contrast_mono_channels(dev):
 
     compare_against_baseline(a.auto_contrast, pil_baseline(ImageOps.autocontrast), get_batch,
                              batch_size=len(imgs), max_allowed_error=1, dev=dev)
+
+
+@params(*tuple(itertools.product((True, False), (0, 1), ('height', 'width', 'both', 'none'))))
+def test_translation_helper(use_shape, offset_fraction, extent):
+    # make sure the translation helper processes the args properly
+    # note, it only uses translate_y (as it is in imagenet policy)
+    default_abs = 123
+    default_rel = 0.123
+    height, width = 300, 700
+    shape = [height, width]
+    params = {}
+    if extent != 'none':
+        if use_shape:
+            param_shape = [1., 1.]
+            param_name = "max_translate_rel"
+        else:
+            param_shape = shape
+            param_name = "max_translate_abs"
+        assert extent in ('height', 'width', 'both'), f"{extent}"
+        if extent == 'both':
+            param = [param_shape[0] * offset_fraction, param_shape[1] * offset_fraction]
+        elif extent == 'height':
+            param = [param_shape[0] * offset_fraction, 0]
+        elif extent == 'width':
+            param = [0, param_shape[1] * offset_fraction]
+        params[param_name] = param
+
+    translate_x, translate_y = _get_translations(use_shape, default_abs, default_rel, **params)
+
+    if use_shape:
+        assert translate_x.op is a.translate_x.op
+        assert translate_y.op is a.translate_y.op
+    else:
+        assert translate_x.op is a.translate_x_no_shape.op
+        assert translate_y.op is a.translate_y_no_shape.op
+
+    mag_ranges = [translate_x.mag_range, translate_y.mag_range]
+
+    if extent == "none":
+        expected_height = default_rel if use_shape else default_abs
+        expected_width = expected_height
+    elif use_shape:
+        expected_height = offset_fraction
+        expected_width = offset_fraction
+    else:
+        expected_height = height * offset_fraction
+        expected_width = width * offset_fraction
+
+    if extent == "both":
+        assert translate_x.mag_range == (0, expected_width), f"{mag_ranges} {expected_width}"
+        assert translate_y.mag_range == (0, expected_height), f"{mag_ranges} {expected_height}"
+    elif extent == "height":
+        assert translate_x.mag_range == (0, 0), f"{mag_ranges}"
+        assert translate_y.mag_range == (0, expected_height), f"{mag_ranges} {expected_height}"
+    elif extent == "width":
+        assert translate_x.mag_range == (0, expected_width), f"{mag_ranges} {expected_width}"
+        assert translate_y.mag_range == (0, 0), f"{mag_ranges}"
+    else:
+        assert extent == "none"
+        assert translate_x.mag_range == (0, expected_width), f"{mag_ranges}"
+        assert translate_y.mag_range == (0, expected_height), f"{mag_ranges}"

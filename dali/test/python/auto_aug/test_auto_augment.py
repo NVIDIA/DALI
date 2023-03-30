@@ -91,56 +91,6 @@ def test_run_auto_aug(i, args):
         p.run()
 
 
-@params(*tuple(itertools.product((True, False), (0, 1), ('height', 'width', 'both'))))
-def test_translation(use_shape, offset_fraction, extent):
-    # make sure the translation helper processes the args properly
-    # note, it only uses translate_y (as it is in imagenet policy)
-    shape = [300, 400]
-    fill_value = 217
-    params = {}
-    if use_shape:
-        param = offset_fraction
-        param_name = "max_translate_rel"
-    else:
-        param_name = "max_translate_abs"
-    if extent == 'both':
-        param = shape[0] * offset_fraction
-    elif extent == 'height':
-        param = [shape[0] * offset_fraction, 0]
-    elif extent == 'width':
-        param = [0, shape[1] * offset_fraction]
-    else:
-        assert False, f"Unrecognized extent={extent}"
-    params[param_name] = param
-    translate_y = auto_augment._get_translate_y(use_shape=use_shape, **params)
-    policy = Policy(f"Policy_{use_shape}_{offset_fraction}", num_magnitude_bins=21,
-                    sub_policies=[[(translate_y, 1, 20)]])
-
-    @pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0, seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image = fn.resize(image, size=shape)
-        if use_shape:
-            return auto_augment.apply_auto_augment(policy, image, fill_value=fill_value,
-                                                   shape=shape)
-        else:
-            return auto_augment.apply_auto_augment(policy, image, fill_value=fill_value)
-
-    p = pipeline()
-    p.build()
-    output, = p.run()
-    output = [np.array(sample) for sample in output.as_cpu()]
-    for i, sample in enumerate(output):
-        sample = np.array(sample)
-        if offset_fraction == 1 and extent != "width":
-            assert np.all(sample == fill_value), f"sample_idx: {i}"
-        else:
-            background_count = np.sum(sample == fill_value)
-            assert background_count / sample.size < 0.1, \
-                f"sample_idx: {i}, {background_count / sample.size}"
-
-
 @params(
     (False, "cpu", 256),
     (False, "gpu", 512),

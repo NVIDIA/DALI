@@ -21,7 +21,7 @@ from nvidia.dali.auto_aug.core import _Augmentation, signed_bin
 from nvidia.dali.auto_aug.core._args import \
     forbid_unused_kwargs as _forbid_unused_kwargs
 from nvidia.dali.auto_aug.core._utils import \
-    parse_validate_offset as _parse_validate_offset, \
+    get_translations as _get_translations, \
     pretty_select as _pretty_select
 from nvidia.dali.data_node import DataNode as _DataNode
 
@@ -169,8 +169,10 @@ def get_trivial_augment_wide_suite(
         in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
+    default_translate_abs, default_translate_rel = 32, 1.
     # translations = [translate_x, translate_y] with adjusted magnitude range
-    translations = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    translations = _get_translations(use_shape, default_translate_abs, default_translate_rel,
+                                     max_translate_abs, max_translate_rel)
     # [.augmentation((mag_low, mag_high), randomly_negate_mag, custom_magnitude_to_param_mapping]
     return translations + [
         a.shear_x.augmentation((0, 0.99), True),
@@ -187,20 +189,3 @@ def get_trivial_augment_wide_suite(
         a.auto_contrast,
         a.identity,
     ]
-
-
-def _get_translations(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                      max_translate_rel: Optional[float] = None) -> List[_Augmentation]:
-    max_translate_height, max_translate_width = _parse_validate_offset(
-        use_shape, max_translate_abs=max_translate_abs, max_translate_rel=max_translate_rel,
-        default_translate_abs=32, default_translate_rel=1.)
-    if use_shape:
-        return [
-            a.translate_x.augmentation((0, max_translate_width), True),
-            a.translate_y.augmentation((0, max_translate_height), True),
-        ]
-    else:
-        return [
-            a.translate_x_no_shape.augmentation((0, max_translate_width), True),
-            a.translate_y_no_shape.augmentation((0, max_translate_height), True),
-        ]

@@ -31,6 +31,10 @@ class UnusedArgException(Exception):
 
 
 def filter_extra_accepted_kwargs(fun, kwargs, skip_positional=0):
+    """
+    Returns sub-dict of `kwargs` with the keys that match the
+    names of arguments in `fun`'s signature.
+    """
     sig = inspect.signature(fun)
     # the params from signature with up to skip_positional filtered out
     # (less only if there is not enough of positional args)
@@ -45,6 +49,10 @@ def filter_extra_accepted_kwargs(fun, kwargs, skip_positional=0):
 
 
 def get_required_kwargs(fun, skip_positional=0):
+    """
+    Returns the list of names of args/kwargs without defaults from
+    `fun` signature.
+    """
     sig = inspect.signature(fun)
     # the params from signature with up to skip_positional filtered out
     # (less only if there is not enough of positional args)
@@ -58,6 +66,9 @@ def get_required_kwargs(fun, skip_positional=0):
 
 
 def get_num_positional_args(fun):
+    """
+    Returns the number of arguments that can be passed positionally to the `fun` call.
+    """
     sig = inspect.signature(fun)
     return len([
         name for name, param in sig.parameters.items() if param.kind in

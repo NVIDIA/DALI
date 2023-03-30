@@ -20,7 +20,7 @@ from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import _Augmentation, Policy, signed_bin
 from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
 from nvidia.dali.auto_aug.core._utils import \
-    parse_validate_offset as _parse_validate_offset, \
+    get_translations as _get_translations, \
     pretty_select as _pretty_select
 from nvidia.dali.data_node import DataNode as _DataNode
 
@@ -205,7 +205,9 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
         in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    translate_y, _ = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.
+    _, translate_y = _get_translations(use_shape, default_translate_abs, default_translate_rel,
+                                       max_translate_abs, max_translate_rel)
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -268,13 +270,16 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
         in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    translate_y, translate_x = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.
+    translate_x, translate_y = _get_translations(use_shape, default_translate_abs,
+                                                 default_translate_rel, max_translate_abs,
+                                                 max_translate_rel)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
     brightness = a.brightness.augmentation((0.1, 1.9), False, None)
     color = a.color.augmentation((0.1, 1.9), False, None)
     contrast = a.contrast.augmentation((0.1, 1.9), False, None)
-    sharpness = a.sharpness.augmentation((0.1, 1.9), False, None)
+    sharpness = a.sharpness.augmentation((0.1, 1.9), False, a.sharpness_kernel_shifted)
     posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
     solarize = a.solarize.augmentation((0, 256), False)
     invert = a.invert
@@ -332,7 +337,10 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
         in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    translate_y, translate_x = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.
+    translate_x, translate_y = _get_translations(use_shape, default_translate_abs,
+                                                 default_translate_rel, max_translate_abs,
+                                                 max_translate_rel)
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -381,7 +389,7 @@ def get_reduced_image_net_policy() -> Policy:
     rotate = a.rotate.augmentation((0, 30), True)
     color = a.color.augmentation((0.1, 1.9), False, None)
     contrast = a.contrast.augmentation((0.1, 1.9), False, None)
-    sharpness = a.sharpness.augmentation((0.1, 1.9), False, None)
+    sharpness = a.sharpness.augmentation((0.1, 1.9), False, a.sharpness_kernel_shifted)
     posterize = a.posterize.augmentation((0, 4), False, a.poster_mask_uint8)
     solarize = a.solarize.augmentation((0, 256), False)
     invert = a.invert
@@ -414,21 +422,6 @@ def get_reduced_image_net_policy() -> Policy:
                                              [(invert, 0.6, None), (equalize, 1.0, None)],
                                              [(color, 0.6, 4), (contrast, 1.0, 8)],
                                              [(equalize, 0.8, None), (equalize, 0.6, None)]])
-
-
-def _get_translations(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                      max_translate_rel: Optional[float] = None):
-    max_translate_height, max_translate_width = _parse_validate_offset(
-        use_shape, max_translate_abs=max_translate_abs, max_translate_rel=max_translate_rel,
-        default_translate_abs=250, default_translate_rel=1.)
-    if use_shape:
-        translate_y = a.translate_y.augmentation((0, max_translate_height), True)
-        translate_x = a.translate_x.augmentation((0, max_translate_width), True)
-        return translate_y, translate_x
-    else:
-        translate_y = a.translate_y_no_shape.augmentation((0, max_translate_height), True)
-        translate_x = a.translate_x_no_shape.augmentation((0, max_translate_width), True)
-        return translate_y, translate_x
 
 
 def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
