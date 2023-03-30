@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,11 +106,11 @@ make_wheel_record() {
 DEPS_LIST=(
     "${DEPS_PATH}/lib64/libjpeg.so.62"
     "${DEPS_PATH}/lib/libjpeg.so.62"
-    "${DEPS_PATH}/lib/libavformat.so.59"
-    "${DEPS_PATH}/lib/libavcodec.so.59"
-    "${DEPS_PATH}/lib/libavfilter.so.8"
-    "${DEPS_PATH}/lib/libavutil.so.57"
-    "${DEPS_PATH}/lib/libswscale.so.6"
+    "${DEPS_PATH}/lib/libavformat.so.60"
+    "${DEPS_PATH}/lib/libavcodec.so.60"
+    "${DEPS_PATH}/lib/libavfilter.so.9"
+    "${DEPS_PATH}/lib/libavutil.so.58"
+    "${DEPS_PATH}/lib/libswscale.so.7"
     "${DEPS_PATH}/lib/libtiff.so.6"
     "${DEPS_PATH}/lib/libsndfile.so.1"
     "${DEPS_PATH}/lib/libFLAC.so.12"
