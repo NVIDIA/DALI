@@ -60,10 +60,18 @@ def collect_sub_policy_outputs(sub_policies, num_magnitude_bins):
     return sub_policy_outputs
 
 
-@params(*tuple(enumerate(itertools.product((True, False), (True, False), (None, 0),
-                                           (True, False)))))
+run_aug_shape_supporting_cases = itertools.product(("image_net", "reduced_cifar10", "svhn"),
+                                                   (True, False), (True, False), (None, 0),
+                                                   (True, False))
+
+run_aug_no_translation_cases = itertools.product(("reduced_image_net", ), (True, False), (False, ),
+                                                 (None, 0), (False, ))
+
+
+@params(*tuple(
+    enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases))))
 def test_run_auto_aug(i, args):
-    uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    policy_name, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
@@ -82,7 +90,7 @@ def test_run_auto_aug(i, args):
                 extra["max_translate_rel"] = 0.9
             else:
                 extra["max_translate_abs"] = 400
-        image = auto_augment.auto_augment_image_net(image, **extra)
+        image = auto_augment.auto_augment(image, policy_name, **extra)
         return image
 
     p = pipeline()
