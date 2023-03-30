@@ -77,7 +77,7 @@ class Policy:
                     if aug.mag_range is None:
                         warnings.warn(
                             f"The magnitude bin `{mag}` for augmentation `{aug.name}` in policy "
-                            f"`{name}` will be ignored. Tha augmentation does not accept "
+                            f"`{name}` will be ignored. The augmentation does not accept "
                             f"magnitudes (as it has no `mag_range` specified). You can specify "
                             f"`None` instead of `{mag}` to silence this warning.")
                     if not isinstance(mag, int) or not 0 <= mag < self.num_magnitude_bins:

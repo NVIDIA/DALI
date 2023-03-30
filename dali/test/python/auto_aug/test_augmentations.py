@@ -388,6 +388,7 @@ def test_translation_helper(use_shape, offset_fraction, extent):
     height, width = 300, 700
     shape = [height, width]
     params = {}
+    assert extent in ('height', 'width', 'both', 'none'), f"{extent}"
     if extent != 'none':
         if use_shape:
             param_shape = [1., 1.]
@@ -395,12 +396,12 @@ def test_translation_helper(use_shape, offset_fraction, extent):
         else:
             param_shape = shape
             param_name = "max_translate_abs"
-        assert extent in ('height', 'width', 'both'), f"{extent}"
         if extent == 'both':
             param = [param_shape[0] * offset_fraction, param_shape[1] * offset_fraction]
         elif extent == 'height':
             param = [param_shape[0] * offset_fraction, 0]
-        elif extent == 'width':
+        else:
+            assert extent == 'width'
             param = [0, param_shape[1] * offset_fraction]
         params[param_name] = param
 

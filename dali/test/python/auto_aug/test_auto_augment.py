@@ -25,7 +25,7 @@ from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
 from test_utils import get_dali_extra_path
-from nose_utils import assert_raises
+from nose_utils import assert_raises, assert_warns
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -432,3 +432,23 @@ def test_wrong_sub_policy_format_fail():
 
     with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got `-1`"):
         Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])
+
+    @augmentation(mag_range=(0, 250))
+    def parametrized_aug(sample, magnitude):
+        return sample
+
+    @augmentation
+    def non_parametrized_aug(sample, _):
+        return sample
+
+    with assert_raises(Exception, glob="the magnitude bin is required"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0.5, None)]])
+
+    with assert_warns(glob="probability 0 in one of the sub-policies"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0, 5)]])
+
+    with assert_warns(glob="probability 0 in one of the sub-policies"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0., 5)]])
+
+    with assert_warns(glob="The augmentation does not accept magnitudes"):
+        Policy("ShouldFail", 7, [[(non_parametrized_aug, 1., 5)]])
