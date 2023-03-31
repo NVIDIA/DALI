@@ -51,8 +51,8 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
     `mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`, where
     `magnitudes=linspace(mag_range[0], mag_range[1], num_magnitude_bins)`.
 
-    Parameter
-    ---------
+    Args
+    ----
     function : callable
         A function that accepts at least two positional args: a batch
         (represented as DataNode) to be processed, and a parameter of the transformation.

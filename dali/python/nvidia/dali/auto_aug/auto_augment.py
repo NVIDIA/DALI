@@ -41,8 +41,8 @@ def auto_augment(data: _DataNode, policy_name: str = 'image_net',
     Applies one of the predefined policies from the AutoAugment
     paper (https://arxiv.org/abs/1805.09501) to the provided batch of samples.
 
-    Parameter
-    ---------
+    Args
+    ----
     data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
@@ -127,8 +127,9 @@ def auto_augment_image_net(data: _DataNode, shape: Optional[_DataNode] = None,
     Applies `image_net_policy` in AutoAugment (https://arxiv.org/abs/1805.09501)
     fashion to the provided batch of samples.
 
-    Equivalent to `auto_augment` call with `policy_name` specified to `image_net`.
-    See `auto_augment` function for details.
+    Equivalent to :meth:`~nvidia.dali.auto_aug.auto_augment.auto_augment` call with ``policy_name``
+    specified to ``'image_net'``.
+    See :meth:`~nvidia.dali.auto_aug.auto_augment.auto_augment` function for details.
     """
     return auto_augment(data, "image_net", shape, fill_value, interp_type, max_translate_abs,
                         max_translate_rel, seed)
@@ -140,8 +141,8 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
     Applies AutoAugment (https://arxiv.org/abs/1805.09501) augmentation scheme to the
     provided batch of samples.
 
-    Parameter
-    ---------
+    Args
+    ----
     policy: Policy
         Set of sequences of augmentations to be applied in AutoAugment fashion.
     data : DataNode
@@ -153,7 +154,7 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
         The signature of each augmentation is checked for any extra arguments and if
         the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
-        random augment suite accept `shape`, `fill_value` and `interp_type`.
+        AutoAugment suite accept ``shape``, ``fill_value`` and ``interp_type``.
 
     Returns
     -------
@@ -188,10 +189,11 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
     """
     Creates augmentation policy tuned for the ImageNet as described in
     AutoAugment paper (https://arxiv.org/abs/1805.09501).
-    The returned policy can be run with `apply_auto_augment`.
+    The returned policy can be run with
+    :meth:`~nvidia.dali.auto_aug.auto_augment.apply_auto_augment`.
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
@@ -253,10 +255,11 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
     """
     Creates augmentation policy tuned with the reduced CIFAR-10 as described
     in AutoAugment paper (https://arxiv.org/abs/1805.09501).
-    The returned policy can be run with `apply_auto_augment`.
+    The returned policy can be run with
+    :meth:`~nvidia.dali.auto_aug.auto_augment.apply_auto_augment`.
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
@@ -320,10 +323,11 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
     """
     Creates augmentation policy tuned with the SVHN as described
     in AutoAugment paper (https://arxiv.org/abs/1805.09501).
-    The returned policy can be run with `apply_auto_augment`.
+    The returned policy can be run with
+    :meth:`~nvidia.dali.auto_aug.auto_augment.apply_auto_augment`.
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
@@ -383,7 +387,8 @@ def get_reduced_image_net_policy() -> Policy:
     """
     Creates augmentation policy tuned with the reduced ImageNet as described in
     AutoAugment paper (https://arxiv.org/abs/1805.09501).
-    The returned policy can be run with `apply_auto_augment`.
+    The returned policy can be run with
+    :meth:`~nvidia.dali.auto_aug.auto_augment.apply_auto_augment`.
     """
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)

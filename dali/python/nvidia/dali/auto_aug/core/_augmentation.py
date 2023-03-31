@@ -116,8 +116,8 @@ def signed_bin(magnitude_bin: Union[int, _DataNode], random_sign: Optional[_Data
     magnitude_bins and sign in advance, before the split, so that the sign handling is done
     once for the whole batch rather than multiple times for each op operating on the split batch.
 
-    Parameter
-    ---------
+    Args
+    ----
     magnitude_bin: int or DataNode
         The magnitude bin from range `[0, num_magnitude_bins - 1]`. Can be plain int or
         a batch (_DataNode) of ints.
@@ -166,8 +166,8 @@ class Augmentation:
         `self.op(data, param, **kwargs)` where
         `param = mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`.
 
-        Parameter
-        ---------
+        Args
+        ----
         data : DataNode
             A batch of samples to be transformed.
         magnitude_bin: int, DataNode, or _SignedMagnitudeBin

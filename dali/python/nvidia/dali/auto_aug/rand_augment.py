@@ -38,8 +38,8 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
     Applies RandAugment (https://arxiv.org/abs/1909.13719) augmentation scheme to the
     provided batch of samples.
 
-    Parameter
-    ---------
+    Args
+    ----
     data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
@@ -47,13 +47,13 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
         The number of randomly sampled operations to be applied to a sample.
     m: int
         A magnitude (strength) of each operation to be applied, it must be an integer
-        within `[0, num_magnitude_bins - 1]`.
+        within ``[0, num_magnitude_bins - 1]``.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     shape: DataNode, optional
         A batch of shapes of the samples. If specified, the magnitude of `translation`
-        operations depends on the image shape and spans from 0 to `max_translate_rel * shape`.
-        Otherwise, the magnitude range is `[0, max_translate_abs]` for any sample.
+        operations depends on the image shape and spans from 0 to ``max_translate_rel * shape``.
+        Otherwise, the magnitude range is ``[0, max_translate_abs]`` for any sample.
     fill_value: int, optional
         A value to be used as a padding for images transformed with warp_affine ops
         (translation, shear and rotate). If `None` is specified, the images are padded
@@ -62,12 +62,12 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
         Supported values are `types.INTERP_LINEAR` (default) and `types.INTERP_NN`.
     max_translate_abs: int or (int, int), optional
-        Only valid when `shapes` is not provided. Specifies the maximal shift (in pixels)
+        Only valid when ``shapes`` is not provided. Specifies the maximal shift (in pixels)
         in the translation augmentation. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 100, which means the maximal magnitude
         shifts the image by 100 pixels.
     max_translate_rel: float or (float, float), optional
-        Only valid when `shapes` argument is provided. Specifies the maximal shift as a
+        Only valid when ``shapes`` argument is provided. Specifies the maximal shift as a
         fraction of image shape in the translation augmentations.
         If a tuple is specified, the first component limits the height, the second the width.
         Defaults to around `0.45` (100/224).
@@ -75,12 +75,18 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
         Seed to be used to randomly sample operations (and to negate magnitudes).
     monotonic_mag: bool, optional
         There are two flavours of RandAugment available in different frameworks. For the default
-        `monotonic_mag=True` the strength of operations that accept magnitude bins increases with
+        ``monotonic_mag=True`` the strength of operations that accept magnitude bins increases with
         the increasing bins. If set to False, the magnitude ranges for some color operations differ.
-        There, the `posterize` and `solarize` strength decreases with increasing magnitude bins and
-        enhance operations (`brightness`, `contrast`, `color`, `sharpness`) use (0.1, 1.9) range,
+        There, the :meth:`~nvidia.dali.auto_aug.augmentations.posterize` and
+        :meth:`~nvidia.dali.auto_aug.augmentations.solarize` strength decreases with increasing
+        magnitude bins and enhance operations (
+        :meth:`~nvidia.dali.auto_aug.augmentations.brightness`,
+        :meth:`~nvidia.dali.auto_aug.augmentations.contrast`,
+        :meth:`~nvidia.dali.auto_aug.augmentations.color`,
+        :meth:`~nvidia.dali.auto_aug.augmentations.sharpness`) use (0.1, 1.9) range,
         which means that the strength decreases the closer the magnitudes are to the center
-        of the range. See `get_rand_augment_non_monotonic_suite`.
+        of the range. See
+        :meth:`~nvidia.dali.auto_aug.rand_augment.get_rand_augment_non_monotonic_suite`.
     excluded: List[str], optional
         A list of names of the operations to be excluded from the default suite of augmentations.
         If, instead of just limiting the set of operations, you need to include some custom
@@ -118,12 +124,12 @@ def apply_rand_augment(augmentations: List[_Augmentation], data: _DataNode, n: i
                        num_magnitude_bins: int = 31, seed: Optional[int] = None,
                        **kwargs) -> _DataNode:
     """
-    Applies the list of `augmentations` in RandAugment (https://arxiv.org/abs/1909.13719) fashion.
-    Each sample is transformed with `n` operations in a sequence randomly selected from the
-    `augmentations` list. Each operation uses `m` as the magnitude bin.
+    Applies the list of ``augmentations`` in RandAugment (https://arxiv.org/abs/1909.13719) fashion.
+    Each sample is transformed with ``n`` operations in a sequence randomly selected from the
+    ``augmentations`` list. Each operation uses ``m`` as the magnitude bin.
 
-    Parameter
-    ---------
+    Args
+    ----
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in RandAugment fashion.
     data : DataNode
@@ -132,7 +138,7 @@ def apply_rand_augment(augmentations: List[_Augmentation], data: _DataNode, n: i
         The number of randomly sampled operations to be applied to a sample.
     m: int
         A magnitude bin (strength) of each operation to be applied, it must be an integer
-        within `[0, num_magnitude_bins - 1]`.
+        within ``[0, num_magnitude_bins - 1]``.
     num_magnitude_bins: int
         The number of bins to divide the magnitude ranges into.
     seed: int
@@ -142,7 +148,7 @@ def apply_rand_augment(augmentations: List[_Augmentation], data: _DataNode, n: i
         The signature of each augmentation is checked for any extra arguments and if
         the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
-        random augment suite accept `shapes`, `fill_value` and `interp_type`.
+        RandAugment suite accept ``shapes``, ``fill_value`` and ``interp_type``.
     Returns
     -------
     DataNode
@@ -187,8 +193,8 @@ def get_rand_augment_suite(use_shape: bool = False, max_translate_abs: Optional[
     """
     Creates a list of RandAugment augmentations.
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
@@ -228,7 +234,8 @@ def get_rand_augment_non_monotonic_suite(
         use_shape: bool = False, max_translate_abs: Optional[int] = None,
         max_translate_rel: Optional[float] = None) -> List[_Augmentation]:
     """
-    Similarly to `get_rand_augment_suite` creates a list of RandAugment augmentations.
+    Similarly to :meth:`~nvidia.dali.auto_aug.rand_augment.get_rand_augment_suite` creates a list
+    of RandAugment augmentations.
 
     This variant uses brightness, contrast, color, sharpness, posterize, and solarize
     with magnitude ranges as used by the AutoAugment. However, those ranges do not meet

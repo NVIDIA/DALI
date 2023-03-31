@@ -1,3 +1,5 @@
+.. _efficientnet_autoaugment:
+
 EfficientNet for PyTorch with DALI and AutoAugment
 ==================================================
 

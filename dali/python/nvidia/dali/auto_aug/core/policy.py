@@ -26,8 +26,8 @@ class Policy:
         Describes the augmentation policy as introduced in AutoAugment
         (https://arxiv.org/abs/1805.09501).
 
-        Parameter
-        ---------
+        Args
+        ----
         name : str
             A name of the policy, for presentation purposes.
         num_magnitude_bins : int
