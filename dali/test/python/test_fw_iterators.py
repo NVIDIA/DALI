@@ -14,6 +14,7 @@
 
 import math
 from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.backend_impl import TensorCPU
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 import numpy as np
@@ -775,6 +776,42 @@ def test_pytorch_iterator_feed_ndarray():
         np.testing.assert_equal(arr.cpu().numpy(), outs[0].as_cpu().as_array())
 
 
+def check_test_pytorch_iterator_feed_ndarray_types(data_type):
+    from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
+    import torch
+    to_torch_type = {
+        np.float32: torch.float32,
+        np.float64: torch.float64,
+        np.float16: torch.float16,
+        np.uint8:   torch.uint8,
+        np.int8:    torch.int8,
+        np.bool_:   torch.bool,
+        np.int16:   torch.int16,
+        np.int32:   torch.int32,
+        np.int64:   torch.int64
+    }
+
+    shape = [3, 9]
+    if np.issubdtype(data_type, np.integer):
+        arr = np.random.randint(np.iinfo(data_type).min, high=np.iinfo(data_type).max,
+                                size=shape, dtype=data_type)
+    elif data_type == np.bool_:
+        arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
+    else:
+        arr = np.random.randn(*shape).astype(data_type)
+    tensor = TensorCPU(arr, "NHWC")
+    pyt = torch.empty(shape, dtype=to_torch_type[data_type])
+    feed_ndarray(tensor, pyt)
+    assert np.all(pyt.numpy() == arr)
+
+
+def test_pytorch_iterator_feed_ndarray_types():
+    types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int16,
+             np.int32, np.int64]
+    for data_type in types:
+        yield check_test_pytorch_iterator_feed_ndarray_types, data_type
+
+
 def test_mxnet_iterator_feed_ndarray():
     from nvidia.dali.plugin.mxnet import feed_ndarray as feed_ndarray
     import mxnet as mx
@@ -803,6 +840,32 @@ def test_mxnet_iterator_feed_ndarray():
             feed_ndarray(out_data, arr2, cuda_stream=0)  # Using default stream
             np.testing.assert_equal(
                 arr2.asnumpy(), outs[0].as_cpu().as_array())
+
+
+def check_test_mxnet_iterator_feed_ndarray_types(data_type):
+    from nvidia.dali.plugin.mxnet import feed_ndarray as feed_ndarray
+    import mxnet as mx
+
+    shape = [3, 9]
+    if np.issubdtype(data_type, np.integer):
+        arr = np.random.randint(np.iinfo(data_type).min, high=np.iinfo(data_type).max,
+                                size=shape, dtype=data_type)
+    elif data_type == np.bool_:
+        arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
+    else:
+        arr = np.random.randn(*shape).astype(data_type)
+    tensor = TensorCPU(arr, "NHWC")
+    mnt = mx.nd.empty(shape, dtype=data_type)
+    feed_ndarray(tensor, mnt)
+    assert np.all(mnt.asnumpy() == arr)
+
+
+def test_mxnet_iterator_feed_ndarray_types():
+    # MXNet doesn't support int16
+    types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_,
+             np.int32, np.int64]
+    for data_type in types:
+        yield check_test_mxnet_iterator_feed_ndarray_types, data_type
 
 
 def test_paddle_iterator_feed_ndarray():
@@ -843,6 +906,44 @@ def test_paddle_iterator_feed_ndarray():
         feed_ndarray(out_data, ptr2, cuda_stream=0)  # Using default stream
         np.testing.assert_equal(np.array(lod_tensor2),
                                 outs[0].as_cpu().as_array())
+
+
+def check_test_paddle_iterator_feed_ndarray_types(data_type):
+    from nvidia.dali.plugin.paddle import feed_ndarray as feed_ndarray
+    from paddle import fluid
+    dtype_map = {
+        np.bool_:   fluid.core.VarDesc.VarType.BOOL,
+        np.float32: fluid.core.VarDesc.VarType.FP32,
+        np.float64: fluid.core.VarDesc.VarType.FP64,
+        np.float16: fluid.core.VarDesc.VarType.FP16,
+        np.uint8:   fluid.core.VarDesc.VarType.UINT8,
+        np.int8:    fluid.core.VarDesc.VarType.INT8,
+        np.int16:   fluid.core.VarDesc.VarType.INT16,
+        np.int32:   fluid.core.VarDesc.VarType.INT32,
+        np.int64:   fluid.core.VarDesc.VarType.INT64
+    }
+
+    shape = [3, 9]
+    if np.issubdtype(data_type, np.integer):
+        arr = np.random.randint(np.iinfo(data_type).min, high=np.iinfo(data_type).max,
+                                size=shape, dtype=data_type)
+    elif data_type == np.bool_:
+        arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
+    else:
+        arr = np.random.randn(*shape).astype(data_type)
+    tensor = TensorCPU(arr, "NHWC")
+    pddt = fluid.core.LoDTensor()
+    pddt._set_dims(shape)
+    ptr = pddt._mutable_data(fluid.CPUPlace(), dtype_map[data_type])
+    feed_ndarray(tensor, ptr)
+    assert np.all(np.array(pddt) == arr)
+
+
+def test_paddle_iterator_feed_ndarray_types():
+    types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int16,
+             np.int32, np.int64]
+    for data_type in types:
+        yield check_test_paddle_iterator_feed_ndarray_types, data_type
 
 
 def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard,
