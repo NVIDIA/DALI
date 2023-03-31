@@ -1479,7 +1479,7 @@ def _regroup_args(func, pipeline_def_kwargs, fn_call_kwargs):
 
 
 def _preprocess_pipe_func(func, conditionals_on):
-    """Transform the pipeline defintion function if the conditionals are enabled
+    """Transform the pipeline definition function if the conditionals are enabled
     """
     if conditionals_on:
         return _conditionals._autograph.to_graph(func)

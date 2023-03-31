@@ -144,7 +144,7 @@ Conditional Execution
 
 DALI allows to execute operators conditionally for selected samples within the batch using
 ``if`` statements. To enable this feature use the
-:py:func:`@pipeline_def <nvidia.dali.pipeline.pipeline_def>` decorator to define the pipeline and
+:meth:`pipeline_def` decorator to define the pipeline and
 set ``enable_conditionals`` to ``True``.
 
 Every ``if`` statement that have a :meth:`~nvidia.dali.pipeline.DataNode` as a condition

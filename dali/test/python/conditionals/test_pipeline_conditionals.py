@@ -910,7 +910,6 @@ def test_predicate_any_type(input_type):
     check_batch(batch, target)
 
 
-
 def test_data_node_if_error():
     batch_size = 10
     kwargs = {
@@ -936,3 +935,26 @@ def test_data_node_if_error():
         pipe = pipeline()
         pipe.build()
         pipe.run()
+
+
+def test_sanity_enable_conditionals():
+    batch_size = 10
+    kwargs = {
+        "batch_size": batch_size,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    # Use no parenthesis version:
+    @pipeline_def
+    def pipeline(a, b):
+        predicate = fn.random.coin_flip()
+        if predicate:
+            output = types.Constant(np.array(a), device="cpu")
+        else:
+            output = types.Constant(np.array(b), device="cpu")
+        return output
+
+    pipe = pipeline(10, enable_conditionals=True, b=4, **kwargs)
+    pipe.build()
+    pipe.run()
