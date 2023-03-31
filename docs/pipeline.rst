@@ -144,16 +144,16 @@ Conditional Execution
 
 DALI allows to execute operators conditionally for selected samples within the batch using
 ``if`` statements. To enable this feature use the
-:meth:`pipeline_def` decorator to define the pipeline and
+:py:func:`@pipeline_def <nvidia.dali.pipeline_def>` decorator to define the pipeline and
 set ``enable_conditionals`` to ``True``.
 
 Every ``if`` statement that have a :meth:`~nvidia.dali.pipeline.DataNode` as a condition
 will be recognized as DALI conditional statement.
 
-For example, this pipeline rotates each image with probabilty of 25% by a random angle between
+For example, this pipeline rotates each image with probability of 25% by a random angle between
 10 and 30 degrees::
 
-    @experimental.pipeline_def(enable_conditionals=True)
+    @pipeline_def(enable_conditionals=True)
     def random_rotate():
         jpegs, _ = fn.readers.file(device="cpu", file_root=images_dir)
         images = fn.decoders.image(jpegs, device="mixed")
@@ -170,10 +170,10 @@ The condition must be represented by scalar samples - that is have a 0-d shape. 
 boolean or any numerical type supported by DALI - in the latter case, non-zero values are considered
 True and zero values considered False, in accordance with typical Python semantics.
 
-Additionaly, logical expressions ``and``, ``or``, and ``not`` can be used on
+Additionally, logical expressions ``and``, ``or``, and ``not`` can be used on
 :meth:`~nvidia.dali.pipeline.DataNode`. The first two are restricted to boolean inputs, ``not``
-allows the same input types as ``if`` statement condition. Logical expression follow the shortcuting
-rules when they are evaluated.
+allows the same input types as ``if`` statement condition. Logical expression follow the
+shortcutting rules when they are evaluated.
 
 You can read more in the `conditional tutorial <examples/general/conditionals.html>`_.
 
