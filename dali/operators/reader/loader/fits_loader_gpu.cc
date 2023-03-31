@@ -77,8 +77,8 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
                                   static_cast<uint8_t*>(buffer.raw_mutable_data()), &anynul,
                                   &status));
 
-    cudaMemcpy(target.data[output_idx].raw_mutable_data(), buffer.raw_mutable_data(), nelem,
-               cudaMemcpyHostToDevice);
+    cudaMemcpy(target.data[output_idx].raw_mutable_data(), buffer.raw_mutable_data(),
+               buffer.nbytes(), cudaMemcpyHostToDevice);
 
     // set metadata
     target.data[output_idx].SetMeta(meta);
