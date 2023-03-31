@@ -67,13 +67,18 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
       target.data[output_idx].Reset();
     }
     target.data[output_idx].Resize(header.shape, header.type());
+    Tensor<CPUBackend> buffer;
+    buffer.Resize(header.shape, header.type());
 
     // copy the image
 
 
     fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
-                                  static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()),
-                                  &anynul, &status));
+                                  static_cast<uint8_t*>(buffer.raw_mutable_data()), &anynul,
+                                  &status));
+
+    cudaMemcpy(target.data[output_idx].raw_mutable_data(), buffer.raw_mutable_data(), nelem,
+               cudaMemcpyHostToDevice);
 
     // set metadata
     target.data[output_idx].SetMeta(meta);
