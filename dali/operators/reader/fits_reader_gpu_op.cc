@@ -27,8 +27,8 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
 
-      cudaMemcpy(output.raw_mutable_tensor(sample_id), sample.data[output_idx].raw_data(),
-                 sample.data[output_idx].nbytes(), cudaMemcpyDeviceToDevice);
+      cudaMemcpyAsync(output.raw_mutable_tensor(sample_id), sample.data[output_idx].raw_data(),
+                 sample.data[output_idx].nbytes(), cudaMemcpyHostToDevice);
     }
   }
 }
