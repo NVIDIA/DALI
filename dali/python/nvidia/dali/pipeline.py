@@ -1455,7 +1455,85 @@ def _discriminate_args(func, **func_kwargs):
     return ctor_args, fn_args
 
 
-def pipeline_def(fn=None, **pipeline_kwargs):
+def _regroup_args(func, pipeline_def_kwargs, fn_call_kwargs):
+    """Regroup arguments that are directed into Pipeline object construction (Pipeline kwargs)
+    and those that are passed into pipeline definition function (Function kwargs).
+
+    Parameters
+    ----------
+    func : Callable
+        The pipeline definition function that is decorated.
+    pipeline_def_kwargs : Dict
+        Kwargs passed to the @pipeline_def
+    fn_call_kwargs : Dict
+        Kwargs passed when invoking the decorated function
+
+    Returns
+    -------
+    (Dict, Dict)
+        Pipeline kwargs, Function kwargs
+    """
+    ctor_args, fn_kwargs = _discriminate_args(func, **fn_call_kwargs)
+    pipeline_kwargs = {**pipeline_def_kwargs, **ctor_args}  # Merge and overwrite dict
+    return pipeline_kwargs, fn_kwargs
+
+
+def _preprocess_pipe_func(func, conditionals_on):
+    """Transform the pipeline definition function if the conditionals are enabled
+    """
+    if conditionals_on:
+        return _conditionals._autograph.to_graph(func)
+    else:
+        return func
+
+
+def _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs):
+    """Based on the conditional mode status, preprocess the pipeline object before the graph
+    is created.
+    """
+    if conditionals_on:
+        # We push and pop manually to be compatible with _PipelineDebug
+        try:
+            Pipeline.push_current(pipe)
+            pipe._conditionals_enabled = True
+            pipe._condition_stack = _conditionals._ConditionStack()
+            # Add all parameters to the pipeline as "know" nodes in the top scope.
+            for arg in args:
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+            for _, arg in fn_kwargs.items():
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+        finally:
+            Pipeline.pop_current()
+
+
+def _generate_graph(pipe, func, fn_args, fn_kwargs):
+    """Build the graph provided by pipeline definition in `func` within the `pipe`.
+
+    Parameters
+    ----------
+    pipe : Pipeline
+        Target pipeline object
+    func : Callable
+        The pipeline definition that is decorated
+    fn_args : List
+        Positional arguments to `func`
+    fn_kwargs : Dict
+        Kwargs to `func`
+    """
+    with pipe:
+        pipe_outputs = func(*fn_args, **fn_kwargs)
+        if isinstance(pipe_outputs, tuple):
+            po = pipe_outputs
+        elif pipe_outputs is None:
+            po = ()
+        else:
+            po = (pipe_outputs, )
+        pipe.set_outputs(*po)
+
+
+def pipeline_def(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
@@ -1528,23 +1606,27 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         pipe = my_pipe(batch_size=42, num_threads=3)
         ...
+
+    Keyword args
+    ------------
+
+    enable_conditionals : bool, optional
+        Enable support for conditional execution of DALI operators using ``if`` statements
+        in the pipeline definition, by default False.
     """
 
     def actual_decorator(func):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
-            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
-            with pipe:
-                pipe_outputs = func(*args, **fn_kwargs)
-                if isinstance(pipe_outputs, tuple):
-                    po = pipe_outputs
-                elif pipe_outputs is None:
-                    po = ()
-                else:
-                    po = (pipe_outputs, )
-                pipe.set_outputs(*po)
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
+
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            pipe = Pipeline(**pipeline_args)
+            _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
+
+            _generate_graph(pipe, pipe_func, args, fn_kwargs)
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
@@ -1608,7 +1690,7 @@ def _collect_ops(output_nodes):
     return ops
 
 
-def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
     """Variant of :meth:`@pipeline_def <nvidia.dali.pipeline_def>` decorator that enables additional
     experimental features. It has the same API as its non-experimental variant with the addition of
     the keyword arguments listed below.
@@ -1623,11 +1705,6 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
             This mode is intended only for debugging purposes - the pipeline performance will be
             significantly worse than the non-debug mode.
 
-    enable_conditionals : bool, optional
-        Enable support for conditional execution of DALI operators using ``if`` statements
-        in pipeline definition, by default False.
-
-
     .. note::
 
         The features enabled by this decorator are experimental. The API may change and the
@@ -1635,20 +1712,16 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
     """
     from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug = pipeline_kwargs.pop('debug', False)
-    pipeline_conditionals = pipeline_kwargs.pop('enable_conditionals', False)
 
     def actual_decorator(func):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             debug_mode_on = kwargs.get('debug', pipeline_debug)
-            conditionals_on = kwargs.get('enable_conditionals', pipeline_conditionals)
-            if conditionals_on:
-                pipe_func = _conditionals._autograph.to_graph(func)
-            else:
-                pipe_func = func
-            ctor_args, fn_kwargs = _discriminate_args(pipe_func, **kwargs)
-            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
+
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             if debug_mode_on:
                 # TODO(klecki): cross-validate conditionals with eager mode
                 if conditionals_on:
@@ -1657,26 +1730,12 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
                                       **pipeline_args)
             else:
                 pipe = Pipeline(**pipeline_args)
-                if conditionals_on:
-                    pipe._conditionals_enabled = True
-                    pipe._condition_stack = _conditionals._ConditionStack()
-                with pipe:
-                    if conditionals_on:
-                        # Add all parameters to the pipeline as "know" nodes in the top scope.
-                        for arg in args:
-                            if isinstance(arg, DataNode):
-                                _conditionals.register_data_nodes(arg)
-                        for arg in fn_kwargs:
-                            if isinstance(arg, DataNode):
-                                _conditionals.register_data_nodes(arg)
-                    pipe_outputs = pipe_func(*args, **fn_kwargs)
-                    if isinstance(pipe_outputs, tuple):
-                        po = pipe_outputs
-                    elif pipe_outputs is None:
-                        po = ()
-                    else:
-                        po = (pipe_outputs, )
-                    pipe.set_outputs(*po)
+
+            _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
+
+            if not debug_mode_on:
+                _generate_graph(pipe, pipe_func, args, fn_kwargs)
+
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`

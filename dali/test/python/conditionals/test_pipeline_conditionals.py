@@ -143,7 +143,7 @@ def generic_execute(function, input_gen_list, optional_params=None):
         fn.external_source(name=f"input_{i}", **params) for i, params in enumerate(optional_params)
     ]
 
-    pipeline_definition = experimental.pipeline_def(enable_conditionals=True)(function)
+    pipeline_definition = pipeline_def(enable_conditionals=True)(function)
 
     def gen_batch(generator, bs, iter):
         return [generator(SampleInfo(bs * iter + i, i, iter, 0)) for i in range(bs)]
@@ -908,3 +908,53 @@ def test_predicate_any_type(input_type):
 
     target = [42 if i < batch_size / 2 else 0 for i in range(batch_size)]
     check_batch(batch, target)
+
+
+def test_data_node_if_error():
+    batch_size = 10
+    kwargs = {
+        "enable_conditionals": False,
+        "batch_size": batch_size,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    @pipeline_def(**kwargs)
+    def pipeline():
+        predicate = fn.random.coin_flip()
+        if predicate:
+            output = types.Constant(np.array(42), device="cpu")
+        else:
+            output = types.Constant(np.array(0), device="cpu")
+        return output
+
+    with assert_raises(
+            TypeError, glob="\"DataNode\" was used in conditional context*"
+            " To use conditional execution via `if` statements you need to specify"
+            " `enable_conditionals=True` in `@nvidia.dali.pipeline_def` decorator*"):
+        pipe = pipeline()
+        pipe.build()
+        pipe.run()
+
+
+def test_sanity_enable_conditionals():
+    batch_size = 10
+    kwargs = {
+        "batch_size": batch_size,
+        "num_threads": 4,
+        "device_id": 0,
+    }
+
+    # Use no parenthesis version:
+    @pipeline_def
+    def pipeline(a, b):
+        predicate = fn.random.coin_flip()
+        if predicate:
+            output = types.Constant(np.array(a), device="cpu")
+        else:
+            output = types.Constant(np.array(b), device="cpu")
+        return output
+
+    pipe = pipeline(10, enable_conditionals=True, b=4, **kwargs)
+    pipe.build()
+    pipe.run()

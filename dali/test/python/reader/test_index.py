@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
+import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import os.path
 import tempfile
@@ -215,3 +216,41 @@ def test_tfrecord_reader_scalars():
         data = np.array(tensor)
         assert data.dtype == np.int64
         assert data.shape == (), f"Unexpected shape. Expected scalar, got {data.shape}"
+
+
+def test_conditionals():
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    @pipeline_def()
+    def get_dali_pipeline(tfrec_filenames, tfrec_idx_filenames, shard_id, num_gpus):
+
+        inputs = fn.readers.tfrecord(
+            path=tfrec_filenames, index_path=tfrec_idx_filenames, random_shuffle=True,
+            shard_id=shard_id, num_shards=num_gpus, initial_fill=10000, seed=42, features={
+                'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
+                'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                'image/class/text': tfrec.FixedLenFeature([], tfrec.string, ''),
+                'image/object/bbox/xmin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/ymin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/xmax': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/ymax': tfrec.VarLenFeature(tfrec.float32, 0.0)
+            })
+
+        encoded = inputs["image/encoded"]
+        images = fn.decoders.image(encoded, device="mixed", output_type=types.RGB)
+        images = fn.resize(images, device="gpu", resize_shorter=256)
+
+        labels = inputs["image/class/label"].gpu()
+
+        labels -= 1  # Change to 0-based (don't use background class)
+        return images, labels
+
+    pipe_base = get_dali_pipeline(tfrecord, tfrecord_idx, shard_id=0, num_gpus=1, device_id=0,
+                                  num_threads=4, batch_size=32)
+
+    pipe_cond = get_dali_pipeline(tfrecord, tfrecord_idx, shard_id=0, num_gpus=1, device_id=0,
+                                  num_threads=4, batch_size=32, enable_conditionals=True)
+    for pipe in [pipe_base, pipe_cond]:
+        pipe.build()
+    compare_pipelines(pipe_base, pipe_cond, 32, 5)

@@ -20,7 +20,7 @@ from scipy.stats import chisquare
 from nose2.tools import params
 
 from nvidia.dali import fn, types
-from nvidia.dali.pipeline import experimental
+from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import rand_augment
 from nvidia.dali.auto_aug.core import augmentation
 
@@ -42,8 +42,8 @@ def test_run_rand_aug(i, args):
     n = ns[i % len(ns)]
     m = ms[i % len(ms)]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -94,8 +94,7 @@ def test_translation(use_shape, offset_fraction, extent):
     elif extent == 'width':
         augments = [translate_x]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0,
-                               seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0, seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -170,8 +169,8 @@ def test_ops_selection_and_mags(case_idx, args):
             expected_counts[tuple(el for out in outs for el in out)] = prob
     expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=42)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=42)
     def pipeline():
         sample = types.Constant([], dtype=types.INT32)
         if dev == "gpu":
@@ -201,8 +200,7 @@ def test_ops_selection_and_mags(case_idx, args):
 
 def test_wrong_params_fail():
 
-    @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                               enable_conditionals=True)
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
     def pipeline(n, m, num_magnitude_bins):
         sample = types.Constant(np.array([[[]]], dtype=np.uint8))
         return rand_augment.rand_augment(sample, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
@@ -219,8 +217,7 @@ def test_wrong_params_fail():
 
     with assert_raises(Exception, glob="The `augmentations` list cannot be empty"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def no_aug_pipeline():
             sample = types.Constant(np.array([[[]]], dtype=np.uint8))
             return rand_augment.apply_rand_augment([], sample, 1, 20)
@@ -229,8 +226,7 @@ def test_wrong_params_fail():
 
     with assert_raises(Exception, glob="The augmentation `translate_x` requires `shape` argument"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def missing_shape():
             sample = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
@@ -240,8 +236,7 @@ def test_wrong_params_fail():
 
     with assert_raises(Exception, glob="The kwarg `shhape` is not used by any of the"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def unused_kwarg():
             sample = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)

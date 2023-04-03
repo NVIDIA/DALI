@@ -879,6 +879,10 @@ class _TFRecordReaderImpl():
             feature_names.append(feature_name)
             features.append(feature)
 
+        # We know this reader doesn't have any inputs
+        if _conditionals.conditionals_enabled():
+            _conditionals.register_data_nodes(list(outputs.values()))
+
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
@@ -983,6 +987,9 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
             op_instance.append_output(t)
             pipeline.add_sink(t)
             outputs.append(t)
+
+        if _conditionals.conditionals_enabled():
+            _conditionals.register_data_nodes(outputs, inputs, kwargs)
         return outputs[0] if len(outputs) == 1 else outputs
 
 

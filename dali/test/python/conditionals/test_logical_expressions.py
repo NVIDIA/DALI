@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import pipeline_def, experimental
+from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
@@ -33,7 +33,7 @@ def test_not():
         boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
         return boolean_input == 0
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def not_pipe():
         boolean_input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
         return not boolean_input
@@ -58,7 +58,7 @@ def test_and():
         return (boolean_input_0 & boolean_input_1, boolean_input_0 & const_F,
                 const_T & boolean_input_1)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def and_pipe():
         boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
@@ -87,7 +87,7 @@ def test_or():
         return (boolean_input_0 | boolean_input_1, boolean_input_0 | const_F,
                 const_T | boolean_input_1)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def or_pipe():
         boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
@@ -115,7 +115,7 @@ def test_complex_expression():
         boolean_input_3 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=15)
         return (boolean_input_0 | (boolean_input_1 & boolean_input_2)) | (boolean_input_3 == 0)
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
         boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
@@ -134,7 +134,7 @@ def test_lazy_eval():
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def if_pipe():
         boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
@@ -144,7 +144,7 @@ def test_lazy_eval():
             val = boolean_input_0
         return val
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
         boolean_input_0 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=6)
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
@@ -162,11 +162,11 @@ def test_lazy_eval_with_oob():
     iters = 5
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0, "seed": 42}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def base_pipe():
         return types.Constant(np.bool_(True))
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs)
+    @pipeline_def(enable_conditionals=True, **kwargs)
     def expr_pipe():
         boolean_tensor_input = types.Constant(np.bool_([True, True, False]), device="cpu")
         index_input_1 = types.Constant(np.int32(1), device="cpu")
@@ -217,7 +217,7 @@ def test_error_input(expression):
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(**kwargs)
+    @pipeline_def(**kwargs)
     def gpu_input():
         input = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         return expression(input.gpu())
@@ -234,7 +234,7 @@ def test_error_input(expression):
         pipe.build()
         pipe.run()
 
-    @experimental.pipeline_def(**kwargs)
+    @pipeline_def(**kwargs)
     def non_scalar_input():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         stacked = fn.stack(pred, pred)
@@ -266,7 +266,7 @@ def test_non_boolean_input_error(expression):
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(**kwargs)
+    @pipeline_def(**kwargs)
     def non_bool_input():
         input = fn.random.coin_flip(dtype=types.DALIDataType.INT32)
         return expression(input)
@@ -302,7 +302,7 @@ def test_not_any_type(input_type):
         else:
             return np.array(0, dtype=input_type)
 
-    @experimental.pipeline_def(**kwargs)
+    @pipeline_def(**kwargs)
     def non_bool_input():
         input = fn.external_source(source=get_truthy_falsy, batch=False)
         return not input
