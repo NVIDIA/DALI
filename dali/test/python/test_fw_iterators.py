@@ -776,7 +776,7 @@ def test_pytorch_iterator_feed_ndarray():
         np.testing.assert_equal(arr.cpu().numpy(), outs[0].as_cpu().as_array())
 
 
-def check_test_pytorch_iterator_feed_ndarray_types(data_type):
+def check_pytorch_iterator_feed_ndarray_types(data_type):
     from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
     import torch
     to_torch_type = {
@@ -809,7 +809,7 @@ def test_pytorch_iterator_feed_ndarray_types():
     types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int16,
              np.int32, np.int64]
     for data_type in types:
-        yield check_test_pytorch_iterator_feed_ndarray_types, data_type
+        yield check_pytorch_iterator_feed_ndarray_types, data_type
 
 
 def test_mxnet_iterator_feed_ndarray():
@@ -842,7 +842,7 @@ def test_mxnet_iterator_feed_ndarray():
                 arr2.asnumpy(), outs[0].as_cpu().as_array())
 
 
-def check_test_mxnet_iterator_feed_ndarray_types(data_type):
+def check_mxnet_iterator_feed_ndarray_types(data_type):
     from nvidia.dali.plugin.mxnet import feed_ndarray as feed_ndarray
     import mxnet as mx
 
@@ -865,7 +865,7 @@ def test_mxnet_iterator_feed_ndarray_types():
     types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_,
              np.int32, np.int64]
     for data_type in types:
-        yield check_test_mxnet_iterator_feed_ndarray_types, data_type
+        yield check_mxnet_iterator_feed_ndarray_types, data_type
 
 
 def test_paddle_iterator_feed_ndarray():
@@ -908,7 +908,7 @@ def test_paddle_iterator_feed_ndarray():
                                 outs[0].as_cpu().as_array())
 
 
-def check_test_paddle_iterator_feed_ndarray_types(data_type):
+def check_paddle_iterator_feed_ndarray_types(data_type):
     from nvidia.dali.plugin.paddle import feed_ndarray as feed_ndarray
     from paddle import fluid
     dtype_map = {
@@ -943,7 +943,7 @@ def test_paddle_iterator_feed_ndarray_types():
     types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int16,
              np.int32, np.int64]
     for data_type in types:
-        yield check_test_paddle_iterator_feed_ndarray_types, data_type
+        yield check_paddle_iterator_feed_ndarray_types, data_type
 
 
 def check_pytorch_iterator_pass_reader_name(shards_num, pipes_number, batch_size, stick_to_shard,
