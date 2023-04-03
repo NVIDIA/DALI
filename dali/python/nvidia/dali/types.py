@@ -518,9 +518,8 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
     if device is None:
         device = "cpu"
 
-    op = fn.constant(device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype,
-                     layout=layout, **kwargs)
-    return op
+    return fn.constant(device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype,
+                       layout=layout, **kwargs)
 
 
 def _is_scalar_value(value):
