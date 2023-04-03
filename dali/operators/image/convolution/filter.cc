@@ -49,8 +49,8 @@ int8, int16, uint8, uint16, float16, float32.
 
 Please note that the intermediate type used for the computation is always float32.
 
-..note::
-  The CPU variant does not support volumetric (3D) data, nor inputs of type int8 and float16.
+.. note::
+  The CPU variant does not support volumetric (3D) data, nor inputs of types: int8 and float16.
 )code")
     .InputDox(1, "filter", "TensorList", R"code(Batch of filters.
 
