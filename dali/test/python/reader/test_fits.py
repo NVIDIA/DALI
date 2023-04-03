@@ -25,14 +25,18 @@ from numpy.testing import assert_array_equal
 rng = np.random.RandomState(12345)
 
 
-def create_fits_file(filename, shape, type=np.int32, compressed=False):
-    imageData = rng.randint(100, size=shape).astype(type)
-    imageHeader = fits.Header()
-    hdu = fits.ImageHDU(imageData, imageHeader)
-    if compressed:
-        hdu = fits.CompImageHDU(imageData, imageHeader)
 
-    hdu.writeto(filename)
+def create_fits_file(filename, shape, type=np.int32, compressed=False, hdus=1):
+    hdu_list = [fits.PrimaryHDU(header=None)]
+    for i in range(hdus):
+        data = rng.randint(100, size=shape).astype(type)
+        hdu = fits.ImageHDU(data, name=f"IMAGE{i+1}")
+        if compressed:
+            hdu = fits.CompImageHDU(data, name=f"IMAGE{i+1}")
+        hdu_list.append(hdu)
+
+    hdulist = fits.HDUList(hdu_list)
+    hdulist.writeto(filename, overwrite=True)
 
 
 @pipeline_def
