@@ -595,13 +595,13 @@ def test_arg_inputs_scoped_tracking():
     impl_test_arg_inputs_scoped_tracking()
 
 
-def impl_test_arg_inputs_scoped_uninitialized(additional_additional_kwargs={}):
+def impl_test_arg_inputs_scoped_uninitialized(additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
     bs = 10
     kwargs = {"batch_size": bs, "num_threads": 4, "device_id": 0}
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_additional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
     def scoped_transform_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder)
         decoded = fn.decoders.image(encoded, device="mixed")
@@ -690,7 +690,7 @@ def test_generators(pred):
 # Mismatched branches test (uninitialized values)
 
 
-def impl_test_uninitialized(additional_additional_kwargs={}):
+def impl_test_uninitialized(additional_kwargs={}):
     bs = 10
     kwargs = {
         "batch_size": bs,
@@ -698,7 +698,7 @@ def impl_test_uninitialized(additional_additional_kwargs={}):
         "device_id": 0,
     }
 
-    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_additional_kwargs)
+    @experimental.pipeline_def(enable_conditionals=True, **kwargs, **additional_kwargs)
     def one_branch():
         pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
         if pred:
