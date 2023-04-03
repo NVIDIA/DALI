@@ -150,7 +150,7 @@ autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
 
 # -- Options for MathJax -----------------------------------------------------
 
-# Configure the MathJax to use SVG output as a default instead of the
+# Configure the MathJax to use SVG rendering as a default instead of the CHTML one.
 # Apparently, this is how MathJax is supposed to be configured based on their converter
 # https://mathjax.github.io/MathJax-demos-web/convert-configuration/convert-configuration.html
 # The import is crucial, in version two it was apparently enough to set
