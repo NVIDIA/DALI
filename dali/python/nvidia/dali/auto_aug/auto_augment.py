@@ -451,9 +451,12 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
 def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
     """
     Creates a matrix of operators to be called for given sub policy at given stage.
-    The output is a tuple of matrix `m` and per stage operators augmentations list `augments`,
-    such that for policy `sub_policy_idx` as the `stage_idx`-ith operation in a sequence, the
-    `augments[stage_idx][m[sub_policy_idx][stage_idx]]` operator should be called.
+    The output is a tuple `(m, augments)`, where `augments` is a list of augmentations per stage
+    - each entry contains a reduced list of unique augmentations used in a corresponding stage.
+    The `m` matrix contains the mapping from the original sub_policy_id, to the index within the
+    reduced list, for every stage. I.e., for policy `sub_policy_idx`, as the `stage_idx`-ith
+    operation in a sequence, the `augments[stage_idx][m[sub_policy_idx][stage_idx]]` operator
+    should be called.
     """
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
