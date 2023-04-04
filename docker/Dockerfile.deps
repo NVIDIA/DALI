@@ -17,7 +17,7 @@ ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 RUN rm -f /opt/python/cp27-cp27m
 
 # Clang, build it before deps as deps changes more frequently
-RUN CLANG_VERSION=15.0.2                                                                           && \
+RUN CLANG_VERSION=16.0.0                                                                           && \
     cd tmp                                                                                         && \
     wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
     tar -xf llvmorg-*.tar.gz                                                                       && \
