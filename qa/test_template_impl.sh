@@ -5,6 +5,9 @@ set -e
 # Force tests to be verbose
 set -x
 
+# make python output unbuffered to get more accurate timestamps
+export PYTHONUNBUFFERED=1
+
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
