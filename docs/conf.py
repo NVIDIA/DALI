@@ -147,6 +147,29 @@ pygments_style = 'sphinx'
 # so we do not mock tensorflow so we do not need to extend the logic there.
 autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
 
+
+# -- Options for MathJax -----------------------------------------------------
+
+# Configure the MathJax to use SVG rendering as a default instead of the CHTML one.
+# Apparently, this is how MathJax is supposed to be configured based on their converter
+# https://mathjax.github.io/MathJax-demos-web/convert-configuration/convert-configuration.html
+# The import is crucial, in version two it was apparently enough to set
+# `jax: ["input/TeX", "output/SVG"]` in the config.
+# We need it, because the newer version of MatJax tries to render some vertical and horizontal lines
+# with less than 1 pixel, which doesn't show in Firefox in some cases:
+# * https://github.com/mathjax/MathJax/issues/2795
+# * https://bugzilla.mozilla.org/show_bug.cgi?id=1741887
+# The bug happens only with the CHTML renderer.
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+mathjax_config = {
+    'loader': {
+        'load': ['output/svg']
+    },
+    'ignoreHtmlClass': 'tex2jax_ignore',
+    'processHtmlClass': 'tex2jax_process'
+}
+
+
 # -- Options for Napoleon ----------------------------------------------------
 
 napoleon_custom_sections = ['Supported backends']
@@ -253,9 +276,11 @@ texinfo_documents = [
 
 
 # -- Extension configuration -------------------------------------------------
-extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
-                      'issue '),
-            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "main") + '/%s', ''),}
+extlinks = {
+    'issue': ('https://github.com/NVIDIA/DALI/issues/%s', 'issue %s'),
+    'fileref': ('https://github.com/NVIDIA/DALI/tree/' +
+                (git_sha if git_sha != u'0000000' else "main") + '/%s', '%s'),
+}
 
 
 from typing import (
