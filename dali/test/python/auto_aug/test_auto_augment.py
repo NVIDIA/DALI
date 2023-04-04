@@ -249,11 +249,11 @@ def test_sub_policy(randomly_negate, dev, batch_size):
 @params(("cpu", ), ("gpu", ))
 def test_op_skipping(dev):
 
-    num_magnitude_bins = 16
-    batch_size = 1024
+    num_magnitude_bins = 20
+    batch_size = 2400
 
     @augmentation(
-        mag_range=(0, 15),
+        mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(1),
         randomly_negate=True,
         param_device=dev,
@@ -262,7 +262,7 @@ def test_op_skipping(dev):
         return fn.cat(sample, op_id_mag_id)
 
     @augmentation(
-        mag_range=(0, 15),
+        mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(2),
         randomly_negate=True,
         param_device=dev,
@@ -271,11 +271,27 @@ def test_op_skipping(dev):
         return fn.cat(sample, op_id_mag_id)
 
     @augmentation(
-        mag_range=(0, 15),
+        mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(3),
         param_device=dev,
     )
     def third(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(0, 19),
+        mag_to_param=mag_to_param_with_op_id(4),
+        param_device=dev,
+    )
+    def first_stage_only(sample, op_id_mag_id):
+        return fn.cat(sample, op_id_mag_id)
+
+    @augmentation(
+        mag_range=(0, 19),
+        mag_to_param=mag_to_param_with_op_id(5),
+        param_device=dev,
+    )
+    def second_stage_only(sample, op_id_mag_id):
         return fn.cat(sample, op_id_mag_id)
 
     sub_policies = [
@@ -286,6 +302,8 @@ def test_op_skipping(dev):
         [(third, 1, 9), (third, 0.75, 10)],
         [(third, 0.3, 11), (first, 0.22, 12)],
         [(second, 0.6, 13), (third, 0, 14)],
+        [(first_stage_only, 0.5, 15), (third, 0.7, 16)],
+        [(third, 0.8, 17), (second_stage_only, 0.6, 18)],
     ]
 
     # sub_policy_cases = [[] for _ in range(len(sub_policies))]
@@ -308,6 +326,9 @@ def test_op_skipping(dev):
             mags = (left_sign * left_mag, right_sign * right_mag)
             expected_counts[mags] = prob / len(sign_cases)
     expected_counts = {mag: prob * batch_size for mag, prob in expected_counts.items() if prob > 0}
+    assert all(num_elements >= 5 for num_elements in expected_counts.values()), \
+        f"The batch size is too small (i.e. some output cases are expected less " \
+        f"than five times in the output): {expected_counts}"
 
     policy = Policy("MyPolicy", num_magnitude_bins=num_magnitude_bins, sub_policies=sub_policies)
     p = concat_aug_pipeline(batch_size=batch_size, dev=dev, policy=policy)

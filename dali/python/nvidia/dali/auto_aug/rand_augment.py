@@ -159,10 +159,11 @@ def apply_rand_augment(augmentations: List[_Augmentation], sample: _DataNode, n:
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, shape=shape,
                                dtype=types.INT32)
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
+    mag_bin = signed_bin(m, seed=seed, shape=shape) if use_signed_magnitudes else m
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_rand_augment')
     for level_idx in range(n):
-        magnitude_bin = signed_bin(m) if use_signed_magnitudes else m
-        op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
+        level_mag_bin = mag_bin if not use_signed_magnitudes or n == 1 else mag_bin[level_idx]
+        op_kwargs = dict(sample=sample, magnitude_bin=level_mag_bin,
                          num_magnitude_bins=num_magnitude_bins, **kwargs)
         level_op_idx = op_idx if n == 1 else op_idx[level_idx]
         sample = _pretty_select(augmentations, level_op_idx, op_kwargs,
