@@ -186,6 +186,8 @@ depending on your version.
 Additional Resources
 --------------------
 
+- GPU Technology Conference 2023; **Developer Breakout: Accelerating Enterprise Workflows With Triton Server and DALI**; Brandon Tuttle: |breakoutDALITRITON|_.
+- GPU Technology Conference 2023; **GPU-Accelerating End-to-End Geospatial Workflows**; Kevin Green: |talkGeospatial2023|_.
 - GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś: |talkAdvanced2022|_.
 - GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao: |talkIntro2022|_.
 - GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha: |event2021|_.
@@ -216,7 +218,10 @@ Additional Resources
 .. _talkIntro2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41443/
 .. |talkAdvanced2022| replace:: event
 .. _talkAdvanced2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/
-
+.. |talkGeospatial2023| replace:: event
+.. _talkGeospatial2023: https://www.nvidia.com/gtc/session-catalog/?search=S51796
+.. |breakoutDALITRITON| replace:: event
+.. _breakoutDALITRITON: https://www.nvidia.com/gtc/session-catalog/?search=SE52140
 ----
 
 Contributing to DALI
