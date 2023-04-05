@@ -9,7 +9,7 @@ do_once() {
     rm cmake-*.sh
     # for stub generation
     pip install clang==14.0
-    pip install libclang==14.0
+    pip install libclang==14.0.1
 }
 
 test_body() {
