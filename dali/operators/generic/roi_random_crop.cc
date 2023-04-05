@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ The operator produces an output representing the cropping window start coordinat
 If provided, the cropping window start will be selected so that the cropping window is within the
 bounds of the input.
 
-..note::
+.. note::
   Providing ``in_shape`` is incompatible with feeding the input data directly as a positional input.
 )code", nullptr, true)
     .NumInput(0, 1)
