@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 from nvidia.dali.auto_aug.core._augmentation import Augmentation
-from typing import Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 
 class Policy:
 
     def __init__(self, name: str, num_magnitude_bins: int,
-                 sub_policies: Sequence[Sequence[Tuple[Augmentation, float, int]]]):
+                 sub_policies: Sequence[Sequence[Tuple[Augmentation, float, Optional[int]]]]):
         """
         Describes the augmentation policy as introduced in AutoAugment
         (https://arxiv.org/abs/1805.09501).
@@ -30,7 +32,7 @@ class Policy:
             A name of the policy, for presentation purposes.
         num_magnitude_bins : int
             The number of bins that augmentations' magnitude ranges should be divided into.
-        sub_policies: Sequence[Sequence[Tuple[Augmentation, float, int]]]
+        sub_policies: Sequence[Sequence[Tuple[Augmentation, float, Optional[int]]]]
             A list of sequences of transformations. For each processed sample, one of the
             sequences is chosen uniformly at random. Then, the tuples from the sequence
             are considered one by one. Each tuple describes what augmentation to apply at
@@ -56,16 +58,32 @@ class Policy:
                 if not isinstance(aug, Augmentation):
                     raise Exception(
                         f"Each augmentation in sub policies must be an instance of "
-                        f"Augmentation. Got {aug}. Did you forget to use `@augmentation` "
+                        f"Augmentation. Got `{aug}`. Did you forget to use `@augmentation` "
                         f"decorator?")
                 if not isinstance(p, (float, int)) or not 0 <= p <= 1:
                     raise Exception(
                         f"Probability of applying the augmentation must be a number from "
-                        f"`[0, 1]` range. Got {p} for augmentation `{aug.name}`.")
-                if not isinstance(mag, int) or not 0 <= mag < self.num_magnitude_bins:
-                    raise Exception(f"Magnitude of the augmentation must be an integer from "
-                                    f"`[0, {num_magnitude_bins - 1}]` range. "
-                                    f"Got {mag} for augmentation `{aug.name}`.")
+                        f"`[0, 1]` range. Got `{p}` for augmentation `{aug.name}`.")
+                if p == 0:
+                    warnings.warn(f"The augmentation `{aug.name}` in policy `{name}` is used with "
+                                  f"probability 0 in one of the sub-policies.")
+                if mag is None:
+                    if aug.mag_range is not None:
+                        raise Exception(
+                            f"The augmentation `{aug.name}` has `mag_range` specified, so the "
+                            f"magnitude bin is required. However, got `None` in the policy "
+                            f"`{name}`.")
+                else:
+                    if aug.mag_range is None:
+                        warnings.warn(
+                            f"The magnitude bin `{mag}` for augmentation `{aug.name}` in policy "
+                            f"`{name}` will be ignored. The augmentation does not accept "
+                            f"magnitudes (as it has no `mag_range` specified). You can specify "
+                            f"`None` instead of `{mag}` to silence this warning.")
+                    if not isinstance(mag, int) or not 0 <= mag < self.num_magnitude_bins:
+                        raise Exception(f"Magnitude of the augmentation must be an integer from "
+                                        f"`[0, {num_magnitude_bins - 1}]` range. "
+                                        f"Got `{mag}` for augmentation `{aug.name}`.")
         self.sub_policies = _sub_policy_with_unique_names(sub_policies)
 
     @property
@@ -89,8 +107,8 @@ class Policy:
 
 
 def _sub_policy_with_unique_names(
-    sub_policies: Sequence[Sequence[Tuple[Augmentation, float, int]]]
-) -> Sequence[Sequence[Tuple[Augmentation, float, int]]]:
+    sub_policies: Sequence[Sequence[Tuple[Augmentation, float, Optional[int]]]]
+) -> Sequence[Sequence[Tuple[Augmentation, float, Optional[int]]]]:
     """
     Check if the augmentations used in the sub-policies have unique names.
     If not, rename them by adding enumeration to the names.

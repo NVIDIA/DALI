@@ -25,7 +25,7 @@ from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
 from test_utils import get_dali_extra_path
-from nose_utils import assert_raises
+from nose_utils import assert_raises, assert_warns
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -60,10 +60,18 @@ def collect_sub_policy_outputs(sub_policies, num_magnitude_bins):
     return sub_policy_outputs
 
 
-@params(*tuple(enumerate(itertools.product((True, False), (True, False), (None, 0),
-                                           (True, False)))))
+run_aug_shape_supporting_cases = itertools.product(("image_net", "reduced_cifar10", "svhn"),
+                                                   (True, False), (True, False), (None, 0),
+                                                   (True, False))
+
+run_aug_no_translation_cases = itertools.product(("reduced_image_net", ), (True, False), (False, ),
+                                                 (None, 0), (False, ))
+
+
+@params(*tuple(
+    enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases))))
 def test_run_auto_aug(i, args):
-    uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    policy_name, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
@@ -82,63 +90,13 @@ def test_run_auto_aug(i, args):
                 extra["max_translate_rel"] = 0.9
             else:
                 extra["max_translate_abs"] = 400
-        image = auto_augment.auto_augment_image_net(image, **extra)
+        image = auto_augment.auto_augment(image, policy_name, **extra)
         return image
 
     p = pipeline()
     p.build()
     for _ in range(3):
         p.run()
-
-
-@params(*tuple(itertools.product((True, False), (0, 1), ('height', 'width', 'both'))))
-def test_translation(use_shape, offset_fraction, extent):
-    # make sure the translation helper processes the args properly
-    # note, it only uses translate_y (as it is in imagenet policy)
-    shape = [300, 400]
-    fill_value = 217
-    params = {}
-    if use_shape:
-        param = offset_fraction
-        param_name = "max_translate_rel"
-    else:
-        param_name = "max_translate_abs"
-    if extent == 'both':
-        param = shape[0] * offset_fraction
-    elif extent == 'height':
-        param = [shape[0] * offset_fraction, 0]
-    elif extent == 'width':
-        param = [0, shape[1] * offset_fraction]
-    else:
-        assert False, f"Unrecognized extent={extent}"
-    params[param_name] = param
-    translate_y = auto_augment._get_translate_y(use_shape=use_shape, **params)
-    policy = Policy(f"Policy_{use_shape}_{offset_fraction}", num_magnitude_bins=21,
-                    sub_policies=[[(translate_y, 1, 20)]])
-
-    @pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0, seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image = fn.resize(image, size=shape)
-        if use_shape:
-            return auto_augment.apply_auto_augment(policy, image, fill_value=fill_value,
-                                                   shape=shape)
-        else:
-            return auto_augment.apply_auto_augment(policy, image, fill_value=fill_value)
-
-    p = pipeline()
-    p.build()
-    output, = p.run()
-    output = [np.array(sample) for sample in output.as_cpu()]
-    for i, sample in enumerate(output):
-        sample = np.array(sample)
-        if offset_fraction == 1 and extent != "width":
-            assert np.all(sample == fill_value), f"sample_idx: {i}"
-        else:
-            background_count = np.sum(sample == fill_value)
-            assert background_count / sample.size < 0.1, \
-                f"sample_idx: {i}, {background_count / sample.size}"
 
 
 @params(
@@ -364,7 +322,7 @@ def test_policy_presentation():
 
     def get_first_augment():
 
-        @augmentation
+        @augmentation(mag_range=(100, 200))
         def clashing_name(sample, _):
             return sample
 
@@ -380,8 +338,8 @@ def test_policy_presentation():
 
     one = get_first_augment()
     another = get_second_augment()
-    sub_policies = [[(one, 0.1, 5), (another, 0.4, 7)], [(another, 0.2, 1), (one, 0.5, 2)],
-                    [(another, 0.7, 1)]]
+    sub_policies = [[(one, 0.1, 5), (another, 0.4, None)], [(another, 0.2, None), (one, 0.5, 2)],
+                    [(another, 0.7, None)]]
     policy = Policy(name="DummyPolicy", num_magnitude_bins=11, sub_policies=sub_policies)
     assert policy.sub_policies[0][0][0] is policy.sub_policies[1][1][0]
     assert policy.sub_policies[0][1][0] is policy.sub_policies[1][0][0]
@@ -397,7 +355,7 @@ def test_policy_presentation():
     def yet_another_aug(sample, _):
         return sample
 
-    sub_policies = [[(yet_another_aug, 0.5, i), (one.augmentation(mag_range=(0, i)), 0.24, i)]
+    sub_policies = [[(yet_another_aug, 0.5, None), (one.augmentation(mag_range=(0, i)), 0.24, i)]
                     for i in range(1, 107)]
     bigger_policy = Policy(name="BiggerPolicy", num_magnitude_bins=200, sub_policies=sub_policies)
     for i, (first, second) in enumerate(bigger_policy.sub_policies):
@@ -465,12 +423,32 @@ def test_wrong_sub_policy_format_fail():
             glob="as a triple: (augmentation, probability, magnitude). Got Augmentation"):
         Policy("ShouldFail", 9, [(a.rotate, a.shear_x)])
 
-    with assert_raises(Exception, glob="must be an instance of Augmentation. Got 0.5"):
+    with assert_raises(Exception, glob="must be an instance of Augmentation. Got `0.5`"):
         Policy("ShouldFail", 9, [[(0.5, a.rotate, 3)]])
 
     with assert_raises(Exception,
-                       glob="Probability * must be a number from `[[]0, 1[]]` range. Got 2"):
+                       glob="Probability * must be a number from `[[]0, 1[]]` range. Got `2`"):
         Policy("ShouldFail", 9, [[(a.rotate, 2, 2)]])
 
-    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got -1"):
+    with assert_raises(Exception, glob="Magnitude ** `[[]0, 8[]]` range. Got `-1`"):
         Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])
+
+    @augmentation(mag_range=(0, 250))
+    def parametrized_aug(sample, magnitude):
+        return sample
+
+    @augmentation
+    def non_parametrized_aug(sample, _):
+        return sample
+
+    with assert_raises(Exception, glob="the magnitude bin is required"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0.5, None)]])
+
+    with assert_warns(glob="probability 0 in one of the sub-policies"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0, 5)]])
+
+    with assert_warns(glob="probability 0 in one of the sub-policies"):
+        Policy("ShouldFail", 7, [[(parametrized_aug, 0., 5)]])
+
+    with assert_warns(glob="The augmentation does not accept magnitudes"):
+        Policy("ShouldFail", 7, [[(non_parametrized_aug, 1., 5)]])

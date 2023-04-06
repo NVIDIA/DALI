@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional
 
 from nvidia.dali.data_node import DataNode as _DataNode
 
@@ -49,6 +49,22 @@ def parse_validate_offset(use_shape, max_translate_abs=None, max_translate_rel=N
         if max_translate_abs is None:
             max_translate_abs = default_translate_abs
         return max_translate_hw(max_translate_abs)
+
+
+def get_translations(use_shape: bool, default_translate_abs: int, default_translate_rel: float,
+                     max_translate_abs: Optional[int] = None,
+                     max_translate_rel: Optional[float] = None):
+    max_translate_height, max_translate_width = parse_validate_offset(
+        use_shape, max_translate_abs=max_translate_abs, max_translate_rel=max_translate_rel,
+        default_translate_abs=default_translate_abs, default_translate_rel=default_translate_rel)
+    if use_shape:
+        translate_x = a.translate_x.augmentation((0, max_translate_width), True)
+        translate_y = a.translate_y.augmentation((0, max_translate_height), True)
+        return [translate_x, translate_y]
+    else:
+        translate_x = a.translate_x_no_shape.augmentation((0, max_translate_width), True)
+        translate_y = a.translate_y_no_shape.augmentation((0, max_translate_height), True)
+        return [translate_x, translate_y]
 
 
 def pretty_select(augmentations: List[Augmentation], aug_ids: _DataNode, op_kwargs,

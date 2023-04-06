@@ -66,60 +66,6 @@ def test_run_rand_aug(i, args):
         p.run()
 
 
-@params(*tuple(itertools.product((True, False), (0, 1), ('height', 'width', 'both'))))
-def test_translation(use_shape, offset_fraction, extent):
-    # make sure the translation helper processes the args properly
-    # note, it only uses translate_y (as it is in imagenet policy)
-    shape = [300, 400]
-    fill_value = 105
-    params = {}
-    if use_shape:
-        param = offset_fraction
-        param_name = "max_translate_rel"
-    else:
-        param_name = "max_translate_abs"
-    assert extent in ('height', 'width', 'both'), f"{extent}"
-    if extent == 'both':
-        param = [shape[0] * offset_fraction, shape[1] * offset_fraction]
-    elif extent == 'height':
-        param = [shape[0] * offset_fraction, 0]
-    elif extent == 'width':
-        param = [0, shape[1] * offset_fraction]
-    params[param_name] = param
-    translate_x, translate_y = rand_augment._get_translations(use_shape=use_shape, **params)
-    if extent == 'both':
-        augments = [translate_x, translate_y]
-    elif extent == 'height':
-        augments = [translate_y]
-    elif extent == 'width':
-        augments = [translate_x]
-
-    @pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0, seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image = fn.resize(image, size=shape)
-        if use_shape:
-            return rand_augment.apply_rand_augment(augments, image, n=1, m=30,
-                                                   fill_value=fill_value, shape=shape)
-        else:
-            return rand_augment.apply_rand_augment(augments, image, n=1, m=30,
-                                                   fill_value=fill_value)
-
-    p = pipeline()
-    p.build()
-    output, = p.run()
-    output = [np.array(sample) for sample in output.as_cpu()]
-    for i, sample in enumerate(output):
-        sample = np.array(sample)
-        if offset_fraction == 1:
-            assert np.all(sample == fill_value), f"sample_idx: {i}"
-        else:
-            background_count = np.sum(sample == fill_value)
-            assert background_count / sample.size < 0.1, \
-                f"sample_idx: {i}, {background_count / sample.size}"
-
-
 @params(*tuple(enumerate(itertools.product(
     ['cpu', 'gpu'],
     [True, False],

@@ -63,53 +63,6 @@ def test_run_trivial(i, args):
         p.run()
 
 
-@params(*tuple(itertools.product((True, False), (0, 1), ('x', 'y'))))
-def test_translation(use_shape, offset_fraction, extent):
-    # make sure the translation helper processes the args properly
-    # note, it only uses translate_y (as it is in imagenet policy)
-    fill_value = 0
-    params = {}
-    if use_shape:
-        param = offset_fraction
-        param_name = "max_translate_rel"
-    else:
-        param = 1000 * offset_fraction
-        param_name = "max_translate_abs"
-    params[param_name] = param
-    translation_x, translation_y = trivial_augment._get_translations(use_shape=use_shape, **params)
-    augment = [translation_x] if extent == 'x' else [translation_y]
-
-    @pipeline_def(enable_conditionals=True, batch_size=9, num_threads=4, device_id=0, seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        if use_shape:
-            shape = fn.peek_image_shape(encoded_image)
-            return trivial_augment.apply_trivial_augment(augment, image, num_magnitude_bins=3,
-                                                         fill_value=fill_value, shape=shape)
-        else:
-            return trivial_augment.apply_trivial_augment(augment, image, num_magnitude_bins=3,
-                                                         fill_value=fill_value)
-
-    p = pipeline()
-    p.build()
-    output, = p.run()
-    output = [np.array(sample) for sample in output.as_cpu()]
-    if offset_fraction == 1:
-        # magnitudes are random here, but some should randomly be maximal
-        all_black = 0
-        for i, sample in enumerate(output):
-            sample = np.array(sample)
-            all_black += np.all(sample == fill_value)
-        assert all_black
-    else:
-        for i, sample in enumerate(output):
-            sample = np.array(sample)
-            background_count = np.sum(sample == fill_value)
-            assert background_count / sample.size < 0.1, \
-                f"sample_idx: {i}, {background_count / sample.size}"
-
-
 @params(*tuple(itertools.product(
     ['cpu', 'gpu'],
     [True, False],
