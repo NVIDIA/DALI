@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,17 +15,72 @@
 #ifndef DALI_KERNELS_IMGPROC_POINTWISE_MULTIPLY_ADD_H_
 #define DALI_KERNELS_IMGPROC_POINTWISE_MULTIPLY_ADD_H_
 
+#include <limits>
+#include <tuple>
 #include <utility>
-#include "dali/util/ocv.h"
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
-#include "dali/core/geom/box.h"
 #include "dali/core/error_handling.h"
-#include "dali/kernels/kernel.h"
+#include "dali/core/geom/box.h"
 #include "dali/kernels/imgproc/roi.h"
+#include "dali/kernels/kernel.h"
+#include "dali/util/ocv.h"
 
 namespace dali {
 namespace kernels {
+
+template <typename T, typename... TS>
+struct AnyOf {
+  static constexpr bool value = (std::is_same_v<T, TS> || ...);
+};
+
+template <typename T>
+struct MakeUnsigned {
+  using type = std::make_unsigned_t<T>;
+};
+
+template <>
+struct MakeUnsigned<bool> {
+  using type = bool;
+};
+
+template <typename Out, typename In, bool use_lut = AnyOf<In, uint8_t, int8_t, bool>::value>
+struct MultiplyAddElementCpu;
+
+template <typename Out, typename In>
+struct MultiplyAddElementCpu<Out, In, false> {
+  MultiplyAddElementCpu(float addend, float multiplier)
+      : addend_{addend}, multiplier_{multiplier} {}
+
+  Out operator()(In element) {
+    return ConvertSat<Out>(element * multiplier_ + addend_);
+  }
+
+  float addend_;
+  float multiplier_;
+};
+
+template <typename Out, typename In>
+struct MultiplyAddElementCpu<Out, In, true> {
+  using InUnsigned = typename MakeUnsigned<In>::type;
+  static constexpr int kRangeSize = std::numeric_limits<InUnsigned>::max() + 1;
+  // if that's deliberate you can always lift the restriction
+  static_assert(kRangeSize <= 256, "Using lut for bigger types may not be a good idea");
+
+  MultiplyAddElementCpu(float addend, float multiplier) : addend_{addend}, multiplier_{multiplier} {
+    for (int val = std::numeric_limits<In>::min(); val <= std::numeric_limits<In>::max(); val++) {
+      lut_[static_cast<InUnsigned>(val)] = ConvertSat<Out>(val * multiplier_ + addend_);
+    }
+  }
+
+  Out operator()(In val) {
+    return lut_[static_cast<InUnsigned>(val)];
+  }
+
+  Out lut_[kRangeSize];
+  float addend_;
+  float multiplier_;
+};
 
 template<typename OutputType, typename InputType, int ndims = 3>
 class MultiplyAddCpu {
@@ -34,6 +89,7 @@ class MultiplyAddCpu {
 
  public:
   using Roi = Box<spatial_dims, int>;
+  using ElementOp = MultiplyAddElementCpu<OutputType, InputType>;
 
 
   KernelRequirements
@@ -66,11 +122,13 @@ class MultiplyAddCpu {
     auto image_width = in.shape[1];
     auto ptr = out.data;
 
+    ElementOp op(addend, multiplier);
+
     ptrdiff_t row_stride = image_width * num_channels;
     auto *row = in.data + adjusted_roi.lo.y * row_stride;
     for (int y = adjusted_roi.lo.y; y < adjusted_roi.hi.y; y++) {
       for (int xc = adjusted_roi.lo.x * num_channels; xc < adjusted_roi.hi.x * num_channels; xc++)
-        *ptr++ = ConvertSat<OutputType>(row[xc] * multiplier + addend);
+        *ptr++ = op(row[xc]);
       row += row_stride;
     }
   }
