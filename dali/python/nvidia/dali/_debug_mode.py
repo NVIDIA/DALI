@@ -366,7 +366,8 @@ class _OperatorManager:
 
         if _conditionals.conditionals_enabled():
             if input_set_len != -1:
-                raise ValueError("Multiple input sets are not supported with conditionals.")
+                raise ValueError("Multiple input sets are not supported with conditional"
+                                 " execution (when `enable_conditionals=True`).")
 
         self.expected_inputs_size = len(inputs)
 
@@ -634,18 +635,20 @@ class _OperatorManager:
             # TODO(klecki): Add better handling of constant nodes for conditionals in debug mode.
             for i, classification in enumerate(self._inputs_classification):
                 if classification.is_batch and not classification.was_data_node:
-                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
-                                     f" of operator outputs by libraries other than DALI or"
-                                     f" tracking the TensorLists extracted via `.get()`. Expected"
-                                     f" `DataNodeDebug` as an input, got"
+                    raise ValueError(f"Debug mode with conditional execution"
+                                     f" (when `enable_conditionals=True`) doesn't allow for"
+                                     f" modification of operator outputs by libraries other than"
+                                     f" DALI or using the TensorLists extracted via `.get()` as"
+                                     f" inputs. Expected `DataNodeDebug` as an input, got"
                                      f" {type(classification.original)} at input {i}.")
 
             for key, classification in self._kwargs_classification.items():
                 if classification.is_batch and not classification.was_data_node:
-                    raise ValueError(f"Debug mode for conditionals doesn't allow for modification"
-                                     f" of operator outputs by libraries other than DALI or"
-                                     f" tracking the TensorLists extracted via `.get()`. Expected"
-                                     f" `DataNodeDebug` as an input, got"
+                    raise ValueError(f"Debug mode with conditional execution"
+                                     f" (when `enable_conditionals=True`) doesn't allow for"
+                                     f" modification of operator outputs by libraries other than"
+                                     f" DALI or using the TensorLists extracted via `.get()` as"
+                                     f" inputs. Expected `DataNodeDebug` as an input, got"
                                      f" {type(classification.original)} for argument '{key}'.")
 
         res = [

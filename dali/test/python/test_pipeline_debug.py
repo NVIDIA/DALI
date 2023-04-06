@@ -775,9 +775,10 @@ def test_debug_pipeline_conditional_without_data_node():
         return pred, output
 
     with assert_raises(
-            ValueError, glob=("Debug mode for conditionals doesn't allow for modification of"
-                              " operator outputs by libraries other than DALI or tracking"
-                              " the TensorLists extracted via `.get()`."
+            ValueError, glob=("Debug mode with conditional execution (when "
+                              "`enable_conditionals=True`) doesn't allow for modification of"
+                              " operator outputs by libraries other than DALI or using the"
+                              " TensorLists extracted via `.get()` as inputs."
                               " Expected `DataNodeDebug` as an input, got * at input *.")):
         pipe_cond = pipeline_cond(debug=True)
         pipe_cond.build()
