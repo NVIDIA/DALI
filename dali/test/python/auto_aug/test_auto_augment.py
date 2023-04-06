@@ -60,18 +60,32 @@ def collect_sub_policy_outputs(sub_policies, num_magnitude_bins):
     return sub_policy_outputs
 
 
-run_aug_shape_supporting_cases = itertools.product(("image_net", "reduced_cifar10", "svhn"),
-                                                   (True, False), (True, False), (None, 0),
-                                                   (True, False))
+run_aug_shape = ("image_net", "reduced_cifar10", "svhn")
+run_aug_shape_supporting_cases = (
+    # reduce the number of test cases by running three predefine shape-aware policies in turns,
+    ((run_aug_shape[i % 3], ) + params) for i, params in enumerate(
+        itertools.product(
+            ("cpu", "gpu"),
+            (True, False),
+            (True, False),
+            (None, 0),
+            (True, False),
+        )))
 
-run_aug_no_translation_cases = itertools.product(("reduced_image_net", ), (True, False), (False, ),
-                                                 (None, 0), (False, ))
+run_aug_no_translation_cases = itertools.product(
+    ("reduced_image_net", ),
+    ("cpu", "gpu"),
+    (True, False),
+    (False, ),
+    (None, 0),
+    (False, ),
+)
 
 
 @params(*tuple(
     enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases))))
 def test_run_auto_aug(i, args):
-    policy_name, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    policy_name, dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
@@ -79,7 +93,7 @@ def test_run_auto_aug(i, args):
                   seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
+        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
         if uniformly_resized:
             image = fn.resize(image, size=(244, 244))
         extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}

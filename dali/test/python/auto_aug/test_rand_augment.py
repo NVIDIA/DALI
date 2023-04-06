@@ -31,10 +31,11 @@ data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 
-@params(*tuple(enumerate(itertools.product((True, False), (True, False), (None, 0),
-                                           (True, False)))))
+@params(*tuple(
+    enumerate(
+        itertools.product(("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)))))
 def test_run_rand_aug(i, args):
-    uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     ns = [1, 2, 3, 4]
     ms = [0, 15, 30]
@@ -46,7 +47,7 @@ def test_run_rand_aug(i, args):
                   seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
+        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
         if uniformly_resized:
             image = fn.resize(image, size=(244, 244))
         extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}

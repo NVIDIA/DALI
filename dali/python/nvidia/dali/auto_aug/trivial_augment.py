@@ -40,7 +40,7 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
     ---------
     sample : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+        `uint8` type.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     fill_value: int, optional
@@ -110,8 +110,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in TrivialAugment fashion.
     sample : DataNode
-        A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+        A batch of samples to be processed.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     seed: int, optional

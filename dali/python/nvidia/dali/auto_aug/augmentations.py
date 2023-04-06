@@ -147,7 +147,7 @@ def sharpness_kernel_shifted(magnitude):
 
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=sharpness_kernel,
-              param_device="gpu")
+              param_device="auto")
 def sharpness(sample, kernel):
     """
     The outputs correspond to PIL's ImageEnhance.Sharpness with the exception for 1px
@@ -173,12 +173,12 @@ def poster_mask_uint8(magnitude):
     return np.array(np.uint8(255) ^ removal_mask, dtype=np.uint8)
 
 
-@augmentation(mag_range=(0, 4), mag_to_param=poster_mask_uint8, param_device="gpu")
+@augmentation(mag_range=(0, 4), mag_to_param=poster_mask_uint8, param_device="auto")
 def posterize(sample, mask):
     return sample & mask
 
 
-@augmentation(mag_range=(256, 0), param_device="gpu")
+@augmentation(mag_range=(256, 0), param_device="auto")
 def solarize(sample, threshold):
     sample_inv = types.Constant(255, dtype=types.UINT8) - sample
     mask_unchanged = sample < threshold
@@ -192,7 +192,7 @@ def solarize_add_shift(shift):
     return np.uint8(shift)
 
 
-@augmentation(mag_range=(0, 110), param_device="gpu", mag_to_param=solarize_add_shift)
+@augmentation(mag_range=(0, 110), param_device="auto", mag_to_param=solarize_add_shift)
 def solarize_add(sample, shift):
     mask_shifted = sample < types.Constant(128, dtype=types.UINT8)
     mask_id = mask_shifted ^ True
