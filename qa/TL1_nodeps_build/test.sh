@@ -8,8 +8,8 @@ do_once() {
     bash cmake-*.sh --skip-license --prefix=/usr
     rm cmake-*.sh
     # for stub generation
-    pip install clang
-    pip install libclang
+    pip install clang==14.0
+    pip install libclang==14.0.1
 }
 
 test_body() {

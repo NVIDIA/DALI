@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl -O https://bootstrap.pypa.io/get-pip.py; \
     fi && python get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang && pip install libclang && \
+    pip install clang==14.0 && pip install libclang==14.0.1 && \
     rm -rf /root/.cache/pip/
 
 COPY --from=qnx_cuda_tools /qnx /qnx
