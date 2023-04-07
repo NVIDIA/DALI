@@ -41,11 +41,11 @@ def mag_to_param_with_op_id(op_id):
 
 @pipeline_def(enable_conditionals=True, num_threads=4, device_id=0, seed=44)
 def concat_aug_pipeline(dev, policy):
-    sample = types.Constant(np.array([], dtype=np.int32), device=dev)
+    data = types.Constant(np.array([], dtype=np.int32), device=dev)
     if dev == "gpu":
-        sample = sample.gpu()
-    sample = auto_augment.apply_auto_augment(policy, sample)
-    return fn.reshape(sample, shape=(-1, 2))
+        data = data.gpu()
+    data = auto_augment.apply_auto_augment(policy, data)
+    return fn.reshape(data, shape=(-1, 2))
 
 
 def collect_sub_policy_outputs(sub_policies, num_magnitude_bins):
@@ -128,8 +128,8 @@ def test_sub_policy(randomly_negate, dev, batch_size):
         mag_to_param=mag_to_param_with_op_id(1),
         param_device=dev,
     )
-    def first(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def first(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(10, 19),
@@ -137,8 +137,8 @@ def test_sub_policy(randomly_negate, dev, batch_size):
         randomly_negate=randomly_negate,
         param_device=dev,
     )
-    def second(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def second(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(20, 29),
@@ -146,8 +146,8 @@ def test_sub_policy(randomly_negate, dev, batch_size):
         randomly_negate=randomly_negate,
         param_device=dev,
     )
-    def third(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def third(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     sub_policies = [
         [(first, 1, 0), (second, 1, 5), (third, 1, 3)],
@@ -193,7 +193,7 @@ def test_sub_policy(randomly_negate, dev, batch_size):
             for op_mag in sample:
                 if op_mag[1] < 0:
                     # the `second` and `third` augmentation are marked as randomly_negated
-                    assert op_mag[0] in [2, 3], f"{sample}"
+                    assert op_mag[0] in [2, 3], f"{data}"
         if randomly_negate:
             # for each sub-policy, count occurrences of any possible sequence
             # of magnitude signs
@@ -230,8 +230,8 @@ def test_op_skipping(dev):
         randomly_negate=True,
         param_device=dev,
     )
-    def first(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def first(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(0, 19),
@@ -239,32 +239,32 @@ def test_op_skipping(dev):
         randomly_negate=True,
         param_device=dev,
     )
-    def second(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def second(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(3),
         param_device=dev,
     )
-    def third(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def third(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(4),
         param_device=dev,
     )
-    def first_stage_only(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def first_stage_only(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     @augmentation(
         mag_range=(0, 19),
         mag_to_param=mag_to_param_with_op_id(5),
         param_device=dev,
     )
-    def second_stage_only(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def second_stage_only(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     sub_policies = [
         [(first, 0.5, 1), (first, 0.25, 2)],
@@ -337,16 +337,16 @@ def test_policy_presentation():
     def get_first_augment():
 
         @augmentation(mag_range=(100, 200))
-        def clashing_name(sample, _):
-            return sample
+        def clashing_name(data, _):
+            return data
 
         return clashing_name
 
     def get_second_augment():
 
         @augmentation
-        def clashing_name(sample, _):
-            return sample
+        def clashing_name(data, _):
+            return data
 
         return clashing_name
 
@@ -366,8 +366,8 @@ def test_policy_presentation():
             assert mag == pol_mag, f"({aug}, {p}, {mag}), ({pol_aug}, {pol_p}, {pol_mag})"
 
     @augmentation
-    def yet_another_aug(sample, _):
-        return sample
+    def yet_another_aug(data, _):
+        return data
 
     sub_policies = [[(yet_another_aug, 0.5, None), (one.augmentation(mag_range=(0, i)), 0.24, i)]
                     for i in range(1, 107)]
@@ -448,12 +448,12 @@ def test_wrong_sub_policy_format_fail():
         Policy("ShouldFail", 9, [[(a.rotate, 1, -1)]])
 
     @augmentation(mag_range=(0, 250))
-    def parametrized_aug(sample, magnitude):
-        return sample
+    def parametrized_aug(data, magnitude):
+        return data
 
     @augmentation
-    def non_parametrized_aug(sample, _):
-        return sample
+    def non_parametrized_aug(data, _):
+        return data
 
     with assert_raises(Exception, glob="the magnitude bin is required"):
         Policy("ShouldFail", 7, [[(parametrized_aug, 0.5, None)]])

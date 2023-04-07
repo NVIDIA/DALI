@@ -91,8 +91,8 @@ def test_ops_selection_and_mags(case_idx, args):
         return mag_to_param
 
     @augmentation(param_device=dev)
-    def op(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def op(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     augmentations = [
         op.augmentation(mag_range=(10 * i + 1, 10 * i + num_magnitude_bins),
@@ -119,12 +119,12 @@ def test_ops_selection_and_mags(case_idx, args):
     @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
                   seed=42)
     def pipeline():
-        sample = types.Constant([], dtype=types.INT32)
+        data = types.Constant([], dtype=types.INT32)
         if dev == "gpu":
-            sample = sample.gpu()
-        sample = rand_augment.apply_rand_augment(augmentations, sample, n=n, m=m,
+            data = data.gpu()
+        data = rand_augment.apply_rand_augment(augmentations, data, n=n, m=m,
                                                  num_magnitude_bins=num_magnitude_bins)
-        return fn.reshape(sample, shape=(-1, 2))
+        return fn.reshape(data, shape=(-1, 2))
 
     p = pipeline()
     p.build()
@@ -149,8 +149,8 @@ def test_wrong_params_fail():
 
     @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
     def pipeline(n, m, num_magnitude_bins):
-        sample = types.Constant(np.array([[[]]], dtype=np.uint8))
-        return rand_augment.rand_augment(sample, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
+        data = types.Constant(np.array([[[]]], dtype=np.uint8))
+        return rand_augment.rand_augment(data, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
 
     with assert_raises(Exception,
                        glob="The number of operations to apply `n` must be a non-negative integer"):
@@ -166,8 +166,8 @@ def test_wrong_params_fail():
 
         @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def no_aug_pipeline():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
-            return rand_augment.apply_rand_augment([], sample, 1, 20)
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
+            return rand_augment.apply_rand_augment([], data, 1, 20)
 
         no_aug_pipeline()
 
@@ -175,9 +175,9 @@ def test_wrong_params_fail():
 
         @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def missing_shape():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
-            return rand_augment.apply_rand_augment(augments, sample, 1, 20)
+            return rand_augment.apply_rand_augment(augments, data, 1, 20)
 
         missing_shape()
 
@@ -185,8 +185,8 @@ def test_wrong_params_fail():
 
         @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def unused_kwarg():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
-            return rand_augment.apply_rand_augment(augments, sample, 1, 20, shhape=42)
+            return rand_augment.apply_rand_augment(augments, data, 1, 20, shhape=42)
 
         unused_kwarg()

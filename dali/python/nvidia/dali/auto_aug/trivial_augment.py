@@ -26,7 +26,7 @@ from nvidia.dali.auto_aug.core._utils import \
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
-def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
+def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
                          shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
                          interp_type: Optional[types.DALIInterpType] = None,
                          max_translate_abs: Optional[int] = None,
@@ -38,7 +38,7 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
 
     Parameter
     ---------
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
     num_magnitude_bins: int, optional
@@ -91,11 +91,11 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
                 f"does not contain augmentation with this name. "
                 f"The augmentations in the suite are: {', '.join(augmentation_names)}.")
     selected_augments = [aug for aug in augmentations if aug.name not in excluded]
-    return apply_trivial_augment(selected_augments, sample, num_magnitude_bins=num_magnitude_bins,
+    return apply_trivial_augment(selected_augments, data, num_magnitude_bins=num_magnitude_bins,
                                  seed=seed, **aug_kwargs)
 
 
-def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
+def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
                           num_magnitude_bins: int = 31, seed: Optional[int] = None,
                           **kwargs) -> _DataNode:
     """
@@ -109,7 +109,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
     ---------
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in TrivialAugment fashion.
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
@@ -139,7 +139,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
     if use_signed_magnitudes:
         magnitude_bin = signed_bin(magnitude_bin, seed=seed)
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_trivial_augment')
-    op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
+    op_kwargs = dict(data=data, magnitude_bin=magnitude_bin,
                      num_magnitude_bins=num_magnitude_bins, **kwargs)
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
     return _pretty_select(augmentations, op_idx, op_kwargs, auto_aug_name='apply_trivial_augment',

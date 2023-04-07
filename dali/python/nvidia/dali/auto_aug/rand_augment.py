@@ -28,7 +28,7 @@ from nvidia.dali.auto_aug.core._utils import \
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
-def rand_augment(sample: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
+def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
                  shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
                  interp_type: Optional[types.DALIInterpType] = None,
                  max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
@@ -36,11 +36,11 @@ def rand_augment(sample: _DataNode, n: int, m: int, num_magnitude_bins: int = 31
                  excluded: Optional[List[str]] = None) -> _DataNode:
     """
     Applies RandAugment (https://arxiv.org/abs/1909.13719) augmentation scheme to the
-    provided batch of sample.
+    provided batch of data.
 
     Parameter
     ---------
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
     n: int
@@ -110,11 +110,11 @@ def rand_augment(sample: _DataNode, n: int, m: int, num_magnitude_bins: int = 31
                             f"does not contain augmentation with this name. "
                             f"The augmentations in the suite are: {', '.join(augmentation_names)}.")
     selected_augments = [aug for aug in augmentations if aug.name not in excluded]
-    return apply_rand_augment(selected_augments, sample, n, m,
+    return apply_rand_augment(selected_augments, data, n, m,
                               num_magnitude_bins=num_magnitude_bins, seed=seed, **aug_kwargs)
 
 
-def apply_rand_augment(augmentations: List[_Augmentation], sample: _DataNode, n: int, m: int,
+def apply_rand_augment(augmentations: List[_Augmentation], data: _DataNode, n: int, m: int,
                        num_magnitude_bins: int = 31, seed: Optional[int] = None,
                        **kwargs) -> _DataNode:
     """
@@ -126,7 +126,7 @@ def apply_rand_augment(augmentations: List[_Augmentation], sample: _DataNode, n:
     ---------
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in RandAugment fashion.
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed.
     n: int
         The number of randomly sampled operations to be applied to a sample.
@@ -161,7 +161,7 @@ def apply_rand_augment(augmentations: List[_Augmentation], sample: _DataNode, n:
         warnings.warn(
             "The `apply_rand_augment` was called with `n=0`, "
             "no augmentation will be applied.", Warning)
-        return sample
+        return data
     if len(augmentations) == 0:
         raise Exception("The `augmentations` list cannot be empty, unless n=0. "
                         "Got empty list in `apply_rand_augment` call.")
@@ -173,13 +173,13 @@ def apply_rand_augment(augmentations: List[_Augmentation], sample: _DataNode, n:
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_rand_augment')
     for level_idx in range(n):
         level_mag_bin = mag_bin if not use_signed_magnitudes or n == 1 else mag_bin[level_idx]
-        op_kwargs = dict(sample=sample, magnitude_bin=level_mag_bin,
+        op_kwargs = dict(data=data, magnitude_bin=level_mag_bin,
                          num_magnitude_bins=num_magnitude_bins, **kwargs)
         level_op_idx = op_idx if n == 1 else op_idx[level_idx]
-        sample = _pretty_select(augmentations, level_op_idx, op_kwargs,
+        data = _pretty_select(augmentations, level_op_idx, op_kwargs,
                                 auto_aug_name='apply_rand_augment',
                                 ref_suite_name='get_rand_augment_suite')
-    return sample
+    return data
 
 
 def get_rand_augment_suite(use_shape: bool = False, max_translate_abs: Optional[int] = None,

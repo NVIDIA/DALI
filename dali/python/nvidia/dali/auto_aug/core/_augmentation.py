@@ -158,17 +158,17 @@ class Augmentation:
         ]
         return f"Augmentation({', '.join([repr(self.op)] + params)})"
 
-    def __call__(self, sample: _DataNode, *,
+    def __call__(self, data: _DataNode, *,
                  magnitude_bin: Optional[Union[int, _DataNode, _SignedMagnitudeBin]] = None,
                  num_magnitude_bins: Optional[int] = None, **kwargs) -> _DataNode:
         """
-        Applies the decorated transformation to the `sample` as if by calling
-        `self.op(sample, param, **kwargs)` where
+        Applies the decorated transformation to the `data` as if by calling
+        `self.op(data, param, **kwargs)` where
         `param = mag_to_param(magnitudes[magnitude_bin] * ((-1) ** random_sign))`.
 
         Parameter
         ---------
-        sample : DataNode
+        data : DataNode
             A batch of samples to be transformed.
         magnitude_bin: int, DataNode, or _SignedMagnitudeBin
             The magnitude bin from range `[0, num_magnitude_bins - 1]`. The bin is used to get
@@ -181,8 +181,8 @@ class Augmentation:
             `magnitude_bin` to `[0, num_magnitude_bins - 1]`).
         kwargs
             Dictionary with extra arguments to pass to the `self.op`. The op's signature
-            is checked for any additional arguments (apart from the sample and parameter) and the
-            arguments with matching names are passed to the call.
+            is checked for any additional arguments (apart from the ``data`` and ``parameter``) and
+            the arguments with matching names are passed to the call.
 
         Returns
         -------
@@ -200,7 +200,7 @@ class Augmentation:
                 f"which were not provided to the call: {', '.join(missing_args)}. "
                 f"Please make sure to pass the required arguments when calling the "
                 f"augmentation.", augmentation=self, missing_args=missing_args)
-        return self.op(sample, params, **op_kwargs)
+        return self.op(data, params, **op_kwargs)
 
     @property
     def op(self):
