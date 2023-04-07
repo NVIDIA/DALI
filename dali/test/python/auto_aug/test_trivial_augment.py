@@ -112,7 +112,7 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         if dev == "gpu":
             data = data.gpu()
         data = trivial_augment.apply_trivial_augment(augmentations, data,
-                                                       num_magnitude_bins=num_magnitude_bins)
+                                                     num_magnitude_bins=num_magnitude_bins)
         return data
 
     p = pipeline()

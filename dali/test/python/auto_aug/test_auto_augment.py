@@ -193,7 +193,7 @@ def test_sub_policy(randomly_negate, dev, batch_size):
             for op_mag in sample:
                 if op_mag[1] < 0:
                     # the `second` and `third` augmentation are marked as randomly_negated
-                    assert op_mag[0] in [2, 3], f"{data}"
+                    assert op_mag[0] in [2, 3], f"{sample}"
         if randomly_negate:
             # for each sub-policy, count occurrences of any possible sequence
             # of magnitude signs

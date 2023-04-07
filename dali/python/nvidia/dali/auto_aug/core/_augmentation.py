@@ -190,7 +190,7 @@ class Augmentation:
             A batch of transformed samples.
     """
         num_mandatory_positional_args = 2
-        param_device = self._infer_param_device(sample)
+        param_device = self._infer_param_device(data)
         params = self._get_param(magnitude_bin, num_magnitude_bins, param_device)
         op_kwargs = filter_extra_accepted_kwargs(self.op, kwargs, num_mandatory_positional_args)
         missing_args = get_missing_kwargs(self.op, kwargs, num_mandatory_positional_args)

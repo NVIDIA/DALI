@@ -178,8 +178,8 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
             op_kwargs = dict(data=data, magnitude_bin=magnitude_bins[stage_id],
                              num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
             data = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
-                                    auto_aug_name='apply_auto_augment',
-                                    ref_suite_name='get_image_net_policy')
+                                  auto_aug_name='apply_auto_augment',
+                                  ref_suite_name='get_image_net_policy')
     return data
 
 

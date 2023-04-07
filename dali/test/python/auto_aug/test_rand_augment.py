@@ -123,7 +123,7 @@ def test_ops_selection_and_mags(case_idx, args):
         if dev == "gpu":
             data = data.gpu()
         data = rand_augment.apply_rand_augment(augmentations, data, n=n, m=m,
-                                                 num_magnitude_bins=num_magnitude_bins)
+                                               num_magnitude_bins=num_magnitude_bins)
         return fn.reshape(data, shape=(-1, 2))
 
     p = pipeline()

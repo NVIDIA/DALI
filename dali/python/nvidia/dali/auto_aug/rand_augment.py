@@ -177,8 +177,8 @@ def apply_rand_augment(augmentations: List[_Augmentation], data: _DataNode, n: i
                          num_magnitude_bins=num_magnitude_bins, **kwargs)
         level_op_idx = op_idx if n == 1 else op_idx[level_idx]
         data = _pretty_select(augmentations, level_op_idx, op_kwargs,
-                                auto_aug_name='apply_rand_augment',
-                                ref_suite_name='get_rand_augment_suite')
+                              auto_aug_name='apply_rand_augment',
+                              ref_suite_name='get_rand_augment_suite')
     return data
 
 
