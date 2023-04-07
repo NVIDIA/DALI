@@ -113,8 +113,13 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.autosectionlabel',
+    'sphinx.ext.autosectionlabel'
 ]
+
+# https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
+autodoc_typehints_format = 'short'
+python_use_unqualified_type_names = True
+autodoc_typehints = 'none'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

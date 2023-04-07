@@ -36,8 +36,8 @@ def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
     Applies TrivialAugment Wide (https://arxiv.org/abs/2103.10158) augmentation scheme to the
     provided batch of samples.
 
-    Parameter
-    ---------
+    Args
+    ----
     data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
@@ -51,12 +51,12 @@ def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
         Supported values are `types.INTERP_LINEAR` (default) and `types.INTERP_NN`.
     max_translate_abs: int or (int, int), optional
-        Only valid when `shapes` is not provided. Specifies the maximal shift (in pixels)
+        Only valid when ``shapes`` is not provided. Specifies the maximal shift (in pixels)
         in the translation augmentation. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 32, which means the maximal magnitude
         shifts the image by 32 pixels.
     max_translate_rel: float or (float, float), optional
-        Only valid when `shapes` argument is provided. Specifies the maximal shift as a
+        Only valid when ``shapes`` argument is provided. Specifies the maximal shift as a
         fraction of image shape in the translation augmentations.
         If a tuple is specified, the first component limits the height, the second the width.
         Defaults to 1, which means the maximal magnitude shifts the image entirely out of
@@ -66,8 +66,9 @@ def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
     excluded: List[str], optional
         A list of names of the operations to be excluded from the default suite of augmentations.
         If, instead of just limiting the set of operations, you need to include some custom
-        operations or fine-tuned of the existing ones, you can use the `apply_trivial_augment`
-        directly, which accepts a list of augmentations.
+        operations or fine-tuned of the existing ones, you can use the
+        :meth:`~nvidia.dali.auto_aug.trivial_augment.apply_trivial_augment` directly,
+        which accepts a list of augmentations.
 
     Returns
     -------
@@ -105,8 +106,8 @@ def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
     The magnitude bin for every transformation is randomly selected from
     `[0, num_magnitude_bins - 1]`.
 
-    Parameter
-    ---------
+    Args
+    ----
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in TrivialAugment fashion.
     data : DataNode
@@ -120,7 +121,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
         The signature of each augmentation is checked for any extra arguments and if
         the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
-        random augment suite accept `shapes`, `fill_value` and `interp_type`.
+        TrivialAugment suite accept ``shapes``, ``fill_value`` and ``interp_type``.
 
     Returns
     -------
@@ -153,8 +154,8 @@ def get_trivial_augment_wide_suite(
     Creates a list of 14 augmentations referred as wide augmentation space in TrivialAugment paper
     (https://arxiv.org/abs/2103.10158).
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
