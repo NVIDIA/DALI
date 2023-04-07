@@ -90,8 +90,9 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
     excluded: List[str], optional
         A list of names of the operations to be excluded from the default suite of augmentations.
         If, instead of just limiting the set of operations, you need to include some custom
-        operations or fine-tune the existing ones, you can use the `apply_rand_augment`
-        directly, which accepts a list of augmentations.
+        operations or fine-tune the existing ones, you can use the
+        :meth:`~nvidia.dali.auto_aug.rand_augment.apply_rand_augment` directly, which accepts
+        a list of augmentations.
 
     Returns
     -------

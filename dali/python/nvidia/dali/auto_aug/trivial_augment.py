@@ -66,8 +66,9 @@ def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
     excluded: List[str], optional
         A list of names of the operations to be excluded from the default suite of augmentations.
         If, instead of just limiting the set of operations, you need to include some custom
-        operations or fine-tuned of the existing ones, you can use the `apply_trivial_augment`
-        directly, which accepts a list of augmentations.
+        operations or fine-tuned of the existing ones, you can use the
+        :meth:`~nvidia.dali.auto_aug.trivial_augment.apply_trivial_augment` directly,
+        which accepts a list of augmentations.
 
     Returns
     -------
