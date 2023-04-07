@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -581,3 +581,97 @@ def test_empty_es():
         pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         pipe.build()
         pipe.run()
+
+
+def test_repeat_last():
+    @pipeline_def
+    def pipeline():
+        cpu = fn.external_source(name="es_cpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True)
+        return cpu, gpu
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+        np.array([6666], dtype=np.int32)
+    ]
+    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es_gpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_cpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_gpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data2)
+
+    pipe.feed_input("es_cpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data2)
+
+
+def test_repeat_last_queue():
+    @pipeline_def
+    def pipeline():
+        cpu = fn.external_source(name="es_cpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True)
+        return cpu, gpu
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+        np.array([6666], dtype=np.int32)
+    ]
+    data3 = data1
+
+    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es_gpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_cpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data1)  # <- still the old value
+    check_batch(b, data1)
+
+    pipe.feed_input("es_gpu", data3)
+    a, b = pipe.run()
+    check_batch(a, data2)  # <- new value visible
+    check_batch(b, data1)  # <- still old
+
+    pipe.feed_input("es_cpu", data3)
+    a, b = pipe.run()
+    check_batch(a, data2)  # <- still 2, the most recent change not visible
+    check_batch(b, data3)  # <- new

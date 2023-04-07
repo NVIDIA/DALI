@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -213,8 +213,13 @@ class DLL_PUBLIC Pipeline {
                    bool sync = false, bool use_copy_kernel = false,
                    InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT,
                    std::optional<std::string> data_id = std::nullopt) {
-    SetExternalInputHelper(
-            name, tl, std::move(data_id), order, {sync, use_copy_kernel, no_copy_mode});
+    DALI_ENFORCE(tl.num_samples() > 0, "The input batch cannot be empty.");
+
+    InputOperatorSettingMode mode{sync, use_copy_kernel, no_copy_mode};
+    if (!repeat_last_.SetLast(name, tl, data_id, order, mode)) {
+      // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
+      SetExternalInputHelper(name, tl, std::move(data_id), order, mode);
+    }
   }
 
 
@@ -647,7 +652,81 @@ class DLL_PUBLIC Pipeline {
   std::map<int, int64_t> logical_id_to_seed_;
 
   std::set<std::string> input_operators_names_;
+
+
+  /**
+   * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on
+   *
+   * ExternalSource nodes can specify a repeat_last flag which works by re-submitting the most
+   * recently fed input in case where no new data was fed between calls to Pipeline::Run.
+   *
+   * This class maintains a list of such nodes, stores the most recently fed input and re-submits
+   * it if no new data was fed.
+   */
+  struct RepeatLastInputs {
+    void FindNodes(const OpGraph &graph);
+
+    template <typename Backend>
+    bool SetLast(const std::string &name, const TensorList<Backend> &data,
+                 const std::optional<std::string> &data_id,
+                 AccessOrder order,
+                 InputOperatorSettingMode ext_src_setting_mode) {
+      auto &nodes = GetNodes<Backend>();
+      auto it = nodes.find(name);
+      if (it == nodes.end())
+        return false;
+
+      auto &node = it->second;
+      auto &inp = dynamic_cast<InputOperator<Backend>&>(*node.op_node->op);
+
+      if (inp.WouldCopy(ext_src_setting_mode.no_copy_mode)) {
+        node.last_input.Reset();
+        node.last_input.set_order(order);
+        node.last_input.Copy(data, order, ext_src_setting_mode.use_copy_kernel);
+        if (ext_src_setting_mode.sync)
+          AccessOrder::host().wait(order);
+      } else {
+        node.last_input.ShareData(data);
+      }
+      node.data_id = data_id;
+
+      return true;
+    }
+
+    template <typename Backend>
+    void Refeed(Pipeline &owner);
+
+    template <typename Backend>
+    struct RepeatLastInput {
+      const OpNode *op_node = nullptr;
+      TensorList<Backend> last_input;
+      std::optional<std::string> data_id;
+    };
+
+    std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
+    std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;
+
+    template <typename Backend>
+    std::map<std::string, RepeatLastInput<Backend>> &GetNodes() {
+      static_assert(std::is_same_v<Backend, CPUBackend> || std::is_same_v<Backend, GPUBackend>);
+      if constexpr (std::is_same_v<Backend, CPUBackend>)
+        return cpu_nodes_;
+      else
+        return gpu_nodes_;
+    }
+  };
+
+  RepeatLastInputs repeat_last_;
 };
+
+template <typename Backend>
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
+  auto &nodes = GetNodes<Backend>();
+  for (auto &[name, node] : nodes) {
+    owner.SetExternalInputHelper(name, node.last_input, node.data_id, {},
+      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY});
+  }
+}
 
 }  // namespace dali
 

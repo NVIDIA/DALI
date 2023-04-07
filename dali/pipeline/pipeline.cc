@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -544,6 +544,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   executor_->Build(&graph_, outputs);
 
   DiscoverInputOperators();
+  repeat_last_.FindNodes(graph_);
 
   built_ = true;
 }
@@ -568,12 +569,14 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
 void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
+  repeat_last_.Refeed<CPUBackend>(*this);
   executor_->RunCPU();
 }
 
 void Pipeline::RunGPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
+  repeat_last_.Refeed<GPUBackend>(*this);
   executor_->RunMixed();
   executor_->RunGPU();
 }
@@ -1018,6 +1021,25 @@ void Pipeline::DiscoverInputOperators() {
   for (const auto & node : op_nodes) {
     if (!is_input_operator(node)) continue;
     input_operators_names_.insert(node.instance_name);
+  }
+}
+
+
+void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
+  for (const auto &node : graph.GetOpNodes()) {
+    if (node.spec.name() != "ExternalSource")
+      continue;
+
+    bool repeat_last = false;
+    if (!node.spec.TryGetArgument(repeat_last, "repeat_last") || !repeat_last)
+      continue;
+
+    if (node.op_type == OpType::GPU)
+      gpu_nodes_[node.instance_name] = { &node };
+    else if (node.op_type == OpType::CPU)
+      cpu_nodes_[node.instance_name] = { &node };
+    else
+      assert(!"Unexpected backend for an ExternalSource node.");
   }
 }
 
