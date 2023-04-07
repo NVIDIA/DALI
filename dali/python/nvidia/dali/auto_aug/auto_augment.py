@@ -45,7 +45,7 @@ def auto_augment(sample: _DataNode, policy_name: str = 'image_net',
     ---------
     sample : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+        `uint8` type.
     policy_name : str, optional
         The name of predefined policy. Acceptable values are: `image_net`,
         `reduced_image_net`, `svhn`, `reduced_cifar10`. Defaults to `image_net`.

@@ -42,7 +42,7 @@ def rand_augment(sample: _DataNode, n: int, m: int, num_magnitude_bins: int = 31
     ---------
     sample : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+        `uint8` type.
     n: int
         The number of randomly sampled operations to be applied to a sample.
     m: int

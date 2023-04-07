@@ -74,7 +74,9 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
         (in particular, no pipelined DALI operators can be used in the callback).
         The output type and dimensionality must be consistent and not depend on the magnitude.
     param_device: str
-        A "cpu" or "gpu", describes where to store the precomputed parameters.
+        A "cpu", "gpu", or "auto"; defaults to "cpu". Describes where to store the precomputed
+        parameters (i.e. the `mag_to_param` outputs). If "auto" is specified, the CPU or GPU
+        backend will be selected to match the `sample`'s backend.
     name: str
         Name of the augmentation. By default, the name of the decorated function is used.
 

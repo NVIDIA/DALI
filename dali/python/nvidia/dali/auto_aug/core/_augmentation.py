@@ -190,7 +190,8 @@ class Augmentation:
             A batch of transformed samples.
     """
         num_mandatory_positional_args = 2
-        params = self._get_param(magnitude_bin, num_magnitude_bins)
+        param_device = self._infer_param_device(sample)
+        params = self._get_param(magnitude_bin, num_magnitude_bins, param_device)
         op_kwargs = filter_extra_accepted_kwargs(self.op, kwargs, num_mandatory_positional_args)
         missing_args = get_missing_kwargs(self.op, kwargs, num_mandatory_positional_args)
         if missing_args:
@@ -252,6 +253,11 @@ class Augmentation:
             "name": self._name,
         }
 
+    def _infer_param_device(self, sample: _DataNode):
+        if self.param_device != "auto":
+            return self.param_device
+        return sample.device or "cpu"
+
     def _has_custom_magnitudes(self):
         return isinstance(self.mag_range, np.ndarray)
 
@@ -311,7 +317,7 @@ class Augmentation:
         lo, hi = mag_range
         return np.linspace(lo, hi, num_magnitude_bins, dtype=np.float32)
 
-    def _get_param(self, magnitude_bin, num_magnitude_bins):
+    def _get_param(self, magnitude_bin, num_magnitude_bins, param_device):
         magnitudes = self._get_magnitudes(num_magnitude_bins)
         if magnitudes is None:
             return None
@@ -339,7 +345,7 @@ class Augmentation:
                 param_idx = magnitude_bin.signed_magnitude_idx
             magnitudes = _SignedMagnitudeBin._remap_to_signed_magnitudes(magnitudes)
             params = self._map_mags_to_params(magnitudes)
-            params = types.Constant(params, device=self.param_device)
+            params = types.Constant(params, device=param_device)
             return params[param_idx]
         else:
             # other augmentations in the suite may need sign and we got it along the magnitude bin,
@@ -349,10 +355,10 @@ class Augmentation:
             if isinstance(bin_idx, int):
                 magnitude = magnitudes[bin_idx]
                 param = self._map_mag_to_param(magnitude)
-                return types.Constant(param, device=self.param_device)
+                return types.Constant(param, device=param_device)
             else:
                 params = self._map_mags_to_params(magnitudes)
-                params = types.Constant(params, device=self.param_device)
+                params = types.Constant(params, device=param_device)
                 return params[bin_idx]
 
     def _validate_op_sig(self):
