@@ -36,7 +36,7 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
                  excluded: Optional[List[str]] = None) -> _DataNode:
     """
     Applies RandAugment (https://arxiv.org/abs/1909.13719) augmentation scheme to the
-    provided batch of data.
+    provided batch of samples.
 
     Parameter
     ---------
