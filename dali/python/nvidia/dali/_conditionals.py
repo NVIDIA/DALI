@@ -219,6 +219,7 @@ class _ConditionStack:
         for level in range(self.stack_depth() - 1, -1, -1):
             if self._stack[level].has(data_node):
                 return level
+
         raise ValueError(f"{data_node} was not produced within this trace.")
 
     def _realize_split(self, data_node, stack_level):
@@ -311,6 +312,21 @@ class _ConditionStack:
         """
         self.no_branch()
         self.top().add_produced(split_predicate)
+
+    def scope_batch_size_tracker(self):
+        """Return the DataNode that can be used as a reference batch size in this scope.
+        None is returned if we are in the top level scope.
+        """
+        if self.stack_depth() == 1:
+            return None
+        if self.top().branch in {_Branch.TrueBranch, _Branch.FalseBranch}:
+            # In worst case we will introduce a split on the predicate itself, but we know,
+            # we can consistently do it, and it will happen only for the first operator call,
+            # for the following ones in this scope it will be cached.
+            return self.preprocess_input(self.top().predicate)
+        else:
+            # If we are in the merge stage, just use the size of the predicate
+            return self.top().predicate
 
     def _indent(self):
         """Helper for indenting the log messages to resemble visited scopes"""

@@ -1723,9 +1723,6 @@ def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
             pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             if debug_mode_on:
-                # TODO(klecki): cross-validate conditionals with eager mode
-                if conditionals_on:
-                    raise NotImplementedError("Conditionals are not supported in debug mode yet.")
                 pipe = _PipelineDebug(functools.partial(pipe_func, *args, **fn_kwargs),
                                       **pipeline_args)
             else:
