@@ -253,7 +253,7 @@ class Augmentation:
             "name": self._name,
         }
 
-    def _infer_param_device(self, sample : _DataNode):
+    def _infer_param_device(self, sample: _DataNode):
         if self.param_device != "auto":
             return self.param_device
         return sample.device or "cpu"
