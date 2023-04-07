@@ -32,7 +32,7 @@ except ImportError:
         "Please install numpy to use the examples.")
 
 
-def auto_augment(sample: _DataNode, policy_name: str = 'image_net',
+def auto_augment(data: _DataNode, policy_name: str = 'image_net',
                  shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
                  interp_type: Optional[types.DALIInterpType] = None,
                  max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
@@ -43,14 +43,14 @@ def auto_augment(sample: _DataNode, policy_name: str = 'image_net',
 
     Parameter
     ---------
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
         `uint8` type.
     policy_name : str, optional
         The name of predefined policy. Acceptable values are: `image_net`,
         `reduced_image_net`, `svhn`, `reduced_cifar10`. Defaults to `image_net`.
     shape: DataNode, optional
-        A batch of shapes of the `sample`. If specified, the magnitude of `translation`
+        A batch of shapes of the `data`. If specified, the magnitude of `translation`
         operations depends on the image shape and spans from 0 to `max_translate_rel * shape`.
         Otherwise, the magnitude range is `[0, max_translate_abs]` for any sample.
     fill_value: int, optional
@@ -114,10 +114,10 @@ def auto_augment(sample: _DataNode, policy_name: str = 'image_net',
                                                   max_translate_abs=max_translate_abs,
                                                   max_translate_rel=max_translate_rel)
 
-    return apply_auto_augment(policy, sample, seed, **aug_kwargs)
+    return apply_auto_augment(policy, data, seed, **aug_kwargs)
 
 
-def auto_augment_image_net(sample: _DataNode, shape: Optional[_DataNode] = None,
+def auto_augment_image_net(data: _DataNode, shape: Optional[_DataNode] = None,
                            fill_value: Optional[int] = 128,
                            interp_type: Optional[types.DALIInterpType] = None,
                            max_translate_abs: Optional[int] = None,
@@ -130,11 +130,11 @@ def auto_augment_image_net(sample: _DataNode, shape: Optional[_DataNode] = None,
     Equivalent to `auto_augment` call with `policy_name` specified to `image_net`.
     See `auto_augment` function for details.
     """
-    return auto_augment(sample, "image_net", shape, fill_value, interp_type, max_translate_abs,
+    return auto_augment(data, "image_net", shape, fill_value, interp_type, max_translate_abs,
                         max_translate_rel, seed)
 
 
-def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = None,
+def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = None,
                        **kwargs) -> _DataNode:
     """
     Applies AutoAugment (https://arxiv.org/abs/1805.09501) augmentation scheme to the
@@ -144,7 +144,7 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
     ---------
     policy: Policy
         Set of sequences of augmentations to be applied in AutoAugment fashion.
-    sample : DataNode
+    data : DataNode
         A batch of samples to be processed.
     seed: int, optional
         Seed to be used to randomly sample operations (and to negate magnitudes).
@@ -175,12 +175,12 @@ def apply_auto_augment(policy: Policy, sample: _DataNode, seed: Optional[int] = 
     _forbid_unused_kwargs(policy.augmentations.values(), kwargs, 'apply_auto_augment')
     for stage_id in range(max_policy_len):
         if should_run[stage_id] < run_probabilities[stage_id]:
-            op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bins[stage_id],
+            op_kwargs = dict(data=data, magnitude_bin=magnitude_bins[stage_id],
                              num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
-            sample = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
-                                    auto_aug_name='apply_auto_augment',
-                                    ref_suite_name='get_image_net_policy')
-    return sample
+            data = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
+                                  auto_aug_name='apply_auto_augment',
+                                  ref_suite_name='get_image_net_policy')
+    return data
 
 
 def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,

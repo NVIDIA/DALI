@@ -83,8 +83,8 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
         return mag_to_param
 
     @augmentation(param_device=dev)
-    def op(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def op(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     augmentations = [
         op.augmentation(mag_range=(10 * i + 1, 10 * i + num_magnitude_bins),
@@ -108,12 +108,12 @@ def test_ops_mags_selection(dev, use_sign, num_magnitude_bins, num_ops):
     @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
                   seed=42)
     def pipeline():
-        sample = types.Constant([], dtype=types.INT32)
+        data = types.Constant([], dtype=types.INT32)
         if dev == "gpu":
-            sample = sample.gpu()
-        sample = trivial_augment.apply_trivial_augment(augmentations, sample,
-                                                       num_magnitude_bins=num_magnitude_bins)
-        return sample
+            data = data.gpu()
+        data = trivial_augment.apply_trivial_augment(augmentations, data,
+                                                     num_magnitude_bins=num_magnitude_bins)
+        return data
 
     p = pipeline()
     p.build()

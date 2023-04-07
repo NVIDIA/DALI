@@ -49,12 +49,12 @@ def ref_param(mag_range, mag_range_num_elements, bins_batch, mag_signs_batch=Non
 def test_magnitude_is_none():
 
     @augmentation
-    def pass_through_sample(sample, param):
+    def pass_through_sample(data, param):
         assert param is None, "If the `mag_range` is not specified the param should be None"
-        return sample
+        return data
 
-    sample = types.Constant(42)
-    assert pass_through_sample(sample, magnitude_bin=42) is sample
+    data = types.Constant(42)
+    assert pass_through_sample(data, magnitude_bin=42) is data
 
 
 def test_lo_hi_mag_range():
@@ -63,7 +63,7 @@ def test_lo_hi_mag_range():
     const_bin = 2
 
     @augmentation(mag_range=mag_range)
-    def pass_through_mag(sample, param):
+    def pass_through_mag(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
@@ -90,7 +90,7 @@ def test_explicit_mag_range():
     const_bin = 7
 
     @augmentation(mag_range=mag_range)
-    def pass_through_mag(sample, param):
+    def pass_through_mag(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
@@ -115,7 +115,7 @@ def test_randomly_negate(mag_range, num_magnitude_bins, use_implicit_sign, const
     batch_size = 64
 
     @augmentation(mag_range=mag_range, randomly_negate=True)
-    def pass_through_mag(sample, param):
+    def pass_through_mag(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
@@ -161,7 +161,7 @@ def test_no_randomly_negate(const_mag):
     batch_size = 32
 
     @augmentation(mag_range=mag_range)
-    def pass_through_mag(sample, param):
+    def pass_through_mag(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
@@ -192,7 +192,7 @@ def test_mag_to_param(mag_range, num_magnitude_bins, const_mag, dtype, param_dev
 
     @augmentation(mag_range=mag_range, randomly_negate=True, mag_to_param=mag_to_param,
                   param_device=param_device)
-    def pass_through_mag(sample, param):
+    def pass_through_mag(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=batch_size, seed=42)
@@ -239,15 +239,15 @@ def test_augmentation_setup_update():
     }
 
     @augmentation
-    def default_aug(sample, _):
-        return sample
+    def default_aug(data, _):
+        return data
 
     defaults = {attr: getattr(default_aug, attr) for attr in initial}
     defaults["name"] = "dummy"
 
     @augmentation(**initial)
-    def dummy(sample, _):
-        return sample
+    def dummy(data, _):
+        return data
 
     for reset_attr in initial:
         reset_attr_aug = dummy.augmentation(**{reset_attr: None})
@@ -260,8 +260,8 @@ def test_augmentation_setup_update():
 def test_augmentation_nested_decorator_fail():
 
     @augmentation
-    def dummy(sample, _):
-        return sample
+    def dummy(data, _):
+        return data
 
     with assert_raises(Exception,
                        glob="The `@augmentation` was applied to already decorated Augmentation."):
@@ -274,13 +274,13 @@ def test_mag_to_param_data_node_fail():
         return fn.transforms.shear(shear=magnitude)
 
     @augmentation(mag_range=(0, 250), mag_to_param=shear)
-    def illegal_shear(sample, shear_mt):
-        return fn.warp_affine(sample, mt=shear_mt)
+    def illegal_shear(data, shear_mt):
+        return fn.warp_affine(data, mt=shear_mt)
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=8, seed=42)
     def pipeline():
-        sample = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
-        return illegal_shear(sample, magnitude_bin=5, num_magnitude_bins=10)
+        data = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
+        return illegal_shear(data, magnitude_bin=5, num_magnitude_bins=10)
 
     glob_msg = "callback must return parameter that is `np.ndarray` or"
     with assert_raises(Exception, glob=glob_msg):
@@ -298,14 +298,14 @@ def test_mag_to_param_non_uniform_fail(non_uniform_shape, non_uniform_type):
         return np.full(shape, 42, dtype=dtype)
 
     @augmentation(mag_range=(0, 10), mag_to_param=mag_to_param)
-    def pass_param(sample, param):
+    def pass_param(data, param):
         return param
 
     @pipeline_def(num_threads=4, device_id=0, batch_size=8, seed=42)
     def pipeline():
-        sample = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
+        data = types.Constant(np.full((100, 100, 3), 42, dtype=np.uint8))
         mag_bin = sample_info(lambda si: si.idx_in_batch)
-        return pass_param(sample, magnitude_bin=mag_bin, num_magnitude_bins=11)
+        return pass_param(data, magnitude_bin=mag_bin, num_magnitude_bins=11)
 
     glob_msg = (f"augmentation must return the arrays of the same type and shape *"
                 f"has shape {shape_hi if non_uniform_shape else shape_lo} and type "
@@ -337,7 +337,7 @@ def test_lack_of_positional_args_fail():
 def test_no_required_kwargs():
 
     @augmentation
-    def aug(sample, param, extra, another_extra, extra_with_default=None):
+    def aug(data, param, extra, another_extra, extra_with_default=None):
         pass
 
     @pipeline_def(batch_size=3, num_threads=4, device_id=0, seed=42)
@@ -360,15 +360,15 @@ def test_no_required_kwargs():
 def test_unused_kwargs():
 
     @augmentation
-    def no_extra(sample, _):
+    def no_extra(data, _):
         pass
 
     @augmentation
-    def aug(sample, param, one_param, another_param):
+    def aug(data, param, one_param, another_param):
         pass
 
     @augmentation
-    def another_aug(sample, _, another_param, yet_another_param):
+    def another_aug(data, _, another_param, yet_another_param):
         pass
 
     augments = (no_extra, aug, another_aug)

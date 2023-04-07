@@ -50,54 +50,54 @@ def warp_y_param(magnitude):
 
 
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_x_param)
-def shear_x(sample, shear, fill_value=128, interp_type=None):
+def shear_x(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_y_param)
-def shear_y(sample, shear, fill_value=128, interp_type=None):
+def shear_y(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, mag_to_param=warp_x_param)
-def translate_x(sample, rel_offset, shape, fill_value=128, interp_type=None):
+def translate_x(data, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[1]
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_x_param,
               name="translate_x")
-def translate_x_no_shape(sample, offset, fill_value=128, interp_type=None):
+def translate_x_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0., 1.), randomly_negate=True, mag_to_param=warp_y_param)
-def translate_y(sample, rel_offset, shape, fill_value=128, interp_type=None):
+def translate_y(data, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[0]
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_y_param,
               name="translate_y")
-def translate_y_no_shape(sample, offset, fill_value=128, interp_type=None):
+def translate_y_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(sample, matrix=mt, fill_value=fill_value, interp_type=interp_type,
+    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
                           inverse_map=False)
 
 
 @augmentation(mag_range=(0, 30), randomly_negate=True)
-def rotate(sample, angle, fill_value=128, interp_type=None, rotate_keep_size=True):
-    return fn.rotate(sample, angle=angle, fill_value=fill_value, interp_type=interp_type,
+def rotate(data, angle, fill_value=128, interp_type=None, rotate_keep_size=True):
+    return fn.rotate(data, angle=angle, fill_value=fill_value, interp_type=interp_type,
                      keep_size=rotate_keep_size)
 
 
@@ -110,28 +110,28 @@ def shift_enhance_range(magnitude):
 
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
-def brightness(sample, parameter):
-    return fn.brightness(sample, brightness=parameter)
+def brightness(data, parameter):
+    return fn.brightness(data, brightness=parameter)
 
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
-def contrast(sample, parameter):
+def contrast(data, parameter):
     """
     It follows PIL implementation of Contrast enhancement which uses a channel-weighted
     mean as a contrast center.
     """
-    mean = fn.reductions.mean(sample, axes=[0, 1])
+    mean = fn.reductions.mean(data, axes=[0, 1])
     rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
     center = fn.reductions.sum(mean * rgb_weights)
-    # it could be just `fn.contrast(sample, contrast=parameter, contrast_center=center)`
-    # but for GPU `sample` the `center` is in GPU mem, and that cannot be passed
+    # it could be just `fn.contrast(data, contrast=parameter, contrast_center=center)`
+    # but for GPU `data` the `center` is in GPU mem, and that cannot be passed
     # as named arg (i.e. `contrast_center`) to the operator
-    return fn.cast_like(center + (sample - center) * parameter, sample)
+    return fn.cast_like(center + (data - center) * parameter, data)
 
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=shift_enhance_range)
-def color(sample, parameter):
-    return fn.saturation(sample, saturation=parameter)
+def color(data, parameter):
+    return fn.saturation(data, saturation=parameter)
 
 
 def sharpness_kernel(magnitude):
@@ -148,13 +148,13 @@ def sharpness_kernel_shifted(magnitude):
 
 @augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=sharpness_kernel,
               param_device="auto")
-def sharpness(sample, kernel):
+def sharpness(data, kernel):
     """
     The outputs correspond to PIL's ImageEnhance.Sharpness with the exception for 1px
     border around the output. PIL computes convolution with smoothing filter only for
     valid positions (no out-of-bounds filter positions) and pads the output with the input.
     """
-    return fn.experimental.filter(sample, kernel)
+    return fn.experimental.filter(data, kernel)
 
 
 def poster_mask_uint8(magnitude):
@@ -174,16 +174,16 @@ def poster_mask_uint8(magnitude):
 
 
 @augmentation(mag_range=(0, 4), mag_to_param=poster_mask_uint8, param_device="auto")
-def posterize(sample, mask):
-    return sample & mask
+def posterize(data, mask):
+    return data & mask
 
 
 @augmentation(mag_range=(256, 0), param_device="auto")
-def solarize(sample, threshold):
-    sample_inv = types.Constant(255, dtype=types.UINT8) - sample
-    mask_unchanged = sample < threshold
+def solarize(data, threshold):
+    sample_inv = types.Constant(255, dtype=types.UINT8) - data
+    mask_unchanged = data < threshold
     mask_inverted = mask_unchanged ^ True
-    return mask_unchanged * sample + mask_inverted * sample_inv
+    return mask_unchanged * data + mask_inverted * sample_inv
 
 
 def solarize_add_shift(shift):
@@ -193,42 +193,42 @@ def solarize_add_shift(shift):
 
 
 @augmentation(mag_range=(0, 110), param_device="auto", mag_to_param=solarize_add_shift)
-def solarize_add(sample, shift):
-    mask_shifted = sample < types.Constant(128, dtype=types.UINT8)
+def solarize_add(data, shift):
+    mask_shifted = data < types.Constant(128, dtype=types.UINT8)
     mask_id = mask_shifted ^ True
-    sample_shifted = sample + shift
-    return mask_shifted * sample_shifted + mask_id * sample
+    sample_shifted = data + shift
+    return mask_shifted * sample_shifted + mask_id * data
 
 
 @augmentation
-def invert(sample, _):
-    return types.Constant(255, dtype=types.UINT8) - sample
+def invert(data, _):
+    return types.Constant(255, dtype=types.UINT8) - data
 
 
 @augmentation
-def equalize(sample, _):
+def equalize(data, _):
     """
     DALI's equalize follows OpenCV's histogram equalization.
     The PIL uses slightly different formula when transforming histogram's
     cumulative sum into lookup table.
     """
-    return fn.experimental.equalize(sample)
+    return fn.experimental.equalize(data)
 
 
 @augmentation
-def auto_contrast(sample, _):
+def auto_contrast(data, _):
     # assumes HWC layout
-    lo, hi = fn.reductions.min(sample, axes=[0, 1]), fn.reductions.max(sample, axes=[0, 1])
+    lo, hi = fn.reductions.min(data, axes=[0, 1]), fn.reductions.max(data, axes=[0, 1])
     diff = hi - lo
     mask_scale = diff > 0
     mask_id = mask_scale ^ True
     # choose div so that scale ends up being 255 / diff if diff > 0 and 1 otherwise
     div_by = diff * mask_scale + types.Constant(255, dtype=types.UINT8) * mask_id
     scale = 255 / div_by
-    scaled = (sample - lo * mask_scale) * scale
-    return fn.cast_like(scaled, sample)
+    scaled = (data - lo * mask_scale) * scale
+    return fn.cast_like(scaled, data)
 
 
 @augmentation
-def identity(sample, _):
-    return sample
+def identity(data, _):
+    return data
