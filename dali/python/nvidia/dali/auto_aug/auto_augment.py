@@ -52,7 +52,7 @@ def auto_augment(data: _DataNode, policy_name: str = 'image_net',
     shape: DataNode, optional
         A batch of shapes of the `data`. If specified, the magnitude of `translation`
         operations depends on the image shape and spans from 0 to `max_translate_rel * shape`.
-        Otherwise, the magnitude range is `[0, max_translate_abs]` for any data.
+        Otherwise, the magnitude range is `[0, max_translate_abs]` for any sample.
     fill_value: int, optional
         A value to be used as a padding for images transformed with warp_affine ops
         (translation, shear and rotate). If `None` is specified, the images are padded
