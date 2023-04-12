@@ -522,17 +522,17 @@ Keyword Args
 
 `repeat_last` : bool, optional, default = False
     .. note::
-        This is an advanced setting that is usable mainly with Triron inference server
+        This is an advanced setting that is usable mainly with Triton Inference Server
         with decoupled models.
 
-    Normally, ``external_source`` consumes its and expects new ones to be fed in the upcoming
-    iteration. Setting ``repeat_last=True`` changes this behavior so that ``external_source``
-    will detect that no new data was fed between the previous pipeline run and the currnet one
-    and will refeed the most recently data.
+    Normally, ``external_source`` consumes its input data and expects new ones to be fed in the
+    upcoming iteration. Setting ``repeat_last=True`` changes this behavior so that
+    ``external_source`` will detect that no new data was fed between the previous pipeline run and
+    the currnet one and will self-refeed with the most recent data.
 
     Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
-    actively provided by the user via a call to ``feed_input`` and is incompatible with specifying
-    the ``source``, which makes the ``external_source`` operate in "pull" mode.
+    actively provided by the user via a call to ``feed_input``. Enabling this option is incompatible
+    with specifying the ``source``, which makes the ``external_source`` operate in "pull" mode.
 
 `prefetch_queue_depth` : int, optional, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in
