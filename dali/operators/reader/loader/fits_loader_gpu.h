@@ -39,7 +39,9 @@
 namespace dali {
 
 struct FitsFileWrapperGPU {
+  std::vector<fits::HeaderData> header;
   std::vector<Tensor<CPUBackend>> data;
+  std::vector<std::vector<int64_t>> tile_offset, tile_size;
   std::string filename;
 };
 

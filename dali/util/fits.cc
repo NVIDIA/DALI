@@ -95,6 +95,19 @@ const TypeInfo& TypeFromFitsDatatypeCode(int datatype) {
   }
 }
 
+std::vector<int64_t> GetTileSizes(fitsfile* fptr, int32_t n_dims) {
+  std::vector<int64_t> tileSizes(n_dims, 1);
+  int32_t status = 0;
+
+  for (int32_t i = 0; i < n_dims; i++) {
+    std::string keyword = "ZTILE" + std::to_string(i + 1);
+    FITS_CALL(fits_read_key(fptr, TLONG, keyword.c_str(), &tileSizes[i], NULL, &status));
+    DALI_ENFORCE(tileSizes[i] > 0, "All ZTILE{i} values must be greater than 0!");
+  }
+
+  return tileSizes;
+}
+
 void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   int32_t hdu_type, img_type, n_dims, status = 0;
 
@@ -115,14 +128,25 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   parsed_header.type_info = &TypeFromFitsDatatypeCode(parsed_header.datatype_code);
   parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
 
+  if (parsed_header.compressed) {
+    parsed_header.bytepix = (src->Fptr)->rice_bytepix;
+    parsed_header.zbitpix = (src->Fptr)->zbitpix;
+    parsed_header.blocksize = (src->Fptr)->rice_blocksize;
+    parsed_header.maxtilelen = (src->Fptr)->maxtilelen;
+    parsed_header.tile_sizes = GetTileSizes(src, n_dims);
+    parsed_header.tiles = std::accumulate(parsed_header.tile_sizes.begin(),
+                                          parsed_header.tile_sizes.end(), 1, std::multiplies<>());
+  }
+
   for (auto it = dims.rbegin(); it != dims.rend(); ++it) {
     parsed_header.shape.shape.push_back(static_cast<int64_t>(*it));
   }
 }
 
-int extract_undecoded_data(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
+int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
                            long tiles, int* status) {
+  std::vector<std::vector<uint8_t>> raw_data;
   raw_data.resize(tiles);
   tile_offset.resize(tiles + 1);
   tile_size.resize(tiles);
@@ -220,6 +244,12 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<std::vector<uint8_t>>& ra
   }
 
   tile_offset[size] = sum_nelemll;
+
+  DALI_ENFORCE(false, "lolz"); 
+  for (const auto& tile : raw_data) {
+    data.insert(data.end(), tile.begin(), tile.end());
+  }
+
   return (*status);
 }
 

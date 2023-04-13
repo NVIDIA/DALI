@@ -46,6 +46,9 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
 
   // resize ouput vector according to the number of HDUs
   target.data.resize(hdu_indices_.size());
+  target.header.resize(hdu_indices_.size());
+  target.tile_offset.resize(hdu_indices_.size());
+  target.tile_size.resize(hdu_indices_.size());
 
   for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to appropiate hdu
@@ -55,6 +58,7 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
     fits::HeaderData header;
     try {
       fits::ParseHeader(header, current_file);
+      target.header[output_idx] = header;
     } catch (const std::runtime_error& e) {
       DALI_FAIL(e.what() + ". File: " + filename);
     }
@@ -66,12 +70,29 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
     if (target.data[output_idx].shares_data()) {
       target.data[output_idx].Reset();
     }
-    target.data[output_idx].Resize(header.shape, header.type());
 
-    // copy the image to host memory
-    fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
-                                  static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()),
-                                  &anynul, &status));
+    if (header.compressed) {
+      vector<uint8_t> raw_data;
+      dali::TensorShape<-1> shape;
+      shape.shape.push_back(raw_data.size());
+      target.data[output_idx].Resize(shape, DALI_UINT8);
+
+      fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
+                                   target.tile_size[output_idx], header.tiles, &status);
+      DALI_ENFORCE(false, "got here1!");
+
+
+      memcpy(static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), raw_data.data(),
+             raw_data.size());
+    } else {
+      target.data[output_idx].Resize(header.shape, header.type());
+
+      // copy the image to host memory
+      fits::FITS_CALL(fits_read_img(
+          current_file, header.datatype_code, 1, nelem, &nulval,
+          static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul, &status));
+    }
+
 
     // set metadata
     target.data[output_idx].SetMeta(meta);
