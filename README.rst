@@ -219,9 +219,9 @@ Additional Resources
 .. |talkAdvanced2022| replace:: event
 .. _talkAdvanced2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/
 .. |talkGeospatial2023| replace:: event
-.. _talkGeospatial2023: https://www.nvidia.com/gtc/session-catalog/?search=S51796
+.. _talkGeospatial2023: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51796/
 .. |breakoutDALITRITON| replace:: event
-.. _breakoutDALITRITON: https://www.nvidia.com/gtc/session-catalog/?search=SE52140
+.. _breakoutDALITRITON: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-se52140/
 ----
 
 Contributing to DALI
