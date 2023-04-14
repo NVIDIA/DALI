@@ -60,20 +60,19 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
 
 template<typename StorageBackend, typename T, int ndims>
 void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
-                      dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
+                      dali::kernels::Scratchpad &scratch, cudaStream_t stream) {
   static_assert(std::is_floating_point_v<T>,
                 "Shifting should be conducted on floating point data.");
   static_assert(is_gpu_accessible<StorageBackend>::value, "Data must be GPU-accessible.");
   auto n_samples = tlv.num_samples();
-  std::vector<size_t> sample_sizes_vec(n_samples);
+  BatchVector<size_t> sample_sizes_vec;
+  sample_sizes_vec.resize(n_samples);
   for (int i = 0; i < n_samples; i++) {
-    sample_sizes_vec[i] = volume(tlv.template tensor_shape(i));
+    sample_sizes_vec[i] = volume(tlv.tensor_shape_span(i));
   }
   auto max_sample_size = *std::max_element(sample_sizes_vec.begin(), sample_sizes_vec.end());
-  invoke_kernel_per_batch(
-          std::get<0>(ds.ToContiguousGPU(stream, tlv.data)),
-          std::get<0>(ds.ToContiguousGPU(stream, sample_sizes_vec)),
-          n_samples, max_sample_size, value, stream);
+  auto [gpu_tlv, gpu_sizes] = scratch.ToContiguousGPU(stream, tlv.data, sample_sizes_vec);
+  invoke_kernel_per_batch(gpu_tlv, gpu_sizes, n_samples, max_sample_size, value, stream);
 }
 
 }  // namespace detail
