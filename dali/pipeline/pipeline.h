@@ -218,8 +218,6 @@ class DLL_PUBLIC Pipeline {
                    bool sync = false, bool use_copy_kernel = false,
                    InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT,
                    std::optional<std::string> data_id = std::nullopt) {
-    DALI_ENFORCE(tl.num_samples() > 0, "The input batch cannot be empty.");
-
     InputOperatorSettingMode mode{sync, use_copy_kernel, no_copy_mode};
     // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
     SetExternalInputHelper(name, tl, std::move(data_id), order, mode, false);
@@ -738,7 +736,7 @@ template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
   auto &nodes = GetNodes<Backend>();
   for (auto &[name, node] : nodes) {
-    owner.SetExternalInputHelper(name, node.last_input, node.data_id, {},
+    owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
       InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
       true);
   }

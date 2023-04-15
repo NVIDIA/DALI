@@ -584,12 +584,20 @@ def test_empty_es():
         pipe.build()
         pipe.run()
 
+def to_tensor_list_gpu(data):
+    @pipeline_def(batch_size=len(data), num_threads=4, device_id=0, prefetch_queue_depth=1)
+    def convert_pipe():
+        return fn.external_source(source=[data], device="gpu")
+    pipe = convert_pipe()
+    pipe.build()
+    out, = pipe.run()
+    return out
 
 def test_repeat_last():
     @pipeline_def
     def pipeline():
         cpu = fn.external_source(name="es_cpu", repeat_last=True)
-        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu")
+        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu", no_copy=True)
         return cpu, gpu
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
@@ -606,25 +614,23 @@ def test_repeat_last():
         np.array([422], dtype=np.int32),
         np.array([6666], dtype=np.int32)
     ]
+    data1_gpu = to_tensor_list_gpu(data1)
+    data2_gpu = to_tensor_list_gpu(data2)
     pipe.feed_input("es_cpu", data1)
-    pipe.feed_input("es_gpu", data1)
-    print("Iter 0");
+    pipe.feed_input("es_gpu", data1_gpu)
     a, b = pipe.run()
     check_batch(a, data1)
     check_batch(b, data1)
-    print("Iter 1");
     a, b = pipe.run()
     check_batch(a, data1)
     check_batch(b, data1)
 
     pipe.feed_input("es_cpu", data2)
-    print("Iter 2");
     a, b = pipe.run()
     check_batch(a, data2)
     check_batch(b, data1)
 
-    pipe.feed_input("es_gpu", data2)
-    print("Iter 3");
+    pipe.feed_input("es_gpu", data2_gpu)
     a, b = pipe.run()
     check_batch(a, data2)
     check_batch(b, data2)
@@ -689,9 +695,9 @@ def test_repeat_last_var_batch(device):
     def pipeline():
         es = fn.external_source(name="es", repeat_last=True, device=device)
         u = fn.random.uniform(range=(0, 0.01))
-        return fn.cast(es + u, dtype=dali.types.INT32)
+        return es, u
 
-    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
     pipe.build()
     data1 = [
         np.array([1], dtype=np.int32),
@@ -704,26 +710,31 @@ def test_repeat_last_var_batch(device):
         np.array([33], dtype=np.int32),
         np.array([422], dtype=np.int32),
     ]
-    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es", data1)
 
     a, b = pipe.run()
     check_batch(a, data1)
-    check_batch(b, data1)
+    assert len(b) == len(data1)
+
     a, b = pipe.run()
     check_batch(a, data1)
-    check_batch(b, data1)
+    assert len(b) == len(data1)
 
-    pipe.feed_input("es_cpu", data2)
+    pipe.feed_input("es", data2)
     a, b = pipe.run()
+    check_batch(a, data1)  # data1 still in the queue
+    assert len(b) == len(data1)
+
+    a, b = pipe.run()  # data2 should bubble up now
     check_batch(a, data2)
-    check_batch(b, data1)
+    assert len(b) == len(data2)
 
-    pipe.feed_input("es_gpu", data2)
-    a, b = pipe.run()
-    check_batch(a, data2)
-    check_batch(b, data2)
 
-    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es", data1)
     a, b = pipe.run()
+    check_batch(a, data2)  # data2 still in the queue
+    assert len(b) == len(data2)
+
+    a, b = pipe.run()  # data1 should bubble up now
     check_batch(a, data1)
-    check_batch(b, data2)
+    assert len(b) == len(data1)
