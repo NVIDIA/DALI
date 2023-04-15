@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import random
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -584,6 +583,7 @@ def test_empty_es():
         pipe.build()
         pipe.run()
 
+
 def to_tensor_list_gpu(data):
     @pipeline_def(batch_size=len(data), num_threads=4, device_id=0, prefetch_queue_depth=1)
     def convert_pipe():
@@ -592,6 +592,7 @@ def to_tensor_list_gpu(data):
     pipe.build()
     out, = pipe.run()
     return out
+
 
 def test_repeat_last():
     @pipeline_def
@@ -722,19 +723,18 @@ def test_repeat_last_var_batch(device):
 
     pipe.feed_input("es", data2)
     a, b = pipe.run()
-    check_batch(a, data1)  # data1 still in the queue
+    check_batch(a, data1)  # <- still the old value
     assert len(b) == len(data1)
 
-    a, b = pipe.run()  # data2 should bubble up now
+    a, b = pipe.run()  # <- new value visible
     check_batch(a, data2)
     assert len(b) == len(data2)
 
-
     pipe.feed_input("es", data1)
     a, b = pipe.run()
-    check_batch(a, data2)  # data2 still in the queue
+    check_batch(a, data2)  # <- still 2, the most recent change not visible
     assert len(b) == len(data2)
 
-    a, b = pipe.run()  # data1 should bubble up now
+    a, b = pipe.run()  # <- new value visible
     check_batch(a, data1)
     assert len(b) == len(data1)
