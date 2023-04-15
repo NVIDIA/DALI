@@ -135,12 +135,16 @@ class DLL_PUBLIC Pipeline {
   void SetDataSourceHelper(
           const string &name, const TensorList<TensorListBackend> &tl,
           std::optional<std::string> data_id, OperatorBase *op_ptr, AccessOrder order = {},
-          InputOperatorSettingMode in_op_setting_mode = {}) {
-    auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
-    DALI_ENFORCE(source != nullptr,
-                 "Input name '" + name + "' is not marked as an InputOperator.");
-    source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode,
-                                                      std::move(data_id));
+          InputOperatorSettingMode in_op_setting_mode = {},
+          bool is_refeeding = false) {
+    if (is_refeeding ||
+        !repeat_last_.SetLast<OperatorBackend>(name, tl, data_id, order, in_op_setting_mode)) {
+      auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
+      DALI_ENFORCE(source != nullptr,
+                  "Input name '" + name + "' is not marked as an InputOperator.");
+      source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode,
+                                                        std::move(data_id));
+    }
   }
 
 
@@ -156,7 +160,8 @@ class DLL_PUBLIC Pipeline {
   template<typename Backend>
   void SetExternalInputHelper(const string &name, const TensorList<Backend> &tl,
                               std::optional<std::string> data_id, AccessOrder order = {},
-                              InputOperatorSettingMode ext_src_setting_mode = {}) {
+                              InputOperatorSettingMode ext_src_setting_mode = {},
+                              bool is_refeeding = false) {
     OpType op_type;
     OpNodeId node_id = -1;
 
@@ -180,15 +185,15 @@ class DLL_PUBLIC Pipeline {
     switch (op_type) {
       case OpType::CPU:
         SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order,
-                                                 ext_src_setting_mode);
+                                                 ext_src_setting_mode, is_refeeding);
         break;
       case OpType::MIXED:
         SetDataSourceHelper<Backend, MixedBackend>(name, tl, std::move(data_id), op_ptr, order,
-                                                   ext_src_setting_mode);
+                                                   ext_src_setting_mode, is_refeeding);
         break;
       case OpType::GPU:
         SetDataSourceHelper<Backend, GPUBackend>(name, tl, std::move(data_id), op_ptr, order,
-                                                 ext_src_setting_mode);
+                                                 ext_src_setting_mode, is_refeeding);
         break;
       default:
         assert(false);  // This shouldn't happen.
@@ -216,10 +221,8 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(tl.num_samples() > 0, "The input batch cannot be empty.");
 
     InputOperatorSettingMode mode{sync, use_copy_kernel, no_copy_mode};
-    if (!repeat_last_.SetLast(name, tl, data_id, order, mode)) {
-      // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
-      SetExternalInputHelper(name, tl, std::move(data_id), order, mode);
-    }
+    // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
+    SetExternalInputHelper(name, tl, std::move(data_id), order, mode, false);
   }
 
 
@@ -666,27 +669,35 @@ class DLL_PUBLIC Pipeline {
   struct RepeatLastInputs {
     void FindNodes(const OpGraph &graph);
 
-    template <typename Backend>
-    bool SetLast(const std::string &name, const TensorList<Backend> &data,
+    template <typename OperatorBackend, typename DataBackend>
+    bool SetLast(const std::string &name, const TensorList<DataBackend> &data,
                  const std::optional<std::string> &data_id,
                  AccessOrder order,
                  InputOperatorSettingMode ext_src_setting_mode) {
-      auto &nodes = GetNodes<Backend>();
+      auto &nodes = GetNodes<OperatorBackend>();
       auto it = nodes.find(name);
       if (it == nodes.end())
         return false;
 
       auto &node = it->second;
-      auto &inp = dynamic_cast<InputOperator<Backend>&>(*node.op_node->op);
+      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op_node->op);
 
-      if (inp.WouldCopy(ext_src_setting_mode.no_copy_mode)) {
+      auto do_copy = [&]() {
         node.last_input.Reset();
         node.last_input.set_order(order);
         node.last_input.Copy(data, order, ext_src_setting_mode.use_copy_kernel);
         if (ext_src_setting_mode.sync)
           AccessOrder::host().wait(order);
+      };
+
+      if constexpr (std::is_same_v<OperatorBackend, DataBackend>) {
+        if (inp.WouldCopy(ext_src_setting_mode.no_copy_mode)) {
+          do_copy();
+        } else {
+          node.last_input.ShareData(data);
+        }
       } else {
-        node.last_input.ShareData(data);
+        do_copy();
       }
       node.data_id = data_id;
 
@@ -699,20 +710,24 @@ class DLL_PUBLIC Pipeline {
     template <typename Backend>
     struct RepeatLastInput {
       const OpNode *op_node = nullptr;
-      TensorList<Backend> last_input;
+      using InputBackend = std::conditional_t<std::is_same_v<Backend, MixedBackend>,
+                                             CPUBackend, Backend>;
+      TensorList<InputBackend> last_input;
       std::optional<std::string> data_id;
     };
 
     std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
     std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;
+    std::map<std::string, RepeatLastInput<MixedBackend>> mixed_nodes_;
 
     template <typename Backend>
     std::map<std::string, RepeatLastInput<Backend>> &GetNodes() {
-      static_assert(std::is_same_v<Backend, CPUBackend> || std::is_same_v<Backend, GPUBackend>);
       if constexpr (std::is_same_v<Backend, CPUBackend>)
         return cpu_nodes_;
-      else
+      else if constexpr (std::is_same_v<Backend, GPUBackend>)
         return gpu_nodes_;
+      else
+        return mixed_nodes_;
     }
   };
 
@@ -723,8 +738,10 @@ template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
   auto &nodes = GetNodes<Backend>();
   for (auto &[name, node] : nodes) {
+    print(std::cout, "Refeeding ", name, "\n");
     owner.SetExternalInputHelper(name, node.last_input, node.data_id, {},
-      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY});
+      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+      true);
   }
 }
 

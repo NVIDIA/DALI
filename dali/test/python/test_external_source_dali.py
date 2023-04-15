@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -21,6 +22,7 @@ from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
 from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
+from nose2.tools import params
 
 
 def build_src_pipe(device, layout=None):
@@ -587,7 +589,7 @@ def test_repeat_last():
     @pipeline_def
     def pipeline():
         cpu = fn.external_source(name="es_cpu", repeat_last=True)
-        gpu = fn.external_source(name="es_gpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu")
         return cpu, gpu
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
@@ -606,19 +608,23 @@ def test_repeat_last():
     ]
     pipe.feed_input("es_cpu", data1)
     pipe.feed_input("es_gpu", data1)
+    print("Iter 0");
     a, b = pipe.run()
     check_batch(a, data1)
     check_batch(b, data1)
+    print("Iter 1");
     a, b = pipe.run()
     check_batch(a, data1)
     check_batch(b, data1)
 
     pipe.feed_input("es_cpu", data2)
+    print("Iter 2");
     a, b = pipe.run()
     check_batch(a, data2)
     check_batch(b, data1)
 
     pipe.feed_input("es_gpu", data2)
+    print("Iter 3");
     a, b = pipe.run()
     check_batch(a, data2)
     check_batch(b, data2)
@@ -633,7 +639,7 @@ def test_repeat_last_queue():
     @pipeline_def
     def pipeline():
         cpu = fn.external_source(name="es_cpu", repeat_last=True)
-        gpu = fn.external_source(name="es_gpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu")
         return cpu, gpu
 
     pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
@@ -675,3 +681,49 @@ def test_repeat_last_queue():
     a, b = pipe.run()
     check_batch(a, data2)  # <- still 2, the most recent change not visible
     check_batch(b, data3)  # <- new
+
+
+@params(("cpu", ), ("gpu", ))
+def test_repeat_last_var_batch(device):
+    @pipeline_def
+    def pipeline():
+        es = fn.external_source(name="es", repeat_last=True, device=device)
+        u = fn.random.uniform(range=(0, 0.01))
+        return fn.cast(es + u, dtype=dali.types.INT32)
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+    ]
+    pipe.feed_input("es_cpu", data1)
+
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_cpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_gpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data2)
+
+    pipe.feed_input("es_cpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data2)

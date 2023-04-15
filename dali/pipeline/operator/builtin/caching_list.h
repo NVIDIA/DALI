@@ -62,6 +62,8 @@ class CachingList {
     assert(!full_data_.empty());  // Can't pop from an empty list
     std::list<T> tmp;
     tmp.splice(tmp.begin(), full_data_, full_data_.begin());
+    if (tmp.begin() == prophet_)
+      prophet_ = full_data_.begin();
     return tmp;
   }
 
@@ -104,6 +106,17 @@ class CachingList {
 
 
   const T &PeekProphet() {
+    bool found = false;
+    int i = 0;
+    for (auto it = full_data_.begin(); it != full_data_.end(); ++it, ++i)
+      if (it == prophet_) {
+        found = true;
+        break;
+      }
+    if (!found)
+      std::cout << "Prophet doesn't point to any entry in full_data_" << std::endl;
+    else
+      std::cout << "Prophet points to entry #" << i << " in the list" << std::endl;
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
               "Attempted to peek element that doesn't exist. Add more elements to CachingList "

@@ -570,13 +570,13 @@ void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
   repeat_last_.Refeed<CPUBackend>(*this);
+  repeat_last_.Refeed<GPUBackend>(*this);
   executor_->RunCPU();
 }
 
 void Pipeline::RunGPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  repeat_last_.Refeed<GPUBackend>(*this);
   executor_->RunMixed();
   executor_->RunGPU();
 }
@@ -1038,6 +1038,8 @@ void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
       gpu_nodes_[node.instance_name] = { &node };
     else if (node.op_type == OpType::CPU)
       cpu_nodes_[node.instance_name] = { &node };
+    else if (node.op_type == OpType::MIXED)
+      mixed_nodes_[node.instance_name] = { &node };
     else
       assert(!"Unexpected backend for an ExternalSource node.");
   }
