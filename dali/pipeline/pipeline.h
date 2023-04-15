@@ -738,7 +738,6 @@ template <typename Backend>
 void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
   auto &nodes = GetNodes<Backend>();
   for (auto &[name, node] : nodes) {
-    print(std::cout, "Refeeding ", name, "\n");
     owner.SetExternalInputHelper(name, node.last_input, node.data_id, {},
       InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
       true);
