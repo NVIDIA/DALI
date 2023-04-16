@@ -36,7 +36,7 @@ use_cupy()
 import cupy as cp  # noqa:E402  - we need to call this after use_cupy()
 
 
-assert nvidia.dali.types._is_cupy_array(cp.array([1,2,3])), "CuPy array not recognized"
+assert nvidia.dali.types._is_cupy_array(cp.array([1, 2, 3])), "CuPy array not recognized"
 
 
 def test_external_source_with_iter_cupy_stream():
