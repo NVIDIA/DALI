@@ -329,9 +329,13 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   /**
-   * TODO
-   * @param ws
-   * @param depleted
+   * "depleted" operator trace specifies whether the operator has sufficient recourses to
+   * be run in yet another iteration.
+   *
+   * If "false", the operator needs to be fed with data to run the next iteration. If "true",
+   * the next iteration can be triggered.
+   * @param ws Current workspace.
+   * @param depleted Value of the trace.
    */
   virtual void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
     ws.SetOperatorTrace("depleted", depleted ? "true" : "false");
