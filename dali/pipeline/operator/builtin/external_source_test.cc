@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include <fstream>
 #include <memory>
 #include <tuple>
 #include <utility>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
