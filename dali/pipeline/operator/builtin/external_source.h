@@ -36,10 +36,10 @@ class ExternalSource : public InputOperator<Backend> {
  public:
   explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
+        repeats_last_(spec.GetArgument<bool>("repeat_last")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
-        layout_(),
-        repeats_last_(spec.GetArgument<bool>("repeat_last")) {
+        layout_() {
     spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
