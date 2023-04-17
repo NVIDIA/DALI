@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ from nose.plugins.attrib import attr
 from test_external_source_impl import *  # noqa:F403, F401
 from test_external_source_impl import use_cupy
 from test_utils import check_output, check_output_pattern
+import nvidia.dali
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 from nvidia.dali.tensors import TensorGPU
@@ -33,6 +34,9 @@ use_cupy()
 
 # extra tests, GPU-specific
 import cupy as cp  # noqa:E402  - we need to call this after use_cupy()
+
+
+assert nvidia.dali.types._is_cupy_array(cp.array([1, 2, 3])), "CuPy array not recognized"
 
 
 def test_external_source_with_iter_cupy_stream():
