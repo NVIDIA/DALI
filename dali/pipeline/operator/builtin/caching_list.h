@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,6 +62,8 @@ class CachingList {
     assert(!full_data_.empty());  // Can't pop from an empty list
     std::list<T> tmp;
     tmp.splice(tmp.begin(), full_data_, full_data_.begin());
+    if (tmp.begin() == prophet_)
+      prophet_ = full_data_.begin();
     return tmp;
   }
 

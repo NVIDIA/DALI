@@ -601,7 +601,6 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
   int batch_size;
   try {
     batch_size = bsps[0]->NextBatchSize();
-    assert(batch_size > 0);
     for (auto &bsp : bsps) {
       bsp->Advance();
     }

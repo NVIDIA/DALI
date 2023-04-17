@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -246,6 +246,16 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   virtual DALIDataType in_dtype() const = 0;
 
+  bool WouldCopy(InputOperatorNoCopyMode no_copy) const {
+    switch (no_copy) {
+      case InputOperatorNoCopyMode::FORCE_COPY:
+        return true;
+      case InputOperatorNoCopyMode::FORCE_NO_COPY:
+        return false;
+      default:
+        return !no_copy_;
+    }
+  }
 
  protected:
   /**
@@ -478,7 +488,6 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       state_.push_back({false, false});
     }
   }
-
 
   template<typename SrcBackend>
   void SetDataSourceHelper(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
