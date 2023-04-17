@@ -23,7 +23,7 @@ void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
   ForwardCurrentData(output, data_id_, thread_pool);
-  SetDepletedOperatorTrace(ws, !(repeats_last_ || HasDataInQueue()));
+  SetDepletedOperatorTrace(ws, !HasDataInQueue());
 }
 
 
@@ -32,7 +32,7 @@ void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
   ForwardCurrentData(output, data_id_, stream_used);
-  SetDepletedOperatorTrace(ws, !(repeats_last_ || HasDataInQueue()));
+  SetDepletedOperatorTrace(ws, !HasDataInQueue());
 }
 
 

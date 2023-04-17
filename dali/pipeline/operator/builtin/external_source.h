@@ -38,8 +38,7 @@ class ExternalSource : public InputOperator<Backend> {
       : InputOperator<Backend>(spec),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
-        layout_(),
-        repeats_last_(spec.GetArgument<bool>("repeat_last")) {
+        layout_() {
     spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
@@ -168,8 +167,6 @@ class ExternalSource : public InputOperator<Backend> {
     }
     layout_ = batch.GetLayout();
   }
-
-  const bool repeats_last_;
 
   string output_name_;
 

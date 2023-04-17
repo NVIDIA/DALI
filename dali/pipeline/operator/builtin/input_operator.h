@@ -337,7 +337,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * @param ws Current workspace.
    * @param depleted Value of the trace.
    */
-  virtual void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
+  void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
     ws.SetOperatorTrace("depleted", depleted ? "true" : "false");
   }
 

@@ -177,11 +177,13 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
    * Check, if the "next_output_data_id" trace exists, provided it should.
    */
   void DoesDataIdTraceExist(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
-    bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(), data_id_trace_name_.c_str());
+    bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(),
+                                            data_id_trace_name_.c_str());
     ASSERT_EQ(
             has_data_id,
             !test_files_[test_file_idx].data_id.empty())
-            << "Failed at iteration " << iteration_idx << " of file with index " << test_file_idx;
+                          << "Failed at iteration " << iteration_idx << " of file with index "
+                          << test_file_idx;
   }
 
 
@@ -189,7 +191,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
    * Verify, if the "next_output_data_id" trace has a correct value (provided it should exist).
    */
   void IsDataIdTraceCorrect(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
-    bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(), data_id_trace_name_.c_str());
+    bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(),
+                                            data_id_trace_name_.c_str());
     if (has_data_id) {
       EXPECT_STREQ(
               daliGetOperatorTrace(h, video_input_name_.c_str(), data_id_trace_name_.c_str()),
@@ -388,8 +391,8 @@ TYPED_TEST(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
   }
   daliRun(&h);
   daliOutput(&h);
-  EXPECT_EQ(daliHasOperatorTrace(&h, this->video_input_name_.c_str(), this->data_id_trace_name_.c_str()),
-            0);
+  EXPECT_EQ(daliHasOperatorTrace(&h, this->video_input_name_.c_str(),
+                                 this->data_id_trace_name_.c_str()), 0);
   daliDeletePipeline(&h);
 }
 
