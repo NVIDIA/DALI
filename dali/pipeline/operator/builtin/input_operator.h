@@ -328,6 +328,16 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
 
+  /**
+   * TODO
+   * @param ws
+   * @param depleted
+   */
+  virtual void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
+    ws.SetOperatorTrace("depleted", depleted ? "true" : "false");
+  }
+
+
   int device_id_;
   bool blocking_ = true;
   bool no_copy_ = false;
