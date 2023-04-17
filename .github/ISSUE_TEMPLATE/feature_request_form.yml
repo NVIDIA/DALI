@@ -15,7 +15,6 @@
 
 name: Feature Request Form
 description: Request new or improved functionality or changes to existing functionality
-title: "[FEA]: "
 labels: ["enhancement"]
 
 body:
@@ -40,10 +39,9 @@ body:
     attributes:
       label: How would you describe the priority of this feature request
       options:
-        - Critical (currently preventing usage)
-        - High
-        - Medium
-        - Low (would be nice)
+        - Must have (e.g. DALI adoption is impossible due to lack in functionality).
+        - Should have (e.g. Adoption is possible, but the performance shortcomings make the solution inferior).
+        - Nice to have (e.g. Adoption is possible, the feature will enhance the use-case even more).
     validations:
       required: true
 

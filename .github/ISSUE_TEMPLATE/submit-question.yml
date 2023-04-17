@@ -15,7 +15,6 @@
 
 name: Submit question
 description: Ask a general question about DALI
-title: "[QST]: "
 labels: ["question"]
 
 body:
