@@ -292,7 +292,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
         annotation.category_id_ = parser.GetInt();
       } else if (0 == std::strcmp(internal_key, "iscrowd")) {
         auto iscrowd = parser.GetInt();
-        to_add = iscrowd == 0 || include_iscrowd;
+        to_add &= iscrowd == 0 || include_iscrowd;
       } else if (0 == std::strcmp(internal_key, "bbox")) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
