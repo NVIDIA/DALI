@@ -120,10 +120,10 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
       daliRun(h);
       daliOutput(h);
 
-      DoesDataIdTraceExist(h, i, test_file_idx);
-      IsDataIdTraceCorrect(h, i, test_file_idx);
+      AssertDataIdTraceExist(h, i, test_file_idx);
+      CheckDataIdTraceValue(h, i, test_file_idx);
       AssertDepletedTraceExists(h);
-      AssertDepletedTraceValue(h, false);
+      CheckDepletedTraceValue(h, false);
     }
     /*
      * The last iteration of the pipeline shall carry a different result.
@@ -135,7 +135,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
     daliOutput(h);
     EXPECT_EQ(daliHasOperatorTrace(h, video_input_name_.c_str(), data_id_trace_name_.c_str()), 0);
     AssertDepletedTraceExists(h);
-    AssertDepletedTraceValue(h, true);
+    CheckDepletedTraceValue(h, true);
   }
 
 
@@ -176,7 +176,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
   /**
    * Check, if the "next_output_data_id" trace exists, provided it should.
    */
-  void DoesDataIdTraceExist(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
+  void AssertDataIdTraceExist(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
     bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(),
                                             data_id_trace_name_.c_str());
     ASSERT_EQ(
@@ -190,7 +190,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
   /**
    * Verify, if the "next_output_data_id" trace has a correct value (provided it should exist).
    */
-  void IsDataIdTraceCorrect(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
+  void CheckDataIdTraceValue(daliPipelineHandle *h, int iteration_idx, int test_file_idx) {
     bool has_data_id = daliHasOperatorTrace(h, video_input_name_.c_str(),
                                             data_id_trace_name_.c_str());
     if (has_data_id) {
@@ -215,8 +215,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
    * Verify the value of "depleted" trace.
    * @param shall_be_depleted Expected value.
    */
-  void AssertDepletedTraceValue(daliPipelineHandle *h, bool shall_be_depleted) {
-    ASSERT_STREQ(daliGetOperatorTrace(h, video_input_name_.c_str(), depleted_trace_name_.c_str()),
+  void CheckDepletedTraceValue(daliPipelineHandle *h, bool shall_be_depleted) {
+    EXPECT_STREQ(daliGetOperatorTrace(h, video_input_name_.c_str(), depleted_trace_name_.c_str()),
                  shall_be_depleted ? "true" : "false");
   }
 
@@ -370,15 +370,15 @@ TYPED_TEST(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
          iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
       daliRun(&h);
       daliOutput(&h);
-      this->DoesDataIdTraceExist(&h, iteration_idx, test_file_idx);
-      this->IsDataIdTraceCorrect(&h, iteration_idx, test_file_idx);
+      this->AssertDataIdTraceExist(&h, iteration_idx, test_file_idx);
+      this->CheckDataIdTraceValue(&h, iteration_idx, test_file_idx);
     }
     daliRun(&h);
     daliOutput(&h);
-    this->DoesDataIdTraceExist(&h, num_iterations_per_input[test_file_idx] - 1,
-                               next_test_file_idx);
-    this->IsDataIdTraceCorrect(&h, num_iterations_per_input[test_file_idx] - 1,
-                               next_test_file_idx);
+    this->AssertDataIdTraceExist(&h, num_iterations_per_input[test_file_idx] - 1,
+                                 next_test_file_idx);
+    this->CheckDataIdTraceValue(&h, num_iterations_per_input[test_file_idx] - 1,
+                                next_test_file_idx);
   }
   // The last test file should just clear the "next_output_data_id" trace after it's done.
   auto test_file_idx = test_files_order.back();
@@ -386,8 +386,8 @@ TYPED_TEST(VideoInputNextOutputDataIdTest, MultipleInputFilesParallelTest) {
        iteration_idx < num_iterations_per_input[test_file_idx] - 1; iteration_idx++) {
     daliRun(&h);
     daliOutput(&h);
-    this->DoesDataIdTraceExist(&h, iteration_idx, test_file_idx);
-    this->IsDataIdTraceCorrect(&h, iteration_idx, test_file_idx);
+    this->AssertDataIdTraceExist(&h, iteration_idx, test_file_idx);
+    this->CheckDataIdTraceValue(&h, iteration_idx, test_file_idx);
   }
   daliRun(&h);
   daliOutput(&h);

@@ -91,7 +91,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
    * Verify the value of "depleted" trace.
    * @param shall_be_depleted Expected value.
    */
-  void CheckDepletedTraceCorrect(daliPipelineHandle *h, bool shall_be_depleted) {
+  void CheckDepletedTraceValue(daliPipelineHandle *h, bool shall_be_depleted) {
     EXPECT_STREQ(daliGetOperatorTrace(h, input_name_.c_str(), depleted_trace_name_.c_str()),
                  shall_be_depleted ? "true" : "false");
   }
@@ -122,7 +122,7 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceTest) {
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, true);
+  this->CheckDepletedTraceValue(&this->handle_, true);
   daliOutputRelease(&this->handle_);
 
   this->FeedExternalInput(&this->handle_);
@@ -131,13 +131,13 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceTest) {
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, false);
+  this->CheckDepletedTraceValue(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, true);
+  this->CheckDepletedTraceValue(&this->handle_, true);
   daliOutputRelease(&this->handle_);
 
   daliDeletePipeline(&this->handle_);
@@ -156,13 +156,13 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceRepeatLastTest) {
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, false);
+  this->CheckDepletedTraceValue(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, false);
+  this->CheckDepletedTraceValue(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   this->FeedExternalInput(&this->handle_);
@@ -171,13 +171,13 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceRepeatLastTest) {
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, false);
+  this->CheckDepletedTraceValue(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
   this->AssertDepletedTraceExist(&this->handle_);
-  this->CheckDepletedTraceCorrect(&this->handle_, false);
+  this->CheckDepletedTraceValue(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliDeletePipeline(&this->handle_);
