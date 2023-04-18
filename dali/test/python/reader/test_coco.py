@@ -226,20 +226,20 @@ def test_coco_reader_alias():
 
 
 @params(True, False)
-def test_coco_include_crowd(include_is_crowd):
+def test_coco_include_crowd(include_iscrowd):
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)
-    def coco_pipe(include_is_crowd):
+    def coco_pipe(include_iscrowd):
         _, boxes, _, image_ids = fn.readers.coco(file_root=file_root,
                                                  annotations_file=train_annotations,
                                                  image_ids=True,
-                                                 include_is_crowd=include_is_crowd)
+                                                 include_iscrowd=include_iscrowd)
         return boxes, image_ids
 
     annotations = None
     with open(train_annotations) as file:
         annotations = json.load(file)
 
-    pipe = coco_pipe(include_is_crowd=include_is_crowd)
+    pipe = coco_pipe(include_iscrowd=include_iscrowd)
     pipe.build()
     number_of_samples = pipe.epoch_size()
     for k in number_of_samples:
@@ -255,7 +255,7 @@ def test_coco_include_crowd(include_is_crowd):
         anno_mapping[image_id]["bbox"].append(elm["bbox"])
         anno_mapping[image_id]["iscrowd"].append(elm["iscrowd"])
 
-    all_is_crowd = []
+    all_iscrowd = []
     for _ in range(number_of_samples):
         boxes, image_ids = pipe.run()
         image_ids = int(image_ids.as_array())
@@ -263,9 +263,9 @@ def test_coco_include_crowd(include_is_crowd):
         anno = anno_mapping[image_ids]
         idx = 0
         # it assumes that the coco reader reads annotations at the order of appearance inside JSON
-        all_is_crowd += anno["iscrowd"]
-        for j, is_crowd in enumerate(anno["iscrowd"]):
-            if include_is_crowd or is_crowd == 0:
+        all_iscrowd += anno["iscrowd"]
+        for j, iscrowd in enumerate(anno["iscrowd"]):
+            if include_iscrowd or iscrowd == 0:
                 assert np.all(boxes[idx] == np.array(anno["bbox"][j]))
                 idx += 1
-    assert any(all_is_crowd), 'At least one annotation should include `iscrowd=1`'
+    assert any(all_iscrowd), 'At least one annotation should include `iscrowd=1`'

@@ -273,7 +273,7 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
 void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
                       float min_size_threshold, bool ltrb,
                       bool parse_segmentation, bool parse_rle,
-                      bool include_is_crowd = true) {
+                      bool include_iscrowd = true) {
   std::string rle_str;
   std::vector<uint32_t> rle_uints;
   RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
@@ -292,7 +292,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
         annotation.category_id_ = parser.GetInt();
       } else if (0 == std::strcmp(internal_key, "iscrowd")) {
         auto iscrowd = parser.GetInt();
-        to_add = iscrowd == 0 || include_is_crowd;
+        to_add = iscrowd == 0 || include_iscrowd;
       } else if (0 == std::strcmp(internal_key, "bbox")) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
@@ -399,7 +399,7 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
   RAPIDJSON_ASSERT(parser.PeekType() == kObjectType);
   parser.EnterObject();
   float sz_threshold = spec.GetArgument<float>("size_threshold");
-  bool include_is_crowd = spec.GetArgument<bool>("include_is_crowd");
+  bool include_iscrowd = spec.GetArgument<bool>("include_iscrowd");
   bool ltrb = spec.GetArgument<bool>("ltrb");
   while (const char* key = parser.NextObjectKey()) {
     if (0 == std::strcmp(key, "images")) {
@@ -408,7 +408,7 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
       detail::ParseCategories(parser, category_ids);
     } else if (0 == std::strcmp(key, "annotations")) {
       ParseAnnotations(parser, annotations, sz_threshold, ltrb, parse_segmentation,
-                       parse_rle, include_is_crowd);
+                       parse_rle, include_iscrowd);
     } else {
       parser.SkipValue();
     }
