@@ -28,40 +28,27 @@
 
 namespace dali {
 
-namespace {
-
-/**
- * Load the test file as a binary string.
- */
-std::string LoadTestFile(const std::string &test_file_path) {
-  std::ifstream fin(test_file_path, std::ios::binary);
-  if (!fin)
-    throw std::runtime_error(std::string("Failed to open file: ") + test_file_path);
-  std::stringstream ss;
-  ss << fin.rdbuf();
-  return ss.str();
-}
-
-}  // namespace
 
 template<typename Backend>
 class ExternalSourceBasicTest : public ::testing::Test {
  protected:
   static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
 
+
   void CreateAndSerializePipeline(bool repeat_last) {
+    std::string dev_str = is_cpu ? "cpu" : "gpu";
     auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, false, 1,
                                                false);
     pipeline->AddOperator(
             OpSpec("ExternalSource")
                     .AddArg("repeat_last", repeat_last)
-                    .AddArg("device", std::string{is_cpu ? "cpu" : "gpu"})
+                    .AddArg("device", dev_str)
                     .AddArg("name", input_name_)
-                    .AddOutput(input_name_, std::string{is_cpu ? "cpu" : "gpu"}),
+                    .AddOutput(input_name_, dev_str),
             input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
-            {input_name_, is_cpu ? "cpu" : "gpu"},
+            {input_name_, dev_str},
     };
 
     pipeline->SetOutputDescs(outputs);
@@ -72,19 +59,16 @@ class ExternalSourceBasicTest : public ::testing::Test {
 
   void FeedExternalInput(daliPipelineHandle *h) {
     daliSetExternalInputBatchSize(h, input_name_.c_str(), batch_size_);
-    std::vector<int64_t> shapes;
-    std::string data;
-    for (int i = 0; i < batch_size_; i++) {
-      auto sample = LoadTestFile(test_files_[i % test_files_.size()]);
-      shapes.push_back(static_cast<int64_t>(sample.length()));
-      data += sample;
-    }
+    int bytes_per_sample = 10;
+    std::vector<int64_t> shapes(batch_size_, bytes_per_sample);
+    thrust::host_vector<uint8_t> data_cpu(batch_size_ * bytes_per_sample);
+    assert(bytes_per_sample * batch_size_ < 255);
+    std::iota(data_cpu.begin(), data_cpu.end(), 1);
     if constexpr (is_cpu) {
-      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data.data(),
+      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data_cpu.data(),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_force_copy);
     } else {
-      thrust::host_vector<uint8_t> data_cpu{data.begin(), data.end()};
       thrust::device_vector<uint8_t> data_gpu = data_cpu;
       daliSetExternalInput(h, input_name_.c_str(), device_type_t::GPU,
                            thrust::raw_pointer_cast(data_gpu.data()),
@@ -97,7 +81,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
   /**
    * Check, if the "depleted" trace exists.
    */
-  void DoesDepletedTraceExist(daliPipelineHandle *h) {
+  void AssertDepletedTraceExist(daliPipelineHandle *h) {
     // The "depleted" trace should always exist.
     ASSERT_TRUE(daliHasOperatorTrace(h, input_name_.c_str(), depleted_trace_name_.c_str()));
   }
@@ -107,7 +91,7 @@ class ExternalSourceBasicTest : public ::testing::Test {
    * Verify the value of "depleted" trace.
    * @param shall_be_depleted Expected value.
    */
-  void IsDepletedTraceCorrect(daliPipelineHandle *h, bool shall_be_depleted) {
+  void CheckDepletedTraceCorrect(daliPipelineHandle *h, bool shall_be_depleted) {
     EXPECT_STREQ(daliGetOperatorTrace(h, input_name_.c_str(), depleted_trace_name_.c_str()),
                  shall_be_depleted ? "true" : "false");
   }
@@ -120,13 +104,6 @@ class ExternalSourceBasicTest : public ::testing::Test {
   std::string serialized_pipeline_;
   const std::string depleted_trace_name_ = "depleted";
   const std::string input_name_ = "INPUT";
-  const std::vector<std::string> test_files_ = {
-          make_string(testing::dali_extra_path(), "/db/single/jpeg/100/swan-3584559_640.jpg"),
-          make_string(testing::dali_extra_path(), "/db/single/jpeg/182/dog-2425598_1280.jpg"),
-          make_string(testing::dali_extra_path(), "/db/single/jpeg/182/dog-742013_1280.jpg"),
-          make_string(testing::dali_extra_path(), "/db/single/jpeg/182/dog-2425598_1280.jpg"),
-          make_string(testing::dali_extra_path(), "/db/single/jpeg/182/dog-742013_1280.jpg"),
-  };
 };
 
 using ExternalSourceTestTypes = ::testing::Types<CPUBackend, GPUBackend>;
@@ -144,8 +121,8 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceTest) {
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, true);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, true);
   daliOutputRelease(&this->handle_);
 
   this->FeedExternalInput(&this->handle_);
@@ -153,14 +130,14 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceTest) {
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, false);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, true);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, true);
   daliOutputRelease(&this->handle_);
 
   daliDeletePipeline(&this->handle_);
@@ -178,14 +155,14 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceRepeatLastTest) {
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, false);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, false);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   this->FeedExternalInput(&this->handle_);
@@ -193,14 +170,14 @@ TYPED_TEST(ExternalSourceBasicTest, DepletedTraceRepeatLastTest) {
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, false);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliRun(&this->handle_);
   daliShareOutput(&this->handle_);
-  this->DoesDepletedTraceExist(&this->handle_);
-  this->IsDepletedTraceCorrect(&this->handle_, false);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceCorrect(&this->handle_, false);
   daliOutputRelease(&this->handle_);
 
   daliDeletePipeline(&this->handle_);

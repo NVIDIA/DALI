@@ -122,8 +122,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
 
       DoesDataIdTraceExist(h, i, test_file_idx);
       IsDataIdTraceCorrect(h, i, test_file_idx);
-      DoesDepletedTraceExist(h);
-      IsDepletedTraceCorrect(h, false);
+      AssertDepletedTraceExists(h);
+      AssertDepletedTraceValue(h, false);
     }
     /*
      * The last iteration of the pipeline shall carry a different result.
@@ -134,8 +134,8 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
     daliRun(h);
     daliOutput(h);
     EXPECT_EQ(daliHasOperatorTrace(h, video_input_name_.c_str(), data_id_trace_name_.c_str()), 0);
-    DoesDepletedTraceExist(h);
-    IsDepletedTraceCorrect(h, true);
+    AssertDepletedTraceExists(h);
+    AssertDepletedTraceValue(h, true);
   }
 
 
@@ -205,7 +205,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
   /**
    * Check, if the "depleted" trace exists.
    */
-  void DoesDepletedTraceExist(daliPipelineHandle *h) {
+  void AssertDepletedTraceExists(daliPipelineHandle *h) {
     // The "depleted" trace should always exist.
     ASSERT_TRUE(daliHasOperatorTrace(h, video_input_name_.c_str(), depleted_trace_name_.c_str()));
   }
@@ -215,7 +215,7 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
    * Verify the value of "depleted" trace.
    * @param shall_be_depleted Expected value.
    */
-  void IsDepletedTraceCorrect(daliPipelineHandle *h, bool shall_be_depleted) {
+  void AssertDepletedTraceValue(daliPipelineHandle *h, bool shall_be_depleted) {
     ASSERT_STREQ(daliGetOperatorTrace(h, video_input_name_.c_str(), depleted_trace_name_.c_str()),
                  shall_be_depleted ? "true" : "false");
   }
