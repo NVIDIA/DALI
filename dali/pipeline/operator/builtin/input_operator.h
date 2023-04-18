@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -246,6 +246,16 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   virtual DALIDataType in_dtype() const = 0;
 
+  bool WouldCopy(InputOperatorNoCopyMode no_copy) const {
+    switch (no_copy) {
+      case InputOperatorNoCopyMode::FORCE_COPY:
+        return true;
+      case InputOperatorNoCopyMode::FORCE_NO_COPY:
+        return false;
+      default:
+        return !no_copy_;
+    }
+  }
 
  protected:
   /**
@@ -315,6 +325,20 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   void Advance() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     tl_data_.AdvanceProphet();
+  }
+
+
+  /**
+   * "depleted" operator trace specifies whether the operator has sufficient resources to
+   * run another iteration.
+   *
+   * If "false", the operator needs to be fed with data to run the next iteration. If "true",
+   * the next iteration can be triggered.
+   * @param ws Current workspace.
+   * @param depleted Value of the trace.
+   */
+  void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
+    ws.SetOperatorTrace("depleted", depleted ? "true" : "false");
   }
 
 
@@ -478,7 +502,6 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       state_.push_back({false, false});
     }
   }
-
 
   template<typename SrcBackend>
   void SetDataSourceHelper(const TensorList<SrcBackend> &batch, std::optional<std::string> data_id,
