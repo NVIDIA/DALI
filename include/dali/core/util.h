@@ -84,6 +84,23 @@ constexpr Value align_up(Value v, Alignment a) {
   return v + ((a - 1) & -v);
 }
 
+template <typename Value, typename Alignment>
+DALI_HOST_DEV
+constexpr Value align_reminder(Value v, Alignment a) {
+  return v & (a - 1);
+}
+
+template <typename Value, typename Alignment>
+DALI_HOST_DEV
+constexpr Value align_down(Value v, Alignment a) {
+  return v & ~(a - 1);
+}
+
+template <typename Value, typename Offset, typename Alignment>
+DALI_HOST_DEV
+constexpr Value align_up_offset(Value v, Offset o, Alignment a) {
+  return align_up(v + align_reminder(o, a), a);
+}
 
 DALI_HOST_DEV
 constexpr int32_t div_ceil(int32_t total, uint32_t grain) {

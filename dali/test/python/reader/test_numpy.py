@@ -74,7 +74,8 @@ def delete_numpy_file(filename):
 
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
                         file_filter="*.npy", num_threads=1, device_id=0,
-                        cache_header_information=False, pad_last_batch=False):
+                        cache_header_information=False, pad_last_batch=False,
+                        enable_o_direct=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     data = fn.readers.numpy(device=device,
                             file_list=file_list,
@@ -84,7 +85,9 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                             shard_id=0,
                             num_shards=1,
                             cache_header_information=cache_header_information,
-                            pad_last_batch=pad_last_batch)
+                            pad_last_batch=pad_last_batch,
+                            dont_use_mmap=enable_o_direct,
+                            use_o_direct=enable_o_direct)
     pipe.set_outputs(data)
     return pipe
 
@@ -112,7 +115,7 @@ test_shapes = {
 
 
 def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order_arg,
-                               file_arg_type, cache_header_information):
+                               file_arg_type, cache_header_information, enable_o_direct=False):
     """ compare reader with numpy, with different batch_size and num_threads """
     nsamples = len(shapes)
 
@@ -152,7 +155,8 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
                                    device=device,
                                    batch_size=batch_size,
                                    num_threads=num_threads,
-                                   device_id=0)
+                                   device_id=0,
+                                   enable_o_direct=enable_o_direct)
         try:
             pipe.build()
             i = 0
@@ -182,7 +186,23 @@ def test_types_and_shapes():
                     num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
                     batch_size = random.choice([1, 3, 4, 8, 16])
                     yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                        num_threads, fortran_order, file_arg_type, cache_header_information
+                        num_threads, fortran_order, file_arg_type, cache_header_information, True
+
+
+def test_o_direct():
+    cache_header_information = False
+    device = 'cpu'
+    fortran_order = False
+    for ndim in [0, 1, 2, random.choice([3, 4])]:
+        type = random.choice(list(all_numpy_types - unsupported_numpy_types))
+        if ndim <= 1 and fortran_order is not False:
+            continue
+        shapes = test_shapes[ndim]
+        file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
+        num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
+        batch_size = random.choice([1, 3, 4, 8, 16])
+        yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
+            num_threads, fortran_order, file_arg_type, cache_header_information
 
 
 def test_unsupported_types():
@@ -630,8 +650,6 @@ def test_numpy_reader_roi_error():
 
 @params('cpu', 'gpu')
 def test_pad_last_sample(device):
-    def uint8_tensor_to_string(t):
-        return np.array(t).tobytes().decode()
 
     if not is_gds_supported() and device == 'gpu':
         raise SkipTest("GDS is not supported in this platform")
