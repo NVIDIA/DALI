@@ -328,6 +328,20 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
 
+  /**
+   * "depleted" operator trace specifies whether the operator has sufficient resources to
+   * run another iteration.
+   *
+   * If "false", the operator needs to be fed with data to run the next iteration. If "true",
+   * the next iteration can be triggered.
+   * @param ws Current workspace.
+   * @param depleted Value of the trace.
+   */
+  void SetDepletedOperatorTrace(Workspace& ws, bool depleted) {
+    ws.SetOperatorTrace("depleted", depleted ? "true" : "false");
+  }
+
+
   int device_id_;
   bool blocking_ = true;
   bool no_copy_ = false;
