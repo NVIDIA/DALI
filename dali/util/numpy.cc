@@ -188,7 +188,11 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
   char *token = token_mem.get();
   auto file = dynamic_cast<ODirectFileStream*>(src);
   int64_t nread = file->ReadAt(token, aligned_len, 0);
-  DALI_ENFORCE(nread == static_cast<Index>(aligned_len), "Can not read header.");
+  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
+               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+               make_string("Can not read header: ",
+                           static_cast<Index>(std::min(src->Size(), aligned_len)),
+                           " <= ", nread, " <= ", aligned_len));
   auto char_tmp = token[10];
   token[10] = '\0';
 
@@ -209,7 +213,11 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
     token[10] = char_tmp;
   }
   token = token_mem.get() + align_reminder(offset, o_direct_alignm);
-  DALI_ENFORCE(nread == static_cast<Index>(aligned_len), "Can not read header.");
+  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
+               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+               make_string("Can not read header: ",
+                           static_cast<Index>(std::min(src->Size(), aligned_len)),
+                           " <= ", nread, " <= ", aligned_len));
   token[header_len] = '\0';
   ParseHeaderItself(parsed_header, token, header_len);
 }

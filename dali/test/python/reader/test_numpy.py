@@ -75,7 +75,7 @@ def delete_numpy_file(filename):
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
                         file_filter="*.npy", num_threads=1, device_id=0,
                         cache_header_information=False, pad_last_batch=False,
-                        enable_o_direct=False):
+                        dont_use_mmap=False, enable_o_direct=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     data = fn.readers.numpy(device=device,
                             file_list=file_list,
@@ -186,7 +186,7 @@ def test_types_and_shapes():
                     num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
                     batch_size = random.choice([1, 3, 4, 8, 16])
                     yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                        num_threads, fortran_order, file_arg_type, cache_header_information, True
+                        num_threads, fortran_order, file_arg_type, cache_header_information
 
 
 def test_o_direct():
@@ -202,7 +202,7 @@ def test_o_direct():
         num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
         batch_size = random.choice([1, 3, 4, 8, 16])
         yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-            num_threads, fortran_order, file_arg_type, cache_header_information
+            num_threads, fortran_order, file_arg_type, cache_header_information, True
 
 
 def test_unsupported_types():
