@@ -520,6 +520,20 @@ Keyword Args
         Python process, but due to their state it is not possible to calculate more
         than one batch at a time.
 
+`repeat_last` : bool, optional, default = False
+    .. note::
+        This is an advanced setting that is usable mainly with Triton Inference Server
+        with decoupled models.
+
+    Normally, ``external_source`` consumes its input data and expects new ones to be fed in the
+    upcoming iteration. Setting ``repeat_last=True`` changes this behavior so that
+    ``external_source`` will detect that no new data was fed between the previous pipeline run and
+    the currnet one and will self-refeed with the most recent data.
+
+    Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
+    actively provided by the user via a call to ``feed_input``. Enabling this option is incompatible
+    with specifying the ``source``, which makes the ``external_source`` operate in "pull" mode.
+
 `prefetch_queue_depth` : int, optional, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in
     advance and stored in the internal buffer, otherwise parameter is ignored.
@@ -547,7 +561,7 @@ Keyword Args
     def __init__(self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None,
                  ndim=None, name=None, device="cpu", cuda_stream=None, use_copy_kernel=None,
                  batch=None, parallel=None, no_copy=None, prefetch_queue_depth=None,
-                 bytes_per_sample_hint=None, batch_info=None, **kwargs):
+                 bytes_per_sample_hint=None, batch_info=None, repeat_last=False, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -575,8 +589,10 @@ Keyword Args
         self._prefetch_queue_depth = prefetch_queue_depth
         self._bytes_per_sample_hint = bytes_per_sample_hint
         self._batch_info = batch_info
+        self._repeat_last = repeat_last
 
         self._spec.AddArg("device", device)
+        self._spec.AddArg("repeat_last", repeat_last)
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -598,7 +614,8 @@ Keyword Args
 
     def __call__(self, *, source=None, cycle=None, name=None, layout=None, dtype=None, ndim=None,
                  cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
-                 prefetch_queue_depth=None, bytes_per_sample_hint=None, batch_info=None, **kwargs):
+                 prefetch_queue_depth=None, bytes_per_sample_hint=None, batch_info=None,
+                 repeat_last=False, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
         if batch_info is None:
@@ -627,6 +644,10 @@ Keyword Args
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
+
+        if callback is not None and repeat_last:
+            raise ValueError("``repeat_last`` must not be set when using the ``source`` argument "
+                             "It's usable only with manually fed ``external_source``.")
 
         if parallel is None:
             parallel = self._parallel or False
@@ -746,7 +767,7 @@ Keyword Args
             'batch_info': batch_info,
             'parallel': parallel,
             'prefetch_queue_depth': prefetch_queue_depth,
-            'bytes_per_sample_hint': bytes_per_sample_hint,
+            'bytes_per_sample_hint': bytes_per_sample_hint
         }
 
         if self._num_outputs is not None:
@@ -828,7 +849,7 @@ def _has_external_source(pipeline):
 
 def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu",
                     layout=None, dtype=None, ndim=None, cuda_stream=None, use_copy_kernel=None,
-                    batch=True, **kwargs):
+                    batch=True, repeat_last=False, **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -853,7 +874,7 @@ provided memory is copied to the internal buffer.
 
     def _external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu",
                          layout=None, dtype=None, ndim=None, cuda_stream=None, use_copy_kernel=None,
-                         batch=True, **kwargs):
+                         repeat_last=False, batch=True, **kwargs):
         if batch is None:
             batch = True
 
@@ -866,7 +887,8 @@ provided memory is copied to the internal buffer.
 
         op = ExternalSource(device=device, num_outputs=num_outputs, source=source, cycle=cycle,
                             layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,
-                            use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+                            use_copy_kernel=use_copy_kernel, batch=batch, repeat_last=repeat_last,
+                            **kwargs)
         return op(name=name)
 
     # Wrapper around external_source to switch between standard and debug mode.
@@ -874,11 +896,12 @@ provided memory is copied to the internal buffer.
     if getattr(current_pipeline, '_debug_on', False):
         result = current_pipeline._external_source(
             source=source, num_outputs=num_outputs, cycle=cycle, name=name, device=device,
-            layout=layout, batch=batch, **kwargs)
+            layout=layout, batch=batch, repeat_last=repeat_last, **kwargs)
     else:
         result = _external_source(source, num_outputs, cycle=cycle, name=name, device=device,
                                   layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,
-                                  use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+                                  use_copy_kernel=use_copy_kernel, batch=batch,
+                                  repeat_last=repeat_last, **kwargs)
     if _conditionals.conditionals_enabled():
         _conditionals.register_data_nodes(result)
     return result

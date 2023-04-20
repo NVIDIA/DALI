@@ -390,7 +390,7 @@ def _get_device_id_for_array(array):
         return None
 
 
-_cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')        # noqa: W605
+_cupy_array_type_regex = re.compile('.*cupy.*\..*ndarray.*')        # noqa: W605
 
 
 def _is_cupy_array(value):

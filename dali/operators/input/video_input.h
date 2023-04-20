@@ -390,6 +390,9 @@ void VideoInput<Backend, FramesDecoder>::VideoInputRunImpl(Workspace &ws) {
     }
   }
 
+  // If true, this operator can be run again, after this Run.
+  bool will_return_next = true;
+
   // There won't be any more output using the current input.
   bool input_sample_depleted = !full_sequence || frames_decoders_[0]->NextFrameIdx() == -1;
 
@@ -402,12 +405,15 @@ void VideoInput<Backend, FramesDecoder>::VideoInputRunImpl(Workspace &ws) {
        * "next_output_data_id" trace.
        */
       LoadDataFromInputOperator(GetThreadPool(ws));
+    } else {
+      will_return_next = false;
     }
   }
 
   if (data_id_) {
     SetNextDataIdTrace(ws, *data_id_);
   }
+  InputOperator<Backend>::SetDepletedOperatorTrace(ws, !will_return_next);
 }
 
 }  // namespace dali

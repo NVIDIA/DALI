@@ -36,6 +36,7 @@ class ExternalSource : public InputOperator<Backend> {
  public:
   explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
+        repeats_last_(spec.GetArgument<bool>("repeat_last")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_() {
@@ -168,6 +169,7 @@ class ExternalSource : public InputOperator<Backend> {
     layout_ = batch.GetLayout();
   }
 
+  const bool repeats_last_;
 
   string output_name_;
 
