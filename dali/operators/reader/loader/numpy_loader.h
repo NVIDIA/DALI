@@ -87,12 +87,12 @@ class NumpyLoader : public FileLoader<CPUBackend, NumpyFileWrapper> {
     bool shuffle_after_epoch = false,
     bool use_o_direct = false,
     size_t o_direct_alignm = 512,
-    size_t o_direct_len_alignm = 512)
+    size_t o_direct_read_len_alignm = 512)
     : FileLoader(spec, shuffle_after_epoch),
     header_cache_(spec.GetArgument<bool>("cache_header_information")),
     use_o_direct_(use_o_direct),
     o_direct_alignm_(o_direct_alignm),
-    o_direct_len_alignm_(o_direct_len_alignm) {}
+    o_direct_read_len_alignm_(o_direct_read_len_alignm) {}
 
   void PrepareEmpty(NumpyFileWrapper &target) override {
     target = {};
@@ -105,7 +105,7 @@ class NumpyLoader : public FileLoader<CPUBackend, NumpyFileWrapper> {
   detail::NumpyHeaderCache header_cache_;
   bool use_o_direct_;
   size_t o_direct_alignm_ = 0;
-  size_t o_direct_len_alignm_ = 0;
+  size_t o_direct_read_len_alignm_ = 0;
 };
 
 }  // namespace dali

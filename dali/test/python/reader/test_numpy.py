@@ -23,7 +23,7 @@ import random
 import tempfile
 from nose_utils import assert_raises
 from nose import SkipTest
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from test_utils import compare_pipelines, to_array
 
 
@@ -86,7 +86,7 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                             num_shards=1,
                             cache_header_information=cache_header_information,
                             pad_last_batch=pad_last_batch,
-                            dont_use_mmap=enable_o_direct,
+                            dont_use_mmap=dont_use_mmap,
                             use_o_direct=enable_o_direct)
     pipe.set_outputs(data)
     return pipe
@@ -115,7 +115,8 @@ test_shapes = {
 
 
 def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order_arg,
-                               file_arg_type, cache_header_information, enable_o_direct=False):
+                               file_arg_type, cache_header_information, dont_use_mmap=False,
+                               enable_o_direct=False):
     """ compare reader with numpy, with different batch_size and num_threads """
     nsamples = len(shapes)
 
@@ -156,6 +157,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
                                    batch_size=batch_size,
                                    num_threads=num_threads,
                                    device_id=0,
+                                   dont_use_mmap=dont_use_mmap,
                                    enable_o_direct=enable_o_direct)
         try:
             pipe.build()
@@ -189,20 +191,19 @@ def test_types_and_shapes():
                         num_threads, fortran_order, file_arg_type, cache_header_information
 
 
-def test_o_direct():
+@cartesian_params((0, 1, 2, random.choice([3, 4])),
+                  (True, False),
+                  (random.choice(['file_list', 'files', 'file_filter']),),
+                  (random.choice([1, 2, 3, 4, 5, 6, 7, 8]),),
+                  (random.choice([1, 3, 4, 8, 16]),),
+                  (random.choice(list(all_numpy_types - unsupported_numpy_types)),))
+def test_o_direct(ndim, o_direct, file_arg_type, num_threads, batch_size, type):
     cache_header_information = False
     device = 'cpu'
     fortran_order = False
-    for ndim in [0, 1, 2, random.choice([3, 4])]:
-        type = random.choice(list(all_numpy_types - unsupported_numpy_types))
-        if ndim <= 1 and fortran_order is not False:
-            continue
-        shapes = test_shapes[ndim]
-        file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-        num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-        batch_size = random.choice([1, 3, 4, 8, 16])
-        yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-            num_threads, fortran_order, file_arg_type, cache_header_information, True
+    shapes = test_shapes[ndim]
+    _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order,
+                               file_arg_type, cache_header_information, True, o_direct)
 
 
 def test_unsupported_types():

@@ -182,8 +182,8 @@ void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len)
 }
 
 void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_direct_alignm,
-                        size_t o_direct_len_alignm) {
-  size_t aligned_len = align_up(10, o_direct_len_alignm);
+                        size_t o_direct_read_len_alignm) {
+  size_t aligned_len = align_up(10, o_direct_read_len_alignm);
   auto token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
   char *token = token_mem.get();
   auto file = dynamic_cast<ODirectFileStream*>(src);
@@ -202,10 +202,10 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
   // the header_len can be 4GiB according to the NPYv2 file format
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
   // while this allocation could be sizable, it is performed on the host.
-  aligned_len = align_up_offset(header_len + 1, offset, o_direct_len_alignm);
+  aligned_len = align_up_offset(header_len + 1, offset, o_direct_read_len_alignm);
   // if header_len goes beyond the previously allocated and read memory reallocate and read again
   // otherwise reuse
-  if (aligned_len != o_direct_len_alignm) {
+  if (aligned_len != o_direct_read_len_alignm) {
     token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
     nread = file->ReadAt(token_mem.get(), aligned_len, 0);
   } else {

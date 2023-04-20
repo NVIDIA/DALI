@@ -163,10 +163,10 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
     if (use_o_direct_) {
       o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
       o_direct_alignm_ = ODirectFileStream::GetAlignment();
-      o_direct_len_alignm_ = ODirectFileStream::GetLenAlignment();
+      o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
     }
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch, use_o_direct_, o_direct_alignm_,
-                                      o_direct_len_alignm_);
+                                      o_direct_read_len_alignm_);
   }
   ~NumpyReaderCPU() override;
   void Prefetch() override;
@@ -192,7 +192,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
    *   discover these restrictions for a given file or filesystem.
    */
   size_t o_direct_alignm_ = 0;
-  size_t o_direct_len_alignm_ = 0;
+  size_t o_direct_read_len_alignm_ = 0;
   // ThreadPool for prefetch which is a separate thread
   ThreadPool thread_pool_;
 };

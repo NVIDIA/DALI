@@ -49,7 +49,7 @@ class DLL_PUBLIC HeaderData {
 DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, InputStream *src);
 
 DLL_PUBLIC void ParseODirectHeader(HeaderData &parsed_header, InputStream *src,
-                                   size_t o_direct_alignm, size_t o_direct_len_alignm);
+                                   size_t o_direct_alignm, size_t o_direct_read_len_alignm);
 
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 

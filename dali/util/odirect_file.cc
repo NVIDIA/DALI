@@ -31,7 +31,7 @@ static constexpr size_t kODirectAlignment = 512;
 static constexpr size_t kODirectChunkSize = 2 << 20;  // 2M
 
 static size_t GetODirectEnvVals(const char *env_name, size_t min_value, size_t default_value,
-                                bool just_aligned = false) {
+                                size_t alignment = 0) {
   char *env = getenv(env_name);
   int len = 0;
   if (env && (len = strlen(env))) {
@@ -48,9 +48,9 @@ static size_t GetODirectEnvVals(const char *env_name, size_t min_value, size_t d
       s <<= 10;
     else if (env[len-1] == 'M')
       s <<= 20;
-    DALI_ENFORCE(is_pow2(s) || just_aligned, make_string(env_name,
-                                                         " must be a power of two, got ", s));
-    DALI_ENFORCE(align_reminder(s, min_value) == 0 && just_aligned,
+    DALI_ENFORCE(is_pow2(s) || alignment != 0, make_string(env_name,
+                                                           " must be a power of two, got ", s));
+    DALI_ENFORCE(align_reminder(s, alignment) == 0 || alignment == 0,
                  make_string(env_name, " must be a aligned to ", min_value, ", got ", s));
     DALI_ENFORCE(s >= min_value && s <= (16 << 20),
       make_string(env_name, " be a power of two between ",
@@ -76,7 +76,8 @@ size_t ODirectFileStream::GetLenAlignment() {
 }
 
 size_t ODirectFileStream::GetChunkSize() {
-  return GetODirectEnvVals("DALI_ODIRECT_CHUNK_SIZE", kODirectAlignment, kODirectChunkSize, true);
+  return GetODirectEnvVals("DALI_ODIRECT_CHUNK_SIZE", kODirectAlignment, kODirectChunkSize,
+                           ODirectFileStream::GetLenAlignment() );
 }
 
 ODirectFileStream::~ODirectFileStream() {

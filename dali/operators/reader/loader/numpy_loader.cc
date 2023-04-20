@@ -78,7 +78,8 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   try {
     if (!ret) {
       if (use_o_direct_) {
-        numpy::ParseODirectHeader(header, current_file.get(), o_direct_alignm_, o_direct_len_alignm_);
+        numpy::ParseODirectHeader(header, current_file.get(), o_direct_alignm_,
+                                  o_direct_read_len_alignm_);
       } else {
         numpy::ParseHeader(header, current_file.get());
       }

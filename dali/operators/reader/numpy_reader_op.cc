@@ -268,7 +268,8 @@ void NumpyReaderCPU::Prefetch() {
        */
 
       // align the size of data to read accounting for its start
-      auto aligned_len = align_up_offset(target->nbytes, target->data_offset, o_direct_len_alignm_);
+      auto aligned_len = align_up_offset(target->nbytes, target->data_offset,
+                                         o_direct_read_len_alignm_);
       // offset to the desired data from the block start
       auto target_data_offset = align_reminder(target->data_offset, o_direct_alignm_);
       // allocate the memory that is aligned to the block size, but wrap it into shared ptr using
