@@ -11,10 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/reader/fits_reader_gpu_op.h"
 
 #include <string>
 #include <vector>
+
+#include "dali/core/fast_div.h"
+#include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/operators/math/expressions/arithmetic_meta.h"
+#include "dali/operators/math/expressions/expression_impl_factory.h"
+#include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
 
@@ -344,6 +351,8 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
   int num_outputs = ws.NumOutput();
   int batch_size = GetCurrBatchSize();
 
+  kernels::DynamicScratchpad s({}, ws.stream());
+
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<GPUBackend>(output_idx);
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
@@ -358,19 +367,14 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
                 maxtilelen = sample.header[output_idx].maxtilelen,
                 zbitpix = sample.header[output_idx].zbitpix;
 
-        cudaMalloc(&tile_offset_cuda, (header.rows + 1) * sizeof(long));
-        cudaMemcpy(tile_offset_cuda, sample.tile_offset[output_idx].data(),
-                   (header.rows + 1) * sizeof(long), cudaMemcpyHostToDevice);
-
-        cudaMalloc(&tile_size_cuda, header.rows * sizeof(long));
-        cudaMemcpy(tile_size_cuda, sample.tile_size[output_idx].data(), header.rows * sizeof(long),
-                   cudaMemcpyHostToDevice);
-
         cudaMalloc(&undecoded_data_cuda,
                    sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char));
         cudaMemcpy(undecoded_data_cuda, sample.data[output_idx].raw_data(),
                    sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char),
                    cudaMemcpyHostToDevice);
+
+        std::tie(tile_offset_cuda, tile_size_cuda) = s.ToContiguousGPU(
+            ws.stream(), sample.tile_offset[output_idx], sample.tile_size[output_idx]);
 
         int blockSize = 256;
         int numBlocks = (int)(header.rows + blockSize - 1) / blockSize;
@@ -381,8 +385,6 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
             header.rows, maxtilelen, header.bscale, header.bzero);
 
         cudaFree(undecoded_data_cuda);
-        cudaFree(tile_size_cuda);
-        cudaFree(tile_offset_cuda);
 
       } else {
         cudaMemcpyAsync(output.raw_mutable_tensor(sample_id), sample.data[output_idx].raw_data(),
