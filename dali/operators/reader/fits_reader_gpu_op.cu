@@ -351,22 +351,12 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
       auto header = sample.header[output_idx];
 
       if (sample.header[output_idx].compressed) {
-        void *decoded_data_cuda;
         unsigned char *undecoded_data_cuda;
         long *tile_offset_cuda;
         long *tile_size_cuda;
         int64_t tiles = sample.header[output_idx].tiles,
                 maxtilelen = sample.header[output_idx].maxtilelen,
                 zbitpix = sample.header[output_idx].zbitpix;
-
-
-        if (zbitpix == 8) {
-          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(char));
-        } else if (zbitpix == 16) {
-          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(short));
-        } else {
-          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(int));
-        }
 
         cudaMalloc(&tile_offset_cuda, (header.rows + 1) * sizeof(long));
         cudaMemcpy(tile_offset_cuda, sample.tile_offset[output_idx].data(),
