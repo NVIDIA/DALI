@@ -302,7 +302,7 @@ void NumpyReaderCPU::Prefetch() {
           Index ret = file->ReadAt(target_mem, read_size, file_offset);
           DALI_ENFORCE(ret >= static_cast<Index>(read_tail) &&
                        ret <= static_cast<Index>(o_direct_chunk_size_),
-                       make_string("Failed to read file: ", target->meta.GetSourceInfo(),
+                       make_string("Failed to read file: ", target->filename,
                                    ", read: ", ret, " while it should be [", read_tail, ", ",
                                    o_direct_chunk_size_, "]"));
         });
@@ -313,7 +313,7 @@ void NumpyReaderCPU::Prefetch() {
       auto data_ptr = static_cast<uint8_t*>(target->data.raw_mutable_data());
       Index ret = target->current_file->Read(data_ptr, target->nbytes);
       DALI_ENFORCE(ret == static_cast<Index>(target->nbytes),
-                       make_string("Failed to read file: ", target->meta.GetSourceInfo(),
+                       make_string("Failed to read file: ", target->filename,
                                    ", read: ", ret, " while it should be ", target->nbytes));
     }
   }
