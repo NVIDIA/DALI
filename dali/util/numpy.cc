@@ -202,7 +202,9 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
   // the header_len can be 4GiB according to the NPYv2 file format
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
   // while this allocation could be sizable, it is performed on the host.
-  aligned_len = align_up_offset(header_len + 1, offset, o_direct_read_len_alignm);
+  auto block_start = align_down(offset, o_direct_alignm);
+  auto block_end = align_up(header_len + 1, o_direct_alignm);
+  aligned_len = align_up(block_end - block_start, o_direct_read_len_alignm);
   // if header_len goes beyond the previously allocated and read memory reallocate and read again
   // otherwise reuse
   if (aligned_len != o_direct_read_len_alignm) {
@@ -212,7 +214,7 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
     // restore overriden character
     token[10] = char_tmp;
   }
-  token = token_mem.get() + align_reminder(offset, o_direct_alignm);
+  token = token_mem.get() + align_remainder(offset, o_direct_alignm);
   DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
                nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
                make_string("Can not read header: ",

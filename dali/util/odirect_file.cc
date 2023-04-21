@@ -27,7 +27,7 @@
 
 namespace dali {
 
-static constexpr size_t kODirectAlignment = 512;
+static constexpr size_t kODirectAlignment = 4096;
 static constexpr size_t kODirectChunkSize = 2 << 20;  // 2M
 
 static size_t GetODirectEnvVals(const char *env_name, size_t min_value, size_t default_value,
@@ -50,7 +50,7 @@ static size_t GetODirectEnvVals(const char *env_name, size_t min_value, size_t d
       s <<= 20;
     DALI_ENFORCE(is_pow2(s) || alignment != 0, make_string(env_name,
                                                            " must be a power of two, got ", s));
-    DALI_ENFORCE(align_reminder(s, alignment) == 0 || alignment == 0,
+    DALI_ENFORCE(align_remainder(s, alignment) == 0 || alignment == 0,
                  make_string(env_name, " must be a aligned to ", min_value, ", got ", s));
     DALI_ENFORCE(s >= min_value && s <= (16 << 20),
       make_string(env_name, " be a power of two between ",

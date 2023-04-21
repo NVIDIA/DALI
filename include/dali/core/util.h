@@ -86,20 +86,14 @@ constexpr Value align_up(Value v, Alignment a) {
 
 template <typename Value, typename Alignment>
 DALI_HOST_DEV
-constexpr Value align_reminder(Value v, Alignment a) {
+constexpr Value align_remainder(Value v, Alignment a) {
   return v & (a - 1);
 }
 
 template <typename Value, typename Alignment>
 DALI_HOST_DEV
 constexpr Value align_down(Value v, Alignment a) {
-  return v & ~(a - 1);
-}
-
-template <typename Value, typename Offset, typename Alignment>
-DALI_HOST_DEV
-constexpr Value align_up_offset(Value v, Offset o, Alignment a) {
-  return align_up(v + align_reminder(o, a), a);
+  return v & -a;
 }
 
 DALI_HOST_DEV
