@@ -46,6 +46,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
 
   // resize ouput vector according to the number of HDUs
   target.data.resize(hdu_indices_.size());
+  target.header.resize(hdu_indices_.size());
 
   for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to appropiate hdu
@@ -55,6 +56,7 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     fits::HeaderData header;
     try {
       fits::ParseHeader(header, current_file);
+      target.header[output_idx] = header;
     } catch (const std::runtime_error& e) {
       DALI_FAIL(e.what() + ". File: " + filename);
     }

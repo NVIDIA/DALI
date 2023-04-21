@@ -55,7 +55,8 @@ class DLL_PUBLIC HeaderData {
   bool compressed = false;
 
   // data needed for gpu accelerated decompression
-  int64_t tiles, maxtilelen, zbitpix, bytepix, blocksize;
+  int64_t tiles, maxtilelen, zbitpix, bytepix, blocksize, rows; 
+  double bscale, bzero;
   std::vector<int64_t> tile_sizes;
 
   DALIDataType type() const;
@@ -71,7 +72,7 @@ DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
 /** @brief Read raw data of rice coded image HDU. */
 DLL_PUBLIC int extract_undecoded_data(fitsfile *fptr, std::vector<uint8_t> &data,
                                       std::vector<int64_t> &tile_offset,
-                                      std::vector<int64_t> &tile_size, long tiles, int *status);
+                                      std::vector<int64_t> &tile_size, long rows, int *status);
 
 class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
  public:

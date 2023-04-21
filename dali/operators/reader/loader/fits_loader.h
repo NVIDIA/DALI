@@ -39,6 +39,7 @@
 namespace dali {
 
 struct FitsFileWrapper {
+  std::vector<fits::HeaderData> header;
   std::vector<Tensor<CPUBackend>> data;
   std::string filename;
 };

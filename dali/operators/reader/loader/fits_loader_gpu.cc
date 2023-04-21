@@ -69,19 +69,18 @@ void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
     // reset, resize specific output in target
     if (target.data[output_idx].shares_data()) {
       target.data[output_idx].Reset();
+      // target.tile_size[output_idx].reset
     }
 
     if (header.compressed) {
       vector<uint8_t> raw_data;
       dali::TensorShape<-1> shape;
-      shape.shape.push_back(raw_data.size());
-      target.data[output_idx].Resize(shape, DALI_UINT8);
 
       fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
-                                   target.tile_size[output_idx], header.tiles, &status);
-      DALI_ENFORCE(false, "got here1!");
+                                   target.tile_size[output_idx], header.rows, &status);
 
-
+      shape.shape.push_back(raw_data.size());
+      target.data[output_idx].Resize(shape, DALI_UINT8);
       memcpy(static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), raw_data.data(),
              raw_data.size());
     } else {

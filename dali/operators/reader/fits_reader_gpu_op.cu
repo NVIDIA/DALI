@@ -20,7 +20,8 @@ namespace dali {
 
 __global__ void rice_decompress(unsigned char *compressed_data, void *uncompressed_data,
                                 const long *tile_offset, const long *tile_size, int bytepix,
-                                int blocksize, long tiles, long maxtilelen) {
+                                int blocksize, long tiles, long maxtilelen, double bscale,
+                                double bzero) {
   int index = (int)(blockIdx.x * blockDim.x + threadIdx.x);
   int stride = (int)(blockDim.x * gridDim.x);
 
@@ -123,6 +124,13 @@ __global__ void rice_decompress(unsigned char *compressed_data, void *uncompress
           }
         }
       }
+
+      if (bscale != 1. || bzero != 0.) {
+        for (int j = 0; j < tile_size[tile]; ++j) {
+          ((char *)uncompressed_data)[beg + j] =
+              (char)(((char *)uncompressed_data)[beg + j] * bscale + bzero);
+        }
+      }
     }
   } else if (bytepix == 2) {
     for (long tile = index; tile < tiles; tile += stride) {
@@ -214,6 +222,13 @@ __global__ void rice_decompress(unsigned char *compressed_data, void *uncompress
             ((unsigned short *)uncompressed_data)[beg + i] = diff + lastpix;
             lastpix = ((unsigned short *)uncompressed_data)[beg + i];
           }
+        }
+      }
+
+      if (bscale != 1. || bzero != 0.) {
+        for (int j = 0; j < tile_size[tile]; ++j) {
+          ((short *)uncompressed_data)[beg + j] =
+              (short)(((short *)uncompressed_data)[beg + j] * bscale + bzero);
         }
       }
     }
@@ -314,6 +329,13 @@ __global__ void rice_decompress(unsigned char *compressed_data, void *uncompress
           }
         }
       }
+
+      if (bscale != 1. || bzero != 0.) {
+        for (int j = 0; j < tile_size[tile]; ++j) {
+          ((int *)uncompressed_data)[beg + j] =
+              (int)(((int *)uncompressed_data)[beg + j] * bscale + bzero);
+        }
+      }
     }
   }
 }
@@ -326,6 +348,7 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
     auto &output = ws.Output<GPUBackend>(output_idx);
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
+      auto header = sample.header[output_idx];
 
       if (sample.header[output_idx].compressed) {
         void *decoded_data_cuda;
@@ -336,36 +359,36 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
                 maxtilelen = sample.header[output_idx].maxtilelen,
                 zbitpix = sample.header[output_idx].zbitpix;
 
+
         if (zbitpix == 8) {
-          cudaMalloc(&decoded_data_cuda, tiles * maxtilelen * sizeof(char));
+          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(char));
         } else if (zbitpix == 16) {
-          cudaMalloc(&decoded_data_cuda, tiles * maxtilelen * sizeof(short));
+          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(short));
         } else {
-          cudaMalloc(&decoded_data_cuda, tiles * maxtilelen * sizeof(int));
+          cudaMalloc(&decoded_data_cuda, header.rows * maxtilelen * sizeof(int));
         }
 
-        cudaMalloc(&tile_offset_cuda, (tiles + 1) * sizeof(long));
+        cudaMalloc(&tile_offset_cuda, (header.rows + 1) * sizeof(long));
         cudaMemcpy(tile_offset_cuda, sample.tile_offset[output_idx].data(),
-                   (tiles + 1) * sizeof(long), cudaMemcpyHostToDevice);
+                   (header.rows + 1) * sizeof(long), cudaMemcpyHostToDevice);
 
-        cudaMalloc(&tile_size_cuda, tiles * sizeof(long));
-        cudaMemcpy(tile_size_cuda, sample.tile_size[output_idx].data(), tiles * sizeof(long),
+        cudaMalloc(&tile_size_cuda, header.rows * sizeof(long));
+        cudaMemcpy(tile_size_cuda, sample.tile_size[output_idx].data(), header.rows * sizeof(long),
                    cudaMemcpyHostToDevice);
 
         cudaMalloc(&undecoded_data_cuda,
-                   sample.tile_offset[output_idx][tiles] * sizeof(unsigned char));
+                   sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char));
         cudaMemcpy(undecoded_data_cuda, sample.data[output_idx].raw_data(),
-                   sample.tile_offset[output_idx][tiles] * sizeof(unsigned char),
+                   sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char),
                    cudaMemcpyHostToDevice);
 
         int blockSize = 256;
-        int numBlocks = (int)(tiles + blockSize - 1) / blockSize;
+        int numBlocks = (int)(header.rows + blockSize - 1) / blockSize;
 
-        DALI_ENFORCE(false, "got here!");
         rice_decompress<<<numBlocks, blockSize>>>(
             undecoded_data_cuda, output.raw_mutable_tensor(sample_id), tile_offset_cuda,
             tile_size_cuda, sample.header[output_idx].bytepix, sample.header[output_idx].blocksize,
-            tiles, maxtilelen);
+            header.rows, maxtilelen, header.bscale, header.bzero);
 
         cudaFree(undecoded_data_cuda);
         cudaFree(tile_size_cuda);

@@ -129,6 +129,9 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
 
   if (parsed_header.compressed) {
+    FITS_CALL(fits_get_num_rows(src, &parsed_header.rows, &status)); /*get NROW value */
+    parsed_header.bscale = (src->Fptr)->cn_bscale;
+    parsed_header.bzero = (src->Fptr)->cn_bzero;
     parsed_header.bytepix = (src->Fptr)->rice_bytepix;
     parsed_header.zbitpix = (src->Fptr)->zbitpix;
     parsed_header.blocksize = (src->Fptr)->rice_blocksize;
@@ -145,11 +148,11 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
 
 int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
-                           long tiles, int* status) {
+                           long rows, int* status) {
   std::vector<std::vector<uint8_t>> raw_data;
-  raw_data.resize(tiles);
-  tile_offset.resize(tiles + 1);
-  tile_size.resize(tiles);
+  raw_data.resize(rows);
+  tile_offset.resize(rows + 1);
+  tile_size.resize(rows);
 
   LONGLONG fpixel[MAX_COMPRESS_DIM], lpixel[MAX_COMPRESS_DIM];
   for (int i = 0; i < (fptr->Fptr)->zndim; ++i) {
@@ -245,7 +248,7 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
 
   tile_offset[size] = sum_nelemll;
 
-  DALI_ENFORCE(false, "lolz"); 
+  data.clear();
   for (const auto& tile : raw_data) {
     data.insert(data.end(), tile.begin(), tile.end());
   }
