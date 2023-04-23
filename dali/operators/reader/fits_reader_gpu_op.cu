@@ -11,17 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/reader/fits_reader_gpu_op.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 #include <string>
 #include <vector>
-
-#include "dali/core/fast_div.h"
-#include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/operators/math/expressions/arithmetic_meta.h"
-#include "dali/operators/math/expressions/expression_impl_factory.h"
-#include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
 
@@ -355,17 +349,15 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<GPUBackend>(output_idx);
+
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
       auto header = sample.header[output_idx];
 
-      if (sample.header[output_idx].compressed) {
+      if (header.compressed) {
         unsigned char *undecoded_data_cuda;
         long *tile_offset_cuda;
         long *tile_size_cuda;
-        int64_t tiles = sample.header[output_idx].tiles,
-                maxtilelen = sample.header[output_idx].maxtilelen,
-                zbitpix = sample.header[output_idx].zbitpix;
 
         cudaMalloc(&undecoded_data_cuda,
                    sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char));
@@ -382,7 +374,7 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
         rice_decompress<<<numBlocks, blockSize>>>(
             undecoded_data_cuda, output.raw_mutable_tensor(sample_id), tile_offset_cuda,
             tile_size_cuda, sample.header[output_idx].bytepix, sample.header[output_idx].blocksize,
-            header.rows, maxtilelen, header.bscale, header.bzero);
+            header.rows, header.maxtilelen, header.bscale, header.bzero);
 
         cudaFree(undecoded_data_cuda);
 
