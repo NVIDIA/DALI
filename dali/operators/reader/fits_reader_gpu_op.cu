@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "dali/operators/reader/fits_reader_gpu_op.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 
 #include <string>
@@ -344,26 +345,38 @@ __global__ void rice_decompress(unsigned char *compressed_data, void *uncompress
 void FitsReaderGPU::RunImpl(Workspace &ws) {
   int num_outputs = ws.NumOutput();
   int batch_size = GetCurrBatchSize();
+  TensorList<CPUBackend> sample_list_cpu;
+  TensorList<GPUBackend> sample_list_gpu;
 
   kernels::DynamicScratchpad s({}, ws.stream());
 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<GPUBackend>(output_idx);
+    auto &sample_0 = GetSample(0);
+    auto header = sample_0.header[output_idx];
+    auto &data = sample_0.data[output_idx];
+
+    sample_list_cpu.Reset();
+    sample_list_cpu.set_sample_dim(data.ndim());  
+    sample_list_cpu.SetSize(batch_size); 
+    sample_list_cpu.set_type(data.type());
+    sample_list_cpu.set_device_id(data.device_id()); 
+
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      sample_list_cpu.SetSample(sample_id, GetSample(sample_id).data[output_idx]); 
+    }
+
+    sample_list_gpu.Copy(sample_list_cpu); 
+
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
       auto header = sample.header[output_idx];
 
       if (header.compressed) {
-        unsigned char *undecoded_data_cuda;
+        unsigned char *undecoded_data_cuda = static_cast<unsigned char*>(sample_list_gpu.raw_mutable_tensor(sample_id)); 
         long *tile_offset_cuda;
         long *tile_size_cuda;
-
-        cudaMalloc(&undecoded_data_cuda,
-                   sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char));
-        cudaMemcpy(undecoded_data_cuda, sample.data[output_idx].raw_data(),
-                   sample.tile_offset[output_idx][header.rows] * sizeof(unsigned char),
-                   cudaMemcpyHostToDevice);
 
         std::tie(tile_offset_cuda, tile_size_cuda) = s.ToContiguousGPU(
             ws.stream(), sample.tile_offset[output_idx], sample.tile_size[output_idx]);
@@ -375,8 +388,6 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
             undecoded_data_cuda, output.raw_mutable_tensor(sample_id), tile_offset_cuda,
             tile_size_cuda, sample.header[output_idx].bytepix, sample.header[output_idx].blocksize,
             header.rows, header.maxtilelen, header.bscale, header.bzero);
-
-        cudaFree(undecoded_data_cuda);
 
       } else {
         cudaMemcpyAsync(output.raw_mutable_tensor(sample_id), sample.data[output_idx].raw_data(),
