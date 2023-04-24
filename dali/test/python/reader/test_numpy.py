@@ -75,15 +75,16 @@ def delete_numpy_file(filename):
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
                         file_filter="*.npy", num_threads=1, device_id=0,
                         cache_header_information=False, pad_last_batch=False,
-                        dont_use_mmap=False, enable_o_direct=False):
+                        dont_use_mmap=False, enable_o_direct=False,
+                        shard_id=0, num_shards=1):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     data = fn.readers.numpy(device=device,
                             file_list=file_list,
                             files=files,
                             file_root=path,
                             file_filter=file_filter,
-                            shard_id=0,
-                            num_shards=1,
+                            shard_id=shard_id,
+                            num_shards=num_shards,
                             cache_header_information=cache_header_information,
                             pad_last_batch=pad_last_batch,
                             dont_use_mmap=dont_use_mmap,
@@ -197,7 +198,7 @@ def test_types_and_shapes():
                   (random.choice([1, 2, 3, 4, 5, 6, 7, 8]),),
                   (random.choice([1, 3, 4, 8, 16]),),
                   (random.choice(list(all_numpy_types - unsupported_numpy_types)),))
-def test_o_direct(ndim, o_direct, file_arg_type, num_threads, batch_size, type):
+def test_o_direct(ndim, o_direct, file_arg_type, num_threads, batch_size, type,):
     cache_header_information = False
     device = 'cpu'
     fortran_order = False
@@ -649,15 +650,19 @@ def test_numpy_reader_roi_error():
                     fill_value
 
 
-@params('cpu', 'gpu')
-def test_pad_last_sample(device):
+@cartesian_params(('cpu', 'gpu'),
+                  ((1, 2, 1), (3, 1, 2)),
+                  (True, False),
+                  (True, False))
+def test_pad_last_sample(device, batch_description, dont_use_mmap, use_o_direct):
 
     if not is_gds_supported() and device == 'gpu':
         raise SkipTest("GDS is not supported in this platform")
+    if not dont_use_mmap and use_o_direct:
+        raise SkipTest("Cannot use O_DIRECT with mmap")
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
-        num_samples = 2
-        batch_size = 5
+        num_samples, batch_size, num_shards = batch_description
         filenames = []
         ref_filenames = []
         arr_np_list = []
@@ -680,7 +685,10 @@ def test_pad_last_sample(device):
                                    batch_size=batch_size,
                                    num_threads=4,
                                    device_id=0,
-                                   pad_last_batch=True)
+                                   pad_last_batch=True,
+                                   num_shards=num_shards,
+                                   dont_use_mmap=dont_use_mmap,
+                                   enable_o_direct=use_o_direct)
         pipe.build()
 
         try:
