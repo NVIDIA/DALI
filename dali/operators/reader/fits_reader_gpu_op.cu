@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/reader/fits_reader_gpu_op.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/kernels/dynamic_scratchpad.h"
 
 #include <string>
 #include <vector>
@@ -346,53 +346,47 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
   int num_outputs = ws.NumOutput();
   int batch_size = GetCurrBatchSize();
   TensorList<CPUBackend> sample_list_cpu;
-  TensorList<GPUBackend> sample_list_gpu;
 
   kernels::DynamicScratchpad s({}, ws.stream());
 
   for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
     auto &output = ws.Output<GPUBackend>(output_idx);
     auto &sample_0 = GetSample(0);
-    auto header = sample_0.header[output_idx];
-    auto &data = sample_0.data[output_idx];
+    bool compressed = sample_0.header[output_idx].compressed;
 
     sample_list_cpu.Reset();
-    sample_list_cpu.set_sample_dim(data.ndim());  
-    sample_list_cpu.SetSize(batch_size); 
-    sample_list_cpu.set_type(data.type());
-    sample_list_cpu.set_device_id(data.device_id()); 
-
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      sample_list_cpu.SetSample(sample_id, GetSample(sample_id).data[output_idx]); 
-    }
-
-    sample_list_gpu.Copy(sample_list_cpu); 
-
+    sample_list_cpu.set_sample_dim(sample_0.data[output_idx].ndim());
+    sample_list_cpu.set_type(sample_0.data[output_idx].type());
+    sample_list_cpu.set_device_id(sample_0.data[output_idx].device_id());
+    sample_list_cpu.SetSize(batch_size);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       auto &sample = GetSample(sample_id);
-      auto header = sample.header[output_idx];
+      sample_list_cpu.SetSample(sample_id, sample.data[output_idx]);
+    }
 
-      if (header.compressed) {
-        unsigned char *undecoded_data_cuda = static_cast<unsigned char*>(sample_list_gpu.raw_mutable_tensor(sample_id)); 
-        long *tile_offset_cuda;
-        long *tile_size_cuda;
+
+    if (compressed) {
+      TensorList<GPUBackend> sample_list_gpu; 
+      sample_list_gpu.Copy(sample_list_cpu, ws.stream());
+
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+        int64_t *tile_offset_cuda, *tile_size_cuda;
+        auto &sample = GetSample(sample_id);
+        auto header = sample.header[output_idx];
+        int blockSize = 256, numBlocks = (int)(header.rows + blockSize - 1) / blockSize;
 
         std::tie(tile_offset_cuda, tile_size_cuda) = s.ToContiguousGPU(
             ws.stream(), sample.tile_offset[output_idx], sample.tile_size[output_idx]);
 
-        int blockSize = 256;
-        int numBlocks = (int)(header.rows + blockSize - 1) / blockSize;
-
-        rice_decompress<<<numBlocks, blockSize>>>(
-            undecoded_data_cuda, output.raw_mutable_tensor(sample_id), tile_offset_cuda,
-            tile_size_cuda, sample.header[output_idx].bytepix, sample.header[output_idx].blocksize,
-            header.rows, header.maxtilelen, header.bscale, header.bzero);
-
-      } else {
-        cudaMemcpyAsync(output.raw_mutable_tensor(sample_id), sample.data[output_idx].raw_data(),
-                        sample.data[output_idx].nbytes(), cudaMemcpyHostToDevice);
+        rice_decompress<<<numBlocks, blockSize, 0, ws.stream()>>>(
+            static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
+            output.raw_mutable_tensor(sample_id), tile_offset_cuda, tile_size_cuda,
+            sample.header[output_idx].bytepix, sample.header[output_idx].blocksize, header.rows,
+            header.maxtilelen, header.bscale, header.bzero);
       }
+    } else {
+      output.Copy(sample_list_cpu, ws.stream());
     }
   }
 }
