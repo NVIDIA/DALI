@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_FITS_LOADER_H_
-#define DALI_OPERATORS_READER_LOADER_FITS_LOADER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_FITS_LOADER_GPU_H_
+#define DALI_OPERATORS_READER_LOADER_FITS_LOADER_GPU_H_
 
 #include <dirent.h>
 #include <errno.h>
@@ -38,15 +38,16 @@
 
 namespace dali {
 
-struct FitsFileWrapper {
+struct FitsFileWrapperGPU {
   std::vector<fits::HeaderData> header;
   std::vector<Tensor<CPUBackend>> data;
+  std::vector<std::vector<int64_t>> tile_offset, tile_size;
   std::string filename;
 };
 
-class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
+class FitsLoaderGPU : public FileLoader<GPUBackend, FitsFileWrapperGPU> {
  public:
-  explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit inline FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch = false)
       : FileLoader(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
     // default to DALI_UINT8, if argument dtypes not provided
@@ -65,10 +66,10 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
                  "Number of extensions does not match the number of provided types");
   }
 
-  void PrepareEmpty(FitsFileWrapper& target) override {
+  void PrepareEmpty(FitsFileWrapperGPU& target) override {
     target = {};
   }
-  void ReadSample(FitsFileWrapper&) override;
+  void ReadSample(FitsFileWrapperGPU&) override;
 
  private:
   std::vector<int> hdu_indices_;
@@ -78,4 +79,4 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_FITS_LOADER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_FITS_LOADER_GPU_H_

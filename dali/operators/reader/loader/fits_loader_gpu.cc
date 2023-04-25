@@ -19,7 +19,7 @@
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/fits_loader.h"
+#include "dali/operators/reader/loader/fits_loader_gpu.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/util/file.h"
@@ -27,7 +27,7 @@
 
 namespace dali {
 
-void FitsLoader::ReadSample(FitsFileWrapper& target) {
+void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
   auto filename = files_[current_index_++];
   int status = 0, num_hdus = 0;
 
@@ -47,6 +47,8 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   // resize ouput vector according to the number of HDUs
   target.data.resize(hdu_indices_.size());
   target.header.resize(hdu_indices_.size());
+  target.tile_offset.resize(hdu_indices_.size());
+  target.tile_size.resize(hdu_indices_.size());
 
   for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
     // move to appropiate hdu
@@ -67,13 +69,29 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
     // reset, resize specific output in target
     if (target.data[output_idx].shares_data()) {
       target.data[output_idx].Reset();
+      // target.tile_size[output_idx].reset
     }
-    target.data[output_idx].Resize(header.shape, header.type());
 
-    // copy the image
-    fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
-                                  static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()),
-                                  &anynul, &status));
+    if (header.compressed) {
+      vector<uint8_t> raw_data;
+      dali::TensorShape<-1> shape;
+
+      fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
+                                   target.tile_size[output_idx], header.rows, &status);
+
+      shape.shape.push_back(raw_data.size());
+      target.data[output_idx].Resize(shape, DALI_UINT8);
+      memcpy(static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), raw_data.data(),
+             raw_data.size());
+    } else {
+      target.data[output_idx].Resize(header.shape, header.type());
+
+      // copy the image to host memory
+      fits::FITS_CALL(fits_read_img(
+          current_file, header.datatype_code, 1, nelem, &nulval,
+          static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul, &status));
+    }
+
 
     // set metadata
     target.data[output_idx].SetMeta(meta);
