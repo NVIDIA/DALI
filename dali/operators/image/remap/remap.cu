@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,8 @@ class RemapGpu : public Remap<GPUBackend> {
     km_.Resize<Kernel>(1, spec_.template GetArgument<int>("device_id"));
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
+    dali::kernels::DynamicScratchpad scratchpad({}, ws.stream());
+    ctx.scratchpad = &scratchpad;
 
     TensorList<B> mapx_shifted, mapy_shifted;
     mapx_shifted.set_order(ws.stream());
@@ -54,8 +56,8 @@ class RemapGpu : public Remap<GPUBackend> {
     if (shift_pixels_) {
       mapx_shifted.Copy(mapx);
       mapy_shifted.Copy(mapy);
-      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, scratchpad_, ws.stream());
-      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, scratchpad_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, scratchpad, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, scratchpad, ws.stream());
     }
     km_.Run<Kernel>(0, ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
                     view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
@@ -66,7 +68,6 @@ class RemapGpu : public Remap<GPUBackend> {
 
 
   kernels::KernelManager km_;
-  dali::kernels::DynamicScratchpad scratchpad_{};
 };
 
 DALI_REGISTER_OPERATOR(experimental__Remap, RemapGpu, GPU);
