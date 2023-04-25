@@ -124,7 +124,7 @@ class SliceFlipNormalizePermutePadGpu {
     if (block_remainder != 0) {
       block_count_ += number_of_blocks - block_remainder;
     }
-    block_size_ = div_ceil(all_sample_sizes, std::max(1, block_count_));
+    block_size_ = div_ceil(all_sample_sizes, cuda_max<size_t>(block_count_, 1));
 
     block_count_ = 0;
     for (auto &elem : args) {
