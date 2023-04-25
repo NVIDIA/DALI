@@ -611,6 +611,12 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def(
+      "to_dlpack",
+      [](Tensor<GPUBackend> &t) -> void {
+          return;
+        }
+    )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
