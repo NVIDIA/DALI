@@ -110,7 +110,7 @@ def test_array_interface_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     assert tensorlist[0].__array_interface__['data'][0] == tensorlist[0].data_ptr()
-    assert tensorlist[0].__array_interface__['data'][1]
+    assert not tensorlist[0].__array_interface__['data'][1]
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert np.dtype(tensorlist[0].__array_interface__['typestr']) == np.dtype(
         types.to_numpy_type(tensorlist[0].dtype))
