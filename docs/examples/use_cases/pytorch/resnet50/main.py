@@ -29,7 +29,7 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 
 def fast_collate(batch, memory_format):
-    """Based on prefetcher from the APEX example
+    """Based on fast_collate from the APEX example
        https://github.com/NVIDIA/apex/blob/5b5d41034b506591a316c308c3d2cd14d5187e23/examples/imagenet/main_amp.py#L265
     """
     imgs = [img[0] for img in batch]
