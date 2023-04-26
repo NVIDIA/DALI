@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ class SliceFlipNormalizePermutePadGpu {
     if (block_remainder != 0) {
       block_count_ += number_of_blocks - block_remainder;
     }
-    block_size_ = div_ceil(all_sample_sizes, block_count_);
+    block_size_ = div_ceil(all_sample_sizes, cuda_max<size_t>(block_count_, 1));
 
     block_count_ = 0;
     for (auto &elem : args) {
