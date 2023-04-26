@@ -613,8 +613,13 @@ void ExposeTensor(py::module &m) {
       )code")
     .def(
       "to_dlpack",
-      [](Tensor<GPUBackend> &t) -> void {
-          return;
+      [](Tensor<GPUBackend> &t) {
+          auto capsule =  PyCapsule_New(
+            nullptr,
+            "dltensor",
+            nullptr
+          );
+          return capsule;
         }
     )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
