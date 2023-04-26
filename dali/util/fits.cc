@@ -195,6 +195,8 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
 
   size = 0;
   sum_nelemll = 0;
+
+  // support up to 6 dimensions
   for (i5 = ftile[5]; i5 <= ltile[5]; ++i5) {
     tfpixel[5] = (i5 - 1) * tilesize[5] + 1;
     tlpixel[5] = minvalue(tfpixel[5] + tilesize[5] - 1, naxis[5]);
