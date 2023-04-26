@@ -86,7 +86,7 @@ def parse():
     parser.add_argument('--dali_cpu', action='store_true',
                         help='Runs CPU based version of DALI pipeline.')
     parser.add_argument('--disable_dali', default=False, action='store_true',
-                        help='If use DALI at all')
+                        help='Disable DALI data loader and use native PyTorch one instead.')
     parser.add_argument('--prof', default=-1, type=int,
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true')
@@ -277,48 +277,44 @@ def main():
     train_loader = None
     val_loader = None
     if not args.disable_dali:
-        pipe = create_dali_pipeline(batch_size=args.batch_size,
-                                    num_threads=args.workers,
-                                    device_id=args.local_rank,
-                                    seed=12 + args.local_rank,
-                                    data_dir=traindir,
-                                    crop=crop_size,
-                                    size=val_size,
-                                    dali_cpu=args.dali_cpu,
-                                    shard_id=args.local_rank,
-                                    num_shards=args.world_size,
-                                    is_training=True)
-        pipe.build()
-        train_loader = DALIClassificationIterator(pipe, reader_name="Reader",
+        train_pipe = create_dali_pipeline(batch_size=args.batch_size,
+                                          num_threads=args.workers,
+                                          device_id=args.local_rank,
+                                          seed=12 + args.local_rank,
+                                          data_dir=traindir,
+                                          crop=crop_size,
+                                          size=val_size,
+                                          dali_cpu=args.dali_cpu,
+                                          shard_id=args.local_rank,
+                                          num_shards=args.world_size,
+                                          is_training=True)
+        train_pipe.build()
+        train_loader = DALIClassificationIterator(train_pipe, reader_name="Reader",
                                                   last_batch_policy=LastBatchPolicy.PARTIAL,
-                                                  auto_reset =True)
+                                                  auto_reset=True)
 
-        pipe = create_dali_pipeline(batch_size=args.batch_size,
-                                    num_threads=args.workers,
-                                    device_id=args.local_rank,
-                                    seed=12 + args.local_rank,
-                                    data_dir=valdir,
-                                    crop=crop_size,
-                                    size=val_size,
-                                    dali_cpu=args.dali_cpu,
-                                    shard_id=args.local_rank,
-                                    num_shards=args.world_size,
-                                    is_training=False)
-        pipe.build()
-        val_loader = DALIClassificationIterator(pipe, reader_name="Reader",
+        val_pipe = create_dali_pipeline(batch_size=args.batch_size,
+                                        num_threads=args.workers,
+                                        device_id=args.local_rank,
+                                        seed=12 + args.local_rank,
+                                        data_dir=valdir,
+                                        crop=crop_size,
+                                        size=val_size,
+                                        dali_cpu=args.dali_cpu,
+                                        shard_id=args.local_rank,
+                                        num_shards=args.world_size,
+                                        is_training=False)
+        val_pipe.build()
+        val_loader = DALIClassificationIterator(val_pipe, reader_name="Reader",
                                                 last_batch_policy=LastBatchPolicy.PARTIAL,
-                                                auto_reset =True)
+                                                auto_reset=True)
     else:
-        train_dataset = datasets.ImageFolder(
-            traindir,
-            transforms.Compose([
-                transforms.RandomResizedCrop(crop_size),
-                transforms.RandomHorizontalFlip(),
-            ]))
-        val_dataset = datasets.ImageFolder(valdir, transforms.Compose([
-                transforms.Resize(val_size),
-                transforms.CenterCrop(crop_size),
-            ]))
+        train_dataset = datasets.ImageFolder(traindir,
+                                             transforms.Compose([transforms.RandomResizedCrop(crop_size),
+                                                                 transforms.RandomHorizontalFlip()]))
+        val_dataset = datasets.ImageFolder(valdir,
+                                           transforms.Compose([transforms.Resize(val_size),
+                                                               transforms.CenterCrop(crop_size)]))
 
         train_sampler = None
         val_sampler = None
@@ -328,28 +324,31 @@ def main():
 
         collate_fn = lambda b: fast_collate(b, memory_format)
 
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-            num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=collate_fn)
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                   batch_size=args.batch_size,
+                                                   shuffle=(train_sampler is None),
+                                                   num_workers=args.workers,
+                                                   pin_memory=True,
+                                                   sampler=train_sampler,
+                                                   collate_fn=collate_fn)
 
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset,
-            batch_size=args.batch_size, shuffle=False,
-            num_workers=args.workers, pin_memory=True,
-            sampler=val_sampler,
-            collate_fn=collate_fn)
+        val_loader = torch.utils.data.DataLoader(val_dataset,
+                                                 batch_size=args.batch_size,
+                                                 shuffle=False,
+                                                 num_workers=args.workers,
+                                                 pin_memory=True,
+                                                 sampler=val_sampler,
+                                                 collate_fn=collate_fn)
 
     if args.evaluate:
         validate(val_loader, model, criterion)
         return
 
-    scaler = torch.cuda.amp.GradScaler(
-        init_scale=args.loss_scale,
-        growth_factor=2,
-        backoff_factor=0.5,
-        growth_interval=100,
-        enabled=args.fp16_mode
-    )
+    scaler = torch.cuda.amp.GradScaler(init_scale=args.loss_scale,
+                                       growth_factor=2,
+                                       backoff_factor=0.5,
+                                       growth_interval=100,
+                                       enabled=args.fp16_mode)
     total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
         # train for one epoch
