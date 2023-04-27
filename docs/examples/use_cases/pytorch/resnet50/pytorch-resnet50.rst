@@ -70,4 +70,5 @@ Usage
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
    --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
+   --disable_dali              turns off DALI and switches to the native PyTorch data processing
    --fp16-mode                 enables mixed precision mode
