@@ -391,6 +391,12 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
   }
 }
 
+
+static void dlpack_tensor_cleanup(PyObject *capsule) {
+  // TODO
+}
+
+
 /**
  * Pipeline output descriptor.
  */
@@ -613,14 +619,38 @@ void ExposeTensor(py::module &m) {
       )code")
     .def(
       "to_dlpack",
-      [](Tensor<GPUBackend> &t) {
-          auto capsule =  PyCapsule_New(
-            nullptr,
-            "dltensor",
-            nullptr
-          );
-          return capsule;
-        }
+      [](Tensor<GPUBackend> &t) -> py::capsule {
+        DLManagedTensor *dl_managed_tensor = (DLManagedTensor*)malloc(sizeof(DLManagedTensor));
+        // To musi być ustawione, inaczej leci SegFault, bo to jest wołane, żeby wyczyścić DLManagedTensor i jego kontekst.
+        dl_managed_tensor->deleter = nullptr;
+
+        DLTensor *dl_tensor = &dl_managed_tensor->dl_tensor;
+        dl_tensor->data = (void*)t.raw_mutable_data();
+        dl_tensor->ndim = 1;
+        int64_t *shape = (int64_t*)malloc(1 * sizeof(int64_t));
+        shape[0] = 10;
+        dl_tensor->shape = shape;
+        dl_tensor->strides = nullptr;
+        dl_tensor->byte_offset = 0;
+
+        
+        DLDevice *device = &dl_tensor->device;
+        device->device_type = kDLCUDA;
+
+        DLDataType *dtype = &dl_tensor->dtype;
+        dtype->code = (uint8_t)kDLInt;
+        dtype->lanes = (uint16_t)1;
+        // Jak to wybrać?
+        dtype->bits = 32;
+
+
+        auto capsule =  py::capsule(
+          dl_managed_tensor,
+          "dltensor",
+          dlpack_tensor_cleanup
+        );
+        return capsule;
+      }
     )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
