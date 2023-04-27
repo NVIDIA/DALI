@@ -143,8 +143,9 @@ do
         ${prolog[variant]}
         echo "Test variant run: $variant"
         # install the latest cuda wheel for CUDA 11.x and above tests if it is x86_64
+        # or we just want to use CUDA from system, not wheels
         version_ge "${CUDA_VERSION}" "110" && \
-          if [ "$(uname -m)" == "x86_64" ]; then
+          if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ]; then
             install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
                                                    nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \

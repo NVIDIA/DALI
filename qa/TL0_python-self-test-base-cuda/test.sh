@@ -14,6 +14,8 @@ version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
   pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` \
   || true
 
+export DO_NOT_INSTALL_CUDA_WHEEL="TRUE"
+
 pushd ../TL0_python-self-test-core
 bash -e ./test.sh
 popd
