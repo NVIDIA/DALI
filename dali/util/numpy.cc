@@ -214,7 +214,7 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
     // restore overriden character
     token[10] = char_tmp;
   }
-  token = token_mem.get() + align_remainder(offset, o_direct_alignm);
+  token = token_mem.get() + alignment_offset(offset, o_direct_alignm);
   DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
                nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
                make_string("Can not read header: ",

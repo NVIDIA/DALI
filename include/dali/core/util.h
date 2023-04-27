@@ -86,7 +86,7 @@ constexpr Value align_up(Value v, Alignment a) {
 
 template <typename Value, typename Alignment>
 DALI_HOST_DEV
-constexpr Value align_remainder(Value v, Alignment a) {
+constexpr Value alignment_offset(Value v, Alignment a) {
   return v & (a - 1);
 }
 

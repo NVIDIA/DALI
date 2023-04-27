@@ -281,7 +281,7 @@ void NumpyReaderCPU::Prefetch() {
       auto block_end = align_up(target->data_offset + target->nbytes, o_direct_alignm_);
       auto aligned_len = align_up(block_end - block_start, o_direct_read_len_alignm_);
       // offset to the desired data from the block start
-      auto target_data_offset = align_remainder(target->data_offset, o_direct_alignm_);
+      auto target_data_offset = alignment_offset(target->data_offset, o_direct_alignm_);
       // allocate the memory that is aligned to the block size, but wrap it into shared ptr using
       auto resource_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len,
                                                                             o_direct_alignm_);
@@ -299,7 +299,7 @@ void NumpyReaderCPU::Prefetch() {
 
       // split data into chunks and copy separately
       auto file = dynamic_cast<ODirectFileStream*>(target->current_file.get());
-      auto read_tail = align_remainder(target->data_offset + target->nbytes, o_direct_chunk_size_);
+      auto read_tail = alignment_offset(target->data_offset + target->nbytes, o_direct_chunk_size_);
       for (size_t read_offset = 0; read_offset < aligned_len; read_offset += o_direct_chunk_size_) {
         // read whole chunk or just aligned number of blocks to match aligned_len
         auto read_size = std::min(o_direct_chunk_size_, aligned_len - read_offset);
