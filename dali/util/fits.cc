@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/util/fits.h"
 #include <fitsio.h>
+#include <functional>
 #include <string>
 #include <vector>
+
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/util/fits.h"
 
 namespace dali {
 namespace fits {
@@ -148,7 +150,7 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
 
 int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
-                           long rows, int* status) {
+                           int64 rows, int* status) {
   std::vector<std::vector<uint8_t>> raw_data;
   raw_data.resize(rows);
   tile_offset.resize(rows + 1);
@@ -160,28 +162,28 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
     lpixel[i] = (fptr->Fptr)->znaxis[i];
   }
 
-  long naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  long tfpixel[MAX_COMPRESS_DIM], tlpixel[MAX_COMPRESS_DIM];
-  long offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
-  long mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
-  long i5, i4, i3, i2, i1, i0, irow;
-  long ntemp, sum_nelemll;
+  int64 naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 tfpixel[MAX_COMPRESS_DIM], tlpixel[MAX_COMPRESS_DIM];
+  int64 offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
+  int64 mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
+  int64 i5, i4, i3, i2, i1, i0, irow;
+  int64 ntemp, sum_nelemll;
   int ndim, size;
 
   ndim = (fptr->Fptr)->zndim;
   ntemp = 1;
   for (int i = 0; i < ndim; ++i) {
     if (fpixel[i] <= lpixel[i]) {
-      mfpixel[i] = (long)fpixel[i];
-      mlpixel[i] = (long)lpixel[i];
+      mfpixel[i] = static_cast<int64>(fpixel[i]);
+      mlpixel[i] = static_cast<int64>(lpixel[i]);
     } else {
-      mfpixel[i] = (long)lpixel[i];
-      mlpixel[i] = (long)fpixel[i];
+      mfpixel[i] = static_cast<int64>(lpixel[i]);
+      mlpixel[i] = static_cast<int64>(fpixel[i]);
     }
 
     naxis[i] = (fptr->Fptr)->znaxis[i];
@@ -232,12 +234,13 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
               ffgdesll(fptr, (fptr->Fptr)->cn_compressed, irow, &nelemll, &noffset, status);
 
               tile_offset[size] = sum_nelemll;
-              tile_size[size] = (long)thistilesize[0];
+              tile_size[size] = static_cast<int64>(thistilesize[0]);
 
               unsigned char charnull = 0;
               raw_data[size].resize(nelemll / sizeof(unsigned char));
-              fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1, (long)nelemll,
-                            &charnull, raw_data[size].data(), nullptr, status);
+              fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1,
+                            static_cast<int64>(nelemll), &charnull, raw_data[size].data(), nullptr,
+                            status);
 
               ++size;
               sum_nelemll += nelemll;

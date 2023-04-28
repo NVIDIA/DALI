@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
+#include <vector>
+
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/reader/fits_reader_gpu_op.h"
 #include "dali/pipeline/data/tensor_list.h"
-
-#include <string>
-#include <vector>
 
 namespace dali {
 
@@ -33,8 +33,8 @@ __device__ unsigned int read_lastpix(unsigned char *compressed_tile) {
 
 template <typename T>
 __global__ void rice_decompress(unsigned char *compressed_data, T *uncompressed_data,
-                                const long *tile_offset, const long *tile_size, int blocksize,
-                                long tiles, long maxtilelen, double bscale, double bzero) {
+                                const int64 *tile_offset, const int64 *tile_size, int blocksize,
+                                int64 tiles, int64 maxtilelen, double bscale, double bzero) {
   const int fsbits[3] = {3, 4, 5};
   const int fsmax[3] = {6, 14, 25};
   const int nonzero_count[256] = {
@@ -48,15 +48,15 @@ __global__ void rice_decompress(unsigned char *compressed_data, T *uncompressed_
       8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
       8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
 
-  int index = (int)(blockIdx.x * blockDim.x + threadIdx.x);
-  int stride = (int)(blockDim.x * gridDim.x);
-  for (long tile = index; tile < tiles; tile += stride) {
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+  for (int64 tile = index; tile < tiles; tile += stride) {
     unsigned char *compressed_tile = compressed_data + tile_offset[tile];
     int i, imax, k;
     int nbits, nzero, fs;
     unsigned int b, diff, lastpix;
     int bbits, bytelog2;
-    long beg;
+    int64 beg;
 
     bytelog2 = 0;
     for (int i = sizeof(T); i > 1; i >>= 1) {
@@ -76,12 +76,12 @@ __global__ void rice_decompress(unsigned char *compressed_data, T *uncompressed_
         b = (b << 8) | (*compressed_tile++);
         nbits += 8;
       }
-      fs = (int)(b >> nbits) - 1;
+      fs = (b >> nbits) - 1;
 
       b &= (1 << nbits) - 1;
       imax = i + blocksize;
       if (imax > tile_size[tile]) {
-        imax = (int)tile_size[tile];
+        imax = tile_size[tile];
       }
       if (fs < 0) {
         for (; i < imax; i++) {
@@ -180,25 +180,25 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
         int64_t *tile_offset_cuda, *tile_size_cuda;
         auto &sample = GetSample(sample_id);
         auto header = sample.header[output_idx];
-        int blockSize = 256, numBlocks = (int)(header.rows + blockSize - 1) / blockSize;
+        int blockSize = 256, numBlocks = static_cast<int>(header.rows + blockSize - 1) / blockSize;
 
         std::tie(tile_offset_cuda, tile_size_cuda) = s.ToContiguousGPU(
             ws.stream(), sample.tile_offset[output_idx], sample.tile_size[output_idx]);
 
         if (sample.header[output_idx].bytepix == 1) {
-          rice_decompress<unsigned char><<<numBlocks, blockSize, 0, ws.stream()>>>(
+          rice_decompress<uint8_t><<<numBlocks, blockSize, 0, ws.stream()>>>(
               static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
               static_cast<uint8_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,
               header.bscale, header.bzero);
         } else if (sample.header[output_idx].bytepix == 2) {
-          rice_decompress<unsigned short><<<numBlocks, blockSize, 0, ws.stream()>>>(
+          rice_decompress<uint16_t><<<numBlocks, blockSize, 0, ws.stream()>>>(
               static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
               static_cast<uint16_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,
               header.bscale, header.bzero);
         } else {
-          rice_decompress<unsigned int><<<numBlocks, blockSize, 0, ws.stream()>>>(
+          rice_decompress<uint32_t><<<numBlocks, blockSize, 0, ws.stream()>>>(
               static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
               static_cast<uint32_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,

@@ -17,8 +17,11 @@
 
 #include <fitsio.h>
 #include <fitsio2.h>
+
 #include <set>
 #include <string>
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/stream.h"
@@ -28,7 +31,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
-
 
 namespace dali {
 namespace fits {
@@ -55,7 +57,7 @@ class DLL_PUBLIC HeaderData {
   bool compressed = false;
 
   // data needed for gpu accelerated decompression
-  int64_t tiles, maxtilelen, zbitpix, bytepix, blocksize, rows; 
+  int64_t tiles, maxtilelen, zbitpix, bytepix, blocksize, rows;
   double bscale, bzero;
   std::vector<int64_t> tile_sizes;
 
@@ -72,7 +74,7 @@ DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
 /** @brief Read raw data of rice coded image HDU. */
 DLL_PUBLIC int extract_undecoded_data(fitsfile *fptr, std::vector<uint8_t> &data,
                                       std::vector<int64_t> &tile_offset,
-                                      std::vector<int64_t> &tile_size, long rows, int *status);
+                                      std::vector<int64_t> &tile_size, int64 rows, int *status);
 
 class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
  public:

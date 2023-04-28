@@ -29,9 +29,9 @@ def create_fits_file(filename, shape, type=np.int32, compressed=False, hdus=1):
     hdu_list = [fits.PrimaryHDU(header=None)]
     for i in range(hdus):
         data = rng.randint(100, size=shape).astype(type)
-        hdu = fits.ImageHDU(data, name=f"IMAGE{i+1}")
+        hdu = fits.ImageHDU(data, name=f"IMAGE{i + 1}")
         if compressed:
-            hdu = fits.CompImageHDU(data, name=f"IMAGE{i+1}")
+            hdu = fits.CompImageHDU(data, name=f"IMAGE{i + 1}")
         hdu_list.append(hdu)
 
     hdulist = fits.HDUList(hdu_list)
@@ -57,14 +57,14 @@ supported_numpy_types = set([
 # Furthermore, currently we don't handle accelerated float decompression
 unsupported_compression_numpy_types = set([
     np.float32,
-    np.float64, 
+    np.float64,
     np.int64,
     np.uint64,
 ])
 
 # Test shapes, for each number of dims, astropy & fits do not handle dims = ()
 test_shapes = {
-    1: [(10, ), (12, ), (10, ), (20, ), (10, ), (12, ), (13, ), (19, )],
+    1: [(10,), (12,), (10,), (20,), (10,), (12,), (13,), (19,)],
     2: [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)],
     3: [(6, 2, 5), (5, 6, 2), (3, 3, 3), (10, 1, 8), (8, 8, 3), (2, 2, 3), (8, 4, 3), (1, 10, 1)],
     4: [(2, 6, 2, 5), (5, 1, 6, 2), (3, 2, 3, 3), (1, 10, 1, 8), (2, 8, 2, 3), (2, 3, 2, 3),
