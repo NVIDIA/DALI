@@ -626,9 +626,12 @@ void ExposeTensor(py::module &m) {
 
         DLTensor *dl_tensor = &dl_managed_tensor->dl_tensor;
         dl_tensor->data = (void*)t.raw_mutable_data();
-        dl_tensor->ndim = 1;
-        int64_t *shape = (int64_t*)malloc(1 * sizeof(int64_t));
-        shape[0] = 10;
+        dl_tensor->ndim = t.shape().size();
+        int64_t *shape = (int64_t*)malloc(t.shape().size() * sizeof(int64_t));
+
+        for (int i = 0; i < t.shape().size(); ++i) {
+          shape[i] = t.shape()[i];
+        }
         dl_tensor->shape = shape;
         dl_tensor->strides = nullptr;
         dl_tensor->byte_offset = 0;
