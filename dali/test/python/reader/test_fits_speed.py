@@ -18,8 +18,9 @@ from astropy.io import fits
 import numpy as np
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
+import nvidia.dali
 
-@pipeline_def
+# @pipeline_def
 def FitsReaderPipeline(device="cpu", batch_size=1, num_threads=1, file_list=None):
     data = fn.experimental.readers.fits(device=device, file_list=file_list, shard_id=0, num_shards=1)
     return data
@@ -31,9 +32,22 @@ def get_fits_filenames():
 
 def test_fits_speed():
     filenames = get_fits_filenames()
-    file_list_arg = "\n".join(filenames)
+    if not filenames:
+        print("No FITS files in this directory\n")
+        return
+
+    file_list_arg = os.path.join(os.path.dirname(__file__), "test_fits_data/file_list.txt")
+
+    with open(file_list_arg, 'w') as f:
+        for file in filenames:
+                f.write(f"{file}\n")
+
     device = "cpu"
-    pipe = FitsReaderPipeline(device=device, batch_size=1, num_threads=1, file_list=file_list_arg)
+
+    pipe = nvidia.dali.Pipeline(batch_size=1, num_threads=1, device_id=0)
+    with pipe:
+        data = FitsReaderPipeline(device=device, batch_size=1, num_threads=1, file_list=file_list_arg)
+        pipe.set_outputs(data)
 
     times = []
     try:
@@ -44,6 +58,8 @@ def test_fits_speed():
             print("Time taken for file {}: {:.6f} s".format(i+1, time_taken))
     finally:
         del pipe
+
+    os.remove(file_list_arg)
 
     total_time = sum(times)
     mean_time = total_time / len(filenames)
