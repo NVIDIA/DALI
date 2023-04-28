@@ -43,10 +43,12 @@ def test_fits_speed():
                 f.write(f"{file}\n")
 
     device = "cpu"
+    batch_size=10
+    num_threads=3
 
-    pipe = nvidia.dali.Pipeline(batch_size=1, num_threads=1, device_id=0)
+    pipe = nvidia.dali.Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=0)
     with pipe:
-        data = FitsReaderPipeline(device=device, batch_size=1, num_threads=1, file_list=file_list_arg)
+        data = FitsReaderPipeline(device=device, batch_size=batch_size, num_threads=num_threads, file_list=file_list_arg)
         pipe.set_outputs(data)
 
     times = []
