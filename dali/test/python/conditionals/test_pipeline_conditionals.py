@@ -455,7 +455,7 @@ def test_multiple_nests(dev, input, num):
 
 
 # Compare pure Split/Merge operators with if statement
-def impl_test_against_split_merge(base_additional_kwargs={}, conditional_additional_kwargs={}):
+def _impl_against_split_merge(base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -491,12 +491,12 @@ def impl_test_against_split_merge(base_additional_kwargs={}, conditional_additio
 
 
 def test_against_split_merge():
-    impl_test_against_split_merge()
+    _impl_against_split_merge()
 
 
 # Compare pure Split/Merge operators with if statement to see if DataNodes produced by `.gpu()`
 # are registered
-def impl_test_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
+def _impl_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -542,14 +542,14 @@ def impl_test_dot_gpu(base_additional_kwargs={}, conditional_additional_kwargs={
 
 
 def test_dot_gpu():
-    impl_test_dot_gpu()
+    _impl_dot_gpu()
 
 
 # Test if operators without positional inputs but with argument inputs are correctly handled
 # in the split/merge - so they are tracked in the local scope.
 
 
-def impl_test_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additional_kwargs={}):
+def _impl_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -592,10 +592,10 @@ def impl_test_arg_inputs_scoped_tracking(global_additional_kwargs={}, scoped_add
 
 
 def test_arg_inputs_scoped_tracking():
-    impl_test_arg_inputs_scoped_tracking()
+    _impl_arg_inputs_scoped_tracking()
 
 
-def impl_test_arg_inputs_scoped_uninitialized(additional_kwargs={}):
+def _impl_arg_inputs_scoped_uninitialized(additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
     bs = 10
@@ -627,16 +627,15 @@ def impl_test_arg_inputs_scoped_uninitialized(additional_kwargs={}):
 
 
 def test_arg_inputs_scoped_uninitialized():
-    impl_test_arg_inputs_scoped_uninitialized()
+    _impl_arg_inputs_scoped_uninitialized()
 
 
 # Unified return tests - TODO(klecki)
 
 # Generator tests, remove the random predicate to test the same predicate in both pipelines.
 
-
 @params(*(pred_gens[:-1]))
-def impl_test_generators(pred, base_additional_kwargs={}, conditional_additional_kwargs={}):
+def _impl_generators(pred, base_additional_kwargs={}, conditional_additional_kwargs={}):
     test_data_root = get_dali_extra_path()
     caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
@@ -684,13 +683,13 @@ def impl_test_generators(pred, base_additional_kwargs={}, conditional_additional
 
 @params(*(pred_gens[:-1]))
 def test_generators(pred):
-    impl_test_generators(pred)
+    _impl_generators(pred)
 
 
 # Mismatched branches test (uninitialized values)
 
 
-def impl_test_uninitialized(additional_kwargs={}):
+def _impl_uninitialized(additional_kwargs={}):
     bs = 10
     kwargs = {
         "batch_size": bs,
@@ -731,7 +730,7 @@ def impl_test_uninitialized(additional_kwargs={}):
 
 
 def test_uninitialized():
-    impl_test_uninitialized()
+    _impl_uninitialized()
 
 
 def _tensor_arg_permute_batch_params():
