@@ -45,7 +45,13 @@ DALI_SCHEMA(readers___TFRecordBase)
 
 The index files can be obtained from TFRecord files by using the ``tfrecord2idx`` script
 that is distributed with DALI.)code",
-      DALI_STRING_VEC);
+      DALI_STRING_VEC)
+  .AddOptionalArg("use_o_direct",
+      R"code(If set to True, the data will be read directly from the storage bypassing system
+cache.
+
+Mutually exclusive with ``dont_use_mmap=False``.)code",
+      false);
 
 // Internal readers._tfrecord schema.
 DALI_SCHEMA(readers___TFRecord)

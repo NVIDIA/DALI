@@ -22,18 +22,28 @@
 #include <memory>
 
 #include "dali/core/common.h"
+#include "dali/core/mm/memory.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/util/file.h"
+#include "dali/util/odirect_file.h"
 
 namespace dali {
 
 class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit IndexedFileLoader(const OpSpec& options)
-    : Loader(options),
-      uris_(options.GetRepeatedArgument<std::string>("path")),
-      index_uris_(options.GetRepeatedArgument<std::string>("index_path")),
-      current_index_(0), current_file_index_(0), current_file_(nullptr) {
+  explicit IndexedFileLoader(const OpSpec& spec)
+    : Loader(spec),
+      uris_(spec.GetRepeatedArgument<std::string>("path")),
+      index_uris_(spec.GetRepeatedArgument<std::string>("index_path")),
+      current_index_(0), current_file_index_(0), current_file_(nullptr),
+      use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")) {
+        DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
+                     "``dont_use_mmap=False``."));
+      if (use_o_direct_) {
+        o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
+        o_direct_alignm_ = ODirectFileStream::GetAlignment();
+        o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
+      }
     }
 
   void ReadSample(Tensor<CPUBackend>& tensor) override {
@@ -50,9 +60,12 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     meta.SetSkipSample(false);
 
     if (file_index != current_file_index_) {
-      current_file_->Close();
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
+      current_file_.reset();
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_,
+                                       use_o_direct_);
       current_file_index_ = file_index;
+      // invalidate the position in the tmp read buffer
+      if (use_o_direct_) read_buffer_data_size_ = static_cast<size_t>(-1);
     }
 
     // if image is cached, skip loading
@@ -80,11 +93,44 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       if (tensor.shares_data()) {
         tensor.Reset();
       }
-      tensor.Resize({size}, DALI_UINT8);
+      if (use_o_direct_) {
+        // read again
+        if (!read_buffer_ || !(seek_pos > static_cast<int64>(read_buffer_pos_) &&
+                               seek_pos + size <
+                                  static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_))) {
+          // allocate
+          auto block_start = align_down(seek_pos, o_direct_alignm_);
+          auto block_end = align_up(seek_pos + size, o_direct_alignm_);
+          auto aligned_len = align_up(block_end - block_start, o_direct_chunk_size_);
+          if (aligned_len > static_cast<int64>(read_buffer_size_)) {
+            read_buffer_size_ = aligned_len;
+          }
+          // the old memory will be used as long as any piece of it uses it
+          read_buffer_ = mm::alloc_raw_shared<char, mm::memory_kind::host>(read_buffer_size_,
+                                                                            o_direct_alignm_);
+          auto file = dynamic_cast<ODirectFileStream*>(current_file_.get());
+          auto ret = file->ReadAt(read_buffer_.get(), aligned_len, block_start);
+          read_buffer_pos_ = block_start;
+          read_buffer_data_size_ = ret;
+          DALI_ENFORCE(static_cast<int64>(ret) >= size &&
+                       static_cast<int64>(ret) <= aligned_len,
+                       make_string("Failed to read file: ", uris_[file_index],
+                                   ", read: ", ret, " while it should be [", size, ", ",
+                                   aligned_len, "]"));
+        }
+        // we need to create a tmp variable that is a copy of read_buffer_ as members cannot be
+        // captured by value thus copied, and this is all about here
+        auto read_buffer_tmp = read_buffer_;
+        shared_ptr<void> tmp_mem(read_buffer_, read_buffer_.get() + (seek_pos - read_buffer_pos_));
 
-      int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()),
-                          size);
-      DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
+        tensor.ShareData(tmp_mem, size, false, {size}, DALI_UINT8, -1);
+      } else {
+        tensor.Resize({size}, DALI_UINT8);
+
+        int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()),
+                            size);
+        DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
+      }
     }
 
     tensor.SetMeta(meta);
@@ -92,9 +138,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
   ~IndexedFileLoader() override {
-    if (current_file_ != nullptr) {
-      current_file_->Close();
-    }
+    current_file_.reset();
   }
 
   virtual void ReadIndexFile(const std::vector<std::string>& index_uris) {
@@ -141,10 +185,13 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {
-        current_file_->Close();
+        current_file_.reset();
       }
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
+      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_,
+                                       use_o_direct_);
       current_file_index_ = file_index;
+      // invalidate the position in the tmp read buffer
+      if (use_o_direct_) read_buffer_pos_ = static_cast<size_t>(-1);
     }
     current_file_->SeekRead(seek_pos);
   }
@@ -159,6 +206,14 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
   int64 next_seek_pos_ = 0;
+  bool use_o_direct_ = false;
+  size_t o_direct_chunk_size_ = 0;
+  size_t o_direct_alignm_ = 0;
+  size_t o_direct_read_len_alignm_ = 0;
+  shared_ptr<char> read_buffer_;
+  size_t read_buffer_pos_ = 0;
+  size_t read_buffer_size_ = 0;
+  size_t read_buffer_data_size_ = 0;
 };
 
 }  // namespace dali
