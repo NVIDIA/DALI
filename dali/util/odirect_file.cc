@@ -87,7 +87,7 @@ ODirectFileStream::~ODirectFileStream() {
 void ODirectFileStream::Close() {
   if (fd_ >= 0) {
     close(fd_);
-    fd_ = 0;
+    fd_ = -1;
   }
 }
 
