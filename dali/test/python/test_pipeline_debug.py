@@ -747,7 +747,7 @@ def test_dot_gpu():
 
 
 def test_arg_inputs_scoped_tracking():
-    for global_debug, scoped_debug in[(True, False), (False, True), (True, True)]:
+    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]:
         yield _impl_arg_inputs_scoped_tracking, {'debug': global_debug}, {'debug': scoped_debug}
 
 
