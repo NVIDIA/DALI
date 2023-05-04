@@ -766,9 +766,13 @@ def check_raises_re(kinds, types, op, shape, _, msg):
         check_raises(kinds, types, op, shape)
 
 
-@raises(TypeError, glob=("\"DataNode\" is a symbolic representation of TensorList used for"
-                         " defining graph of operations for DALI Pipeline. It should not be used"
-                         " for truth evaluation in regular Python context."))
+@raises(TypeError, glob=("\"DataNode\" was used in conditional context - it might have been used "
+                         "in truth evaluation for `if` statement, logical expression or cast to a "
+                         "boolean. To use conditional execution via `if` statements you need to "
+                         "specify `enable_conditionals=True` in `@nvidia.dali.pipeline_def` "
+                         "decorator. You can read more about conditional execution in specific "
+                         "section of the Pipeline documentation. Bool conversion can be achieved "
+                         "with the `cast` operator."))
 def check_raises_te(kinds, types, op, shape, _):
     check_raises(kinds, types, op, shape)
 
@@ -809,9 +813,13 @@ def test_prohibit_min_max():
             yield check_raises_te, kinds, (np.int32, np.int32), op, shape_small, op_desc
 
 
-@raises(TypeError, glob=("\"DataNode\" is a symbolic representation of TensorList used for"
-                         " defining graph of operations for DALI Pipeline. It should not"
-                         " be used for truth evaluation in regular Python context."))
+@raises(TypeError, glob=("\"DataNode\" was used in conditional context - it might have been used "
+                         "in truth evaluation for `if` statement, logical expression or cast to a "
+                         "boolean. To use conditional execution via `if` statements you need to "
+                         "specify `enable_conditionals=True` in `@nvidia.dali.pipeline_def` "
+                         "decorator. You can read more about conditional execution in specific "
+                         "section of the Pipeline documentation. Bool conversion can be achieved "
+                         "with the `cast` operator."))
 def test_bool_raises():
     bool(DataNode("dummy"))
 
