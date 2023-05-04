@@ -117,7 +117,7 @@ void NumpyReaderGPU::Prefetch() {
   CUDA_CALL(cudaEventRecord(staging_ready_, staging_stream_));
 
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
-    curr_batch[data_idx]->file_stream->Close();
+    curr_batch[data_idx]->file_stream_->Close();
   }
 }
 

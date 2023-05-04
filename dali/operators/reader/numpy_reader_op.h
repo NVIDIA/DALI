@@ -27,6 +27,7 @@
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
+#include "dali/util/odirect_file.h"
 
 namespace dali {
 
@@ -152,10 +153,23 @@ class NumpyReader : public DataReader<Backend, Target> {
 
 class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
  public:
-  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, NumpyFileWrapper>(spec) {
+  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, NumpyFileWrapper>(spec),
+    dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
+    use_o_direct_(spec.GetArgument<bool>("use_o_direct")),
+    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NumpyReaderCPU") {
+    DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
+                 "``dont_use_mmap=False``."));
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
+    if (use_o_direct_) {
+      o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
+      o_direct_alignm_ = ODirectFileStream::GetAlignment();
+      o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
+    }
+    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch, use_o_direct_, o_direct_alignm_,
+                                      o_direct_read_len_alignm_);
   }
+  ~NumpyReaderCPU() override;
+  void Prefetch() override;
 
  protected:
   void RunImpl(Workspace &ws) override;
@@ -163,6 +177,24 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
 
  private:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper);
+
+  bool dont_use_mmap_ = false;
+  bool use_o_direct_ = false;
+  size_t o_direct_chunk_size_ = 0;
+  /*
+   * according to open man page
+   * O_DIRECT
+   *   The O_DIRECT flag may impose alignment restrictions on the length
+   *   and address of user-space buffers and the file offset of I/Os.
+   *   In Linux alignment restrictions vary by filesystem and kernel
+   *   version and might be absent entirely.  However there is currently
+   *   no filesystem-independent interface for an application to
+   *   discover these restrictions for a given file or filesystem.
+   */
+  size_t o_direct_alignm_ = 0;
+  size_t o_direct_read_len_alignm_ = 0;
+  // ThreadPool for prefetch which is a separate thread
+  ThreadPool thread_pool_;
 };
 
 }  // namespace dali
