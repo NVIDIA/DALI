@@ -285,17 +285,7 @@ void NumpyReaderCPU::Prefetch() {
       // allocate the memory that is aligned to the block size, but wrap it into shared ptr using
       auto resource_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len,
                                                                             o_direct_alignm_);
-      shared_ptr<void> tmp_mem(
-        resource_mem.get() + target_data_offset,
-        [resource_mem](void *p) {
-          // This is an empty lambda, which is a custom deleter for
-          // std::shared_ptr.
-          // While instantiating shared_ptr, also lambda is instantiated,
-          // making a copy of resource_mem. This way, reference counter of resource_mem
-          // is incremented. Therefore, for the duration of life cycle of
-          // underlying memory in shared_ptr, resource_mem won't free its memory.
-          // It will be freed, when last shared_ptr is deleted.
-        });
+      shared_ptr<void> tmp_mem(resource_mem, resource_mem.get() + target_data_offset);
 
       // split data into chunks and copy separately
       auto file = dynamic_cast<ODirectFileStream*>(target->current_file.get());
