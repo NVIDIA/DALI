@@ -13,10 +13,9 @@
 #  limitations under the License.
 
 
-import cupy as cp
 import numpy as np
 import nvidia.dali.fn as fn
-import torch
+from nose.plugins.attrib import attr
 from nose2.tools import params
 from numpy.random import default_rng
 from nvidia.dali import pipeline_def
@@ -62,6 +61,8 @@ def identity_pipe(use_copy_kernel, blocking):
     return tuple(i.gpu() for i in ins)
 
 
+@attr('torch')
+@attr('cupy')
 @params(
     (True, True),
     (False, True),
@@ -69,6 +70,8 @@ def identity_pipe(use_copy_kernel, blocking):
     (False, False),
 )
 def test_pipeline_inputs_prefetch_queue_depth(use_copy_kernel, blocking):
+    import torch
+    import cupy as cp
     rng = default_rng()
     n_iterations = 8
     p = identity_pipe(use_copy_kernel, blocking, prefetch_queue_depth=1)
@@ -100,6 +103,8 @@ def test_pipeline_inputs_prefetch_queue_depth(use_copy_kernel, blocking):
             assert np.all(np.isclose(to_array(tst), ref))
 
 
+@attr('torch')
+@attr('cupy')
 @params(
     (True, True),
     (False, True),
@@ -107,6 +112,8 @@ def test_pipeline_inputs_prefetch_queue_depth(use_copy_kernel, blocking):
     (False, False),
 )
 def test_pipeline_inputs_exec_pipelined(use_copy_kernel, blocking):
+    import torch
+    import cupy as cp
     rng = default_rng()
     n_iterations = 8
     p = identity_pipe(use_copy_kernel, blocking, exec_pipelined=False, exec_async=False)

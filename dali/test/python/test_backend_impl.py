@@ -23,13 +23,17 @@ from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
 from nose_utils import assert_raises
+from nose import SkipTest
 from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
 
 
 def test_preallocation():
     dali.backend.PreallocateDeviceMemory(0, 0)  # initialize the context
     dali.backend.ReleaseUnusedMemory()
-    free_before_prealloc = get_device_memory_info().free
+    mem_info = get_device_memory_info()
+    if mem_info is None:
+        raise SkipTest("Python bindings for NVML not found, skipping")
+    free_before_prealloc = mem_info.free
     size = 256 << 20
     dali.backend.PreallocateDeviceMemory(size, 0)
     free_after_prealloc = get_device_memory_info().free
