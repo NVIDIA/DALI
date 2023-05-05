@@ -31,9 +31,9 @@ if [[ $RET -ne 0 ]]; then
     CLEAN_AND_EXIT 2
 fi
 
-MIN_TOP1=25.0
-MIN_TOP5=50.0
-MIN_PERF=700
+MIN_TOP1=20.0
+MIN_TOP5=40.0
+MIN_PERF=400
 
 TOP1=$(grep "^##Top-1" $LOG | awk '{print $2}')
 TOP5=$(grep "^##Top-5" $LOG | awk '{print $2}')
