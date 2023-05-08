@@ -24,7 +24,7 @@ namespace dali {
 template <typename T>
 __device__ unsigned int read_lastpix(unsigned char *compressed_tile) {
   unsigned int lastpix = 0;
-  for (int i = 0; i < sizeof(T); ++i) {
+  for (size_t i = 0; i < sizeof(T); ++i) {
     unsigned char bytevalue = compressed_tile[i];
     lastpix = lastpix | (bytevalue << ((sizeof(T) - i - 1) << 3));
   }
