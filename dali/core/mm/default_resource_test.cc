@@ -379,7 +379,9 @@ static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<s
 }
 
 TEST(MMDefaultResource, ReleaseUnusedBasic) {
-  ReleaseUnusedTestImpl(256 << 20);
+  size_t free, total;
+  CUDA_CALL(cudaMemGetInfo(&free, &total));
+  ReleaseUnusedTestImpl(align_down(free / 2, 64 << 20));
 }
 
 TEST(MMDefaultResource, ReleaseUnusedMaxMem) {

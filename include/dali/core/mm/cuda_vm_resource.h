@@ -249,7 +249,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
             assert(region_idx >= 0);
             va_region &region = va_regions_[region_idx];
 
-            ptrdiff_t offset = region.address_range.ptr() - start;
+            ptrdiff_t offset = start - region.address_range.ptr();
             assert(offset % block_size_ == 0);
             int num_blocks = (end - start) / block_size_;
             int start_block = offset / block_size_;  // index of the first block
@@ -459,6 +459,11 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       return mem;
     }
 
+    /**
+     * @brief Adds the contents of `other` at the end of this region.
+     *
+     * @note This function operates purely on metadata and doesn't affect the process memory map.
+     */
     void append(va_region &&other) {
       assert(address_range.end() == other.address_range.ptr());
       assert(block_size == other.block_size);
@@ -483,19 +488,28 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       assert(mapping.size() == available.size());
     }
 
-    va_region split(int start_block) {
-      if (start_block == 0) {
+    /**
+     * @brief Trims the current region to `tail_start` blocks and returns the rest as a new region.
+     *
+     * @note This function operates purely on metadata and doesn't affect the process memory map.
+     *
+     * @param tail_start  The index of the first block to be moved to `tail`
+     * @return va_region  The region starting at `tail_start`.
+     */
+    va_region split(int tail_start) {
+      if (tail_start == 0) {
         va_region ret = std::move(*this);
         available_blocks = 0;
         address_range = {};
         return ret;
-      } else if (start_block == num_blocks()) {
+      } else if (tail_start == num_blocks()) {
         return va_region({}, block_size);
       }
-      cuvm::CUAddressRange tail_range(block_dptr(start_block), num_blocks() - start_block);
+      int tail_blocks = num_blocks() - tail_start;
+      cuvm::CUAddressRange tail_range(block_dptr(tail_start), tail_blocks * block_size);
       va_region tail(tail_range, block_size);
       int n = num_blocks();
-      for (int src = start_block, dst = 0; src < n; src++, dst++) {
+      for (int src = tail_start, dst = 0; src < n; src++, dst++) {
         tail.mapping[dst] = std::move(available[src]);
         tail.mapped[dst] = mapped[src];
 
@@ -506,10 +520,21 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
           available_blocks--;
         }
       }
-      resize(start_block);
+      resize(tail_start);
       return tail;
     }
 
+    /**
+     * @brief Changes the size of the region.
+     *
+     * If the new size is smaller than the old one and there are any blocks mapped at indices
+     * that would become out of range, they are unmapped and deallocated.
+     *
+     * @note This function may change the process memory map.
+     *
+     * @note This function affects just the region and doesn't adjust the free_va / free_mapped
+     *       in the enclosing VM resource. These need to be adjusted by the caller.
+     */
     void resize(int new_num_blocks) {
       if (new_num_blocks < num_blocks()) {
         int no_longer_in_range = 0;
