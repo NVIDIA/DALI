@@ -45,7 +45,7 @@ __global__ void Histogram(const SampleDesc *sample_descs) {
   __syncthreads();
   for (uint64_t idx = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
        idx < sample_desc.num_elements;
-       idx += blockDim.x * gridDim.x) {
+       idx += static_cast<uint64_t>(blockDim.x) * gridDim.x) {
     uint64_t channel_idx = idx % sample_desc.num_channels;
     atomicAdd(workspace + channel_idx * SampleDesc::range_size + in[idx], 1);
   }

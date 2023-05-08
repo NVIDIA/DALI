@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   // meta.SetSourceInfo(filename); // it adds ./before a filename for some reason
   meta.SetSkipSample(false);
 
-
-  auto path = filesystem::join_path(file_root_, filename);
-  auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
+  // set file path
+  target.filename = filesystem::join_path(file_root_, filename);
+  auto current_file = fits::FitsHandle::OpenFile(target.filename.c_str(), READONLY);
   fits::FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
 
   // resize ouput vector according to the number of HDUs
@@ -77,9 +77,6 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
 
     // set metadata
     target.data[output_idx].SetMeta(meta);
-
-    // set file path
-    target.filename = std::move(path);
   }
 }
 

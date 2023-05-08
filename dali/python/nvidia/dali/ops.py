@@ -668,7 +668,8 @@ def python_op_factory(name, schema_name=None):
                 result = self._repack_output_sets(outputs)
             if _conditionals.conditionals_enabled():
                 if len(op_instances) != 1:
-                    raise ValueError("Multiple input sets are not supported with conditionals.")
+                    raise ValueError("Multiple input sets are not supported with conditional"
+                                     " execution (when `enable_conditionals=True`)")
                 _conditionals.register_data_nodes(result, input_sets[0], kwargs)
             return result
 
@@ -879,6 +880,10 @@ class _TFRecordReaderImpl():
             feature_names.append(feature_name)
             features.append(feature)
 
+        # We know this reader doesn't have any inputs
+        if _conditionals.conditionals_enabled():
+            _conditionals.register_data_nodes(list(outputs.values()))
+
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
@@ -983,6 +988,9 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
             op_instance.append_output(t)
             pipeline.add_sink(t)
             outputs.append(t)
+
+        if _conditionals.conditionals_enabled():
+            _conditionals.register_data_nodes(outputs, inputs, kwargs)
         return outputs[0] if len(outputs) == 1 else outputs
 
 

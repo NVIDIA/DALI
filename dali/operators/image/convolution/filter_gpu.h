@@ -120,12 +120,10 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
       }
       ivec<axes> filter_extents = shape2vec(filter_shapes[sample_idx]);
       ivec<axes> anchor = shape2vec(anchor_shape);
-      for (int dim = 0; dim < axes; dim++) {
-        DALI_ENFORCE(all_coords(-1 <= anchor) && all_coords(anchor < filter_extents),
-                     make_string("Anchor must lie within the filter. Got anchor ", anchor_shape,
-                                 " with a filter of shape ", filter_shapes[sample_idx],
-                                 " for sample of idx ", sample_idx, "."));
-      }
+      DALI_ENFORCE(all_coords(-1 <= anchor) && all_coords(anchor < filter_extents),
+                    make_string("Anchor must lie within the filter. Got anchor ", anchor_shape,
+                                " with a filter of shape ", filter_shapes[sample_idx],
+                                " for sample of idx ", sample_idx, "."));
       for (int dim = 0; dim < axes; dim++) {
         anchor[dim] = anchor[dim] == -1 ? filter_extents[dim] / 2 : anchor[dim];
       }
@@ -163,7 +161,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
 template <typename Out, typename In, typename W>
 std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl(const OpSpec& spec_,
                                                                const InputDesc& input_desc) {
-  VALUE_SWITCH(input_desc.axes, Axes, FILTER_INPUT_SUPPORTED_SPATIAL_NDIM, (
+  VALUE_SWITCH(input_desc.axes, Axes, FILTER_INPUT_SUPPORTED_SPATIAL_NDIM_GPU, (
     BOOL_SWITCH(
       input_desc.num_seq_dims > 0, IsSequence, (
         BOOL_SWITCH(input_desc.has_channels, HasChannels, (

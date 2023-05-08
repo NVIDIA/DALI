@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,11 +16,35 @@
 #define DALI_UTIL_OCV_H_
 
 #include <opencv2/opencv.hpp>
+#include "dali/core/boundary.h"
 #include "dali/core/common.h"
 
 namespace dali {
 
 int DLL_PUBLIC OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type);
+
+int inline OCVBorderForDALIBoundary(boundary::BoundaryType border_type) {
+  using namespace boundary;  // NOLINT(build/namespaces)
+  switch (border_type) {
+    case BoundaryType::CONSTANT:
+      return cv::BORDER_CONSTANT;
+    case BoundaryType::CLAMP:
+      return cv::BORDER_REPLICATE;
+    case BoundaryType::REFLECT_1001:
+      return cv::BORDER_REFLECT;
+    case BoundaryType::REFLECT_101:
+      return cv::BORDER_REFLECT_101;
+    case BoundaryType::WRAP:
+      return cv::BORDER_WRAP;
+    case BoundaryType::TRANSPARENT:
+      return cv::BORDER_TRANSPARENT;
+    case BoundaryType::ISOLATED:
+      return cv::BORDER_ISOLATED;
+    default:
+      throw std::runtime_error(make_string("Provided border type is not supported by OpenCV `",
+                                           to_string(border_type), "`."));
+  }
+}
 
 template <typename T>
 inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H,
@@ -33,6 +57,51 @@ inline cv::Mat DLL_PUBLIC CreateMatFromPtr(int H,
   // (that I know of) without making the input argument non-const.
   return cv::Mat(H, W, type, const_cast<T*>(ptr), step);
 }
+
+template <typename T>
+struct type2ocv {};
+
+template <>
+struct type2ocv<uint8_t> {
+  static int value(int c) {
+    return CV_8UC(c);
+  }
+};
+
+template <>
+struct type2ocv<int8_t> {
+  static int value(int c) {
+    return CV_8SC(c);
+  }
+};
+
+template <>
+struct type2ocv<uint16_t> {
+  static int value(int c) {
+    return CV_16UC(c);
+  }
+};
+
+template <>
+struct type2ocv<int16_t> {
+  static int value(int c) {
+    return CV_16SC(c);
+  }
+};
+
+template <>
+struct type2ocv<int32_t> {
+  static int value(int c) {
+    return CV_32SC(c);
+  }
+};
+
+template <>
+struct type2ocv<float> {
+  static int value(int c) {
+    return CV_32FC(c);
+  }
+};
 
 int DLL_PUBLIC GetOpenCvChannelType(size_t c);
 

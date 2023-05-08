@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,13 +106,18 @@ class _Classification:
     """
 
     def __init__(self, data, type_name, arg_constant_len=-1):
-        self.is_batch, self.device, self.data = self._classify_data(
-            data, type_name, arg_constant_len)
+        from nvidia.dali._debug_mode import DataNodeDebug
+        is_batch, device, extracted = self._classify_data(data, type_name, arg_constant_len)
+        self.is_batch = is_batch
+        self.device = device
+        self.data = extracted
+        self.was_data_node = isinstance(data, DataNodeDebug)
+        self.original = data
 
     @staticmethod
     def _classify_data(data, type_name, arg_constant_len):
-        from nvidia.dali._debug_mode import DataNodeDebug
         """Returns tuple (is_batch, device, unpacked data). """
+        from nvidia.dali._debug_mode import DataNodeDebug
 
         def is_primitive_type(x):
             return isinstance(x, (int, float, bool, str))

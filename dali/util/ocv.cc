@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ int OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type) {
 }
 
 int GetOpenCvChannelType(size_t c) {
-  return ( c == 3 ) ? CV_8UC3 : CV_8UC1;
+  return type2ocv<uint8_t>::value(c);
 }
 
 static cv::ColorConversionCodes GetOpenCvColorConversionCode(

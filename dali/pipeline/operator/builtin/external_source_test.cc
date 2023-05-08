@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include <fstream>
 #include <memory>
 #include <tuple>
@@ -22,8 +24,165 @@
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/c_api.h"
 
 namespace dali {
+
+
+template<typename Backend>
+class ExternalSourceBasicTest : public ::testing::Test {
+ protected:
+  static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
+
+
+  void CreateAndSerializePipeline(bool repeat_last) {
+    std::string dev_str = is_cpu ? "cpu" : "gpu";
+    auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, false, 1,
+                                               false);
+    pipeline->AddOperator(
+            OpSpec("ExternalSource")
+                    .AddArg("repeat_last", repeat_last)
+                    .AddArg("device", dev_str)
+                    .AddArg("name", input_name_)
+                    .AddOutput(input_name_, dev_str),
+            input_name_);
+
+    std::vector<std::pair<std::string, std::string>> outputs = {
+            {input_name_, dev_str},
+    };
+
+    pipeline->SetOutputDescs(outputs);
+
+    serialized_pipeline_ = pipeline->SerializeToProtobuf();
+  }
+
+
+  void FeedExternalInput(daliPipelineHandle *h) {
+    daliSetExternalInputBatchSize(h, input_name_.c_str(), batch_size_);
+    int bytes_per_sample = 10;
+    std::vector<int64_t> shapes(batch_size_, bytes_per_sample);
+    thrust::host_vector<uint8_t> data_cpu(batch_size_ * bytes_per_sample);
+    assert(bytes_per_sample * batch_size_ < 255);
+    std::iota(data_cpu.begin(), data_cpu.end(), 1);
+    if constexpr (is_cpu) {
+      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data_cpu.data(),
+                           dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
+                           DALI_ext_force_copy);
+    } else {
+      thrust::device_vector<uint8_t> data_gpu = data_cpu;
+      daliSetExternalInput(h, input_name_.c_str(), device_type_t::GPU,
+                           thrust::raw_pointer_cast(data_gpu.data()),
+                           dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
+                           DALI_ext_force_copy);
+    }
+  }
+
+
+  /**
+   * Check, if the "depleted" trace exists.
+   */
+  void AssertDepletedTraceExist(daliPipelineHandle *h) {
+    // The "depleted" trace should always exist.
+    ASSERT_TRUE(daliHasOperatorTrace(h, input_name_.c_str(), depleted_trace_name_.c_str()));
+  }
+
+
+  /**
+   * Verify the value of "depleted" trace.
+   * @param shall_be_depleted Expected value.
+   */
+  void CheckDepletedTraceValue(daliPipelineHandle *h, bool shall_be_depleted) {
+    EXPECT_STREQ(daliGetOperatorTrace(h, input_name_.c_str(), depleted_trace_name_.c_str()),
+                 shall_be_depleted ? "true" : "false");
+  }
+
+
+  const int batch_size_ = 3;
+  const int num_threads_ = 2;
+  const int device_id_ = 0;
+  daliPipelineHandle handle_;
+  std::string serialized_pipeline_;
+  const std::string depleted_trace_name_ = "depleted";
+  const std::string input_name_ = "INPUT";
+};
+
+using ExternalSourceTestTypes = ::testing::Types<CPUBackend, GPUBackend>;
+TYPED_TEST_SUITE(ExternalSourceBasicTest, ExternalSourceTestTypes);
+
+
+TYPED_TEST(ExternalSourceBasicTest, DepletedTraceTest) {
+  this->CreateAndSerializePipeline(false);
+  daliDeserializeDefault(&this->handle_, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+
+  this->FeedExternalInput(&this->handle_);
+
+  // At this point, "depleted" trace does not yet exist. It needs a Workspace.
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, true);
+  daliOutputRelease(&this->handle_);
+
+  this->FeedExternalInput(&this->handle_);
+  this->FeedExternalInput(&this->handle_);
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, false);
+  daliOutputRelease(&this->handle_);
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, true);
+  daliOutputRelease(&this->handle_);
+
+  daliDeletePipeline(&this->handle_);
+}
+
+
+TYPED_TEST(ExternalSourceBasicTest, DepletedTraceRepeatLastTest) {
+  this->CreateAndSerializePipeline(true);
+  daliDeserializeDefault(&this->handle_, this->serialized_pipeline_.c_str(),
+                         static_cast<int>(this->serialized_pipeline_.length()));
+
+  this->FeedExternalInput(&this->handle_);
+
+  // At this point, "depleted" trace does not yet exist. It needs a Workspace.
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, false);
+  daliOutputRelease(&this->handle_);
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, false);
+  daliOutputRelease(&this->handle_);
+
+  this->FeedExternalInput(&this->handle_);
+  this->FeedExternalInput(&this->handle_);
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, false);
+  daliOutputRelease(&this->handle_);
+
+  daliRun(&this->handle_);
+  daliShareOutput(&this->handle_);
+  this->AssertDepletedTraceExist(&this->handle_);
+  this->CheckDepletedTraceValue(&this->handle_, false);
+  daliOutputRelease(&this->handle_);
+
+  daliDeletePipeline(&this->handle_);
+}
+
 
 template <typename LoopsCount>
 class ExternalSourceTest : public::testing::WithParamInterface<int>,

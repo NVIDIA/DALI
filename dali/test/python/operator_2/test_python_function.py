@@ -15,6 +15,7 @@
 import cv2
 import glob
 import numpy
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -564,5 +565,27 @@ def test_invalid_layouts_arg():
     with pipe:
         out = fn.python_function(function=lambda: numpy.zeros((1, 1)), output_layouts=['HW', 'HWC'])
         pipe.set_outputs(out)
+    pipe.build()
+    pipe.run()
+
+
+def test_python_function_conditionals():
+    batch_size = 32
+
+    @pipeline_def(device_id=0, batch_size=batch_size, num_threads=4, exec_async=False,
+                  exec_pipelined=False, enable_conditionals=True)
+    def py_fun_pipeline():
+        predicate = fn.external_source(
+            source=lambda sample_info: numpy.array(sample_info.idx_in_batch < batch_size / 2),
+            batch=False)
+        if predicate:
+            out1, out2 = fn.python_function(predicate, num_outputs=2,
+                                            function=lambda _: (numpy.array(42), numpy.array(10)))
+        else:
+            out1 = fn.python_function(function=lambda: numpy.array(0))
+            out2 = types.Constant(numpy.array(0), device="cpu", dtype=types.INT64)
+        return out1, out2
+
+    pipe = py_fun_pipeline()
     pipe.build()
     pipe.run()

@@ -28,7 +28,7 @@ class StdFileStream : public FileStream {
  public:
   explicit StdFileStream(const std::string& path);
   void Close() override;
-  shared_ptr<void>  Get(size_t n_bytes) override;
+  shared_ptr<void> Get(size_t n_bytes) override;
   size_t Read(void * buffer, size_t n_bytes) override;
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
   ptrdiff_t TellRead() const override;

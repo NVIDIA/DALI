@@ -84,7 +84,7 @@ def test_cuda_array_interface_tensor_gpu():
     pipe.build()
     tensor_list = pipe.run()[0]
     assert tensor_list[0].__cuda_array_interface__['data'][0] == tensor_list[0].data_ptr()
-    assert tensor_list[0].__cuda_array_interface__['data'][1] is True
+    assert not tensor_list[0].__cuda_array_interface__['data'][1]
     assert np.array_equal(tensor_list[0].__cuda_array_interface__['shape'], tensor_list[0].shape())
     type_str = tensor_list[0].__cuda_array_interface__['typestr']
     dtype = types.to_numpy_type(tensor_list[0].dtype)

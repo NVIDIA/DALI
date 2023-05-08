@@ -20,7 +20,7 @@ from scipy.stats import chisquare
 from nose2.tools import params
 
 from nvidia.dali import fn, types
-from nvidia.dali.pipeline import experimental
+from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import rand_augment
 from nvidia.dali.auto_aug.core import augmentation
 
@@ -31,10 +31,11 @@ data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 
-@params(*tuple(enumerate(itertools.product((True, False), (True, False), (None, 0),
-                                           (True, False)))))
+@params(*tuple(
+    enumerate(
+        itertools.product(("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)))))
 def test_run_rand_aug(i, args):
-    uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
+    dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
     ns = [1, 2, 3, 4]
     ms = [0, 15, 30]
@@ -42,11 +43,11 @@ def test_run_rand_aug(i, args):
     n = ns[i % len(ns)]
     m = ms[i % len(ms)]
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=43)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
+        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
         if uniformly_resized:
             image = fn.resize(image, size=(244, 244))
         extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}
@@ -64,61 +65,6 @@ def test_run_rand_aug(i, args):
     p.build()
     for _ in range(3):
         p.run()
-
-
-@params(*tuple(itertools.product((True, False), (0, 1), ('height', 'width', 'both'))))
-def test_translation(use_shape, offset_fraction, extent):
-    # make sure the translation helper processes the args properly
-    # note, it only uses translate_y (as it is in imagenet policy)
-    shape = [300, 400]
-    fill_value = 105
-    params = {}
-    if use_shape:
-        param = offset_fraction
-        param_name = "max_translate_rel"
-    else:
-        param_name = "max_translate_abs"
-    assert extent in ('height', 'width', 'both'), f"{extent}"
-    if extent == 'both':
-        param = [shape[0] * offset_fraction, shape[1] * offset_fraction]
-    elif extent == 'height':
-        param = [shape[0] * offset_fraction, 0]
-    elif extent == 'width':
-        param = [0, shape[1] * offset_fraction]
-    params[param_name] = param
-    translate_x, translate_y = rand_augment._get_translations(use_shape=use_shape, **params)
-    if extent == 'both':
-        augments = [translate_x, translate_y]
-    elif extent == 'height':
-        augments = [translate_y]
-    elif extent == 'width':
-        augments = [translate_x]
-
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=3, num_threads=4, device_id=0,
-                               seed=43)
-    def pipeline():
-        encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="mixed")
-        image = fn.resize(image, size=shape)
-        if use_shape:
-            return rand_augment.apply_rand_augment(augments, image, n=1, m=30,
-                                                   fill_value=fill_value, shape=shape)
-        else:
-            return rand_augment.apply_rand_augment(augments, image, n=1, m=30,
-                                                   fill_value=fill_value)
-
-    p = pipeline()
-    p.build()
-    output, = p.run()
-    output = [np.array(sample) for sample in output.as_cpu()]
-    for i, sample in enumerate(output):
-        sample = np.array(sample)
-        if offset_fraction == 1:
-            assert np.all(sample == fill_value), f"sample_idx: {i}"
-        else:
-            background_count = np.sum(sample == fill_value)
-            assert background_count / sample.size < 0.1, \
-                f"sample_idx: {i}, {background_count / sample.size}"
 
 
 @params(*tuple(enumerate(itertools.product(
@@ -145,8 +91,8 @@ def test_ops_selection_and_mags(case_idx, args):
         return mag_to_param
 
     @augmentation(param_device=dev)
-    def op(sample, op_id_mag_id):
-        return fn.cat(sample, op_id_mag_id)
+    def op(data, op_id_mag_id):
+        return fn.cat(data, op_id_mag_id)
 
     augmentations = [
         op.augmentation(mag_range=(10 * i + 1, 10 * i + num_magnitude_bins),
@@ -170,15 +116,15 @@ def test_ops_selection_and_mags(case_idx, args):
             expected_counts[tuple(el for out in outs for el in out)] = prob
     expected_counts = {output: p * batch_size for output, p in expected_counts.items()}
 
-    @experimental.pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4,
-                               device_id=0, seed=42)
+    @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
+                  seed=42)
     def pipeline():
-        sample = types.Constant([], dtype=types.INT32)
+        data = types.Constant([], dtype=types.INT32)
         if dev == "gpu":
-            sample = sample.gpu()
-        sample = rand_augment.apply_rand_augment(augmentations, sample, n=n, m=m,
-                                                 num_magnitude_bins=num_magnitude_bins)
-        return fn.reshape(sample, shape=(-1, 2))
+            data = data.gpu()
+        data = rand_augment.apply_rand_augment(augmentations, data, n=n, m=m,
+                                               num_magnitude_bins=num_magnitude_bins)
+        return fn.reshape(data, shape=(-1, 2))
 
     p = pipeline()
     p.build()
@@ -201,11 +147,10 @@ def test_ops_selection_and_mags(case_idx, args):
 
 def test_wrong_params_fail():
 
-    @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                               enable_conditionals=True)
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
     def pipeline(n, m, num_magnitude_bins):
-        sample = types.Constant(np.array([[[]]], dtype=np.uint8))
-        return rand_augment.rand_augment(sample, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
+        data = types.Constant(np.array([[[]]], dtype=np.uint8))
+        return rand_augment.rand_augment(data, n=n, m=m, num_magnitude_bins=num_magnitude_bins)
 
     with assert_raises(Exception,
                        glob="The number of operations to apply `n` must be a non-negative integer"):
@@ -219,32 +164,29 @@ def test_wrong_params_fail():
 
     with assert_raises(Exception, glob="The `augmentations` list cannot be empty"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def no_aug_pipeline():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
-            return rand_augment.apply_rand_augment([], sample, 1, 20)
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
+            return rand_augment.apply_rand_augment([], data, 1, 20)
 
         no_aug_pipeline()
 
     with assert_raises(Exception, glob="The augmentation `translate_x` requires `shape` argument"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def missing_shape():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
-            return rand_augment.apply_rand_augment(augments, sample, 1, 20)
+            return rand_augment.apply_rand_augment(augments, data, 1, 20)
 
         missing_shape()
 
     with assert_raises(Exception, glob="The kwarg `shhape` is not used by any of the"):
 
-        @experimental.pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42,
-                                   enable_conditionals=True)
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
         def unused_kwarg():
-            sample = types.Constant(np.array([[[]]], dtype=np.uint8))
+            data = types.Constant(np.array([[[]]], dtype=np.uint8))
             augments = rand_augment.get_rand_augment_suite(use_shape=True)
-            return rand_augment.apply_rand_augment(augments, sample, 1, 20, shhape=42)
+            return rand_augment.apply_rand_augment(augments, data, 1, 20, shhape=42)
 
         unused_kwarg()

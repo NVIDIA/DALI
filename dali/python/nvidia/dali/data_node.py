@@ -161,12 +161,12 @@ class DataNode(object):
 
     def __bool__(self):
         raise TypeError(
-            "\"DataNode\" is a symbolic representation of TensorList used for defining"
-            " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
-            " in regular Python context. Bool conversion in Pipeline can be achieved"
-            " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-            " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
-            " section of DALI documentation.")
+            "\"DataNode\" was used in conditional context - it might have been used in truth"
+            " evaluation for `if` statement, logical expression or cast to a boolean."
+            " To use conditional execution via `if` statements you need to specify"
+            " `enable_conditionals=True` in `@nvidia.dali.pipeline_def` decorator."
+            " You can read more about conditional execution in specific section of the Pipeline"
+            " documentation. Bool conversion can be achieved with the `cast` operator.")
 
     def __getitem__(self, val):
         idxs = []

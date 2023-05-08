@@ -21,12 +21,12 @@ from nvidia.dali.auto_aug.core import _Augmentation, signed_bin
 from nvidia.dali.auto_aug.core._args import \
     forbid_unused_kwargs as _forbid_unused_kwargs
 from nvidia.dali.auto_aug.core._utils import \
-    parse_validate_offset as _parse_validate_offset, \
+    get_translations as _get_translations, \
     pretty_select as _pretty_select
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
-def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
+def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
                          shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
                          interp_type: Optional[types.DALIInterpType] = None,
                          max_translate_abs: Optional[int] = None,
@@ -36,11 +36,11 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
     Applies TrivialAugment Wide (https://arxiv.org/abs/2103.10158) augmentation scheme to the
     provided batch of samples.
 
-    Parameter
-    ---------
-    sample : DataNode
+    Args
+    ----
+    data : DataNode
         A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+        `uint8` type.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     fill_value: int, optional
@@ -50,13 +50,25 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
     interp_type: types.DALIInterpType, optional
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
         Supported values are `types.INTERP_LINEAR` (default) and `types.INTERP_NN`.
+    max_translate_abs: int or (int, int), optional
+        Only valid when ``shapes`` is not provided. Specifies the maximal shift (in pixels)
+        in the translation augmentation. If a tuple is specified, the first component limits
+        height, the second the width. Defaults to 32, which means the maximal magnitude
+        shifts the image by 32 pixels.
+    max_translate_rel: float or (float, float), optional
+        Only valid when ``shapes`` argument is provided. Specifies the maximal shift as a
+        fraction of image shape in the translation augmentations.
+        If a tuple is specified, the first component limits the height, the second the width.
+        Defaults to 1, which means the maximal magnitude shifts the image entirely out of
+        the canvas.
     seed: int, optional
         Seed to be used to randomly sample operations (and to negate magnitudes).
     excluded: List[str], optional
         A list of names of the operations to be excluded from the default suite of augmentations.
         If, instead of just limiting the set of operations, you need to include some custom
-        operations or fine-tuned of the existing ones, you can use the `apply_trivial_augment`
-        directly, which accepts a list of augmentations.
+        operations or fine-tuned of the existing ones, you can use the
+        :meth:`~nvidia.dali.auto_aug.trivial_augment.apply_trivial_augment` directly,
+        which accepts a list of augmentations.
 
     Returns
     -------
@@ -80,11 +92,11 @@ def trivial_augment_wide(sample: _DataNode, num_magnitude_bins: int = 31,
                 f"does not contain augmentation with this name. "
                 f"The augmentations in the suite are: {', '.join(augmentation_names)}.")
     selected_augments = [aug for aug in augmentations if aug.name not in excluded]
-    return apply_trivial_augment(selected_augments, sample, num_magnitude_bins=num_magnitude_bins,
+    return apply_trivial_augment(selected_augments, data, num_magnitude_bins=num_magnitude_bins,
                                  seed=seed, **aug_kwargs)
 
 
-def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
+def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
                           num_magnitude_bins: int = 31, seed: Optional[int] = None,
                           **kwargs) -> _DataNode:
     """
@@ -94,13 +106,12 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
     The magnitude bin for every transformation is randomly selected from
     `[0, num_magnitude_bins - 1]`.
 
-    Parameter
-    ---------
+    Args
+    ----
     augmentations : List[core._Augmentation]
         List of augmentations to be sampled and applied in TrivialAugment fashion.
-    sample : DataNode
-        A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type and reside on GPU.
+    data : DataNode
+        A batch of samples to be processed.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     seed: int, optional
@@ -110,7 +121,7 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
         The signature of each augmentation is checked for any extra arguments and if
         the name of the argument matches one from the `kwargs`, the value is
         passed as an argument. For example, some augmentations from the default
-        random augment suite accept `shapes`, `fill_value` and `interp_type`.
+        TrivialAugment suite accept ``shapes``, ``fill_value`` and ``interp_type``.
 
     Returns
     -------
@@ -127,9 +138,9 @@ def apply_trivial_augment(augmentations: List[_Augmentation], sample: _DataNode,
                                       seed=seed)
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
     if use_signed_magnitudes:
-        magnitude_bin = signed_bin(magnitude_bin)
+        magnitude_bin = signed_bin(magnitude_bin, seed=seed)
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_trivial_augment')
-    op_kwargs = dict(sample=sample, magnitude_bin=magnitude_bin,
+    op_kwargs = dict(data=data, magnitude_bin=magnitude_bin,
                      num_magnitude_bins=num_magnitude_bins, **kwargs)
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
     return _pretty_select(augmentations, op_idx, op_kwargs, auto_aug_name='apply_trivial_augment',
@@ -143,23 +154,25 @@ def get_trivial_augment_wide_suite(
     Creates a list of 14 augmentations referred as wide augmentation space in TrivialAugment paper
     (https://arxiv.org/abs/2103.10158).
 
-    Parameter
-    ---------
+    Args
+    ----
     use_shape : bool
         If true, the translation offset is computed as a percentage of the image. Useful if the
         images processed with the auto augment have different shapes. If false, the offsets range
         is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
-        augmentations. If tuple is specified, the first component limits height, the second the
-        width.
+        augmentations. If a tuple is specified, the first component limits height, the second the
+        width. Defaults to 32.
     max_translate_rel: float or (float, float), optional
         Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If tuple is specified, the first component limits
-        height, the second the width.
+        in the translation augmentations. If a tuple is specified, the first component limits
+        height, the second the width. Defaults to 1.
     """
+    default_translate_abs, default_translate_rel = 32, 1.
     # translations = [translate_x, translate_y] with adjusted magnitude range
-    translations = _get_translations(use_shape, max_translate_abs, max_translate_rel)
+    translations = _get_translations(use_shape, default_translate_abs, default_translate_rel,
+                                     max_translate_abs, max_translate_rel)
     # [.augmentation((mag_low, mag_high), randomly_negate_mag, custom_magnitude_to_param_mapping]
     return translations + [
         a.shear_x.augmentation((0, 0.99), True),
@@ -176,20 +189,3 @@ def get_trivial_augment_wide_suite(
         a.auto_contrast,
         a.identity,
     ]
-
-
-def _get_translations(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                      max_translate_rel: Optional[float] = None) -> List[_Augmentation]:
-    max_translate_height, max_translate_width = _parse_validate_offset(
-        use_shape, max_translate_abs=max_translate_abs, max_translate_rel=max_translate_rel,
-        default_translate_abs=32, default_translate_rel=1.)
-    if use_shape:
-        return [
-            a.translate_x.augmentation((0, max_translate_width), True),
-            a.translate_y.augmentation((0, max_translate_height), True),
-        ]
-    else:
-        return [
-            a.translate_x_no_shape.augmentation((0, max_translate_width), True),
-            a.translate_y_no_shape.augmentation((0, max_translate_height), True),
-        ]

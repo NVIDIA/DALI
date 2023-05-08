@@ -147,3 +147,42 @@ we recommend that you prefetch more data ahead of time.
 
 .. note::
   Increasing queue depth also increases memory consumption.
+
+Readers fine-tuning
+-------------------
+
+Selected readers use environment variables to fine-tune their behavior regarding the file storage
+access patterns. In most cases the default parameter should provide decent performance, still in
+some particular system properties (file system type) can require adjusting them accordingly.
+
+- ``DALI_GDS_CHUNK_SIZE`` - adjust the size of a single GDS read request.
+
+  Applicable to the :meth:`nvidia.dali.fn.readers.numpy` operator for the ``GPU`` backend.
+  The default value is 2MB. It must be a number, optionally followed by 'k' or 'M',
+  be a power of two, and not be larger than 16MB. The optimal performance can be achieved for
+  different values depending on the filesystem and GDS version.
+
+- ``DALI_ODIRECT_ALIGNMENT`` - adjusts the O_DIRECT alignment.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
+  than 16MB. The minimal value depends on the file system. See more in
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`_
+
+- ``DALI_ODIRECT_LEN_ALIGNMENT`` - adjusts the O_DIRECT read length alignment.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
+  than 16MB. The minimal value depends on the file system. See more in
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`_
+
+- ``DALI_ODIRECT_CHUNK_SIZE`` - adjust the size of single O_DIRECT read request.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 2MB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not larger
+  than 16MB, and not smaller than ``DALI_ODIRECT_LEN_ALIGNMENT``. The optimal performance can be
+  achieved for different values depending on the filesystem.
+
