@@ -107,6 +107,7 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
     return convolved, samples, filters, anchors, fill_values
 
 
+@attr('scipy')
 @params(*tuple((dev, ) + params for dev, params in itertools.product(
     ["cpu", "gpu"],
     [
@@ -194,6 +195,7 @@ sample_3d_cases = (
 )
 
 
+@attr('scipy')
 @attr('slow')
 @params(*(sample_2d_cases + sample_3d_cases))
 def slow_test_samples(dev, dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border,

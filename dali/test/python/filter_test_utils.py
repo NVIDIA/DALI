@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-from scipy.ndimage import convolve as sp_convolve
 
 border2scipy_border = {
     "101": "mirror",
@@ -29,6 +28,7 @@ def make_slice(start, end):
 
 
 def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
+    from scipy.ndimage import convolve as sp_convolve
     ndim = len(sample.shape)
     assert len(kernel.shape) == ndim, f"{kernel.shape}, {ndim}"
     in_dtype = sample.dtype
