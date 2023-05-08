@@ -75,6 +75,7 @@ def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False)
         del outs
     del pipe
 
+
 def test_image_decoder():
     for device in {'cpu', 'mixed'}:
         for batch_size in {1, 10}:
