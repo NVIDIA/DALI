@@ -148,6 +148,56 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   }
 }
 
+template <unsigned level>
+inline void extract_data(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
+                         std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
+                         int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
+                         int64* rowdim, int64* naxis, int64* offset, int* size, int64* sum_nelemll,
+                         int* status, unsigned max_level = level) {
+  for (int i = ftile[level]; i <= ltile[level]; ++i) {
+    int64 tfpixel = (i - 1) * tilesize[level] + 1;
+    int64 tlpixel = minvalue(tfpixel + tilesize[level] - 1, naxis[level]);
+    if (level == max_level) {
+      thistilesize[level] = tlpixel - tfpixel + 1;
+      offset[level] = (i - 1) * rowdim[level];
+    } else {
+      thistilesize[level] = thistilesize[level + 1] * (tlpixel - tfpixel + 1);
+      offset[level] = (i - 1) * rowdim[level] + offset[level + 1];
+    }
+    extract_data<level - 1>(fptr, raw_data, tile_offset, tile_size, ftile, ltile, tilesize,
+                            thistilesize, rowdim, naxis, offset, size, sum_nelemll, status,
+                            max_level);
+  }
+}
+
+template <>
+inline void extract_data<0>(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
+                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
+                            int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
+                            int64* rowdim, int64* naxis, int64* offset, int* size,
+                            int64* sum_nelemll, int* status, unsigned max_level) {
+  for (int i = ftile[0]; i <= ltile[0]; ++i) {
+    int64 tfpixel = (i - 1) * tilesize[0] + 1;
+    int64 tlpixel = minvalue(tfpixel + tilesize[0] - 1, naxis[0]);
+    thistilesize[0] = thistilesize[1] * (tlpixel - tfpixel + 1);
+    int64 irow = i + offset[1];
+
+    LONGLONG nelemll = 0, noffset = 0;
+    ffgdesll(fptr, (fptr->Fptr)->cn_compressed, irow, &nelemll, &noffset, status);
+
+    tile_offset[*size] = *sum_nelemll;
+    tile_size[*size] = static_cast<int64>(thistilesize[0]);
+
+    unsigned char charnull = 0;
+    raw_data[*size].resize(nelemll / sizeof(unsigned char));
+    fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1, static_cast<int64>(nelemll),
+                  &charnull, raw_data[*size].data(), nullptr, status);
+
+    ++(*size);
+    *sum_nelemll += nelemll;
+  }
+}
+
 int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
                            std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
                            int64 rows, int* status) {
@@ -168,10 +218,8 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
   int64 ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   int64 ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   int64 rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
-  int64 tfpixel[MAX_COMPRESS_DIM], tlpixel[MAX_COMPRESS_DIM];
   int64 offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
   int64 mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
-  int64 i5, i4, i3, i2, i1, i0, irow;
   int64 ntemp, sum_nelemll;
   int ndim, size;
 
@@ -197,59 +245,8 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
 
   size = 0;
   sum_nelemll = 0;
-
-  // support up to 6 dimensions
-  for (i5 = ftile[5]; i5 <= ltile[5]; ++i5) {
-    tfpixel[5] = (i5 - 1) * tilesize[5] + 1;
-    tlpixel[5] = minvalue(tfpixel[5] + tilesize[5] - 1, naxis[5]);
-    thistilesize[5] = tlpixel[5] - tfpixel[5] + 1;
-    offset[5] = (i5 - 1) * rowdim[5];
-    for (i4 = ftile[4]; i4 <= ltile[4]; ++i4) {
-      tfpixel[4] = (i4 - 1) * tilesize[4] + 1;
-      tlpixel[4] = minvalue(tfpixel[4] + tilesize[4] - 1, naxis[4]);
-      thistilesize[4] = thistilesize[5] * (tlpixel[4] - tfpixel[4] + 1);
-      offset[4] = (i4 - 1) * rowdim[4] + offset[5];
-      for (i3 = ftile[3]; i3 <= ltile[3]; ++i3) {
-        tfpixel[3] = (i3 - 1) * tilesize[3] + 1;
-        tlpixel[3] = minvalue(tfpixel[3] + tilesize[3] - 1, naxis[3]);
-        thistilesize[3] = thistilesize[4] * (tlpixel[3] - tfpixel[3] + 1);
-        offset[3] = (i3 - 1) * rowdim[3] + offset[4];
-        for (i2 = ftile[2]; i2 <= ltile[2]; ++i2) {
-          tfpixel[2] = (i2 - 1) * tilesize[2] + 1;
-          tlpixel[2] = minvalue(tfpixel[2] + tilesize[2] - 1, naxis[2]);
-          thistilesize[2] = thistilesize[3] * (tlpixel[2] - tfpixel[2] + 1);
-          offset[2] = (i2 - 1) * rowdim[2] + offset[3];
-          for (i1 = ftile[1]; i1 <= ltile[1]; ++i1) {
-            tfpixel[1] = (i1 - 1) * tilesize[1] + 1;
-            tlpixel[1] = minvalue(tfpixel[1] + tilesize[1] - 1, naxis[1]);
-            thistilesize[1] = thistilesize[2] * (tlpixel[1] - tfpixel[1] + 1);
-            offset[1] = (i1 - 1) * rowdim[1] + offset[2];
-            for (i0 = ftile[0]; i0 <= ltile[0]; ++i0) {
-              tfpixel[0] = (i0 - 1) * tilesize[0] + 1;
-              tlpixel[0] = minvalue(tfpixel[0] + tilesize[0] - 1, naxis[0]);
-              thistilesize[0] = thistilesize[1] * (tlpixel[0] - tfpixel[0] + 1);
-              irow = i0 + offset[1];
-
-              LONGLONG nelemll = 0, noffset = 0;
-              ffgdesll(fptr, (fptr->Fptr)->cn_compressed, irow, &nelemll, &noffset, status);
-
-              tile_offset[size] = sum_nelemll;
-              tile_size[size] = static_cast<int64>(thistilesize[0]);
-
-              unsigned char charnull = 0;
-              raw_data[size].resize(nelemll / sizeof(unsigned char));
-              fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1,
-                            static_cast<int64>(nelemll), &charnull, raw_data[size].data(), nullptr,
-                            status);
-
-              ++size;
-              sum_nelemll += nelemll;
-            }
-          }
-        }
-      }
-    }
-  }
+  extract_data<5>(fptr, raw_data, tile_offset, tile_size, ftile, ltile, tilesize, thistilesize,
+                  rowdim, naxis, offset, &size, &sum_nelemll, status);
 
   tile_offset[size] = sum_nelemll;
 
