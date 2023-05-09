@@ -18,6 +18,8 @@ from nose.tools import with_setup
 import test_dali_tf_dataset_mnist as mnist
 from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus
 from nose_utils import raises
+from nose import SkipTest
+from distutils.version import LooseVersion
 
 tf.compat.v1.enable_eager_execution()
 
@@ -62,6 +64,10 @@ def test_keras_wrong_placement_cpu():
 
 @with_setup(skip_for_incompatible_tf)
 def test_keras_multi_gpu_mirrored_strategy():
+    # due to compatibility problems between the driver, cuda version and
+    # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
+    if LooseVersion(tf.__version__) >= LooseVersion('2.12.0'):
+        raise SkipTest("This test is not supported for TensorFlow 2.12")
     strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
 
     with strategy.scope():
