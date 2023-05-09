@@ -239,7 +239,7 @@ def test_image_decoder_memory_stats():
         pattern = r'Device memory: \d+ allocations, largest = 16777216 bytes\n.*' \
                   r'Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n'
         with check_output_pattern(pattern):
-            run_decode(data_path, size, device, threads, memory_stats=True)
+            run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
     for size in {1, 10}:
         for threads in {1, random.choice([2, 3, 4])}:
