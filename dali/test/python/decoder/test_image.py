@@ -60,9 +60,9 @@ def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False,
 
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
-missnamed_path = 'db/single/missnamed'
+misnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
-test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
+test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 
 def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False):
@@ -83,9 +83,9 @@ def test_image_decoder():
                 for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, good_path, img_type)
                     yield run_decode, img_type, data_path, batch_size, device, threads
-            for img_type in test_missnamed_path:
+            for img_type in test_misnamed_path:
                 for threads in {1, random.choice([2, 3, 4])}:
-                    data_path = os.path.join(test_data_root, missnamed_path, img_type)
+                    data_path = os.path.join(test_data_root, misnamed_path, img_type)
                     yield run_decode, img_type, data_path, batch_size, device, threads
 
 
