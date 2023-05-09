@@ -28,7 +28,13 @@ test_body() {
                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
                   --ExecutePreprocessor.timeout=600
 
-        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_distributed_compatible_tensorflow())')
+        # due to compatibility problems between the driver, cuda version and
+        # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
+        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; \
+                                               import tensorflow as tf; \
+                                               from distutils.version import LooseVersion; \
+                                               print(dali_tf.dataset_distributed_compatible_tensorflow() \
+                                               and LooseVersion(tf.__version__) < LooseVersion("2.12.0"))')
         if [ $is_compatible_distributed = 'True' ]; then
             jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
                     --to notebook --inplace --execute \
