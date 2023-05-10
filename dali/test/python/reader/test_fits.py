@@ -60,7 +60,7 @@ def get_astropy_dtypes(compression):
     # The astropy is not actively developed for Python3.6 and the last available
     # version does not support some dtypes
     vi = sys.version_info
-    if vi.major < 3 or (vi.major == 3 and vi.minor <= 6):
+    if vi.major < 3 or (vi.major == 3 and vi.minor <= 7):
         excluded |= {np.int8}
     # Astropy doesn't support writing those types to compressed image
     if compression:

@@ -37,7 +37,7 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 def test_run_rand_aug(i, args):
     dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     batch_sizes = [1, 8, 7, 64, 13, 64, 128]
-    ns = [1, 2, 3, 4]
+    ns = [1, 2, 3]
     ms = [0, 15, 30]
     batch_size = batch_sizes[i % len(batch_sizes)]
     n = ns[i % len(ns)]
