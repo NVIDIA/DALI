@@ -394,7 +394,6 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
 
 static void dlpack_tensor_cleanup(PyObject *capsule) {
   // TODO
-  printf("Clenup call");
 }
 
 
@@ -623,8 +622,6 @@ void ExposeTensor(py::module &m) {
       [](Tensor<GPUBackend> &t) -> py::capsule {
         DLManagedTensor *dl_managed_tensor = (DLManagedTensor*)malloc(sizeof(DLManagedTensor));
         // To musi być ustawione, inaczej leci SegFault, bo to jest wołane, żeby wyczyścić DLManagedTensor i jego kontekst.
-        // To chyba musi być ustawione, żeby można było czyścić np. shape (chyba, trzeba przetestować).
-        // I do kompletu manager_ctx, żeby było na czym zawołać to czyszczenie (chyba).
         dl_managed_tensor->deleter = nullptr;
 
         DLTensor *dl_tensor = &dl_managed_tensor->dl_tensor;
@@ -653,7 +650,7 @@ void ExposeTensor(py::module &m) {
         auto capsule =  py::capsule(
           dl_managed_tensor,
           "dltensor",
-          dlpack_tensor_cleanup // To jest cleanup kapsuły
+          dlpack_tensor_cleanup
         );
         return capsule;
       }
