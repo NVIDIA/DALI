@@ -174,6 +174,7 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
 
     if (compressed) {
       TensorList<GPUBackend> sample_list_gpu;
+      sample_list_gpu.set_order(ws.stream());
       sample_list_gpu.Copy(sample_list_cpu, ws.stream());
 
       for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
