@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/fits_loader.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/util/file.h"
 #include "dali/util/fits.h"
@@ -45,35 +45,16 @@ struct FitsFileWrapperGPU {
   std::string filename;
 };
 
-class FitsLoaderGPU : public FileLoader<GPUBackend, FitsFileWrapperGPU> {
+class FitsLoaderGPU : public FitsLoader<GPUBackend, FitsFileWrapperGPU> {
  public:
-  explicit inline FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch = false)
-      : FileLoader(spec, shuffle_after_epoch),
-        hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
-    // default to DALI_UINT8, if argument dtypes not provided
-    dtypes_ = spec.HasArgument("dtypes") ?
-                  spec.GetRepeatedArgument<DALIDataType>("dtypes") :
-                  std::vector<DALIDataType>(hdu_indices_.size(), DALI_UINT8);
+  explicit FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+      : FitsLoader<GPUBackend, FitsFileWrapperGPU>(spec, shuffle_after_epoch) {}
 
-    // verify if provided types are supported
-    for (DALIDataType dtype : dtypes_) {
-      DALI_ENFORCE(fits::supportedTypes.count(dtype),
-                   make_string("Unsupported output dtype ", dtype,
-                               ". Supported types are: ", fits::SupportedTypesListGen()));
-    }
+ protected:
+  void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+                       FitsFileWrapperGPU& target, size_t output_idx) override;
 
-    DALI_ENFORCE(hdu_indices_.size() == dtypes_.size(),
-                 "Number of extensions does not match the number of provided types");
-  }
-
-  void PrepareEmpty(FitsFileWrapperGPU& target) override {
-    target = {};
-  }
-  void ReadSample(FitsFileWrapperGPU&) override;
-
- private:
-  std::vector<int> hdu_indices_;
-  std::vector<DALIDataType> dtypes_;
+  void resizeTarget(FitsFileWrapperGPU& target, size_t new_size) override;
 };
 
 

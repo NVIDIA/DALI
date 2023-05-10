@@ -95,7 +95,7 @@ class FitsReaderCPU : public FitsReader<CPUBackend, FitsFileWrapper> {
  public:
   explicit FitsReaderCPU(const OpSpec& spec) : FitsReader<CPUBackend, FitsFileWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<FitsLoader>(spec, shuffle_after_epoch);
+    loader_ = InitLoader<FitsLoaderCPU>(spec, shuffle_after_epoch);
   }
 
  protected:

@@ -20,13 +20,7 @@
 #include <fitsio.h>
 #include <sys/stat.h>
 
-#include <algorithm>
-#include <fstream>
-#include <map>
-#include <memory>
-#include <regex>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -36,6 +30,7 @@
 #include "dali/util/file.h"
 #include "dali/util/fits.h"
 
+
 namespace dali {
 
 struct FitsFileWrapper {
@@ -44,10 +39,11 @@ struct FitsFileWrapper {
   std::string filename;
 };
 
-class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
+template <typename Backend, typename Target>
+class FitsLoader : public FileLoader<Backend, Target> {
  public:
-  explicit inline FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
-      : FileLoader(spec, shuffle_after_epoch),
+  explicit FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
+      : FileLoader<Backend, Target>(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
     // default to DALI_UINT8, if argument dtypes not provided
     dtypes_ = spec.HasArgument("dtypes") ?
@@ -65,14 +61,83 @@ class FitsLoader : public FileLoader<CPUBackend, FitsFileWrapper> {
                  "Number of extensions does not match the number of provided types");
   }
 
-  void PrepareEmpty(FitsFileWrapper& target) override {
+  void PrepareEmpty(Target& target) override {
     target = {};
   }
-  void ReadSample(FitsFileWrapper&) override;
+
+  void ReadSample(Target& target) override {
+    auto filename = files_[current_index_++];
+    int status = 0, num_hdus = 0;
+
+    // handle wrap-around
+    MoveToNextShard(current_index_);
+
+    // metadata info
+    DALIMeta meta;
+    // meta.SetSourceInfo(filename); // it adds ./before a filename for some reason
+    meta.SetSkipSample(false);
+
+    auto path = filesystem::join_path(file_root_, filename);
+    auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
+    fits::FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
+
+    // resize ouput vector according to the number of HDUs
+    resizeTarget(target, hdu_indices_.size());
+
+    for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
+      // move to appropiate hdu
+      fits::FITS_CALL(fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status));
+
+      // read the header
+      fits::HeaderData header;
+      try {
+        fits::ParseHeader(header, current_file);
+        target.header[output_idx] = header;
+      } catch (const std::runtime_error& e) {
+        DALI_FAIL(e.what() + ". File: " + filename);
+      }
+
+      // reset, resize specific output in target
+      if (target.data[output_idx].shares_data()) {
+        target.data[output_idx].Reset();
+      }
+      target.data[output_idx].Resize(header.shape, header.type());
+
+      readDataFromHDU(current_file, header, target, output_idx);
+
+      // set metadata
+      target.data[output_idx].SetMeta(meta);
+
+      // set file path
+      target.filename = std::move(path);
+    }
+  }
+
+ protected:
+  virtual void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+                               Target& target, size_t output_idx) = 0;
+
+  virtual void resizeTarget(Target& target, size_t new_size) = 0;
 
  private:
+  using FileLoader<Backend, Target>::MoveToNextShard;
+  using FileLoader<Backend, Target>::files_;
+  using FileLoader<Backend, Target>::current_index_;
+  using FileLoader<Backend, Target>::file_root_;
   std::vector<int> hdu_indices_;
   std::vector<DALIDataType> dtypes_;
+};
+
+
+class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
+ public:
+  explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+      : FitsLoader<CPUBackend, FitsFileWrapper>(spec, shuffle_after_epoch) {}
+
+ protected:
+  void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+                       FitsFileWrapper& target, size_t output_idx) override;
+  void resizeTarget(FitsFileWrapper& target, size_t new_size) override;
 };
 
 

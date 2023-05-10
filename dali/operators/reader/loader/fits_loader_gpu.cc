@@ -27,78 +27,38 @@
 
 namespace dali {
 
-void FitsLoaderGPU::ReadSample(FitsFileWrapperGPU& target) {
-  auto filename = files_[current_index_++];
-  int status = 0, num_hdus = 0;
+void FitsLoaderGPU::readDataFromHDU(const fits::FitsHandle& current_file,
+                                    const fits::HeaderData& header, FitsFileWrapperGPU& target,
+                                    size_t output_idx) {
+  int status = 0, anynul = 0, nulval = 0;
+  Index nelem = header.size();
 
-  // handle wrap-around
-  MoveToNextShard(current_index_);
+  if (header.compressed) {
+    vector<uint8_t> raw_data;
+    dali::TensorShape<-1> shape;
 
-  // metadata info
-  DALIMeta meta;
-  // meta.SetSourceInfo(filename); // it adds ./before a filename for some reason
-  meta.SetSkipSample(false);
+    fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
+                                 target.tile_size[output_idx], header.rows, &status);
 
+    shape.shape.push_back(raw_data.size());
+    target.data[output_idx].Resize(shape, DALI_UINT8);
+    memcpy(static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), raw_data.data(),
+           raw_data.size());
+  } else {
+    target.data[output_idx].Resize(header.shape, header.type());
 
-  auto path = filesystem::join_path(file_root_, filename);
-  auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
-  fits::FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
-
-  // resize ouput vector according to the number of HDUs
-  target.data.resize(hdu_indices_.size());
-  target.header.resize(hdu_indices_.size());
-  target.tile_offset.resize(hdu_indices_.size());
-  target.tile_size.resize(hdu_indices_.size());
-
-  for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
-    // move to appropiate hdu
-    fits::FITS_CALL(fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status));
-
-    // read the header
-    fits::HeaderData header;
-    try {
-      fits::ParseHeader(header, current_file);
-      target.header[output_idx] = header;
-    } catch (const std::runtime_error& e) {
-      DALI_FAIL(e.what() + ". File: " + filename);
-    }
-
-    int anynul = 0, nulval = 0;
-    Index nelem = header.size();
-
-    // reset, resize specific output in target
-    if (target.data[output_idx].shares_data()) {
-      target.data[output_idx].Reset();
-      // target.tile_size[output_idx].reset
-    }
-
-    if (header.compressed) {
-      vector<uint8_t> raw_data;
-      dali::TensorShape<-1> shape;
-
-      fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
-                                   target.tile_size[output_idx], header.rows, &status);
-
-      shape.shape.push_back(raw_data.size());
-      target.data[output_idx].Resize(shape, DALI_UINT8);
-      memcpy(static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), raw_data.data(),
-             raw_data.size());
-    } else {
-      target.data[output_idx].Resize(header.shape, header.type());
-
-      // copy the image to host memory
-      fits::FITS_CALL(fits_read_img(
-          current_file, header.datatype_code, 1, nelem, &nulval,
-          static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()), &anynul, &status));
-    }
-
-
-    // set metadata
-    target.data[output_idx].SetMeta(meta);
-
-    // set file path
-    target.filename = std::move(path);
+    // copy the image to host memory
+    fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
+                                  static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()),
+                                  &anynul, &status));
   }
+}
+
+void FitsLoaderGPU::resizeTarget(FitsFileWrapperGPU& target, size_t new_size) {
+  target.data.resize(new_size);
+  target.header.resize(new_size);
+  target.tile_offset.resize(new_size);
+  target.tile_size.resize(new_size);
 }
 
 }  // namespace dali
