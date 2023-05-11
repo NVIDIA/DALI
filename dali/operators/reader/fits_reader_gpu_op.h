@@ -23,7 +23,6 @@
 
 namespace dali {
 
-
 class FitsReaderGPU : public FitsReader<GPUBackend, FitsFileWrapperGPU> {
  public:
   explicit FitsReaderGPU(const OpSpec& spec) : FitsReader<GPUBackend, FitsFileWrapperGPU>(spec) {

@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fitsio.h>
+
 #include <cstdlib>
 #include <memory>
 
@@ -26,6 +27,7 @@
 #include "dali/util/fits.h"
 
 namespace dali {
+
 void FitsLoaderCPU::readDataFromHDU(const fits::FitsHandle& current_file,
                                     const fits::HeaderData& header, FitsFileWrapper& target,
                                     size_t output_idx) {

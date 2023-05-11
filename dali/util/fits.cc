@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <fitsio.h>
+
 #include <functional>
 #include <string>
 #include <vector>

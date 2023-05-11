@@ -57,7 +57,6 @@ class FitsLoaderGPU : public FitsLoader<GPUBackend, FitsFileWrapperGPU> {
   void resizeTarget(FitsFileWrapperGPU& target, size_t new_size) override;
 };
 
-
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_LOADER_FITS_LOADER_GPU_H_

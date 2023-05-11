@@ -30,7 +30,6 @@
 #include "dali/util/file.h"
 #include "dali/util/fits.h"
 
-
 namespace dali {
 
 struct FitsFileWrapper {
@@ -128,7 +127,6 @@ class FitsLoader : public FileLoader<Backend, Target> {
   std::vector<DALIDataType> dtypes_;
 };
 
-
 class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
  public:
   explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch = false)
@@ -139,7 +137,6 @@ class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
                        FitsFileWrapper& target, size_t output_idx) override;
   void resizeTarget(FitsFileWrapper& target, size_t new_size) override;
 };
-
 
 }  // namespace dali
 
