@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jax
+import jax.dlpack
 
-def to_jax_array():
-    pass
+def to_jax_array(dali_tensor):
+    jax_array = jax.dlpack.from_dlpack(dali_tensor.to_dlpack())
+
+    return jax_array.copy()
