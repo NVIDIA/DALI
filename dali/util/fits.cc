@@ -155,6 +155,7 @@ inline void extract_data(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_
                          int64* rowdim, int64* naxis, int64* offset, int* size, int64* sum_nelemll,
                          int* status, unsigned max_level = level) {
   for (int i = ftile[level]; i <= ltile[level]; ++i) {
+    // first and last image pixels along each dimension of the compression tile
     int64 tfpixel = (i - 1) * tilesize[level] + 1;
     int64 tlpixel = minvalue(tfpixel + tilesize[level] - 1, naxis[level]);
     if (level == max_level) {
@@ -206,17 +207,24 @@ int extract_undecoded_data(fitsfile* fptr, std::vector<uint8_t>& data,
   tile_offset.resize(rows + 1);
   tile_size.resize(rows);
 
+  // number of first and last pixel in each dimension
   LONGLONG fpixel[MAX_COMPRESS_DIM], lpixel[MAX_COMPRESS_DIM];
   for (int i = 0; i < (fptr->Fptr)->zndim; ++i) {
     fpixel[i] = 1;
     lpixel[i] = (fptr->Fptr)->znaxis[i];
   }
 
+  // length of each axis
   int64 naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // number of tiles covering given axis
   int64 tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // size of compression tiles
   int64 tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // tile containing the first pixel we want to read in each dimension
   int64 ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // tile containing the last pixel we want to read in each dimension
   int64 ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // total tiles in each dimension
   int64 rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
   int64 offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
   int64 mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];

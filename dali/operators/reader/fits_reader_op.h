@@ -60,8 +60,8 @@ class FitsReader : public DataReader<Backend, Target> {
 
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto& sample = GetSample(sample_idx);
-      // here we don't validate current data dims and type, only the final dimentions and type
-      // declared by a header, since in case of GPU decompression changes to dimenisons will occur
+      // here we don't validate current data dims and type, only the final dimensions and type
+      // declared by a header, since in case of GPU decompression changes to dimensions will occur
       // on in runImpl
       for (int output_idx = 0; output_idx < num_outputs; output_idx++) {
         DALI_ENFORCE(
