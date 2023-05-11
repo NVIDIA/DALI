@@ -620,39 +620,9 @@ void ExposeTensor(py::module &m) {
     .def(
       "to_dlpack",
       [](Tensor<GPUBackend> &t) -> py::capsule {
-        DLManagedTensor *dl_managed_tensor = (DLManagedTensor*)malloc(sizeof(DLManagedTensor));
-        // To musi być ustawione, inaczej leci SegFault, bo to jest wołane, żeby wyczyścić DLManagedTensor i jego kontekst.
-        dl_managed_tensor->deleter = nullptr;
+        SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
 
-        DLTensor *dl_tensor = &dl_managed_tensor->dl_tensor;
-        dl_tensor->data = (void*)t.raw_mutable_data();
-        dl_tensor->ndim = t.shape().size();
-        int64_t *shape = (int64_t*)malloc(t.shape().size() * sizeof(int64_t));
-
-        for (int i = 0; i < t.shape().size(); ++i) {
-          shape[i] = t.shape()[i];
-        }
-        dl_tensor->shape = shape;
-        dl_tensor->strides = nullptr;
-        dl_tensor->byte_offset = 0;
-
-        
-        DLDevice *device = &dl_tensor->device;
-        device->device_type = kDLCUDA;
-
-        DLDataType *dtype = &dl_tensor->dtype;
-        dtype->code = (uint8_t)kDLInt;
-        dtype->lanes = (uint16_t)1;
-        // Jak to wybrać?
-        dtype->bits = 32;
-
-
-        auto capsule =  py::capsule(
-          dl_managed_tensor,
-          "dltensor",
-          dlpack_tensor_cleanup
-        );
-        return capsule;
+        return TensorToDLPackView(sv, t.device_id());
       }
     )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
