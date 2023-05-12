@@ -231,8 +231,9 @@ def test_unsupported_types(device, dtype):
     num_threads = 3
     batch_size = 3
     with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
-        _testimpl_types_and_shapes(device, shapes, dtype, batch_size, num_threads,
-                                    fortran_order, file_arg_type, cache_header_information)
+        _testimpl_types_and_shapes(
+            device, shapes, dtype, batch_size, num_threads,
+            fortran_order, file_arg_type, cache_header_information)
 
 
 @params(*(["cpu", "gpu"] if is_gds_supported() else ["cpu"]))
@@ -555,10 +556,12 @@ def test_numpy_reader_roi(i, roi_start, rel_roi_start, roi_end, rel_roi_end, roi
                 actual_fortran_order = rng.choice([False, True])
             create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
-        _testimpl_numpy_reader_roi(test_data_root, batch_size, ndim, dtype, device,
-                                    fortran_order, file_filter, roi_start, rel_roi_start,
-                                    roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
-                                    out_of_bounds_policy, fill_value)
+        _testimpl_numpy_reader_roi(
+            test_data_root, batch_size, ndim, dtype, device,
+            fortran_order, file_filter, roi_start, rel_roi_start,
+            roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
+            out_of_bounds_policy, fill_value)
+
 
 def _get_roi_empty_axes_params():
     i = 0
@@ -567,7 +570,6 @@ def _get_roi_empty_axes_params():
             for axes_or_range in ["axes", "range"]:
                 yield i, fortran_order, device, axes_or_range
                 i += 1
-
 
 
 @params(*list(_get_roi_empty_axes_params()))
@@ -592,14 +594,14 @@ def test_numpy_reader_roi_empty_axes(i, fortran_order, device, axes_or_range):
             create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
         if axes_or_range == "axes":
-            _testimpl_numpy_reader_roi_empty_axes("empty axes", test_data_root, batch_size,
-                                                    ndim, dtype, device, fortran_order,
-                                                    file_filter)
+            _testimpl_numpy_reader_roi_empty_axes(
+                "empty axes", test_data_root, batch_size, ndim,
+                dtype, device, fortran_order, file_filter)
         else:
             assert axes_or_range == "range"
-            _testimpl_numpy_reader_roi_empty_range("empty range", test_data_root, batch_size,
-                                                    ndim, dtype, device, fortran_order,
-                                                    file_filter)
+            _testimpl_numpy_reader_roi_empty_range(
+                "empty range", test_data_root, batch_size, ndim,
+                dtype, device, fortran_order, file_filter)
 
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
