@@ -528,8 +528,8 @@ def _get_roi_suite_params():
         for fortran_order in [False, True, None]:
             for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
                 fill_value = rng.choice([None, 10.0])
-                i += 1
                 yield (i,) + roi_params + (fortran_order, device, fill_value)
+                i += 1
 
 
 @params(*list(_get_roi_suite_params()))
@@ -565,8 +565,8 @@ def _get_roi_empty_axes_params():
     for fortran_order in [False, True, None]:
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             for axes_or_range in ["axes", "range"]:
-                i += 1
                 yield i, fortran_order, device, axes_or_range
+                i += 1
 
 
 
