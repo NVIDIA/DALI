@@ -502,7 +502,9 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                   "whl/linux/mkl/avx/stable.html"),
                 CudaPackage("numba",
                             {"110": [
-                                PckgVer("0.56.0", python_min_ver="3.7",
+                                PckgVer("0.57.0", python_min_ver="3.8",
+                                        dependencies=["numpy<1.24"]),
+                                PckgVer("0.56.0", python_min_ver="3.7", python_max_ver="3.7",
                                         dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")]})
                 ]
