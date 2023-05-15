@@ -20,7 +20,6 @@ import jax.dlpack
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.backend_impl import TensorGPU
 
 import nvidia.dali.plugin.jax as dax
 
@@ -31,7 +30,7 @@ def test_tensor_passing():
         values = fn.constant(idata=value, shape=[10], dtype=types.FLOAT, device="gpu")
 
         return values
-        
+
     pipe = dali_pipeline(value=1, device_id=0)
     pipe.build()
     dali_data = pipe.run()
