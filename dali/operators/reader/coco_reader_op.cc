@@ -268,6 +268,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   auto labels_span = loader_impl.labels(image_idx);
   std::set<int> labels(labels_span.data(),
                        labels_span.data() + labels_span.size());
+  memset(mask, 0, h * w * sizeof(int));
   if (!labels.size()) {
     return;
   }
@@ -397,7 +398,6 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   }
 
   // Decode final pixelwise masks encoded via RLE
-  memset(mask, 0, h * w * sizeof(int));
   int x = 0, y = 0;
   for (uint i = 0; i < A.m; i++)
     for (uint j = 0; j < A.cnts[i]; j++) {
