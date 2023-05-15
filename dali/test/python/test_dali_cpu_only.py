@@ -396,6 +396,7 @@ def test_random_object_bbox_cpu():
                        cycle="quiet", input_layout="")
 
 
+@attr('numba')
 def test_numba_func_cpu():
     def set_all_values_to_255_batch(out0, in0):
         out0[0][:] = 255
