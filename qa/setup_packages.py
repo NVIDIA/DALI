@@ -501,6 +501,11 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                        dependencies=["protobuf<4", "numpy<1.24"])]},
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),
+                CudaPackageExtraIndex("jax",
+                                      {},
+                                      extra_index="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
+    
+                ),
                 CudaPackage("numba",
                             {"110": [
                                 PckgVer("0.56.0", python_min_ver="3.7",

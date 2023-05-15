@@ -15,6 +15,7 @@
 import jax
 import jax.dlpack
 
+
 def to_jax_array(dali_tensor):
     jax_array = jax.dlpack.from_dlpack(dali_tensor.to_dlpack())
 
