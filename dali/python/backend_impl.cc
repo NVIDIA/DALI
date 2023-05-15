@@ -393,11 +393,6 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
 }
 
 
-static void dlpack_tensor_cleanup(PyObject *capsule) {
-  // TODO
-}
-
-
 /**
  * Pipeline output descriptor.
  */
