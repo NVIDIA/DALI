@@ -51,3 +51,4 @@ def test_tensor_passing():
     print(jax_data)
 
     assert jax.numpy.array_equal(jax_data, jax.numpy.full((1, 10), 1.0))
+    

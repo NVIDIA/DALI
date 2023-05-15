@@ -476,12 +476,11 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                 CudaPackage("tensorflow-gpu",
                             {"110": [
                                 PckgVer("2.11.1", python_min_ver="3.8", alias="tensorflow",
-                                        dependencies=["protobuf<4", "numpy<1.24"]),
+                                        dependencies=["protobuf<4", "numpy<1.24",
+                                                      "urllib3<2.0"]),
                                 PckgVer("2.12.0", python_min_ver="3.8", alias="tensorflow",
-                                        dependencies=["protobuf<4", "numpy<1.24"]),
-                                PckgVer("1.15.5+nv23.02", python_min_ver="3.8",
-                                        python_max_ver="3.8", alias="nvidia-tensorflow",
-                                        dependencies=["protobuf<4", "numpy<1.24"])]}),
+                                        dependencies=["protobuf<4", "numpy<1.24",
+                                                      "urllib3<2.0"])]}),
                 CudaPackageExtraIndex("torch",
                                       # use the older Torch just for python 3.6
                                       {"113": [PckgVer("1.10.0", python_max_ver="3.6",
@@ -503,7 +502,9 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                   "whl/linux/mkl/avx/stable.html"),
                 CudaPackage("numba",
                             {"110": [
-                                PckgVer("0.56.0", python_min_ver="3.7",
+                                PckgVer("0.57.0", python_min_ver="3.8",
+                                        dependencies=["numpy<1.24"]),
+                                PckgVer("0.56.0", python_min_ver="3.7", python_max_ver="3.7",
                                         dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")]})
                 ]

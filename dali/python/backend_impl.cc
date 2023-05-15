@@ -392,7 +392,6 @@ py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
   }
 }
 
-
 /**
  * Pipeline output descriptor.
  */
