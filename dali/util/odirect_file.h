@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_STD_FILE_H_
-#define DALI_UTIL_STD_FILE_H_
+#ifndef DALI_UTIL_ODIRECT_FILE_H_
+#define DALI_UTIL_ODIRECT_FILE_H_
 
 #include <cstdio>
 #include <string>
@@ -24,22 +24,26 @@
 
 namespace dali {
 
-class StdFileStream : public FileStream {
+class DLL_PUBLIC ODirectFileStream : public FileStream {
  public:
-  explicit StdFileStream(const std::string& path);
+  explicit ODirectFileStream(const std::string& path);
   void Close() override;
   shared_ptr<void> Get(size_t n_bytes) override;
   size_t Read(void * buffer, size_t n_bytes) override;
+  size_t ReadAt(void * buffer, size_t n_bytes, off_t offset);
+  static size_t GetAlignment();
+  static size_t GetLenAlignment();
+  static size_t GetChunkSize();
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
   ptrdiff_t TellRead() const override;
   size_t Size() const override;
 
-  ~StdFileStream() override;
+  ~ODirectFileStream() override;
 
  private:
-  FILE * fp_;
+  int fd_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_STD_FILE_H_
+#endif  // DALI_UTIL_ODIRECT_FILE_H_

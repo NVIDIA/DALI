@@ -23,13 +23,17 @@ from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
 from nose_utils import assert_raises
+from nose import SkipTest
 from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
 
 
 def test_preallocation():
     dali.backend.PreallocateDeviceMemory(0, 0)  # initialize the context
     dali.backend.ReleaseUnusedMemory()
-    free_before_prealloc = get_device_memory_info().free
+    mem_info = get_device_memory_info()
+    if mem_info is None:
+        raise SkipTest("Python bindings for NVML not found, skipping")
+    free_before_prealloc = mem_info.free
     size = 256 << 20
     dali.backend.PreallocateDeviceMemory(size, 0)
     free_after_prealloc = get_device_memory_info().free
@@ -110,7 +114,7 @@ def test_array_interface_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     assert tensorlist[0].__array_interface__['data'][0] == tensorlist[0].data_ptr()
-    assert tensorlist[0].__array_interface__['data'][1]
+    assert not tensorlist[0].__array_interface__['data'][1]
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert np.dtype(tensorlist[0].__array_interface__['typestr']) == np.dtype(
         types.to_numpy_type(tensorlist[0].dtype))

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+import os
+import sys
+
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-import os
 from astropy.io import fits
 import numpy as np
 import tempfile
 import random
+from nose2.tools import params
 from test_utils import to_array
 from numpy.testing import assert_array_equal
 
-rng = np.random.RandomState(12345)
+
+def enum_product(*params):
+    return tuple((i,) + t for i, t in enumerate(itertools.product(*params)))
 
 
-def create_fits_file(filename, shape, type=np.int32, compressed=False):
-    imageData = rng.randint(100, size=shape).astype(type)
+def create_fits_file(np_rng, filename, shape, type=np.int32, compressed=False):
+    imageData = np_rng.randint(100, size=shape).astype(type)
     imageHeader = fits.Header()
     hdu = fits.ImageHDU(imageData, imageHeader)
     if compressed:
@@ -44,16 +50,23 @@ def FitsReaderPipeline(path, device="cpu", file_list=None, files=None, file_filt
     return data
 
 
-supported_numpy_types = set([
-    np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16,
-    np.uint32, np.uint64, np.float32, np.float64,
-])
+def get_astropy_dtypes(compression):
+    # keep it as a list to retain the declaration order of elements
+    all = [
+        np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16,
+        np.uint32, np.uint64, np.float32, np.float64,
+    ]
+    excluded = set()
+    # The astropy is not actively developed for Python3.6 and the last available
+    # version does not support some dtypes
+    vi = sys.version_info
+    if vi.major < 3 or (vi.major == 3 and vi.minor <= 7):
+        excluded |= {np.int8}
+    # Astropy doesn't support writing those types to compressed image
+    if compression:
+        excluded |= {np.int64, np.uint64}
+    return [dtype for dtype in all if dtype not in excluded]
 
-# Astropy doesn't support writing those types to compressed image
-unsupported_compression_numpy_types = set([
-    np.int64,
-    np.uint64,
-])
 
 # Test shapes, for each number of dims, astropy & fits do not handle dims = ()
 test_shapes = {
@@ -66,8 +79,8 @@ test_shapes = {
 }
 
 
-def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, compressed_arg,
-                               file_arg_type):
+def _testimpl_types_and_shapes(np_rng, device, shapes, type, batch_size, num_threads,
+                               compressed_arg, file_arg_type):
     """ compare reader with astropy, with different batch_size and num_threads """
 
     nsamples = len(shapes)
@@ -80,7 +93,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
             compressed = compressed_arg
             if compressed is None:
                 compressed = random.choice([False, True])
-            create_fits_file(full_paths[i], shapes[i], type, compressed)
+            create_fits_file(np_rng, full_paths[i], shapes[i], type, compressed)
 
         # load manually, we skip primary HDU since it only stores metadata
         # astropy returns data from each HDUs as a ndarray
@@ -122,29 +135,30 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, co
             del pipe
 
 
-def test_reading_uncompressed():
+@params(*enum_product(get_astropy_dtypes(False), [1, 2, 3, 4]))
+def test_reading_uncompressed(i, dtype, ndim):
+    rng = np.random.default_rng(42 + i)
+    np_rng = np.random.RandomState(12345 + i)
     compressed = False
     device = "cpu"
-    for type in supported_numpy_types:
-        for ndim in test_shapes.keys():
-            shapes = test_shapes[ndim]
-            file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-            num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-            batch_size = random.choice([1, 3, 4, 8, 16])
-            yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                num_threads, compressed, file_arg_type,
+    shapes = test_shapes[ndim]
+    file_arg_type = rng.choice(['file_list', 'files', 'file_filter'])
+    num_threads = rng.choice([1, 2, 3, 4, 5, 6, 7, 8])
+    batch_size = rng.choice([1, 3, 4, 8, 16])
+    _testimpl_types_and_shapes(np_rng, device, shapes, dtype, batch_size, num_threads, compressed,
+                               file_arg_type)
 
 
-def test_reading_compressed():
+@params(*enum_product(get_astropy_dtypes(True), [1, 2, 3]))
+def test_reading_compressed(i, dtype, ndim):
+    assert ndim <= 3  # astropy doesn't support compression of images with more dimensions
+    rng = np.random.default_rng(42 + i)
+    np_rng = np.random.RandomState(12345 + i)
     compressed = True
     device = "cpu"
-    for type in supported_numpy_types - unsupported_compression_numpy_types:
-        for ndim in test_shapes.keys():
-            if ndim > 3:  # astropy doesn't support compression of images with more dimensions
-                continue
-            shapes = test_shapes[ndim]
-            file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-            num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-            batch_size = random.choice([1, 3, 4, 8, 16])
-            yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                num_threads, compressed, file_arg_type,
+    shapes = test_shapes[ndim]
+    file_arg_type = rng.choice(['file_list', 'files', 'file_filter'])
+    num_threads = rng.choice([1, 2, 3, 4, 5, 6, 7, 8])
+    batch_size = rng.choice([1, 3, 4, 8, 16])
+    _testimpl_types_and_shapes(np_rng, device, shapes, dtype, batch_size, num_threads, compressed,
+                               file_arg_type)

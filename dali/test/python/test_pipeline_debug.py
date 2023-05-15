@@ -22,14 +22,16 @@ from nvidia.dali import types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from nose_utils import raises
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose2.tools import params
 from nose_utils import assert_raises
 
-from conditionals.test_pipeline_conditionals import (pred_gens, impl_test_against_split_merge,
-                                                     impl_test_dot_gpu,
-                                                     impl_test_arg_inputs_scoped_tracking,
-                                                     impl_test_arg_inputs_scoped_uninitialized,
-                                                     impl_test_generators, impl_test_uninitialized)
+from conditionals.test_pipeline_conditionals import (pred_gens,
+                                                     _impl_against_split_merge,
+                                                     _impl_dot_gpu,
+                                                     _impl_arg_inputs_scoped_tracking,
+                                                     _impl_arg_inputs_scoped_uninitialized,
+                                                     _impl_generators,
+                                                     _impl_uninitialized)
+
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
@@ -734,33 +736,33 @@ def test_debug_pipeline_conditional_repeated_op():
     compare_pipelines(pipe_standard, pipe_cond, 8, 5)
 
 
-@params(*[(True, False), (False, True), (True, True)])
-def test_against_split_merge(base_debug, conditional_debug):
-    impl_test_against_split_merge({'debug': base_debug}, {'debug': conditional_debug})
+def test_against_split_merge():
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_against_split_merge, {'debug': base_debug}, {'debug': conditional_debug}
 
 
-@params(*[(True, False), (False, True), (True, True)])
-def test_dot_gpu(base_debug, conditional_debug):
-    impl_test_dot_gpu({'debug': base_debug}, {'debug': conditional_debug})
+def test_dot_gpu():
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_dot_gpu, {'debug': base_debug}, {'debug': conditional_debug}
 
 
-@params(*[(True, False), (False, True), (True, True)])
-def test_arg_inputs_scoped_tracking(global_debug, scoped_debug):
-    impl_test_arg_inputs_scoped_tracking({'debug': global_debug}, {'debug': scoped_debug})
+def test_arg_inputs_scoped_tracking():
+    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_arg_inputs_scoped_tracking, {'debug': global_debug}, {'debug': scoped_debug}
 
 
 def test_arg_inputs_scoped_uninitialized():
-    impl_test_arg_inputs_scoped_uninitialized({'debug': True})
+    yield _impl_arg_inputs_scoped_uninitialized, {'debug': True}
 
 
-@params(*(pred_gens[:-1]))
-def test_generators(pred):
-    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-        impl_test_generators(pred, {'debug': base_debug}, {'debug': conditional_debug})
+def test_generators():
+    for pred in pred_gens[:-1]:
+        for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+            yield _impl_generators, pred, {'debug': base_debug}, {'debug': conditional_debug}
 
 
 def test_uninitialized():
-    impl_test_uninitialized({'debug': True})
+    yield _impl_uninitialized, {'debug': True}
 
 
 def test_debug_pipeline_conditional_without_data_node():

@@ -36,9 +36,10 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
         itertools.product(("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)))))
 def test_run_rand_aug(i, args):
     dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
-    batch_sizes = [1, 8, 7, 64, 13, 64, 128]
-    ns = [1, 2, 3, 4]
-    ms = [0, 15, 30]
+    # Keep batch_sizes ns and ms length co-prime
+    batch_sizes = [1, 8, 7, 13, 31, 64, 128]
+    ns = [1, 2, 3]
+    ms = [0, 12, 15, 30]
     batch_size = batch_sizes[i % len(batch_sizes)]
     n = ns[i % len(ns)]
     m = ms[i % len(ms)]

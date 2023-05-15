@@ -173,8 +173,6 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
     def _get_run_fn_gpu(self, run_fn, types, dims):
         nvvm_options = {
-            'debug': False,
-            'lineinfo': False,
             'fastmath': False,
             'opt': 3
         }
@@ -183,14 +181,31 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         for dali_type, ndim in zip(types, dims):
             cuda_arguments.append(numba_types.Array(_to_numba[dali_type], ndim, 'C'))
 
-        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
+        if LooseVersion(nb.__version__) < LooseVersion('0.57.0'):
+            cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
+        else:
+            pipeline = Pipeline.current()
+            device_id = pipeline.device_id
+            old_device = nb.cuda.api.get_current_device().id
+            cc = nb.cuda.api.select_device(device_id).compute_capability
+            nb.cuda.api.select_device(old_device)
+            cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments, cc=cc)
+
         tgt_ctx = cres.target_context
         code = run_fn.__code__
         filename = code.co_filename
         linenum = code.co_firstlineno
-        lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
-                                                  True, nvvm_options,
-                                                  filename, linenum)
+        if LooseVersion(nb.__version__) < LooseVersion('0.57.0'):
+            nvvm_options['debug'] = False
+            nvvm_options['lineinfo'] = False
+            lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                                      True, nvvm_options,
+                                                      filename, linenum)
+        else:
+            lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                                      False, True, nvvm_options,
+                                                      filename, linenum)
+
         handle = lib.get_cufunc().handle
         return handle.value
 

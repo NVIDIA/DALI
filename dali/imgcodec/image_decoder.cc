@@ -339,11 +339,11 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
     if (!fallback_work->empty())
       fallback_->add_work(std::move(fallback_work));
   } else {
-    filter(*work, mask);
     for (size_t i = 0; i < mask.size(); i++) {
       if (!mask[i])
         work->results.set(work->indices[i], DecodeResult::Failure(nullptr));
     }
+    filter(*work, mask);
   }
 
   if (!work->sources.empty()) {

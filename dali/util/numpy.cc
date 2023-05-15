@@ -15,8 +15,11 @@
 #include "dali/util/numpy.h"
 #include <string>
 #include <vector>
+#include <memory>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/util/odirect_file.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace numpy {
@@ -155,6 +158,72 @@ void ParseHeaderContents(HeaderData& target, const std::string &header) {
   }
 }
 
+uint16_t GetHeaderLen(char *data) {
+  std::string header = std::string(data);
+  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
+               "File is not a numpy file.");
+
+  // extract header length
+  uint16_t header_len = 0;
+  memcpy(&header_len, &data[8], 2);
+  DALI_ENFORCE((header_len + 10) % 16 == 0,
+               "Error extracting header length.");
+  return header_len;
+}
+
+void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len) {
+  auto header = std::string(data);
+  DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
+  int64 offset = 6 + 1 + 1 + 2;
+  offset += header_len;
+
+  ParseHeaderContents(parsed_header, header);
+  parsed_header.data_offset = offset;
+}
+
+void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_direct_alignm,
+                        size_t o_direct_read_len_alignm) {
+  size_t aligned_len = align_up(10, o_direct_read_len_alignm);
+  auto token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
+  char *token = token_mem.get();
+  auto file = dynamic_cast<ODirectFileStream*>(src);
+  int64_t nread = file->ReadAt(token, aligned_len, 0);
+  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
+               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+               make_string("Can not read header: ",
+                           static_cast<Index>(std::min(src->Size(), aligned_len)),
+                           " <= ", nread, " <= ", aligned_len));
+  auto char_tmp = token[10];
+  token[10] = '\0';
+
+  auto header_len = GetHeaderLen(token);
+
+  int64 offset = 6 + 1 + 1 + 2;
+  // the header_len can be 4GiB according to the NPYv2 file format
+  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // while this allocation could be sizable, it is performed on the host.
+  auto block_start = align_down(offset, o_direct_alignm);
+  auto block_end = align_up(header_len + 1, o_direct_alignm);
+  aligned_len = align_up(block_end - block_start, o_direct_read_len_alignm);
+  // if header_len goes beyond the previously allocated and read memory reallocate and read again
+  // otherwise reuse
+  if (aligned_len != o_direct_read_len_alignm) {
+    token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
+    nread = file->ReadAt(token_mem.get(), aligned_len, 0);
+  } else {
+    // restore overriden character
+    token[10] = char_tmp;
+  }
+  token = token_mem.get() + alignment_offset(offset, o_direct_alignm);
+  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
+               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+               make_string("Can not read header: ",
+                           static_cast<Index>(std::min(src->Size(), aligned_len)),
+                           " <= ", nread, " <= ", aligned_len));
+  token[header_len] = '\0';
+  ParseHeaderItself(parsed_header, token, header_len);
+}
+
 void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   // check if the file is actually a numpy file
   SmallVector<char, 128> token;
@@ -162,16 +231,7 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   DALI_ENFORCE(nread == 10, "Can not read header.");
   token[nread] = '\0';
 
-  // check if heqder is too short
-  std::string header = std::string(token.data());
-  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
-               "File is not a numpy file.");
-
-  // extract header length
-  uint16_t header_len = 0;
-  memcpy(&header_len, &token[8], 2);
-  DALI_ENFORCE((header_len + 10) % 16 == 0,
-               "Error extracting header length.");
+  auto header_len = GetHeaderLen(token.data());
 
   // read header: the offset is a magic number
   int64 offset = 6 + 1 + 1 + 2;
@@ -181,15 +241,10 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   token.resize(header_len+1);
   src->SeekRead(offset);
   nread = src->Read(token.data(), header_len);
-  DALI_ENFORCE(nread == header_len, "Can not read header.");
+  DALI_ENFORCE(nread == static_cast<Index>(header_len), "Can not read header.");
   token[header_len] = '\0';
-  header = std::string(token.data());
-  DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
-  offset += header_len;
-  src->SeekRead(offset);  // michalz: Why isn't it done when actually reading the payload?
 
-  ParseHeaderContents(parsed_header, header);
-  parsed_header.data_offset = offset;
+  ParseHeaderItself(parsed_header, token.data(), header_len);
 }
 
 void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input) {

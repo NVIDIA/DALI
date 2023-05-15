@@ -21,7 +21,6 @@ from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
 from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
-from nose2.tools import params
 
 
 def build_src_pipe(device, layout=None):
@@ -690,8 +689,7 @@ def test_repeat_last_queue():
     check_batch(b, data3)  # <- new
 
 
-@params(("cpu", ), ("gpu", ))
-def test_repeat_last_var_batch(device):
+def _check_repeat_last_var_batch(device):
     @pipeline_def
     def pipeline():
         es = fn.external_source(name="es", repeat_last=True, device=device)
@@ -738,3 +736,8 @@ def test_repeat_last_var_batch(device):
     a, b = pipe.run()  # <- new value visible
     check_batch(a, data1)
     assert len(b) == len(data1)
+
+
+def test_repeat_last_var_batch():
+    for device in ['cpu', 'gpu']:
+        yield _check_repeat_last_var_batch, device

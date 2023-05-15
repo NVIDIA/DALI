@@ -114,6 +114,22 @@ using DynamicScratchpadImpl = DynamicScratchpadImplT<
 
 }  // namespace detail
 
+/**
+ * @brief A dynamically allocated scratchpad
+ *
+ * A dynamic scratchpad dynamically allocates temporary buffers for each memory kind.
+ * The memory used grows indefinitely and is freed once the object is destroyed (e.g. goes out
+ * of scope). This means that instances of DynamicScratchpad MUST NOT be kept alive indefinitely,
+ * e.g. as class members, because it will constitute an UNDETECTABLE functional MEMORY LEAK (the
+ * buffers will be still reachable and will be freed when the scratchpad is destroyed, so memory
+ * sanitizers won't complain).
+ * Instead, a DynamicScratchpad should be declared as a local / temporary variable.
+ *
+ * The memory allocation and deallocation follows the specified access order (stream or host).
+ * Device memory is allocated and deallocated in order specified in `device_order`.
+ * Pinned memory is, by default, allocated in host order and deallocated in the same order as the
+ * one used for device memory. These orders, however, can be specified explicitly.
+ */
 class DynamicScratchpad
   : public Scratchpad
   , private detail::DynamicScratchpadImpl {
