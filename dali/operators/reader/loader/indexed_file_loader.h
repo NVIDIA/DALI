@@ -20,6 +20,9 @@
 #include <tuple>
 #include <fstream>
 #include <memory>
+#include <queue>
+#include <mutex>
+#include <utility>
 
 #include "dali/core/common.h"
 #include "dali/core/mm/memory.h"
@@ -65,7 +68,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
                                        use_o_direct_);
       current_file_index_ = file_index;
       // invalidate the position in the tmp read buffer
-      if (use_o_direct_) read_buffer_data_size_ = static_cast<size_t>(-1);
+      if (use_o_direct_) read_buffer_pos_ = static_cast<size_t>(-1);
     }
 
     // if image is cached, skip loading
@@ -107,20 +110,34 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
           }
           // the old memory will be used as long as any piece of it uses it
           read_buffer_ = mm::alloc_raw_shared<char, mm::memory_kind::host>(read_buffer_size_,
-                                                                            o_direct_alignm_);
-          auto file = dynamic_cast<ODirectFileStream*>(current_file_.get());
-          auto ret = file->ReadAt(read_buffer_.get(), aligned_len, block_start);
+                                                                           o_direct_alignm_);
           read_buffer_pos_ = block_start;
-          read_buffer_data_size_ = ret;
-          DALI_ENFORCE(static_cast<int64>(ret) >= size &&
-                       static_cast<int64>(ret) <= aligned_len,
-                       make_string("Failed to read file: ", uris_[file_index],
-                                   ", read: ", ret, " while it should be [", size, ", ",
-                                   aligned_len, "]"));
+          read_buffer_data_size_ = aligned_len;
+          auto file_name = uris_[file_index];
+          auto file = dynamic_cast<ODirectFileStream*>(current_file_.get());
+          auto o_direct_chunk_size_tmp = o_direct_chunk_size_;
+          // capture shared ptr to file in lambda to make sure it is alive as long as we want to
+          // access it in any piece of work
+          shared_ptr<FileStream> tmp_file_ptr = current_file_;
+          for (size_t read_off = 0; static_cast<size_t>(aligned_len) > read_off;
+               read_off += o_direct_chunk_size_) {
+            auto dst_ptr = read_buffer_.get() + read_off;
+            auto read_start = block_start + read_off;
+            auto min_read = std::min(o_direct_chunk_size_tmp, seek_pos + size - read_start);
+            auto work = [tmp_file_ptr, file, dst_ptr, o_direct_chunk_size_tmp, min_read,
+                         read_start, file_name]() {
+              auto ret = file->ReadAt(dst_ptr, o_direct_chunk_size_tmp, read_start);
+              DALI_ENFORCE(ret >= min_read && ret <= o_direct_chunk_size_tmp,
+                           make_string("Failed to read file: ", file_name,
+                                       ", read: ", ret, " while it should be in range [", min_read,
+                                       ", ", o_direct_chunk_size_tmp, "]"));
+            };
+            {
+              std::lock_guard<std::mutex> lock(mutex_);
+              jobs_.push(std::move(work));
+            }
+          }
         }
-        // we need to create a tmp variable that is a copy of read_buffer_ as members cannot be
-        // captured by value thus copied, and this is all about here
-        auto read_buffer_tmp = read_buffer_;
         shared_ptr<void> tmp_mem(read_buffer_, read_buffer_.get() + (seek_pos - read_buffer_pos_));
 
         tensor.ShareData(tmp_mem, size, false, {size}, DALI_UINT8, -1);
@@ -184,9 +201,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
-      if (current_file_index_ != static_cast<size_t>(INVALID_INDEX)) {
-        current_file_.reset();
-      }
+      current_file_.reset();
       current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_,
                                        use_o_direct_);
       current_file_index_ = file_index;
@@ -201,7 +216,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   std::vector<std::tuple<int64, int64, size_t>> indices_;
   size_t current_index_;
   size_t current_file_index_;
-  std::unique_ptr<FileStream> current_file_;
+  std::shared_ptr<FileStream> current_file_;
   FileStream::MappingReserver mmap_reserver_;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;
@@ -214,6 +229,23 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   size_t read_buffer_pos_ = 0;
   size_t read_buffer_size_ = 0;
   size_t read_buffer_data_size_ = 0;
+
+  typedef std::function<void(void)> ReadWork;
+  std::queue<ReadWork> jobs_;
+  std::mutex mutex_;
+
+ public:
+  ReadWork GetReadWork() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto work = std::move(jobs_.front());
+    jobs_.pop();
+    return work;
+  }
+
+  bool AnyWorkLeft() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return jobs_.size();
+  }
 };
 
 }  // namespace dali
