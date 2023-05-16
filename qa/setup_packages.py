@@ -542,7 +542,6 @@ args = parser.parse_args()
 def print_configs(cuda_version):
     """Prints all available configurations"""
     for pckg in all_packages:
-        print('=============================')
         print("{}:".format(pckg.get_name(cuda_version)))
         for v in pckg.get_all_versions(cuda_version):
             alias = BasePackage.get_alias(v)
