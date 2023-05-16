@@ -315,6 +315,7 @@ class CudaPackage(BasePackage):
         """
         max_cuda = None
         for ver in sorted(self.versions.keys(), key=int):
+            print(f"ver = {ver}, cuda_version = {cuda_version}")
             if int(ver) <= int(cuda_version):
                 max_cuda = ver
         return max_cuda
@@ -503,7 +504,7 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                 CudaPackageExtraIndex("jax", # the name used in our test script, see the mxnet case
                                       {"113": [PckgVer("0.4.10")],
                                        "121": [PckgVer("0.4.10")]},
-                                      name="jax[cuda{cuda_v[0:2]}_local]", # the name used during installation
+                                      name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]", # the name used during installation
                                       extra_index="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"),
                 CudaPackage("numba",
                             {"110": [
@@ -541,6 +542,7 @@ args = parser.parse_args()
 def print_configs(cuda_version):
     """Prints all available configurations"""
     for pckg in all_packages:
+        print('=============================')
         print("{}:".format(pckg.get_name(cuda_version)))
         for v in pckg.get_all_versions(cuda_version):
             alias = BasePackage.get_alias(v)
