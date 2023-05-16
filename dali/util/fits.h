@@ -72,7 +72,7 @@ class DLL_PUBLIC HeaderData {
 DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
 
 /** @brief Read raw data of rice coded image HDU. */
-DLL_PUBLIC int extract_undecoded_data(fitsfile *fptr, std::vector<uint8_t> &data,
+DLL_PUBLIC int ExtractUndecodedData(fitsfile *fptr, std::vector<uint8_t> &data,
                                       std::vector<int64_t> &tile_offset,
                                       std::vector<int64_t> &tile_size, int64 rows, int *status);
 
@@ -102,10 +102,6 @@ class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
                  make_string("Failed while executing fits_close_file! Status code: ", status));
   }
 };
-
-DLL_PUBLIC std::string GetFitsErrorMessage(int status);
-
-DLL_PUBLIC void HandleFitsError(int status);
 
 /** @brief Wrapper that automatically handles cfitsio error checking.*/
 DLL_PUBLIC void FITS_CALL(int status);

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 namespace dali {
 
-void FitsLoaderGPU::readDataFromHDU(const fits::FitsHandle& current_file,
+void FitsLoaderGPU::ReadDataFromHDU(const fits::FitsHandle& current_file,
                                     const fits::HeaderData& header, FitsFileWrapperGPU& target,
                                     size_t output_idx) {
   int status = 0, anynul = 0, nulval = 0;
@@ -37,8 +37,8 @@ void FitsLoaderGPU::readDataFromHDU(const fits::FitsHandle& current_file,
     vector<uint8_t> raw_data;
     dali::TensorShape<-1> shape;
 
-    fits::extract_undecoded_data(current_file, raw_data, target.tile_offset[output_idx],
-                                 target.tile_size[output_idx], header.rows, &status);
+    fits::ExtractUndecodedData(current_file, raw_data, target.tile_offset[output_idx],
+                               target.tile_size[output_idx], header.rows, &status);
 
     shape.shape.push_back(raw_data.size());
     target.data[output_idx].Resize(shape, DALI_UINT8);
@@ -54,7 +54,7 @@ void FitsLoaderGPU::readDataFromHDU(const fits::FitsHandle& current_file,
   }
 }
 
-void FitsLoaderGPU::resizeTarget(FitsFileWrapperGPU& target, size_t new_size) {
+void FitsLoaderGPU::ResizeTarget(FitsFileWrapperGPU& target, size_t new_size) {
   target.data.resize(new_size);
   target.header.resize(new_size);
   target.tile_offset.resize(new_size);

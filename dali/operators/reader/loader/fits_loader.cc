@@ -28,7 +28,7 @@
 
 namespace dali {
 
-void FitsLoaderCPU::readDataFromHDU(const fits::FitsHandle& current_file,
+void FitsLoaderCPU::ReadDataFromHDU(const fits::FitsHandle& current_file,
                                     const fits::HeaderData& header, FitsFileWrapper& target,
                                     size_t output_idx) {
   int status = 0, anynul = 0, nulval = 0;
@@ -39,7 +39,7 @@ void FitsLoaderCPU::readDataFromHDU(const fits::FitsHandle& current_file,
                                 &anynul, &status));
 }
 
-void FitsLoaderCPU::resizeTarget(FitsFileWrapper& target, size_t new_size) {
+void FitsLoaderCPU::ResizeTarget(FitsFileWrapper& target, size_t new_size) {
   target.data.resize(new_size);
   target.header.resize(new_size);
 }

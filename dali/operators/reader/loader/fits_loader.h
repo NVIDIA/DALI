@@ -81,7 +81,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
     fits::FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
 
     // resize ouput vector according to the number of HDUs
-    resizeTarget(target, hdu_indices_.size());
+    ResizeTarget(target, hdu_indices_.size());
 
     for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
       // move to appropiate hdu
@@ -93,7 +93,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
         fits::ParseHeader(header, current_file);
         target.header[output_idx] = header;
       } catch (const std::runtime_error& e) {
-        DALI_FAIL(e.what() + ". File: " + filename);
+        DALI_FAIL(make_string(e.what(), ". File: ", filename));
       }
 
       // reset, resize specific output in target
@@ -102,7 +102,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
       }
       target.data[output_idx].Resize(header.shape, header.type());
 
-      readDataFromHDU(current_file, header, target, output_idx);
+      ReadDataFromHDU(current_file, header, target, output_idx);
 
       // set metadata
       target.data[output_idx].SetMeta(meta);
@@ -113,10 +113,10 @@ class FitsLoader : public FileLoader<Backend, Target> {
   }
 
  protected:
-  virtual void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+  virtual void ReadDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
                                Target& target, size_t output_idx) = 0;
 
-  virtual void resizeTarget(Target& target, size_t new_size) = 0;
+  virtual void ResizeTarget(Target& target, size_t new_size) = 0;
 
  private:
   using FileLoader<Backend, Target>::MoveToNextShard;
@@ -133,9 +133,9 @@ class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
       : FitsLoader<CPUBackend, FitsFileWrapper>(spec, shuffle_after_epoch) {}
 
  protected:
-  void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+  void ReadDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
                        FitsFileWrapper& target, size_t output_idx) override;
-  void resizeTarget(FitsFileWrapper& target, size_t new_size) override;
+  void ResizeTarget(FitsFileWrapper& target, size_t new_size) override;
 };
 
 }  // namespace dali

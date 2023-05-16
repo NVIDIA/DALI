@@ -51,10 +51,10 @@ class FitsLoaderGPU : public FitsLoader<GPUBackend, FitsFileWrapperGPU> {
       : FitsLoader<GPUBackend, FitsFileWrapperGPU>(spec, shuffle_after_epoch) {}
 
  protected:
-  void readDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
+  void ReadDataFromHDU(const fits::FitsHandle& current_file, const fits::HeaderData& header,
                        FitsFileWrapperGPU& target, size_t output_idx) override;
 
-  void resizeTarget(FitsFileWrapperGPU& target, size_t new_size) override;
+  void ResizeTarget(FitsFileWrapperGPU& target, size_t new_size) override;
 };
 
 }  // namespace dali
