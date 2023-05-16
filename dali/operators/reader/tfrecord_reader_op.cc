@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include <utility>
 
 #include "dali/operators/reader/tfrecord_reader_op.h"
 
@@ -113,6 +114,22 @@ DALI_SCHEMA(TFRecordReader)
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+
+void TFRecordReader::Prefetch() {
+  // We actually prepare the next batch
+  DomainTimeRange tr("[DALI][TFRecordReader] Prefetch #" + to_string(curr_batch_producer_),
+                     DomainTimeRange::kRed);
+  DataReader<CPUBackend, Tensor<CPUBackend>>::Prefetch();
+
+  auto idx_loader = dynamic_cast<IndexedFileLoader*>(loader_.get());
+  while (idx_loader->AnyWorkLeft()) {
+    auto work = idx_loader->GetReadWork();
+    thread_pool_.AddWork([work = std::move(work)] (int tid) {
+                          work();
+                        });
+  }
+  thread_pool_.RunAll();
+}
 
 }  // namespace dali
 
