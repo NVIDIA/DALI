@@ -501,8 +501,8 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),
                 CudaPackageExtraIndex("jax", # the name used in our test script, see the mxnet case
-                                      {"113": [PckgVer("0.4.10")],
-                                       "121": [PckgVer("0.4.10")]},
+                                      {"113": [PckgVer("0.4.9")],
+                                       "121": [PckgVer("0.4.9")]},
                                       name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]", # the name used during installation
                                       extra_index="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"),
                 CudaPackage("numba",
