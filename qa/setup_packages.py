@@ -504,6 +504,7 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                       {"113": [PckgVer("0.4.9")],
                                        "121": [PckgVer("0.4.9")]},
                                       name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]", # the name used during installation
+                                      dependencies=["jaxlib==0.4.9"],
                                       extra_index="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"),
                 CudaPackage("numba",
                             {"110": [
