@@ -500,12 +500,15 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                        dependencies=["protobuf<4", "numpy<1.24"])]},
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),
-                CudaPackageExtraIndex("jax", # the name used in our test script, see the mxnet case
-                                      {"113": [PckgVer("0.4.9")],
-                                       "121": [PckgVer("0.4.9")]},
-                                      name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]", # the name used during installation
-                                      dependencies=["jaxlib==0.4.9"],
-                                      extra_index="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"),
+                CudaPackageExtraIndex("jax",  # name used in our test script, see the mxnet case
+                                      {"113": [PckgVer("0.4.9",
+                                                       dependencies=["jaxlib==0.4.9"])],
+                                       "121": [PckgVer("0.4.9",
+                                                       dependencies=["jaxlib==0.4.9"])]},
+                                      # name used during installation
+                                      name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
+                                      extra_index=("https://storage.googleapis.com/"
+                                                  "jax-releases/jax_cuda_releases.html")),
                 CudaPackage("numba",
                             {"110": [
                                 PckgVer("0.57.0", python_min_ver="3.8",
