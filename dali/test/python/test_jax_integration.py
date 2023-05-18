@@ -64,7 +64,7 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     # when
     jax_array = dax._to_jax_array(dali_tensor_gpu)
 
-    # than
+    # then
     assert jax.numpy.array_equal(
         jax_array,
         jax.numpy.full(shape, value))
