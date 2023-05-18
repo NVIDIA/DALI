@@ -53,15 +53,21 @@ def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
 
 
 @cartesian_params(
-    [types.FLOAT, types.INT32],          # dtypes to test
-    [[1], [10], [2, 4], [1, 2, 3]],      # shapes to test
-    [1, 99])                             # values to test
+    [types.FLOAT, types.INT32],       # dtypes to test
+    [[], [1], [10], [2, 4], [1, 2, 3]],   # shapes to test
+    [1, -99])                         # values to test
 def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
+    # given
     dali_tensor_gpu = get_dali_tensor_gpu(
         value=value, shape=shape, dtype=dtype)
 
+    # when
     jax_array = dax._to_jax_array(dali_tensor_gpu)
 
+    # than
     assert jax.numpy.array_equal(
         jax_array,
         jax.numpy.full(shape, value))
+
+    # Make sure JAX array is backed by the GPU
+    assert jax_array.device() == jax.devices()[0]

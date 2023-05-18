@@ -31,7 +31,7 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
         jax.Array: JAX array with the same values and backing device as
         input DALI tensor.
     """
-    jax_array = jax.dlpack.from_dlpack(dali_tensor.to_dlpack())
+    jax_array = jax.dlpack.from_dlpack(dali_tensor._expose_dlpack_capsule())
 
     # For now we need this copy to make sure that underline memory is available.
     # One solution is to implement full DLPack contract in DALI.
