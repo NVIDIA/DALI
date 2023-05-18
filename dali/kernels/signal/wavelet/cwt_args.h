@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_WAVELETS_CWT_ARGS_H_
-#define DALI_KERNELS_SIGNAL_WAVELETS_CWT_ARGS_H_
+#ifndef DALI_KERNELS_SIGNAL_WAVELET_CWT_ARGS_H_
+#define DALI_KERNELS_SIGNAL_WAVELET_CWT_ARGS_H_
 
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelets {
+namespace wavelet {
 
 template <typename T = float>
 struct CwtArgs {
   T a;
 };
 
-}  // namespace wavelets
+}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_WAVELETS_CWT_ARGS_H_
+#endif  // DALI_KERNELS_SIGNAL_WAVELET_CWT_ARGS_H_

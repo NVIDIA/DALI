@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_WAVELETS_CWT_GPU_H_
-#define DALI_KERNELS_SIGNAL_WAVELETS_CWT_GPU_H_
+#ifndef DALI_KERNELS_SIGNAL_WAVELET_CWT_GPU_H_
+#define DALI_KERNELS_SIGNAL_WAVELET_CWT_GPU_H_
 
 #include <memory>
 #include "dali/core/common.h"
@@ -26,7 +26,7 @@
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelets {
+namespace wavelet {
 
 template <typename T = float>
 class DLL_PUBLIC CwtGpu {
@@ -42,9 +42,9 @@ class DLL_PUBLIC CwtGpu {
                       const InListGPU<T, DynamicDimensions> &in, const CwtArgs<T> &args);
 };
 
-}  // namespace wavelets
+}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_WAVELETS_CWT_GPU_H_
+#endif  // DALI_KERNELS_SIGNAL_WAVELET_CWT_GPU_H_

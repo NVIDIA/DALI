@@ -17,7 +17,7 @@ add_subdirectory(decibel)
 if (BUILD_FFTS)
   add_subdirectory(fft)
 endif()
-add_subdirectory(wavelets)
+add_subdirectory(wavelet)
 add_subdirectory(window)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

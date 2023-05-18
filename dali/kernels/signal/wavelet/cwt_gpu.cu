@@ -25,7 +25,7 @@
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelets {
+namespace wavelet {
 
 template <typename T>
 struct SampleDesc {
@@ -92,7 +92,7 @@ void CwtGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDimension
 template class CwtGpu<float>;
 template class CwtGpu<double>;
 
-}  // namespace wavelets
+}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
