@@ -53,9 +53,9 @@ def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
 
 
 @cartesian_params(
-    [types.FLOAT, types.INT32],       # dtypes to test
+    [types.FLOAT, types.INT32],           # dtypes to test
     [[], [1], [10], [2, 4], [1, 2, 3]],   # shapes to test
-    [1, -99])                         # values to test
+    [1, -99])                             # values to test
 def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     # given
     dali_tensor_gpu = get_dali_tensor_gpu(
