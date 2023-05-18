@@ -32,7 +32,7 @@ def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
 
     Args:
         value : Value to fill the tensor with.
-        shape : Shape for the tensor. 
+        shape : Shape for the tensor.
         dtype : Data type for the tensor.
 
     Returns:

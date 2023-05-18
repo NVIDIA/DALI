@@ -22,17 +22,17 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
 
     Args:
         dali_tensor (TensorGPU): DALI GPU tensor to be converted to JAX array.
-        
+
     Note:
-        This function performs deep copy of the underlying data. That will change in 
+        This function performs deep copy of the underlying data. That will change in
         future releases.
 
     Returns:
-        jax.Array: JAX array with the same values and backing device as 
+        jax.Array: JAX array with the same values and backing device as
         input DALI tensor.
     """
     jax_array = jax.dlpack.from_dlpack(dali_tensor.to_dlpack())
-    
+
     # For now we need this copy to make sure that underline memory is available.
     # One solution is to implement full DLPack contract in DALI.
     # TODO(awolant): Remove this copy.
