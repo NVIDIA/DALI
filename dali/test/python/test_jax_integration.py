@@ -24,6 +24,8 @@ import nvidia.dali.types as types
 
 import nvidia.dali.plugin.jax as dax
 
+from nose2.tools import cartesian_params
+
 
 def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
     """Helper function to create DALI TensorGPU.
@@ -50,11 +52,11 @@ def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
     return dali_output[0][0]
 
 
-def test_dali_tensor_gpu_to_jax_array():
-    value = 1
-    shape = [10]
-    dtype = types.FLOAT
-
+@cartesian_params(
+    [types.FLOAT, types.INT32],          # dtypes to test
+    [[1], [10], [2, 4], [1, 2, 3]],      # shapes to test
+    [1, 99])                             # values to test
+def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     dali_tensor_gpu = get_dali_tensor_gpu(
         value=value, shape=shape, dtype=dtype)
 
