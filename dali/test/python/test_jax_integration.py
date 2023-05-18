@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,35 +18,48 @@ import jax.numpy
 import jax.dlpack
 
 from nvidia.dali import pipeline_def
+from nvidia.dali.backend import TensorGPU
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 import nvidia.dali.plugin.jax as dax
 
 
-def test_tensor_passing():
-    @pipeline_def(num_threads=4, batch_size=1)
-    def dali_pipeline(value):
-        values = fn.constant(idata=value, shape=[10], dtype=types.FLOAT, device="gpu")
+def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
+    """Helper function to create DALI TensorGPU.
+
+    Args:
+        value : Value to fill the tensor with.
+        shape : Shape for the tensor. 
+        dtype : Data type for the tensor.
+
+    Returns:
+        TensorGPU: DALI TensorGPU with provided shape and dtype filled
+        with provided value.
+    """
+    @pipeline_def(num_threads=1, batch_size=1)
+    def dali_pipeline():
+        values = fn.constant(idata=value, shape=shape, dtype=dtype, device='gpu')
 
         return values
 
-    pipe = dali_pipeline(value=1, device_id=0)
+    pipe = dali_pipeline(device_id=0)
     pipe.build()
-    dali_data = pipe.run()
+    dali_output = pipe.run()
 
-    print(dali_data)
+    return dali_output[0][0]
 
-    jax_data = dax.to_jax_array(dali_data[0].as_tensor())
 
-    print(jax_data)
-    print(jax_data.dtype)
-    print(jax_data.device())
+def test_dali_tensor_gpu_to_jax_array():
+    value = 1
+    shape = [10]
+    dtype = types.FLOAT
 
-    new_data = jax_data.copy()
-    new_data.at[0].set(10)
+    dali_tensor_gpu = get_dali_tensor_gpu(
+        value=value, shape=shape, dtype=dtype)
 
-    print(new_data)
-    print(jax_data)
+    jax_array = dax._to_jax_array(dali_tensor_gpu)
 
-    assert jax.numpy.array_equal(jax_data, jax.numpy.full((1, 10), 1.0))
+    assert jax.numpy.array_equal(
+        jax_array,
+        jax.numpy.full(shape, value))

@@ -11,12 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import jax
 import jax.dlpack
 
+from nvidia.dali.backend import TensorGPU
 
-def to_jax_array(dali_tensor):
+
+def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
+    """Converts input DALI tensor to JAX array.
+
+    Args:
+        dali_tensor (TensorGPU): DALI GPU tensor to be converted to JAX array.
+        
+    Note:
+        This function performs deep copy of the underlying data. That will change in 
+        future releases.
+
+    Returns:
+        jax.Array: JAX array with the same values and backing device as 
+        input DALI tensor.
+    """
     jax_array = jax.dlpack.from_dlpack(dali_tensor.to_dlpack())
-
+    
+    # For now we need this copy to make sure that underline memory is available.
+    # One solution is to implement full DLPack contract in DALI.
+    # TODO(awolant): Remove this copy.
     return jax_array.copy()
