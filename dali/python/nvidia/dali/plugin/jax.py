@@ -27,6 +27,9 @@ def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
         This function performs deep copy of the underlying data. That will change in
         future releases.
 
+    Warning:
+        As private this API may change without notice.
+
     Returns:
         jax.Array: JAX array with the same values and backing device as
         input DALI tensor.

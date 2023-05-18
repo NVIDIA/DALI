@@ -622,9 +622,12 @@ void ExposeTensor(py::module &m) {
       R"code(
       Exposes tensor data as DLPack compatible capsule.
 
-      Note: This function does not implement full DLPack contract and 
+      Note: 
+        This function does not implement full DLPack contract and 
       should note be used to export DALI GPU tensors to DLPack compatible
       endpoints.
+      Warning:
+        As private this API may change without notice.
       )code"
     )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
