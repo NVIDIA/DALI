@@ -12,14 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(dct)
-add_subdirectory(decibel)
-if (BUILD_FFTS)
-  add_subdirectory(fft)
-endif()
-add_subdirectory(wavelets)
-add_subdirectory(window)
-
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_KERNEL_TEST_SRCS PARENT_SCOPE)
