@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -176,20 +176,28 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
             del pipe
 
 
-def test_types_and_shapes():
-    cache_header_information = False
+def _get_type_and_shape_params():
+    rng = np.random.default_rng(1902)
     for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         for fortran_order in [False, True, None]:
-            for type in all_numpy_types - unsupported_numpy_types:
-                for ndim in [0, 1, 2, random.choice([3, 4])]:
+            for dtype in all_numpy_types - unsupported_numpy_types:
+                for ndim in [0, 1, 2, rng.choice([3, 4])]:
                     if ndim <= 1 and fortran_order is not False:
                         continue
                     shapes = test_shapes[ndim]
-                    file_arg_type = random.choice(['file_list', 'files', 'file_filter'])
-                    num_threads = random.choice([1, 2, 3, 4, 5, 6, 7, 8])
-                    batch_size = random.choice([1, 3, 4, 8, 16])
-                    yield _testimpl_types_and_shapes, device, shapes, type, batch_size, \
-                        num_threads, fortran_order, file_arg_type, cache_header_information
+                    file_arg_type = rng.choice(['file_list', 'files', 'file_filter'])
+                    num_threads = rng.choice([1, 2, 3, 4, 5, 6, 7, 8])
+                    batch_size = rng.choice([1, 3, 4, 8, 16])
+                    yield device, fortran_order, dtype, shapes, file_arg_type, \
+                        num_threads, batch_size
+
+
+@params(*list(_get_type_and_shape_params()))
+def test_types_and_shapes(device, fortran_order, dtype, shapes, file_arg_type, num_threads,
+                          batch_size):
+    cache_header_information = False
+    _testimpl_types_and_shapes(device, shapes, dtype, batch_size, num_threads, fortran_order,
+                               file_arg_type, cache_header_information)
 
 
 @cartesian_params((0, 1, 2, random.choice([3, 4])),
@@ -207,7 +215,14 @@ def test_o_direct(ndim, o_direct, file_arg_type, num_threads, batch_size, type,)
                                file_arg_type, cache_header_information, True, o_direct)
 
 
-def test_unsupported_types():
+def _get_unsupported_param():
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+        for dtype in unsupported_numpy_types:
+            yield device, dtype
+
+
+@params(*list(_get_unsupported_param()))
+def test_unsupported_types(device, dtype):
     fortran_order = False
     cache_header_information = False
     file_arg_type = 'files'
@@ -215,14 +230,14 @@ def test_unsupported_types():
     shapes = test_shapes[ndim]
     num_threads = 3
     batch_size = 3
-    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-        for type in unsupported_numpy_types:
-            with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
-                _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads,
-                                           fortran_order, file_arg_type, cache_header_information)
+    with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
+        _testimpl_types_and_shapes(
+            device, shapes, dtype, batch_size, num_threads,
+            fortran_order, file_arg_type, cache_header_information)
 
 
-def test_cache_headers():
+@params(*(["cpu", "gpu"] if is_gds_supported() else ["cpu"]))
+def test_cache_headers(device):
     type = np.float32
     ndim = 2
     shapes = test_shapes[ndim]
@@ -231,9 +246,8 @@ def test_cache_headers():
     cache_header_information = True
     fortran_order = False
     file_arg_type = 'files'
-    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-        yield _testimpl_types_and_shapes, device, shapes, type, batch_size, num_threads, \
-            fortran_order, file_arg_type, cache_header_information
+    _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order,
+                               file_arg_type, cache_header_information)
 
 
 def check_dim_mismatch(device, test_data_root, names):
@@ -252,15 +266,14 @@ def check_dim_mismatch(device, test_data_root, names):
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
 
 
-def test_dim_mismatch():
+@params(*(["cpu", "gpu"] if is_gds_supported() else ["cpu"]))
+def test_dim_mismatch(device):
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         names = ["2D.npy", "3D.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [3, 4], np.float32, False)
         create_numpy_file(paths[1], [2, 3, 4], np.float32, False)
-
-        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            check_dim_mismatch(device, test_data_root, names)
+        check_dim_mismatch(device, test_data_root, names)
 
 
 def check_type_mismatch(device, test_data_root, names):
@@ -281,15 +294,14 @@ def check_type_mismatch(device, test_data_root, names):
     assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
 
-def test_type_mismatch():
+@params(*(["cpu", "gpu"] if is_gds_supported() else ["cpu"]))
+def test_type_mismatch(device):
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         names = ["int.npy", "float.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [1, 2, 5], np.int32, False)
         create_numpy_file(paths[1], [2, 3, 4], np.float32, False)
-
-        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            check_type_mismatch(device, test_data_root, names)
+        check_type_mismatch(device, test_data_root, names)
 
 
 batch_size_alias_test = 64
@@ -320,7 +332,8 @@ def check_numpy_reader_alias(test_data_root, device):
         del legacy_pipe
 
 
-def test_numpy_reader_alias():
+@params(*(["cpu", "gpu"] if is_gds_supported() else ["cpu"]))
+def test_numpy_reader_alias(device):
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
         num_samples = 20
@@ -332,8 +345,7 @@ def test_numpy_reader_alias():
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
 
-        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            check_numpy_reader_alias(test_data_root, device)
+        check_numpy_reader_alias(test_data_root, device)
 
 
 @pipeline_def(device_id=0, num_threads=8)
@@ -510,66 +522,86 @@ roi_args = [
 ]
 
 
-@params(*roi_args)
-def test_numpy_reader_roi(roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
-                          roi_axes, out_of_bounds_policy):
+def _get_roi_suite_params():
+    i = 0
+    rng = np.random.default_rng(1902)
+    for roi_params in roi_args:
+        for fortran_order in [False, True, None]:
+            for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+                fill_value = rng.choice([None, 10.0])
+                yield (i,) + roi_params + (fortran_order, device, fill_value)
+                i += 1
+
+
+@params(*list(_get_roi_suite_params()))
+def test_numpy_reader_roi(i, roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape,
+                          rel_roi_shape, roi_axes, out_of_bounds_policy, fortran_order,
+                          device, fill_value):
     # setup file
     shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
     ndim = 2
     dtype = np.uint8
     batch_size = 8
     file_filter = "*.npy"
+    rng = np.random.default_rng(4242 + i)
 
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        index = 0
+        for sh in shapes:
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            index += 1
+            if fortran_order is not None:
+                actual_fortran_order = fortran_order
+            else:
+                actual_fortran_order = rng.choice([False, True])
+            create_numpy_file(filename, sh, dtype, actual_fortran_order)
+
+        _testimpl_numpy_reader_roi(
+            test_data_root, batch_size, ndim, dtype, device,
+            fortran_order, file_filter, roi_start, rel_roi_start,
+            roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
+            out_of_bounds_policy, fill_value)
+
+
+def _get_roi_empty_axes_params():
+    i = 0
     for fortran_order in [False, True, None]:
-        with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
-            index = 0
-            for sh in shapes:
-                filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-                if fortran_order is None:
-                    fortran_order = random.choice([False, True])
-                if fortran_order is not None:
-                    actual_fortran_order = fortran_order
-                else:
-                    actual_fortran_order = random.choice([False, True])
-                create_numpy_file(filename, sh, dtype, actual_fortran_order)
-
-            for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-                fill_value = random.choice([None, 10.0])
-
-                _testimpl_numpy_reader_roi(test_data_root, batch_size, ndim, dtype, device,
-                                           fortran_order, file_filter, roi_start, rel_roi_start,
-                                           roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
-                                           out_of_bounds_policy, fill_value)
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+            for axes_or_range in ["axes", "range"]:
+                yield i, fortran_order, device, axes_or_range
+                i += 1
 
 
-def test_numpy_reader_roi_empty_axes():
+@params(*list(_get_roi_empty_axes_params()))
+def test_numpy_reader_roi_empty_axes(i, fortran_order, device, axes_or_range):
     # setup file
     shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
     ndim = 2
     dtype = np.uint8
     batch_size = 8
     file_filter = "*.npy"
+    rng = np.random.default_rng(4242 + i)
 
-    for fortran_order in [False, True, None]:
-        with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
-            index = 0
-            for sh in shapes:
-                filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-                if fortran_order is None:
-                    fortran_order = random.choice([False, True])
-                if fortran_order is not None:
-                    actual_fortran_order = fortran_order
-                else:
-                    actual_fortran_order = random.choice([False, True])
-                create_numpy_file(filename, sh, dtype, actual_fortran_order)
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        index = 0
+        for sh in shapes:
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            index += 1
+            if fortran_order is not None:
+                actual_fortran_order = fortran_order
+            else:
+                actual_fortran_order = rng.choice([False, True])
+            create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
-            for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-                _testimpl_numpy_reader_roi_empty_axes("empty axes", test_data_root, batch_size,
-                                                      ndim, dtype, device, fortran_order,
-                                                      file_filter)
-                _testimpl_numpy_reader_roi_empty_range("empty range", test_data_root, batch_size,
-                                                       ndim, dtype, device, fortran_order,
-                                                       file_filter)
+        if axes_or_range == "axes":
+            _testimpl_numpy_reader_roi_empty_axes(
+                "empty axes", test_data_root, batch_size, ndim,
+                dtype, device, fortran_order, file_filter)
+        else:
+            assert axes_or_range == "range"
+            _testimpl_numpy_reader_roi_empty_range(
+                "empty range", test_data_root, batch_size, ndim,
+                dtype, device, fortran_order, file_filter)
 
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
@@ -611,14 +643,7 @@ def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
     assert err, "Exception not thrown"
 
 
-def test_numpy_reader_roi_error():
-    # setup file
-    shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
-    ndim = 2
-    dtype = np.uint8
-    batch_size = 8
-    file_filter = "*.npy"
-
+def _get_roi_error_params():
     # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
     # roi_axes, out_of_bounds_policy
     roi_args = [
@@ -633,21 +658,34 @@ def test_numpy_reader_roi_error():
         (None, None, None, None, [100, 8], None, None, None),  # Out of bounds shape
     ]
 
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+        for roi_params in roi_args:
+            fill_value = rng.choice([None, 10.0])
+            yield (device,) + roi_params + (fill_value,)
+
+
+@params(*list(_get_roi_error_params()))
+def test_numpy_reader_roi_error(device, roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape,
+                                rel_roi_shape, roi_axes, out_of_bounds_policy, fill_value):
+    # setup file
+    shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
+    ndim = 2
+    dtype = np.uint8
+    batch_size = 8
+    file_filter = "*.npy"
     fortran_order = False
+
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         index = 0
         for sh in shapes:
             filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            index += 1
             create_numpy_file(filename, sh, dtype, fortran_order=fortran_order)
 
-        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            for (roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
-                 out_of_bounds_policy) in roi_args:
-                fill_value = random.choice([None, 10.0])
-                yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, \
-                    device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end, \
-                    rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
-                    fill_value
+        _testimpl_numpy_reader_roi_error(test_data_root, batch_size, ndim, dtype, device,
+                                         fortran_order, file_filter, roi_start, rel_roi_start,
+                                         roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
+                                         out_of_bounds_policy, fill_value)
 
 
 @cartesian_params(('cpu', 'gpu'),

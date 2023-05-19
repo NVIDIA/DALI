@@ -4,8 +4,8 @@ NVIDIA DALI
 ===========
 .. overview-begin-marker-do-not-remove
 
-The NVIDIA Data Loading Library (DALI) is a library for data loading and
-pre-processing to accelerate deep learning applications. It provides a
+The NVIDIA Data Loading Library (DALI) is a GPU-accelerated library for data loading
+and pre-processing to accelerate deep learning applications. It provides a
 collection of highly optimized building blocks for loading and processing
 image, video and audio data. It can be used as a portable drop-in replacement
 for built in data loaders and data iterators in popular deep learning frameworks.
@@ -30,7 +30,9 @@ can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
     :align: center
     :alt: DALI Diagram
 
-DALI in action::
+DALI in action:
+
+.. code-block:: python
 
   from nvidia.dali.pipeline import pipeline_def
   import nvidia.dali.types as types
