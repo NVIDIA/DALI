@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import numpy as np
+
 import jax
 import jax.numpy
 import jax.dlpack
@@ -71,3 +73,39 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
 
     # Make sure JAX array is backed by the GPU
     assert jax_array.device() == jax.devices()[0]
+
+
+def test_dali_sequential_tensors_to_jax_array():
+    batch_size = 4
+    shape = (1, 5)
+
+    def numpy_sequential_tensors(sample_info):
+        return np.full(shape, sample_info.idx_in_epoch, dtype=np.int32)
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
+    def callable_pipeline():
+        data = fn.external_source(
+            source=numpy_sequential_tensors,
+            num_outputs=1,
+            batch=False,
+            dtype=types.INT32)
+        data = data[0].gpu()
+        return data
+
+    pipe = callable_pipeline()
+    pipe.build()
+
+    for b in range(100):
+        # given
+        dali_tensor_gpu = pipe.run()[0].as_tensor()
+
+        # when
+        jax_array = dax._to_jax_array(dali_tensor_gpu)
+
+        # then
+        assert jax_array.device() == jax.devices()[0]
+
+        for i in range(batch_size):
+            assert jax.numpy.array_equal(
+                jax_array[i],
+                jax.numpy.full(shape[1:], b * batch_size + i, np.int32))
