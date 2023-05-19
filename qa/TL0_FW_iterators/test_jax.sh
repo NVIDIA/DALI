@@ -10,7 +10,7 @@ do_once() {
 }
 
 test_body() {
-    ${python_invoke_test} -m test_jax_integration.py
+    ${python_invoke_test} . test_jax_integration
 }
 
 pushd ../..
