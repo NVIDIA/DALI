@@ -624,7 +624,7 @@ void ExposeTensor(py::module &m) {
 
       Note: 
         This function does not implement full DLPack contract and 
-      should note be used to export DALI GPU tensors to DLPack compatible
+      should not be used to export DALI GPU tensors to DLPack compatible
       endpoints.
       Warning:
         As private this API may change without notice.
