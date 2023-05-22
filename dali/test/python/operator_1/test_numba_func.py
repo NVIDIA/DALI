@@ -33,6 +33,9 @@ def check_env_compatibility():
     # At present (as of Numba 0.57) there's a bug in LLVM JIT linker that makes the tests fail
     # randomly on 64-bit ARM platform.
     #
+    # Numba bug:
+    # https://github.com/numba/numba/issues/8567
+    #
     # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
     # llvmlite directly (if still applicable)
     if platform.processor().lower() in ('arm64', 'aarch64', 'armv8') \
