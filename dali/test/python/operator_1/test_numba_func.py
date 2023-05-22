@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numba
 import numpy as np
 import os
 from nvidia.dali import pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
+import platform
+from nose import SkipTest, with_setup
 from test_utils import get_dali_extra_path
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
+from distutils.version import LooseVersion
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
+
+def check_env_compatibility():
+    # At present (as of Numba 0.57) there's a bug in LLVM JIT linker that makes the tests fail
+    # randomly on 64-bit ARM platform.
+    #
+    # Numba bug:
+    # https://github.com/numba/numba/issues/8567
+    #
+    # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
+    # llvmlite directly (if still applicable)
+    if platform.processor().lower() in ('arm64', 'aarch64', 'armv8') \
+       and LooseVersion(numba.__version__) >= LooseVersion('0.57.0'):
+        raise SkipTest()
 
 
 def set_all_values_to_255_batch(out0, in0):
@@ -94,6 +112,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types,
             assert np.array_equal(out_arr, expected_out[i])
 
 
+@with_setup(check_env_compatibility)
 def test_numba_func():
     # shape, dtype, run_fn, out_types,
     # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
@@ -185,6 +204,7 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
+@with_setup(check_env_compatibility)
 def test_numba_func_image():
     args = [
         (reverse_col_batch, [dali_types.UINT8], [dali_types.UINT8],
@@ -237,6 +257,7 @@ def numba_func_split_image_pipe(run_fn=None, out_types=None, in_types=None,
     return images_in, out0, out1, out2
 
 
+@with_setup(check_env_compatibility)
 def test_split_images_col():
     pipe = numba_func_split_image_pipe(
         batch_size=8, num_threads=1, device_id=0,
@@ -285,6 +306,7 @@ def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types
         batch_processing=batch_processing)
 
 
+@with_setup(check_env_compatibility)
 def test_multiple_ins():
     pipe = numba_multiple_ins_pipe(
         shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0,
