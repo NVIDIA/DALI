@@ -172,9 +172,18 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
     }
 
     if (compressed) {
+      /* Temporary buffer must be used for doing H2D copy.
+      Otherwise, if we copy  straight from a buffer that is pinned and
+      uses host order the data might  be cobbled during H2D copy.
+      */
       TensorList<GPUBackend> sample_list_gpu;
+      TensorList<CPUBackend> samples_tmp;
+      samples_tmp.SetContiguity(BatchContiguity::Contiguous);
+      samples_tmp.set_order(ws.stream());
       sample_list_gpu.set_order(ws.stream());
-      sample_list_gpu.Copy(sample_list_cpu, ws.stream());
+
+      samples_tmp.Copy(sample_list_cpu);
+      sample_list_gpu.Copy(samples_tmp, ws.stream());
 
       for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
         int64_t *tile_offset_cuda, *tile_size_cuda;
