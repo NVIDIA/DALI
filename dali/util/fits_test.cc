@@ -30,7 +30,6 @@ vector<T> ReadVector(InputStream *src) {
   vector<T> data;
   data.resize(src->Size() / sizeof(T));
   auto ret = src->Read(reinterpret_cast<uint8_t *>(data.data()), src->Size());
-  // static_cast<uint8_t *>(data.data());
   DALI_ENFORCE(ret == src->Size(), "Failed to read numpy file");
   return data;
 }
