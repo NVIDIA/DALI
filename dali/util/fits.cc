@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/util/fits.h"
 #include <fitsio.h>
+
+#include <functional>
 #include <string>
 #include <vector>
+
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/util/fits.h"
 
 namespace dali {
 namespace fits {
+
+namespace {
 
 std::string GetFitsErrorMessage(int status) {
   std::string status_str;
@@ -35,10 +40,6 @@ void HandleFitsError(int status) {
   if (status) {
     DALI_FAIL(GetFitsErrorMessage(status));
   }
-}
-
-void FITS_CALL(int status) {
-  return HandleFitsError(status);
 }
 
 int ImgTypeToDatatypeCode(int img_type) {
@@ -68,7 +69,7 @@ int ImgTypeToDatatypeCode(int img_type) {
   }
 }
 
-const TypeInfo &TypeFromFitsDatatypeCode(int datatype) {
+const TypeInfo& TypeFromFitsDatatypeCode(int datatype) {
   switch (datatype) {
     case TSBYTE:
       return TypeTable::GetTypeInfo<int8_t>();
@@ -95,7 +96,79 @@ const TypeInfo &TypeFromFitsDatatypeCode(int datatype) {
   }
 }
 
-void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
+std::vector<int64_t> GetTileSizes(fitsfile* fptr, int32_t n_dims) {
+  std::vector<int64_t> tileSizes(n_dims, 1);
+  int32_t status = 0;
+
+  for (int32_t i = 0; i < n_dims; i++) {
+    std::string keyword = make_string("ZTILE", i + 1);
+    FITS_CALL(fits_read_key(fptr, TLONG, keyword.c_str(), &tileSizes[i], NULL, &status));
+    DALI_ENFORCE(tileSizes[i] > 0,
+                 make_string("All ZTILE{i} values must be greater than 0! Actual: ", tileSizes[i],
+                             " at index i=", i));
+  }
+
+  return tileSizes;
+}
+
+template <unsigned level>
+inline void ExtractData(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
+                        std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
+                        int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
+                        int64* rowdim, int64* naxis, int64* offset, int* size, int64* sum_nelemll,
+                        int* status, unsigned max_level = level) {
+  for (int i = ftile[level]; i <= ltile[level]; ++i) {
+    // first and last image pixels along each dimension of the compression tile
+    int64 tfpixel = (i - 1) * tilesize[level] + 1;
+    int64 tlpixel = minvalue(tfpixel + tilesize[level] - 1, naxis[level]);
+    if (level == max_level) {
+      thistilesize[level] = tlpixel - tfpixel + 1;
+      offset[level] = (i - 1) * rowdim[level];
+    } else {
+      thistilesize[level] = thistilesize[level + 1] * (tlpixel - tfpixel + 1);
+      offset[level] = (i - 1) * rowdim[level] + offset[level + 1];
+    }
+    ExtractData<level - 1>(fptr, raw_data, tile_offset, tile_size, ftile, ltile, tilesize,
+                           thistilesize, rowdim, naxis, offset, size, sum_nelemll, status,
+                           max_level);
+  }
+}
+
+template <>
+inline void ExtractData<0>(fitsfile* fptr, std::vector<std::vector<uint8_t>>& raw_data,
+                           std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
+                           int64* ftile, int64* ltile, int64* tilesize, int64* thistilesize,
+                           int64* rowdim, int64* naxis, int64* offset, int* size,
+                           int64* sum_nelemll, int* status, unsigned max_level) {
+  for (int i = ftile[0]; i <= ltile[0]; ++i) {
+    int64 tfpixel = (i - 1) * tilesize[0] + 1;
+    int64 tlpixel = minvalue(tfpixel + tilesize[0] - 1, naxis[0]);
+    thistilesize[0] = thistilesize[1] * (tlpixel - tfpixel + 1);
+    int64 irow = i + offset[1];
+
+    LONGLONG nelemll = 0, noffset = 0;
+    ffgdesll(fptr, (fptr->Fptr)->cn_compressed, irow, &nelemll, &noffset, status);
+
+    tile_offset[*size] = *sum_nelemll;
+    tile_size[*size] = static_cast<int64>(thistilesize[0]);
+
+    unsigned char charnull = 0;
+    raw_data[*size].resize(nelemll / sizeof(unsigned char));
+    fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1, static_cast<int64>(nelemll),
+                  &charnull, raw_data[*size].data(), nullptr, status);
+
+    ++(*size);
+    *sum_nelemll += nelemll;
+  }
+}
+
+}  // namespace
+
+void FITS_CALL(int status) {
+  return HandleFitsError(status);
+}
+
+void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   int32_t hdu_type, img_type, n_dims, status = 0;
 
   FITS_CALL(fits_get_hdu_type(src, &hdu_type, &status));
@@ -115,9 +188,89 @@ void ParseHeader(HeaderData &parsed_header, fitsfile *src) {
   parsed_header.type_info = &TypeFromFitsDatatypeCode(parsed_header.datatype_code);
   parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
 
+  if (parsed_header.compressed) {
+    FITS_CALL(fits_get_num_rows(src, &parsed_header.rows, &status)); /*get NROW value */
+    parsed_header.bscale = (src->Fptr)->cn_bscale;
+    parsed_header.bzero = (src->Fptr)->cn_bzero;
+    parsed_header.bytepix = (src->Fptr)->rice_bytepix;
+    parsed_header.zbitpix = (src->Fptr)->zbitpix;
+    parsed_header.blocksize = (src->Fptr)->rice_blocksize;
+    parsed_header.maxtilelen = (src->Fptr)->maxtilelen;
+    parsed_header.tile_sizes = GetTileSizes(src, n_dims);
+    parsed_header.tiles = std::accumulate(parsed_header.tile_sizes.begin(),
+                                          parsed_header.tile_sizes.end(), 1, std::multiplies<>());
+  }
+
   for (auto it = dims.rbegin(); it != dims.rend(); ++it) {
     parsed_header.shape.shape.push_back(static_cast<int64_t>(*it));
   }
+}
+
+int ExtractUndecodedData(fitsfile* fptr, std::vector<uint8_t>& data,
+                         std::vector<int64_t>& tile_offset, std::vector<int64_t>& tile_size,
+                         int64 rows, int* status) {
+  std::vector<std::vector<uint8_t>> raw_data;
+  raw_data.resize(rows);
+  tile_offset.resize(rows + 1);
+  tile_size.resize(rows);
+
+  // number of first and last pixel in each dimension
+  LONGLONG fpixel[MAX_COMPRESS_DIM], lpixel[MAX_COMPRESS_DIM];
+  for (int i = 0; i < (fptr->Fptr)->zndim; ++i) {
+    fpixel[i] = 1;
+    lpixel[i] = (fptr->Fptr)->znaxis[i];
+  }
+
+  // length of each axis
+  int64 naxis[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // number of tiles covering given axis
+  int64 tiledim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // size of compression tiles
+  int64 tilesize[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // tile containing the first pixel we want to read in each dimension
+  int64 ftile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // tile containing the last pixel we want to read in each dimension
+  int64 ltile[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  // total tiles in each dimension
+  int64 rowdim[MAX_COMPRESS_DIM] = {1, 1, 1, 1, 1, 1};
+  int64 offset[MAX_COMPRESS_DIM], thistilesize[MAX_COMPRESS_DIM];
+  int64 mfpixel[MAX_COMPRESS_DIM], mlpixel[MAX_COMPRESS_DIM];
+  int64 ntemp, sum_nelemll;
+  int ndim, size;
+
+  ndim = (fptr->Fptr)->zndim;
+  ntemp = 1;
+  for (int i = 0; i < ndim; ++i) {
+    if (fpixel[i] <= lpixel[i]) {
+      mfpixel[i] = static_cast<int64>(fpixel[i]);
+      mlpixel[i] = static_cast<int64>(lpixel[i]);
+    } else {
+      mfpixel[i] = static_cast<int64>(lpixel[i]);
+      mlpixel[i] = static_cast<int64>(fpixel[i]);
+    }
+
+    naxis[i] = (fptr->Fptr)->znaxis[i];
+    tilesize[i] = (fptr->Fptr)->tilesize[i];
+    tiledim[i] = (naxis[i] - 1) / tilesize[i] + 1;
+    ftile[i] = (mfpixel[i] - 1) / tilesize[i] + 1;
+    ltile[i] = minvalue((mlpixel[i] - 1) / tilesize[i] + 1, tiledim[i]);
+    rowdim[i] = ntemp;
+    ntemp *= tiledim[i];
+  }
+
+  size = 0;
+  sum_nelemll = 0;
+  ExtractData<5>(fptr, raw_data, tile_offset, tile_size, ftile, ltile, tilesize, thistilesize,
+                 rowdim, naxis, offset, &size, &sum_nelemll, status);
+
+  tile_offset[size] = sum_nelemll;
+
+  data.clear();
+  for (const auto& tile : raw_data) {
+    data.insert(data.end(), tile.begin(), tile.end());
+  }
+
+  return (*status);
 }
 
 DALIDataType HeaderData::type() const {
