@@ -75,7 +75,7 @@ include(cmake/Dependencies.common.cmake)
 ##################################################################
 set(Protobuf_CROSS YES)
 set(Protobuf_USE_STATIC_LIBS YES)
- # deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
+# deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
 # then use Protobuf to utilize our FindProtobuf.cmake to discover the rest
 find_package(protobuf REQUIRED CONFIG)
 find_package(Protobuf 2.0 REQUIRED)
