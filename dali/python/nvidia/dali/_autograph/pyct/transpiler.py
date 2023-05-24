@@ -474,7 +474,8 @@ class PyToPy(GenericTranspiler):
                         annotation=None,
                         type_comment=None)
                 ],
-                value=nodes)
+                value=nodes,
+                type_comment=None)
           else:
             nodes.name = ctx.info.name
 

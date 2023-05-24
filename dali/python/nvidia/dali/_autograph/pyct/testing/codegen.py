@@ -167,7 +167,7 @@ class CodeGenerator(object):
     # Generate right-hand side
     value_node = self.generate_expression()
     # Put it all together
-    node = gast.Assign(targets=[target_node], value=value_node)
+    node = gast.Assign(targets=[target_node], value=value_node, type_comment=None)
     return node
 
   def generate_If(self):

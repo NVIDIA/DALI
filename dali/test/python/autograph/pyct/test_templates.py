@@ -126,6 +126,7 @@ class TemplatesTest(unittest.TestCase):
                         annotation=None,
                         type_comment=None), gast.Add(),
                     gast.Constant(1, kind=None)),
+                None
             ),
         ] * 2)[0]
     result, _, _ = loader.load_ast(node)

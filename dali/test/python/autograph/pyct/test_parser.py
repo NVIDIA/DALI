@@ -349,7 +349,8 @@ string""")
                         type_comment=None)
                 ],
                 value=gast.Name(
-                    'b', ctx=gast.Load(), annotation=None, type_comment=None))
+                    'b', ctx=gast.Load(), annotation=None, type_comment=None),
+                type_comment=None)
         ],
         orelse=[
             gast.Assign(
@@ -360,7 +361,8 @@ string""")
                         annotation=None,
                         type_comment=None)
                 ],
-                value=gast.Constant('c', kind=None))
+                value=gast.Constant('c', kind=None),
+                type_comment=None)
         ])
 
     source = parser.unparse(node, indentation='  ')
