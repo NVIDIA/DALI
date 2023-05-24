@@ -10,7 +10,7 @@ do_once() {
 }
 
 test_body() {
-    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*jax*' test_jax_integration.py
+    ${python_new_invoke_test} -s . test_jax_integration
 }
 
 pushd ../..
