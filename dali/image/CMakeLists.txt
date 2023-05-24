@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
 
 if (NOT BUILD_LIBTIFF)
     list(REMOVE_ITEM DALI_SRCS
-        ${DALI_SRC_DIR}/dali/image/tiff_libtiff.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tiff_libtiff.cc
     )
 endif()
 
