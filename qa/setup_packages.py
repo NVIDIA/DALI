@@ -477,10 +477,10 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                             {"110": [
                                 PckgVer("2.11.1", python_min_ver="3.8", alias="tensorflow",
                                         dependencies=["protobuf<4", "numpy<1.24",
-                                                      "urllib3<2.0"]),
+                                                      "urllib3<2.0", "typing_extensions<4.6"]),
                                 PckgVer("2.12.0", python_min_ver="3.8", alias="tensorflow",
                                         dependencies=["protobuf<4", "numpy<1.24",
-                                                      "urllib3<2.0"])]}),
+                                                      "urllib3<2.0", "typing_extensions<4.6"])]}),
                 CudaPackageExtraIndex("torch",
                                       # use the older Torch just for python 3.6
                                       {"113": [PckgVer("1.10.0", python_max_ver="3.6",
