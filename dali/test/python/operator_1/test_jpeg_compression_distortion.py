@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -115,6 +115,7 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
     pipe.build()
     for _ in range(3):
         out = pipe.run()
+        assert out[0].layout() == layout
         out_data = out[0].as_cpu() if device == 'gpu' else out[0]
         in_data = out[1]
         quality = out[2]
