@@ -22,11 +22,11 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 def _to_jax_type(dali_type):
     types_map = {
-        dali_types.DALIDataType.FLOAT:   jax.numpy.float32
-        dali_types.DALIDataType.FLOAT64: jax.numpy.float64
-        dali_types.DALIDataType.FLOAT16: jax.numpy.float16
-        dali_types.DALIDataType.UINT8:   jax.numpy.uint8
-        dali_types.DALIDataType.INT8:    jax.numpy.int8
+        dali_types.DALIDataType.FLOAT:   jax.numpy.float32,
+        dali_types.DALIDataType.FLOAT64: jax.numpy.float64,
+        dali_types.DALIDataType.FLOAT16: jax.numpy.float16,
+        dali_types.DALIDataType.UINT8:   jax.numpy.uint8,
+        dali_types.DALIDataType.INT8:    jax.numpy.int8,
         dali_types.DALIDataType.BOOL:    jax.numpy.bool,
         dali_types.DALIDataType.INT16:   jax.numpy.int16,
         dali_types.DALIDataType.INT32:   jax.numpy.int32,
@@ -99,18 +99,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
                   and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                  is called internally automatically
-
-    dynamic_shape : any, optional,
-                Parameter used only for backward compatibility.
-    fill_last_batch : bool, optional, default = None
-                **Deprecated** Please use ``last_batch_policy`` instead
-
-                Whether to fill the last batch with data up to 'self.batch_size'.
-                The iterator would return the first integer multiple
-                of self._num_gpus * self.batch_size entries which exceeds 'size'.
-                Setting this flag to False will cause the iterator to return
-                exactly 'size' entries.
+                  is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
@@ -157,8 +146,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                  size=-1,
                  reader_name=None,
                  auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL,
                  prepare_first_batch=True):
@@ -173,7 +160,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                                    size,
                                    reader_name,
                                    auto_reset,
-                                   fill_last_batch,
+                                   None,  # Default value for depracated fill_last_batch
                                    last_batch_padded,
                                    last_batch_policy,
                                    prepare_first_batch=prepare_first_batch)
@@ -216,36 +203,36 @@ class DALIGenericIterator(_DaliBaseIterator):
                 category_tensors[category] = out.as_tensor()
                 category_shapes[category] = category_tensors[category].shape()
 
-            category_torch_type = dict()
-            category_device = dict()
-            torch_gpu_device = None
-            torch_cpu_device = torch.device('cpu')
-            # check category and device
-            for category in self._output_categories:
-                category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
-                if type(category_tensors[category]) is TensorGPU:
-                    if not torch_gpu_device:
-                        torch_gpu_device = torch.device('cuda', dev_id)
-                    category_device[category] = torch_gpu_device
-                else:
-                    category_device[category] = torch_cpu_device
+            # category_torch_type = dict()
+            # category_device = dict()
+            # torch_gpu_device = None
+            # torch_cpu_device = torch.device('cpu')
+            # # check category and device
+            # for category in self._output_categories:
+            #     category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
+            #     if type(category_tensors[category]) is TensorGPU:
+            #         if not torch_gpu_device:
+            #             torch_gpu_device = torch.device('cuda', dev_id)
+            #         category_device[category] = torch_gpu_device
+            #     else:
+            #         category_device[category] = torch_cpu_device
 
-            pyt_tensors = dict()
-            for category in self._output_categories:
-                pyt_tensors[category] = torch.empty(category_shapes[category],
-                                                    dtype=category_torch_type[category],
-                                                    device=category_device[category])
+            # pyt_tensors = dict()
+            # for category in self._output_categories:
+            #     pyt_tensors[category] = torch.empty(category_shapes[category],
+            #                                         dtype=category_torch_type[category],
+            #                                         device=category_device[category])
 
-            data_batches[i] = pyt_tensors
+            # data_batches[i] = pyt_tensors
 
-            # Copy data from DALI Tensors to torch tensors
-            for category, tensor in category_tensors.items():
-                if isinstance(tensor, (TensorGPU, TensorListGPU)):
-                    # Using same cuda_stream used by torch.zeros to set the memory
-                    stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-                    feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
-                else:
-                    feed_ndarray(tensor, pyt_tensors[category])
+            # # Copy data from DALI Tensors to torch tensors
+            # for category, tensor in category_tensors.items():
+            #     if isinstance(tensor, (TensorGPU, TensorListGPU)):
+            #         # Using same cuda_stream used by torch.zeros to set the memory
+            #         stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
+            #         feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
+            #     else:
+            #         feed_ndarray(tensor, pyt_tensors[category])
 
         self._schedule_runs()
 
