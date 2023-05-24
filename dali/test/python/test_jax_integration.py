@@ -75,15 +75,19 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     assert jax_array.device() == jax.devices()[0]
 
 
-def test_dali_sequential_tensors_to_jax_array():
-    batch_size = 4
-    shape = (1, 5)
+def sequential_pipeline(batch_size, shape):
+    """Helper to create DALI pipelines that return GPU tensors with sequential values.
+
+    Args:
+        batch_size: Batch size for the pipeline.
+        shape : Shape for the output tensor.
+    """
 
     def numpy_sequential_tensors(sample_info):
         return np.full(shape, sample_info.idx_in_epoch, dtype=np.int32)
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
-    def callable_pipeline():
+    def sequential_pipeline_def():
         data = fn.external_source(
             source=numpy_sequential_tensors,
             num_outputs=1,
@@ -92,7 +96,14 @@ def test_dali_sequential_tensors_to_jax_array():
         data = data[0].gpu()
         return data
 
-    pipe = callable_pipeline()
+    return sequential_pipeline_def()
+
+
+def test_dali_sequential_tensors_to_jax_array():
+    batch_size = 4
+    shape = (1, 5)
+
+    pipe = sequential_pipeline(batch_size, shape)
     pipe.build()
 
     for batch_id in range(100):
@@ -118,20 +129,7 @@ def test_dali_sequential_iterator_to_jax_array():
     batch_size = 4
     shape = (1, 5)
 
-    def numpy_sequential_tensors(sample_info):
-        return np.full(shape, sample_info.idx_in_epoch, dtype=np.int32)
-
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
-    def callable_pipeline():
-        data = fn.external_source(
-            source=numpy_sequential_tensors,
-            num_outputs=1,
-            batch=False,
-            dtype=types.INT32)
-        data = data[0].gpu()
-        return data
-
-    pipe = callable_pipeline()
+    pipe = sequential_pipeline(batch_size, shape)
     iter = dax.DALIGenericIterator([pipe], ['data'], size=batch_size*100)
 
     for batch_id, data in enumerate(iter):
