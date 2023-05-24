@@ -111,11 +111,13 @@ include(cmake/Dependencies.common.cmake)
 # protobuf
 ##################################################################
 # link statically
-
 if (BUILD_PROTOBUF)
   if(NOT DEFINED Protobuf_USE_STATIC_LIBS)
     set(Protobuf_USE_STATIC_LIBS YES)
   endif(NOT DEFINED Protobuf_USE_STATIC_LIBS)
+  # deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
+  # then use Protobuf to utilize our FindProtobuf.cmake to discover the rest
+  find_package(protobuf REQUIRED CONFIG)
   find_package(Protobuf 2.0 REQUIRED)
   if(${Protobuf_VERSION} VERSION_LESS "3.0")
     message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
@@ -126,9 +128,14 @@ if (BUILD_PROTOBUF)
   endif()
 
   include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-  list(APPEND DALI_LIBS ${Protobuf_LIBRARY})
+  list(APPEND DALI_LIBS protobuf::libprotobuf)
   # hide things from the protobuf, all we export is only is API generated from our proto files
   list(APPEND DALI_EXCLUDES libprotobuf.a)
+  # find all the libraries that protobuf::libprotobuf depends on
+  get_link_libraries(PROTO_LIB_DEPS protobuf::libprotobuf)
+  # libutf8_validity.a is a result of a generator expression, add it manually as it is
+  # hard/impossible to learn its name during the configuration phase
+  list(APPEND DALI_EXCLUDES ${PROTO_LIB_DEPS} libutf8_validity.a)
 endif()
 
 set(DALI_SYSTEM_LIBS rt pthread m dl)
