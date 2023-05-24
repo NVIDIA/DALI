@@ -201,7 +201,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._schedule_runs()
         self._advance_and_check_drop_last()
 
-        # TODO(awolant): Some of this options are impossible for JAX for multigpu.
+        # TODO(awolant): Some of these options are impossible for JAX for multigpu.
         # Clean this up when multi GPU is implemented here.
         if self._reader_name:
             if_drop, left = self._remove_padded()
