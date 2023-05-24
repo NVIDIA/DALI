@@ -149,6 +149,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                  last_batch_padded=False,
                  last_batch_policy=LastBatchPolicy.FILL,
                  prepare_first_batch=True):
+        
+        # For now this iterator supports only one pipeline. This is due to how multiple pipelines need to 
+        # be handled in JAX -> return one output that is backed by multiple devices.
+        # TODO(awolant): Implement this.
+        assert len(pipelines) == 1
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
@@ -160,7 +165,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                                    size,
                                    reader_name,
                                    auto_reset,
-                                   None,  # Default value for depracated fill_last_batch
+                                   None,  # Default value for deprecated fill_last_batch argument
                                    last_batch_padded,
                                    last_batch_policy,
                                    prepare_first_batch=prepare_first_batch)
