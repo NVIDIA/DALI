@@ -20,22 +20,6 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 
-def _to_jax_type(dali_type):
-    types_map = {
-        dali_types.DALIDataType.FLOAT:   jax.numpy.float32,
-        dali_types.DALIDataType.FLOAT64: jax.numpy.float64,
-        dali_types.DALIDataType.FLOAT16: jax.numpy.float16,
-        dali_types.DALIDataType.UINT8:   jax.numpy.uint8,
-        dali_types.DALIDataType.INT8:    jax.numpy.int8,
-        dali_types.DALIDataType.BOOL:    jax.numpy.bool,
-        dali_types.DALIDataType.INT16:   jax.numpy.int16,
-        dali_types.DALIDataType.INT32:   jax.numpy.int32,
-        dali_types.DALIDataType.INT64:   jax.numpy.int64
-    }
-    
-    return types_map[dali_type]
-
-
 def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
     """Converts input DALI tensor to JAX array.
 
@@ -140,16 +124,17 @@ class DALIGenericIterator(_DaliBaseIterator):
     next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 output_map,
-                 size=-1,
-                 reader_name=None,
-                 auto_reset=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
-        
+    def __init__(
+        self,
+        pipelines,
+        output_map,
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True):
+
         # For now this iterator supports only one pipeline. This is due to how multiple pipelines need to 
         # be handled in JAX -> return one output that is backed by multiple devices.
         # TODO(awolant): Implement this.
@@ -160,15 +145,16 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._output_categories = set(output_map)
         self.output_map = output_map
 
-        _DaliBaseIterator.__init__(self,
-                                   pipelines,
-                                   size,
-                                   reader_name,
-                                   auto_reset,
-                                   None,  # Default value for deprecated fill_last_batch argument
-                                   last_batch_padded,
-                                   last_batch_policy,
-                                   prepare_first_batch=prepare_first_batch)
+        _DaliBaseIterator.__init__(
+            self,
+            pipelines,
+            size,
+            reader_name,
+            auto_reset,
+            None,  # Default value for deprecated fill_last_batch argument
+            last_batch_padded,
+            last_batch_policy,
+            prepare_first_batch=prepare_first_batch)
 
         self._first_batch = None
         if self._prepare_first_batch:
@@ -194,7 +180,6 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         data_batches = [None for i in range(self._num_gpus)]
         for i in range(self._num_gpus):
-            dev_id = self._pipes[i].device_id
             # initialize dict for all output categories
             category_outputs = dict()
             # segregate outputs into categories
@@ -202,42 +187,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                 category_outputs[self.output_map[j]] = out
 
             # Change DALI TensorLists into Tensors
-            category_tensors = dict()
-            category_shapes = dict()
+            category_arrays = dict()
             for category, out in category_outputs.items():
-                category_tensors[category] = out.as_tensor()
-                category_shapes[category] = category_tensors[category].shape()
+                category_arrays[category] = _to_jax_array(out.as_tensor())
 
-            # category_torch_type = dict()
-            # category_device = dict()
-            # torch_gpu_device = None
-            # torch_cpu_device = torch.device('cpu')
-            # # check category and device
-            # for category in self._output_categories:
-            #     category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
-            #     if type(category_tensors[category]) is TensorGPU:
-            #         if not torch_gpu_device:
-            #             torch_gpu_device = torch.device('cuda', dev_id)
-            #         category_device[category] = torch_gpu_device
-            #     else:
-            #         category_device[category] = torch_cpu_device
-
-            # pyt_tensors = dict()
-            # for category in self._output_categories:
-            #     pyt_tensors[category] = torch.empty(category_shapes[category],
-            #                                         dtype=category_torch_type[category],
-            #                                         device=category_device[category])
-
-            # data_batches[i] = pyt_tensors
-
-            # # Copy data from DALI Tensors to torch tensors
-            # for category, tensor in category_tensors.items():
-            #     if isinstance(tensor, (TensorGPU, TensorListGPU)):
-            #         # Using same cuda_stream used by torch.zeros to set the memory
-            #         stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
-            #         feed_ndarray(tensor, pyt_tensors[category], cuda_stream=stream)
-            #     else:
-            #         feed_ndarray(tensor, pyt_tensors[category])
+            data_batches[i] = category_arrays
 
         self._schedule_runs()
 
