@@ -15,7 +15,6 @@ import jax
 import jax.dlpack
 
 from nvidia.dali.backend import TensorGPU
-from nvidia.dali import types as dali_types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
