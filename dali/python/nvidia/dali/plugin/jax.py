@@ -14,7 +14,9 @@
 import jax
 import jax.dlpack
 
-from nvidia.dali.backend import TensorGPU
+import numpy as np
+
+from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
@@ -124,20 +126,22 @@ class DALIGenericIterator(_DaliBaseIterator):
     """
 
     def __init__(
-        self,
-        pipelines,
-        output_map,
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True):
+            self,
+            pipelines,
+            output_map,
+            size=-1,
+            reader_name=None,
+            auto_reset=False,
+            last_batch_padded=False,
+            last_batch_policy=LastBatchPolicy.FILL,
+            prepare_first_batch=True):
 
-        # For now this iterator supports only one pipeline. This is due to how multiple pipelines need to 
-        # be handled in JAX -> return one output that is backed by multiple devices.
+        # For now this iterator supports only one pipeline. This is due to how multiple
+        # pipelines need to be handled in JAX -> return one output that is backed by
+        # multiple devices.
         # TODO(awolant): Implement this.
-        assert len(pipelines) == 1
+        assert len(pipelines) == 1, \
+            "DALIGenericIterator for JAX support only one pipeline at the moment."
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
@@ -185,17 +189,20 @@ class DALIGenericIterator(_DaliBaseIterator):
             for j, out in enumerate(outputs[i]):
                 category_outputs[self.output_map[j]] = out
 
-            # Change DALI TensorLists into Tensors
+            # Convert DALI TensorLists to JAX Arrays
             category_arrays = dict()
             for category, out in category_outputs.items():
+                assert type(out) == TensorListGPU, \
+                    "DALIGenericIterator for JAX support only GPU outputs at the moment."
                 category_arrays[category] = _to_jax_array(out.as_tensor())
 
             data_batches[i] = category_arrays
 
         self._schedule_runs()
-
         self._advance_and_check_drop_last()
 
+        # TODO(awolant): Some of this options are impossible for JAX for multigpu.
+        # Clean this up when multi GPU is implemented here.
         if self._reader_name:
             if_drop, left = self._remove_padded()
             if np.any(if_drop):
