@@ -612,6 +612,25 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def(
+      "_expose_dlpack_capsule",
+      [](Tensor<GPUBackend> &t) -> py::capsule {
+        SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
+
+        return TensorToDLPackView(sv, t.device_id());
+      },
+      R"code(
+      Exposes tensor data as DLPack compatible capsule.
+
+      Note: 
+        This function does not implement full DLPack contract and 
+      should not be used to export DALI GPU tensors to DLPack compatible
+      endpoints.
+
+      Warning:
+        As private this API may change without notice.
+      )code"
+    )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
