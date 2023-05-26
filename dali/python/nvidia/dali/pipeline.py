@@ -846,6 +846,11 @@ Parameters
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by ``feed_input``. See ``cuda_stream`` parameter for details.
 
+        In the case of using asynchronous executor mode the DALI executor can consume
+        `prefetch_queue_depth` and 1 more if the input is consumed directly by the mixed operator.
+        This is needed as the CPU operators can have up to `prefetch_queue_depth` buffers
+        precomputed, mixed operator will have one more in transit.
+
         Parameters
         ----------
         data_node : :class:`DataNode` or a string
