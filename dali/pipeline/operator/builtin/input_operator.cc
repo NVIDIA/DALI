@@ -25,7 +25,7 @@ A base for any operator that forwards in-memory data to DALI pipeline.)doc")
                 .AddOptionalArg("blocking", R"code(
 If ``True``, this operator will block until the data is available (e.g. by calling ``feed_input``).
 If ``False``, the operator will raise an error, if the data is not available.
-)code", true)
+)code", false)
                 .AddOptionalArg("no_copy", R"code(
 Determines whether DALI should copy the buffer when ``feed_input`` is called.
 

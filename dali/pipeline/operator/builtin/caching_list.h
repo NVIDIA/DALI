@@ -108,21 +108,25 @@ class CachingList {
   const T &PeekProphet() {
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
-              "Attempted to peek element that doesn't exist. Add more elements to CachingList "
-              "before calling PeekProphet. Even the prophet can't see outside the event horizon.");
+              "Attempted to peek batch data that doesn't exist. Add more elements the DALI"
+              " input operator.");
     return *prophet_;
   }
 
 
   void AdvanceProphet() {
-    if (prophet_ == full_data_.end())
+    if (!CanProphetAdvance())
       throw std::out_of_range(
-              "Attempted to step over the last element in the list. This operation is forbidden. "
-              "Add more elements to CachingList before calling AdvanceProphet.");
+              "Attempted to move to the batch data that doesn't exist. Add more elements the DALI"
+              " input operator.");
     apprentice_ = prophet_++;
     resurrect_prophet_ = prophet_ == full_data_.end();
   }
 
+
+  bool CanProphetAdvance() {
+    return prophet_ != full_data_.end();
+  }
 
  private:
   std::list<T> full_data_;

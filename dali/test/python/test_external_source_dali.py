@@ -21,6 +21,7 @@ from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
 from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
+from numpy.random import default_rng
 
 
 def build_src_pipe(device, layout=None):
@@ -741,3 +742,39 @@ def _check_repeat_last_var_batch(device):
 def test_repeat_last_var_batch():
     for device in ['cpu', 'gpu']:
         yield _check_repeat_last_var_batch, device
+
+
+def _check_blocking(device):
+    batch_size = 5
+    prefetch_queue_depth = 10
+
+    @pipeline_def
+    def test_pipeline():
+        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
+                                  device=device)
+        return data
+
+    rng = default_rng()
+    data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+
+    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
+                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    pipe.feed_input("test_source", data_to_feed)
+
+    for _ in range(5):
+        out = pipe.run()[0].as_tensor()
+        if device == "gpu":
+            out = out.as_cpu()
+        assert np.all(np.equal(np.array(out), data_to_feed))
+        data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+        pipe.feed_input("test_source", data_to_feed)
+
+    # make sure that the pipeline is not waiting for data preventing it from being deleted
+    for _ in range(prefetch_queue_depth):
+        pipe.feed_input("test_source", data_to_feed)
+
+
+def test_blocking():
+    for device in ['cpu', 'gpu']:
+        yield _check_blocking, device

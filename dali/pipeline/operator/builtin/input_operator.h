@@ -317,7 +317,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   int NextBatchSize() override {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = tl_data_] { return data.CanProphetAdvance(); });
+    }
     return tl_data_.PeekProphet()->num_samples();
   }
 
