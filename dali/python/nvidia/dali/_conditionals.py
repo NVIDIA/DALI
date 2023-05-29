@@ -43,6 +43,8 @@ from contextlib import contextmanager
 
 from enum import Enum
 
+import tree
+
 
 def _data_node_repr(data_node):
     return f"DataNode(name={data_node.name}, device={data_node.device}, source={data_node.source})"
@@ -437,16 +439,33 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
     """
     from nvidia.dali.types import Constant
     inputs_bkp = list(branch_outputs)
-    for i, input in enumerate(branch_outputs):
-        if isinstance(input, _DataNode):
-            inputs_bkp[i] = apply_conditional_split(input)
-        elif promote_constants:
+    print(f"Before mapping: {branch_outputs}")
+    def promote_data_nodes(atom):
+        if isinstance(atom, _DataNode):
+            return apply_conditional_split(atom)
+        else:
             # We assume that any return from the branch must be merged, so constants are promoted
             # to batches using constant op, and thus can be used in merge.
-            constant_node = Constant(input, device="cpu")
+            constant_node = Constant(atom, device="cpu")
             register_data_nodes(constant_node)
-            inputs_bkp[i] = apply_conditional_split(constant_node)
-    return tuple(inputs_bkp)
+            return apply_conditional_split(constant_node)
+
+
+
+    mapped =  tree.map_structure(promote_data_nodes, branch_outputs)
+
+    print(f"After mapping: {mapped}")
+    return mapped
+    # for i, input in enumerate(branch_outputs):
+    #     if isinstance(input, _DataNode):
+    #         inputs_bkp[i] = apply_conditional_split(input)
+    #     elif promote_constants:
+    #         # We assume that any return from the branch must be merged, so constants are promoted
+    #         # to batches using constant op, and thus can be used in merge.
+    #         constant_node = Constant(input, device="cpu")
+    #         register_data_nodes(constant_node)
+    #         inputs_bkp[i] = apply_conditional_split(constant_node)
+    # return tuple(inputs_bkp)
 
 
 def apply_conditional_split_to_args(inputs, kwargs):
@@ -488,6 +507,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
     def if_stmt(self, cond, body, orelse, get_state, set_state, symbol_names, nouts):
         # Initial checkpoint before if
         init_state = get_state()
+        print(f"Init state: {init_state} {type(init_state)}")
         with _cond_manager(cond) as split_predicate:
             # Set the state for the body inputs, execute the body and collect the outputs.
             # Verify if all outputs are initialized within the branch, split the outputs if they
@@ -496,6 +516,8 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 body()
 
                 body_state = get_state()
+
+                print(f"Body state: {body_state} {type(body_state)}")
                 _verify_branch_outputs(body_state, symbol_names, "if")
                 body_outputs = body_state[:nouts]
                 body_outputs = apply_conditional_split_to_branch_outputs(body_outputs)
@@ -506,6 +528,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 orelse()
 
                 orelse_state = get_state()
+                print(f"orelese state: {orelse_state} {type(orelse_state)}")
                 _verify_branch_outputs(orelse_state, symbol_names, "else")
                 orelse_outputs = orelse_state[:nouts]
                 orelse_outputs = apply_conditional_split_to_branch_outputs(orelse_outputs)
@@ -516,18 +539,30 @@ class DaliOperatorOverload(_autograph.OperatorBase):
             # We execute the merge _after_ both branches, and pretend for a moment, that it
             # can see those values produced in child scopes.
             with _cond_merge(split_predicate):
-                for new_body_val, new_orelse_val in zip(body_outputs, orelse_outputs):
-                    logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
-                                    f" at {this_condition_stack().stack_depth() -1}:"
-                                    f" merge({new_body_val}, {new_orelse_val}, predicate="
-                                    f"{split_predicate}."))
-                    merged = fn._conditional.merge(new_body_val, new_orelse_val,
+                # TODO(klecki): I guess we can capture the  Value and Type errors and provide
+                # a better error message.
+                tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+
+                def merge_atoms(new_body_val, new_orelse_val):
+                    return fn._conditional.merge(new_body_val, new_orelse_val,
                                                    predicate=split_predicate)
-                    output_values.append(merged)
+
+                output_values = tree.map_structure(merge_atoms, body_outputs, orelse_outputs)
+
+                # for new_body_val, new_orelse_val in zip(body_outputs, orelse_outputs):
+                #     logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
+                #                     f" at {this_condition_stack().stack_depth() -1}:"
+                #                     f" merge({new_body_val}, {new_orelse_val}, predicate="
+                #                     f"{split_predicate}."))
+                #     merged = fn._conditional.merge(new_body_val, new_orelse_val,
+                #                                    predicate=split_predicate)
+                #     output_values.append(merged)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.
-        this_condition_stack().register_data_nodes(output_values, False)
+        # this_condition_stack().register_data_nodes(output_values, False)
+        # TODO(klecki): consider moving this inside the register_data_nodes function itself.
+        tree.map_structure(lambda node: this_condition_stack().register_data_nodes(node, False), output_values)
         # No point in propagating the split/merged values that won't be read later.
         output_values += init_state[nouts:]
         set_state(output_values)
