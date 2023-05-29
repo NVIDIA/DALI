@@ -108,7 +108,7 @@ class CachingList {
   const T &PeekProphet() {
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
-              "Attempted to peek batch data that doesn't exist. Add more elements the DALI"
+              "Attempted to peek the data batch that doesn't exist. Add more elements to the DALI"
               " input operator.");
     return *prophet_;
   }
@@ -117,7 +117,7 @@ class CachingList {
   void AdvanceProphet() {
     if (!CanProphetAdvance())
       throw std::out_of_range(
-              "Attempted to move to the batch data that doesn't exist. Add more elements the DALI"
+              "Attempted to move to the data batch that doesn't exist. Add more elements to the DALI"
               " input operator.");
     apprentice_ = prophet_++;
     resurrect_prophet_ = prophet_ == full_data_.end();
