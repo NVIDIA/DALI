@@ -778,3 +778,31 @@ def _check_blocking(device):
 def test_blocking():
     for device in ['cpu', 'gpu']:
         yield _check_blocking, device
+
+
+def _blocking_destructor(device):
+    batch_size = 5
+    prefetch_queue_depth = 5
+
+    @pipeline_def
+    def test_pipeline():
+        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
+                                  device=device)
+        return data
+
+    rng = default_rng()
+    data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+
+    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
+                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    # feed one input to pipeline can return something
+    pipe.feed_input("test_source", data_to_feed)
+
+    # should not hang
+    _ = pipe.run()
+
+
+def test_blocking_destructor():
+    for device in ['cpu', 'gpu']:
+        yield _blocking_destructor, device

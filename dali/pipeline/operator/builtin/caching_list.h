@@ -117,8 +117,8 @@ class CachingList {
   void AdvanceProphet() {
     if (!CanProphetAdvance())
       throw std::out_of_range(
-              "Attempted to move to the data batch that doesn't exist. Add more elements to the DALI"
-              " input operator.");
+              "Attempted to move to the data batch that doesn't exist. Add more elements to"
+              " the DALI input operator.");
     apprentice_ = prophet_++;
     resurrect_prophet_ = prophet_ == full_data_.end();
   }
