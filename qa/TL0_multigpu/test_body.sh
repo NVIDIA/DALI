@@ -44,6 +44,10 @@ test_pytorch() {
     ${python_invoke_test} --attr 'multigpu' test_external_source_pytorch_gpu.py
 }
 
+test_jax() {
+    ${python_new_invoke_test} -s . test_jax_integration_multigpu
+}
+
 test_no_fw() {
     test_py_with_framework
     test_py

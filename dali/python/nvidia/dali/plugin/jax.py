@@ -192,9 +192,7 @@ class DALIGenericIterator(_DaliBaseIterator):
         # Gather outputs
         pipelines_outputs = self._get_outputs()  # This can be accessed like outputs[device_id][output_id]
         
-        
         next_output = dict()
-        
         for category_id, category_name in enumerate(self._output_categories):
             category_outputs = []
             
