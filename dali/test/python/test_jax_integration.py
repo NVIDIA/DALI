@@ -134,7 +134,7 @@ def test_dali_sequential_iterator_to_jax_array():
 
     for batch_id, data in enumerate(iter):
         # given
-        jax_array = data[0]['data']
+        jax_array = data['data']
 
         # then
         assert jax_array.device() == jax.devices()[0]

@@ -151,8 +151,8 @@ class DALIGenericIterator(_DaliBaseIterator):
         # pipelines need to be handled in JAX -> return one output that is backed by
         # multiple devices.
         # TODO(awolant): Implement this.
-        assert len(pipelines) == 1, \
-            "DALIGenericIterator for JAX support only one pipeline at the moment."
+        # assert len(pipelines) == 1, \
+        #     "DALIGenericIterator for JAX support only one pipeline at the moment."
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
@@ -190,62 +190,67 @@ class DALIGenericIterator(_DaliBaseIterator):
             return batch
 
         # Gather outputs
-        outputs = self._get_outputs()
+        pipelines_outputs = self._get_outputs()  # This can be accessed like outputs[device_id][output_id]
+        
+        
+        next_output = dict()
+        
+        for category_id, category_name in enumerate(self._output_categories):
+            category_outputs = []
+            
+            # Gather outputs for current category from all pipelines
+            for pipeline_id in range(self._num_gpus):
+                category_outputs.append(
+                    _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor()))
+                
+            if self._num_gpus == 1:
+                next_output[category_name] = category_outputs[0]
+            else:
+                # Build sharded JAX array as output for current category
+                next_output[category_name] = jax.device_put_sharded(
+                    category_outputs,
+                    tuple(map(
+                        lambda jax_shard: jax_shard.device(),
+                        category_outputs)))
 
-        data_batches = [None for i in range(self._num_gpus)]
-        for i in range(self._num_gpus):
-            # initialize dict for all output categories
-            category_outputs = dict()
-            # segregate outputs into categories
-            for j, out in enumerate(outputs[i]):
-                category_outputs[self.output_map[j]] = out
-
-            # Convert DALI TensorLists to JAX Arrays
-            category_arrays = dict()
-            for category, out in category_outputs.items():
-                assert type(out) == TensorListGPU, \
-                    "DALIGenericIterator for JAX support only GPU outputs at the moment."
-                category_arrays[category] = _to_jax_array(out.as_tensor())
-
-            data_batches[i] = category_arrays
 
         self._schedule_runs()
         self._advance_and_check_drop_last()
 
         # TODO(awolant): Some of these options are impossible for JAX for multigpu.
         # Clean this up when multi GPU is implemented here.
-        if self._reader_name:
-            if_drop, left = self._remove_padded()
-            if np.any(if_drop):
-                output = []
-                for batch, to_copy in zip(data_batches, left):
-                    batch = batch.copy()
-                    for category in self._output_categories:
-                        batch[category] = batch[category][0:to_copy]
-                    output.append(batch)
-                return output
+        # if self._reader_name:
+        #     if_drop, left = self._remove_padded()
+        #     if np.any(if_drop):
+        #         output = []
+        #         for batch, to_copy in zip(data_batches, left):
+        #             batch = batch.copy()
+        #             for category in self._output_categories:
+        #                 batch[category] = batch[category][0:to_copy]
+        #             output.append(batch)
+        #         return output
 
-        else:
-            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
-                                          self._counter > self._size) and self._size > 0:
-                # First calculate how much data is required to return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
-                # Figure out how many GPUs to grab from.
-                numGPUs_tograb = int(np.ceil(diff / self.batch_size))
-                # Figure out how many results to grab from the last GPU
-                # (as a fractional GPU batch may be required to bring us
-                # right up to self._size).
-                mod_diff = diff % self.batch_size
-                data_fromlastGPU = mod_diff if mod_diff else self.batch_size
+        # else:
+        #     if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
+        #                                   self._counter > self._size) and self._size > 0:
+        #         # First calculate how much data is required to return exactly self._size entries.
+        #         diff = self._num_gpus * self.batch_size - (self._counter - self._size)
+        #         # Figure out how many GPUs to grab from.
+        #         numGPUs_tograb = int(np.ceil(diff / self.batch_size))
+        #         # Figure out how many results to grab from the last GPU
+        #         # (as a fractional GPU batch may be required to bring us
+        #         # right up to self._size).
+        #         mod_diff = diff % self.batch_size
+        #         data_fromlastGPU = mod_diff if mod_diff else self.batch_size
 
-                # Grab the relevant data.
-                # 1) Grab everything from the relevant GPUs.
-                # 2) Grab the right data from the last GPU.
-                # 3) Append data together correctly and return.
-                output = data_batches[0:numGPUs_tograb]
-                output[-1] = output[-1].copy()
-                for category in self._output_categories:
-                    output[-1][category] = output[-1][category][0:data_fromlastGPU]
-                return output
+        #         # Grab the relevant data.
+        #         # 1) Grab everything from the relevant GPUs.
+        #         # 2) Grab the right data from the last GPU.
+        #         # 3) Append data together correctly and return.
+        #         output = data_batches[0:numGPUs_tograb]
+        #         output[-1] = output[-1].copy()
+        #         for category in self._output_categories:
+        #             output[-1][category] = output[-1][category][0:data_fromlastGPU]
+        #         return output
 
-        return data_batches
+        return next_output
