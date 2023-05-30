@@ -283,15 +283,16 @@ class _ConditionStack:
         # otherwise, we need to fill in the splits.
         return self._realize_split(data_node, stack_level)
 
-    def register_data_nodes(self, data_node, global_scope=False):
+    def register_data_nodes(self, data_nodes, global_scope=False):
         """Register the data nodes as produced in current scope, otherwise if `global_scope` is True
         put them in the outermost scope.
         """
         if not self._is_registration_allowed:
             return
-        logging.log(8, (f"{self._indent()}[IF/Register] {data_node} at {self.stack_depth() -1}"))
+        logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
         scope = self._stack[0] if global_scope else self.top()
-        scope.add_produced(data_node)
+        tree.map_structure(lambda node: scope.add_produced(node), data_nodes)
+
 
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
@@ -438,34 +439,18 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
     tuple of DataNode
     """
     from nvidia.dali.types import Constant
-    inputs_bkp = list(branch_outputs)
-    print(f"Before mapping: {branch_outputs}")
-    def promote_data_nodes(atom):
+
+    def apply_split(atom):
         if isinstance(atom, _DataNode):
             return apply_conditional_split(atom)
-        else:
+        elif promote_constants:
             # We assume that any return from the branch must be merged, so constants are promoted
             # to batches using constant op, and thus can be used in merge.
             constant_node = Constant(atom, device="cpu")
             register_data_nodes(constant_node)
             return apply_conditional_split(constant_node)
 
-
-
-    mapped =  tree.map_structure(promote_data_nodes, branch_outputs)
-
-    print(f"After mapping: {mapped}")
-    return mapped
-    # for i, input in enumerate(branch_outputs):
-    #     if isinstance(input, _DataNode):
-    #         inputs_bkp[i] = apply_conditional_split(input)
-    #     elif promote_constants:
-    #         # We assume that any return from the branch must be merged, so constants are promoted
-    #         # to batches using constant op, and thus can be used in merge.
-    #         constant_node = Constant(input, device="cpu")
-    #         register_data_nodes(constant_node)
-    #         inputs_bkp[i] = apply_conditional_split(constant_node)
-    # return tuple(inputs_bkp)
+    return tree.map_structure(apply_split, branch_outputs)
 
 
 def apply_conditional_split_to_args(inputs, kwargs):
@@ -507,7 +492,6 @@ class DaliOperatorOverload(_autograph.OperatorBase):
     def if_stmt(self, cond, body, orelse, get_state, set_state, symbol_names, nouts):
         # Initial checkpoint before if
         init_state = get_state()
-        print(f"Init state: {init_state} {type(init_state)}")
         with _cond_manager(cond) as split_predicate:
             # Set the state for the body inputs, execute the body and collect the outputs.
             # Verify if all outputs are initialized within the branch, split the outputs if they
@@ -517,7 +501,6 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
                 body_state = get_state()
 
-                print(f"Body state: {body_state} {type(body_state)}")
                 _verify_branch_outputs(body_state, symbol_names, "if")
                 body_outputs = body_state[:nouts]
                 body_outputs = apply_conditional_split_to_branch_outputs(body_outputs)
@@ -528,7 +511,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 orelse()
 
                 orelse_state = get_state()
-                print(f"orelese state: {orelse_state} {type(orelse_state)}")
+
                 _verify_branch_outputs(orelse_state, symbol_names, "else")
                 orelse_outputs = orelse_state[:nouts]
                 orelse_outputs = apply_conditional_split_to_branch_outputs(orelse_outputs)
@@ -539,30 +522,38 @@ class DaliOperatorOverload(_autograph.OperatorBase):
             # We execute the merge _after_ both branches, and pretend for a moment, that it
             # can see those values produced in child scopes.
             with _cond_merge(split_predicate):
-                # TODO(klecki): I guess we can capture the  Value and Type errors and provide
-                # a better error message.
-                tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                err_msg = ("Divergent data found in different branches of `if/else` control flow"
+                           " statement. Variables in all code paths are merged into common output"
+                           " batches. The values assigned to a given variable need to have the same"
+                           " nesting structure in every code path (both `if` branches).\n"
+                           "For example, if we define a variable as a tuple in one branch, it must"
+                           " be defined as a tuple of the same length in the other branch - the"
+                           " contents of the tuples may be different. If we define a variable as"
+                           " a dictionary, the other branch must define it as a dictionary with the"
+                           " same set of keys, the values may be different.\n")
 
-                def merge_atoms(new_body_val, new_orelse_val):
+                try:
+                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                except ValueError as e:
+                    # Suppress the original exception, add DALI explanation at the beginning,
+                    # raise the full error message.
+                    raise ValueError(err_msg + str(e)) from None
+                except TypeError as e:
+                    raise TypeError(err_msg + str(e)) from None
+
+                def merge_branches(new_body_val, new_orelse_val):
+                    logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
+                                    f" at {this_condition_stack().stack_depth() -1}:"
+                                    f" merge({new_body_val}, {new_orelse_val}, predicate="
+                                    f"{split_predicate}."))
                     return fn._conditional.merge(new_body_val, new_orelse_val,
-                                                   predicate=split_predicate)
+                                                 predicate=split_predicate)
 
-                output_values = tree.map_structure(merge_atoms, body_outputs, orelse_outputs)
-
-                # for new_body_val, new_orelse_val in zip(body_outputs, orelse_outputs):
-                #     logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
-                #                     f" at {this_condition_stack().stack_depth() -1}:"
-                #                     f" merge({new_body_val}, {new_orelse_val}, predicate="
-                #                     f"{split_predicate}."))
-                #     merged = fn._conditional.merge(new_body_val, new_orelse_val,
-                #                                    predicate=split_predicate)
-                #     output_values.append(merged)
+                output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.
-        # this_condition_stack().register_data_nodes(output_values, False)
-        # TODO(klecki): consider moving this inside the register_data_nodes function itself.
-        tree.map_structure(lambda node: this_condition_stack().register_data_nodes(node, False), output_values)
+        this_condition_stack().register_data_nodes(output_values, False)
         # No point in propagating the split/merged values that won't be read later.
         output_values += init_state[nouts:]
         set_state(output_values)
