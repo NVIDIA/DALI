@@ -38,7 +38,8 @@ class BatchSizeProvider {
    * Implementation shall assure that it's possible to call NextBatchSize()
    * multiple times for the same batch, before Advance() invocation.
    *
-   * When there's no next batch size available, the implementation shall throw std::out_of_range.
+   * When there's no next batch size available, the implementation shall throw std::out_of_range
+   * or wait for more data in the blocking mode.
    */
   virtual int NextBatchSize() = 0;
 
@@ -46,6 +47,7 @@ class BatchSizeProvider {
    * Advances to next batch.
    *
    * When there's no further data available, Advance() shall throw std::out_of_range
+   * or wait for more data in the blocking mode.
    */
   virtual void Advance() = 0;
 };
