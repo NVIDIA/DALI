@@ -449,6 +449,7 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
             constant_node = Constant(atom, device="cpu")
             register_data_nodes(constant_node)
             return apply_conditional_split(constant_node)
+        return atom
 
     return tree.map_structure(apply_split, branch_outputs)
 
