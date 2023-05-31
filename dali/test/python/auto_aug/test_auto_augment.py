@@ -24,7 +24,7 @@ from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_batch
 from nose_utils import assert_raises, assert_warns
 
 data_root = get_dali_extra_path()
@@ -86,7 +86,7 @@ run_aug_no_translation_cases = itertools.product(
     enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases))))
 def test_run_auto_aug(i, args):
     policy_name, dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
-    batch_sizes = [1, 8, 7, 64, 13, 64, 128]
+    batch_sizes = [1, 8, 7, 64, 13, 41]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
     @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
@@ -107,10 +107,15 @@ def test_run_auto_aug(i, args):
         image = auto_augment.auto_augment(image, policy_name, **extra)
         return image
 
-    p = pipeline()
-    p.build()
+    # run the pipeline twice to make sure instantiation preserves determinism
+    p1 = pipeline()
+    p1.build()
+    p2 = pipeline()
+    p2.build()
     for _ in range(3):
-        p.run()
+        out1, = p1.run()
+        out2, = p2.run()
+        check_batch(out1, out2)
 
 
 @params(
