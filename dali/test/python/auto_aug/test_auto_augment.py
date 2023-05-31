@@ -424,6 +424,57 @@ def test_missing_shape_fail():
         pipeline()
 
 
+def test_sub_policy_coalescing_matrix_correctness():
+
+    @augmentation(
+        mag_range=(0, 1),
+        randomly_negate=True,
+    )
+    def first(data, op_id_mag_id):
+        return op_id_mag_id
+
+    @augmentation(
+        mag_range=(1, 2),
+        randomly_negate=True,
+    )
+    def second(data, op_id_mag_id):
+        return op_id_mag_id
+
+    @augmentation(
+        mag_range=(2, 3), )
+    def third(data, op_id_mag_id):
+        return op_id_mag_id
+
+    def custom_policy():
+        return Policy("MyCustomPolicy", 14, [
+            [(third, 0.5, 1), (second, 1., 2), (first, 0.2, 3), (second, 0.25, 4)],
+            [(first, 0.6, 5)],
+            [(second, 0.1, 6), (third, 0.7, 7)],
+            [(second, 0.8, 8), (first, 0.9, 9), (second, 1., 10), (third, 0.2, 11),
+             (first, 0.5, 12), (first, 1., 13)],
+        ])
+
+    predefined_policies = [
+        auto_augment.get_image_net_policy, auto_augment.get_reduced_image_net_policy,
+        auto_augment.get_svhn_policy, auto_augment.get_reduced_cifar10_policy, custom_policy
+    ]
+    for policy_getter in predefined_policies:
+        policy = policy_getter()
+        matrix, augments = auto_augment._sub_policy_to_augmentation_matrix_map(policy)
+        max_sub_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
+        expected_shape = (len(policy.sub_policies), max_sub_policy_len)
+        assert matrix.shape == expected_shape, f"{matrix.shape} {expected_shape} {policy}"
+        for i, sub_policy in enumerate(policy.sub_policies):
+            for stage_idx in range(max_sub_policy_len):
+                mat_aug = augments[stage_idx][matrix[i, stage_idx]]
+                if stage_idx < len(sub_policy):
+                    sub_pol_aug, _, _ = sub_policy[stage_idx]
+                    assert mat_aug is sub_pol_aug, \
+                        f"{i} {stage_idx} {mat_aug} {sub_pol_aug} {policy}"
+                else:
+                    assert mat_aug is a.identity, f"{i} {stage_idx} {mat_aug} {policy}"
+
+
 def test_wrong_sub_policy_format_fail():
 
     with assert_raises(Exception,
