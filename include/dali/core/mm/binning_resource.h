@@ -40,9 +40,8 @@ namespace mm {
  */
 template <typename Kind,
           int nstatic_bins = -1,
-          typename ExtraArgs = std::tuple<>,
           typename Interface = mm::memory_resource<Kind>>
-class   binning_resource : public Interface {
+class binning_resource_base : public Interface {
  public:
   using memory_kind = Kind;
   static constexpr int static_num_bins = nstatic_bins;
@@ -64,13 +63,10 @@ class   binning_resource : public Interface {
    *                                than resources
    * @param resources               a collection of memory resource pointers or smart poitners or
    *                                iterators
-   * @param extr                    extra payload
    */
-  template <typename SplitPointCollection, typename ResourceCollection, typename Extra>
-  binning_resource(const SplitPointCollection &split_points,
-                   const ResourceCollection &resources,
-                   Extra &&extra)
-  : extra_args_(std::forward<ExtraArgs>(extra)) {
+  template <typename SplitPointCollection, typename ResourceCollection>
+  binning_resource_base(const SplitPointCollection &split_points,
+                        const ResourceCollection &resources) {
     if constexpr (static_num_bins > 0) {
       assert(split_points.size() == static_num_bins - 1);
       assert(resources.size() == static_num_bins);
@@ -95,11 +91,6 @@ class   binning_resource : public Interface {
 
     assert(i == num_bins());
   }
-
-  template <typename SplitPointCollection, typename ResourceCollection>
-  binning_resource(const SplitPointCollection &split_points,
-                   const ResourceCollection &resources)
-  : binning_resource(split_points, resources, ExtraArgs()) {}
 
   int num_bins() const {
     return resources_.size();
@@ -131,13 +122,55 @@ class   binning_resource : public Interface {
     return bin_it - bin_split_points_.begin();
   }
 
-  ExtraArgs extra_args_;
   template <typename T, int n>
   using store_t = std::conditional_t<(static_num_bins < 0),
     std::vector<T>, std::array<T, (n < 0 ? 0 : n)>>;
 
   store_t<size_t, static_num_bins - 1> bin_split_points_;
   store_t<mm::memory_resource<Kind> *, static_num_bins> resources_;
+};
+
+template <typename Kind,
+          int nstatic_bins = -1,
+          typename ExtraArgs = std::tuple<>,
+          typename Interface = mm::memory_resource<Kind>>
+class binning_resource : public binning_resource_base<Kind, nstatic_bins, Interface> {
+ public:
+  using base = binning_resource_base<Kind, nstatic_bins, Interface>;
+  using memory_kind = Kind;
+
+  /** @brief Constructs a binning resource from an array of split points, resources and extra data
+   *
+   * This constructor servers is used in a type deduction guide.
+   *
+   * @tparam SplitPointCollection   a collection of split points; it must have element type
+   *                                convertible to size_t and support iterationa and obtaining size
+   *                                with std::size
+   *
+   * @tparam ResourceCollection     a collection of pointers or iterators to memory_resource<Kind>
+   *                                objects; the elements must be convertible to a plain pointer
+   *                                by applying operators &* in succession
+   *
+   * @param split_points            a collection of split points; it must have one fewer element
+   *                                than resources
+   * @param resources               a collection of memory resource pointers or smart poitners or
+   *                                iterators
+   * @param extra                   extra payload
+   */
+  template <typename SplitPointCollection, typename ResourceCollection, typename Extra>
+  binning_resource(const SplitPointCollection &split_points,
+                   const ResourceCollection &resources,
+                   Extra &&extra)
+  : base(split_points, resources), extra_args_(std::forward<ExtraArgs>(extra)) {
+  }
+
+  template <typename SplitPointCollection, typename ResourceCollection>
+  binning_resource(const SplitPointCollection &split_points,
+                   const ResourceCollection &resources)
+  : base(split_points, resources) {}
+
+ private:
+  ExtraArgs extra_args_{};
 };
 
 template <typename SplitPointCollection,

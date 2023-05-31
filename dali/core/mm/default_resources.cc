@@ -406,32 +406,28 @@ device_async_resource *GetDefaultDeviceResource(int device_id) {
 }
 
 template <typename Kind>
-mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
-  while (mr) {
-    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
-      return pool;
-    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
-      mr = up->upstream();
-    } else {
-      break;
+void ReleaseUnusedMemory(mm::memory_resource<Kind> *mr) {
+  if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr)) {
+    pool->release_unused();
+  } else if (auto *up_rsrc = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+    ReleaseUnusedMemory(up_rsrc->upstream());
+  } else if (auto *bin_rsrc = dynamic_cast<mm::binning_resource_base<Kind>*>(mr)) {
+    for (int bin = 0; bin < bin_rsrc->num_bins(); bin++) {
+      ReleaseUnusedMemory(bin_rsrc->resource(bin));
     }
   }
-  return nullptr;
 }
 
 DLL_PUBLIC
 void ReleaseUnusedMemory() {
   if (auto *devs = g_resources.device.get()) {
     for (int i = 0, n = g_resources.num_devices; i < n; i++) {
-      if (auto *pool = GetPoolInterface(devs[i].get())) {
-        pool->release_unused();
-      }
+      ReleaseUnusedMemory(devs[i].get());
     }
   }
 
-  if (auto *pool = GetPoolInterface(g_resources.pinned_async.get())) {
-    pool->release_unused();
-  }
+  ReleaseUnusedMemory(g_resources.pinned_async.get());
+  ReleaseUnusedMemory(g_resources.host.get());
 }
 
 DLL_PUBLIC
