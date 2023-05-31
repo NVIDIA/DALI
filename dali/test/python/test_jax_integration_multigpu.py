@@ -25,9 +25,9 @@ import nvidia.dali.types as types
 def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_size):
     """Helper to create DALI pipelines that return GPU tensors with sequential values
     and are iterating over virtual sharded dataset.
-    
+
     For example setting shard_id for 2 and shard size for 8 will result in pipeline
-    that starts its iteration from the sample with value 16 since this is third 
+    that starts its iteration from the sample with value 16 since this is third
     shard (shard_id=2) and the shard size is 8.
 
     Args:
@@ -37,13 +37,13 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
         shard_id : Id of the shard for the pipeline.
         shard_size : Size of the shard for the pipeline.
     """
-    
+
     def create_numpy_sequential_tensors_callback():
         shard_offset = shard_size * shard_id
-        
+
         def numpy_sequential_tensors(sample_info):
             return np.full(shape, sample_info.idx_in_epoch + shard_offset, dtype=np.int32)
-        
+
         return numpy_sequential_tensors
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=device_id)
@@ -61,10 +61,10 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
 
 def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
     assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
-    
+
     batch_size = 4
     shape = (1, 5)
-    
+
     # given
     pipe_0 = sequential_sharded_pipeline(
         batch_size=batch_size, shape=shape, device_id=0, shard_id=0, shard_size=batch_size)
@@ -73,34 +73,34 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
     pipe_1 = sequential_sharded_pipeline(
         batch_size=batch_size, shape=shape, device_id=1, shard_id=1, shard_size=batch_size)
     pipe_1.build()
-    
+
     for batch_id in range(100):
         dali_tensor_gpu_0 = pipe_0.run()[0].as_tensor()
         dali_tensor_gpu_1 = pipe_1.run()[0].as_tensor()
-        
+
         jax_shard_0 = dax._to_jax_array(dali_tensor_gpu_0)
         jax_shard_1 = dax._to_jax_array(dali_tensor_gpu_1)
-        
+
         assert jax_shard_0.device() == jax.devices()[0]
         assert jax_shard_1.device() == jax.devices()[1]
-        
+
         # when
         jax_array = jax.device_put_sharded(
             [jax_shard_0, jax_shard_1],
             [jax_shard_0.device(), jax_shard_1.device()])
-        
+
         # then
         # Assert that all values are as expected
         assert jax.numpy.array_equal(
             jax_array.device_buffers[0],
             jax.numpy.stack([
-                jax.numpy.full(shape[1:], value, np.int32) 
-                for value in range(batch_id*batch_size,(batch_id+1)*batch_size,1)]))
+                jax.numpy.full(shape[1:], value, np.int32)
+                for value in range(batch_id*batch_size, (batch_id+1)*batch_size)]))
         assert jax.numpy.array_equal(
             jax_array.device_buffers[1],
             jax.numpy.stack([
-                jax.numpy.full(shape[1:], value, np.int32) 
-                for value in range((batch_id+1)*batch_size,(batch_id+2)*batch_size,1)]))
+                jax.numpy.full(shape[1:], value, np.int32)
+                for value in range((batch_id+1)*batch_size, (batch_id+2)*batch_size)]))
 
         # Assert correct backing devices for shards
         assert jax_array.device_buffers[0].device() == jax_shard_0.device()
