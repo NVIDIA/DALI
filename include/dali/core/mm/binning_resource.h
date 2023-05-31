@@ -61,7 +61,7 @@ class   binning_resource : public Interface {
    *                                by applying operators &* in succession
    *
    * @param split_points            a collection of split points; it must have one fewer element
-   *                                than split_points
+   *                                than resources
    * @param resources               a collection of memory resource pointers or smart poitners or
    *                                iterators
    * @param extr                    extra payload
