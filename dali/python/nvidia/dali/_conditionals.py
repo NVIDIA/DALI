@@ -293,7 +293,6 @@ class _ConditionStack:
         scope = self._stack[0] if global_scope else self.top()
         tree.map_structure(lambda node: scope.add_produced(node), data_nodes)
 
-
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
         self.top().branch = _Branch.TrueBranch
@@ -623,6 +622,5 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
 _OVERLOADS = DaliOperatorOverload()
 
-_autograph.initialize_autograph(_OVERLOADS,
-                                convert_modules=["nvidia.dali.auto_aug"],
+_autograph.initialize_autograph(_OVERLOADS, convert_modules=["nvidia.dali.auto_aug"],
                                 do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"])
