@@ -23,7 +23,7 @@ from nvidia.dali import fn, types
 from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import trivial_augment
 from nvidia.dali.auto_aug.core import augmentation
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_batch
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -34,7 +34,7 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
         itertools.product(("cpu", "gpu"), (True, False), (True, False), (None, 0), (True, False)))))
 def test_run_trivial(i, args):
     dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
-    batch_sizes = [1, 8, 7, 64, 13, 64, 128]
+    batch_sizes = [1, 8, 7, 64, 13, 64, 41]
     num_magnitude_bin_cases = [1, 11, 31, 40]
     batch_size = batch_sizes[i % len(batch_sizes)]
     num_magnitude_bins = num_magnitude_bin_cases[i % len(num_magnitude_bin_cases)]
@@ -58,10 +58,15 @@ def test_run_trivial(i, args):
                                                      **extra)
         return image
 
-    p = pipeline()
-    p.build()
+    # run the pipeline twice to make sure instantiation preserves determinism
+    p1 = pipeline()
+    p1.build()
+    p2 = pipeline()
+    p2.build()
     for _ in range(3):
-        p.run()
+        out1, = p1.run()
+        out2, = p2.run()
+        check_batch(out1, out2)
 
 
 @params(*tuple(itertools.product(
