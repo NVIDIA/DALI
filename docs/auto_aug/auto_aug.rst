@@ -37,6 +37,11 @@ applies the :ref:`AutoAugment` policy tuned for ImageNet::
 
 :ref:`RandAugment` and :ref:`TrivialAugment` policies can be applied in similar fashion.
 
+
+.. note::
+    To see a full example of using automatic augmentations for training, see the
+    :ref:`EfficientNet for PyTorch with DALI and AutoAugment <efficientnet_autoaugment>` example.
+
 .. currentmodule:: nvidia.dali.auto_aug
 
 .. toctree::
@@ -67,6 +72,3 @@ The automatic augmentation library is built around several concepts:
 
 To learn more about building or applying policies check the documentation for specific automatic
 augmentation scheme: :ref:`AutoAugment`, :ref:`RandAugment`, or :ref:`TrivialAugment`.
-
-To see an example of using automatic augmentations for training, see the
-:ref:`EfficientNet for PyTorch with DALI and AutoAugment <efficientnet_autoaugment>` example.

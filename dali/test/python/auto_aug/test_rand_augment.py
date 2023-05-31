@@ -24,7 +24,7 @@ from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import rand_augment
 from nvidia.dali.auto_aug.core import augmentation
 
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_batch
 from nose_utils import assert_raises
 
 data_root = get_dali_extra_path()
@@ -37,7 +37,7 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 def test_run_rand_aug(i, args):
     dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
     # Keep batch_sizes ns and ms length co-prime
-    batch_sizes = [1, 8, 7, 13, 31, 64, 128]
+    batch_sizes = [1, 8, 7, 13, 31, 64, 47]
     ns = [1, 2, 3]
     ms = [0, 12, 15, 30]
     batch_size = batch_sizes[i % len(batch_sizes)]
@@ -62,10 +62,15 @@ def test_run_rand_aug(i, args):
         image = rand_augment.rand_augment(image, n=n, m=m, **extra)
         return image
 
-    p = pipeline()
-    p.build()
+    # run the pipeline twice to make sure instantiation preserves determinism
+    p1 = pipeline()
+    p1.build()
+    p2 = pipeline()
+    p2.build()
     for _ in range(3):
-        p.run()
+        out1, = p1.run()
+        out2, = p2.run()
+        check_batch(out1, out2)
 
 
 @params(*tuple(enumerate(itertools.product(

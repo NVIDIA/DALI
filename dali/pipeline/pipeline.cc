@@ -151,6 +151,30 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
 
 Pipeline::~Pipeline() {
   DeviceGuard dg(device_id_);
+  for (auto &name : input_operators_names_) {
+    OpNodeId node_id = -1;
+    if (graph_.TensorExists(name + "_cpu")) {
+      node_id = graph_.TensorSourceID(name + "_cpu");
+    } else if (graph_.TensorExists(name + "_gpu")) {
+      node_id = graph_.TensorSourceID(name + "_gpu");
+    }
+    auto &node = graph_.Node(node_id);
+    OperatorBase *op_ptr = &node.InstantiateOperator();
+    auto op_type = graph_.NodeType(node_id);
+    switch (op_type) {
+      case OpType::CPU:
+        dynamic_cast<InputOperator<CPUBackend> *>(op_ptr)->BreakWaiting();
+        break;
+      case OpType::MIXED:
+        dynamic_cast<InputOperator<MixedBackend> *>(op_ptr)->BreakWaiting();
+        break;
+      case OpType::GPU:
+        dynamic_cast<InputOperator<GPUBackend> *>(op_ptr)->BreakWaiting();
+        break;
+      default:
+        assert(false);  // This shouldn't happen.
+    }
+  }
   if (executor_)
     executor_->Shutdown();
   graph_ = {};

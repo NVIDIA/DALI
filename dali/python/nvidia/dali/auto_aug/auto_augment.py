@@ -32,8 +32,8 @@ except ImportError:
         "Please install numpy to use the examples.")
 
 
-def auto_augment(data: _DataNode, policy_name: str = 'image_net',
-                 shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
+def auto_augment(data: _DataNode, policy_name: str = 'image_net', shape: Optional[_DataNode] = None,
+                 fill_value: Optional[int] = 128,
                  interp_type: Optional[types.DALIInterpType] = None,
                  max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
                  seed: Optional[int] = None) -> _DataNode:
@@ -164,7 +164,8 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
     if len(policy.sub_policies) == 0:
         raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
     max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
-    should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT)
+    should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT,
+                                   seed=seed)
     sub_policy_id = fn.random.uniform(values=list(range(len(policy.sub_policies))), seed=seed,
                                       dtype=types.INT32)
     run_probabilities = _sub_policy_to_probability_map(policy)[sub_policy_id]
@@ -468,11 +469,14 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
     augmentations = []  # list of augmentations in each stage
     for stage_idx in range(max_policy_len):
         stage_augments = set()
+        stage_augments_list = []
         for sub_policy in sub_policies:
             if stage_idx < len(sub_policy):
                 aug, _, _ = sub_policy[stage_idx]
-                stage_augments.add(aug)
-        augmentations.append(list(stage_augments) + [a.identity])
+                if aug not in stage_augments:
+                    stage_augments.add(aug)
+                    stage_augments_list.append(aug)
+        augmentations.append(stage_augments_list + [a.identity])
     identity_id = [len(stage_augments) for stage_augments in augmentations]
     augment_to_id = [{augmentation: i
                       for i, augmentation in enumerate(stage_augments)}
