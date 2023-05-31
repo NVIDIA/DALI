@@ -18,6 +18,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/mm/malloc_resource.h"
+#include "dali/core/mm/binning_resource.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
@@ -126,11 +127,6 @@ struct DefaultResources {
 
 #define g_resources (DefaultResources::instance())
 
-inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
-  static auto rsrc = std::make_shared<malloc_memory_resource>();
-  return rsrc;
-}
-
 struct CUDARTLoader {
   CUDARTLoader() {
     int device_id = 0;
@@ -161,6 +157,50 @@ bool UseVMM() {
     return !env || atoi(env);
   }();
   return value;
+}
+
+size_t MallocThreshold() {
+  char *env = getenv("DALI_MALLOC_POOL_THRESHOLD");
+  int len = 0;
+  if (env && (len = strlen(env))) {
+    for (int i = 0; i < len; i++) {
+      bool valid = std::isdigit(env[i]) || (i == len - 1 && (env[i] == 'k' || env[i] == 'M'));
+      if (!valid) {
+        DALI_FAIL(make_string(
+          "DALI_MALLOC_POOL_THRESHOLD must be a number, optionally followed by 'k' or 'M', got: ",
+          env));
+      }
+    }
+    size_t s = atoll(env);
+    if (env[len-1] == 'k')
+      s <<= 10;
+    else if (env[len-1] == 'M')
+      s <<= 20;
+    return s;
+  } else {
+    char *mmap = getenv("MALLOC_MMAP_MAX_");
+    if (mmap && !atoi(mmap))
+      return 0;
+    char *thresh = getenv("MALLOC_MMAP_THRESHOLD_");
+    if (thresh)
+      return atoll(thresh);
+    return (32 << 20);  // max for 64-bit Linux systems
+  }
+}
+
+inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
+  static auto rsrc = std::make_shared<malloc_memory_resource>();
+  size_t threshold = MallocThreshold();
+  if (threshold > 0) {
+    using pool_t = pool_resource<mm::memory_kind::host, mm::coalescing_free_tree, spinlock>;
+    static auto pool = std::make_shared<pool_t>(rsrc.get());
+    size_t thresholds[] = { threshold };
+    std::shared_ptr<host_memory_resource> resources[2] = { rsrc, pool };
+    using binning_t = decltype(binning_resource(thresholds, resources));
+    auto binning_rsrc = std::make_shared<binning_t>(thresholds, resources);
+    return binning_rsrc;
+  }
+  return rsrc;
 }
 
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {

@@ -42,7 +42,7 @@ template <typename Kind,
           int nstatic_bins = -1,
           typename ExtraArgs = std::tuple<>,
           typename Interface = mm::memory_resource<Kind>>
-class binning_resource : public Interface {
+class   binning_resource : public Interface {
  public:
   using memory_kind = Kind;
   static constexpr int static_num_bins = nstatic_bins;
