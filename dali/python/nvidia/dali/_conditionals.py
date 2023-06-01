@@ -533,7 +533,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                            " same set of keys, the values may be different.\n")
 
                 try:
-                    nest.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                    nest.assert_same_structure(body_outputs, orelse_outputs)
                 except ValueError as e:
                     # Suppress the original exception, add DALI explanation at the beginning,
                     # raise the full error message.
