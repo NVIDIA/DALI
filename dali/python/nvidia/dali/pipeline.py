@@ -846,6 +846,9 @@ Parameters
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by ``feed_input``. See ``cuda_stream`` parameter for details.
 
+        In order to avoid stalls, the data should be provided ahead of time `prefetch_queue_depth`
+        times.
+
         Parameters
         ----------
         data_node : :class:`DataNode` or a string
