@@ -369,7 +369,7 @@ class _DaliBaseIterator(object):
         # incomplete batch, we need to extract from the pipeline and drop before rising
         # StopIteration indicating the pipeline is depleted. Here we first check if that
         # is the case, and if so we run the pipeline and drop the last batch
-        if self._last_batch_policy == LastBatchPolicy.DROP and not ():
+        if self._last_batch_policy == LastBatchPolicy.DROP:
             should_end = self._advance_and_check_drop_last(dry_run=True, end_iteration=False)
             already_ended = self._size > 0 and self._counter >= self._size
             if should_end and not already_ended:
