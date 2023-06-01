@@ -43,7 +43,7 @@ from contextlib import contextmanager
 
 from enum import Enum
 
-import tree
+import nifty_nesting as nest
 
 
 def _data_node_repr(data_node):
@@ -291,7 +291,7 @@ class _ConditionStack:
             return
         logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
         scope = self._stack[0] if global_scope else self.top()
-        tree.map_structure(lambda node: scope.add_produced(node), data_nodes)
+        nest.map(lambda node: scope.add_produced(node), data_nodes)
 
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
@@ -450,7 +450,7 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
             return apply_conditional_split(constant_node)
         return atom
 
-    return tree.map_structure(apply_split, branch_outputs)
+    return nest.map(apply_split, branch_outputs)
 
 
 def apply_conditional_split_to_args(inputs, kwargs):
@@ -533,7 +533,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                            " same set of keys, the values may be different.\n")
 
                 try:
-                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                    nest.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
                 except ValueError as e:
                     # Suppress the original exception, add DALI explanation at the beginning,
                     # raise the full error message.
@@ -549,7 +549,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                     return fn._conditional.merge(new_body_val, new_orelse_val,
                                                  predicate=split_predicate)
 
-                output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
+                output_values = nest.map(merge_branches, body_outputs, orelse_outputs)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.
