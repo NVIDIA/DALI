@@ -48,11 +48,12 @@ def check_nesting_support():
     try:
         import tree
         return True
-    except Exception as e:
-        warnings.warn("Nesting conditionals requires Python 3.7+ and dm-tree package present in the system.")
+    except Exception:
+        warnings.warn(
+            "Nesting conditionals requires Python 3.7+ and dm-tree package present in the system.")
         return False
-    
-    
+
+
 if check_nesting_support():
     from _conditionals_impl import *
 else:
