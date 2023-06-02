@@ -68,6 +68,7 @@ if check_nesting_support():
     from nvidia.dali._conditionals_impl import _cond_merge        # noqa: F401
     from nvidia.dali._conditionals_impl import _verify_branch_outputs        # noqa: F401
     from nvidia.dali._conditionals_impl import _OVERLOADS        # noqa: F401
+    from nvidia.dali._conditionals_impl import _data_node_repr        # noqa: F401
 else:
     # This is needed to forward private definitions
     from nvidia.dali._conditionals_impl_legacy import *        # noqa: F401, F403
@@ -82,3 +83,4 @@ else:
     from nvidia.dali._conditionals_impl_legacy import _cond_merge        # noqa: F401
     from nvidia.dali._conditionals_impl_legacy import _verify_branch_outputs        # noqa: F401
     from nvidia.dali._conditionals_impl_legacy import _OVERLOADS        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _data_node_repr        # noqa: F401
