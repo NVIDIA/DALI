@@ -18,12 +18,6 @@ import numpy as np
 from test_utils import check_batch
 from nose_utils import assert_raises
 
-from nvidia.dali._conditionals import check_nesting_support
-
-
-if not check_nesting_support():
-    exit()
-
 
 def test_select_impls():
 
