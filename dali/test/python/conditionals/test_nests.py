@@ -20,15 +20,15 @@ from nose_utils import assert_raises
 
 from nvidia.dali._conditionals import check_nesting_support
 
-import warnings
+from unittest import SkipTest
 
 
 def disable_for_incompatible_env(test_func):
-    def _skipped_test():
-        warnings.warn(f"{test_func.__name__} skipped due to lack of dm-tree for Python 3.6")
+    def test_skipped():
+        raise SkipTest(f"{test_func.__name__} skipped due to lack of dm-tree for Python 3.6")
 
     if not check_nesting_support():
-        return _skipped_test
+        return test_skipped
     return test_func
 
 
