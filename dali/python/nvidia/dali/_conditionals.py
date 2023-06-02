@@ -46,7 +46,7 @@ def check_nesting_support():
         _bool: Is nesting conditionals supported.
     """
     try:
-        import tree
+        import tree        # noqa: F401
         return True
     except Exception:
         warnings.warn(
@@ -55,6 +55,30 @@ def check_nesting_support():
 
 
 if check_nesting_support():
-    from _conditionals_impl import *
+    # This is needed to forward private definitions
+    from nvidia.dali._conditionals_impl import *        # noqa: F401, F403
+    from nvidia.dali._conditionals_impl import _autograph        # noqa: F401
+    from nvidia.dali._conditionals_impl import _DataNode        # noqa: F401
+    from nvidia.dali._conditionals_impl import _Branch        # noqa: F401
+    from nvidia.dali._conditionals_impl import _StackEntry        # noqa: F401
+    from nvidia.dali._conditionals_impl import _ConditionStack        # noqa: F401
+    from nvidia.dali._conditionals_impl import _cond_manager        # noqa: F401
+    from nvidia.dali._conditionals_impl import _cond_true        # noqa: F401
+    from nvidia.dali._conditionals_impl import _cond_false        # noqa: F401
+    from nvidia.dali._conditionals_impl import _cond_merge        # noqa: F401
+    from nvidia.dali._conditionals_impl import _verify_branch_outputs        # noqa: F401
+    from nvidia.dali._conditionals_impl import _OVERLOADS        # noqa: F401
 else:
-    from _conditionals_impl_legacy import *
+    # This is needed to forward private definitions
+    from nvidia.dali._conditionals_impl_legacy import *        # noqa: F401, F403
+    from nvidia.dali._conditionals_impl_legacy import _autograph        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _DataNode        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _Branch        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _StackEntry        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _ConditionStack        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _cond_manager        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _cond_true        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _cond_false        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _cond_merge        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _verify_branch_outputs        # noqa: F401
+    from nvidia.dali._conditionals_impl_legacy import _OVERLOADS        # noqa: F401
