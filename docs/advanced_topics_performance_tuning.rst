@@ -83,6 +83,37 @@ For convenience, the DALI_BUFFER_GROWTH_FACTOR environment variable and the
 `nvidia.dali.backend.SetBufferGrowthFactor` Python function can be used to set the same
 growth factor for the host and the GPU buffers.
 
+
+Allocator Configuration
+-----------------------
+
+DALI uses several types of memory resources for various kinds of memory.
+
+For regular host memory, DALI uses (aligned) ``malloc`` for small allocations and a custom memory
+pool for large allocations (to prevent costly calls to ``mmap`` by ``malloc``).
+The maximum size of a host allocation that is allocated directly with ``malloc`` can be customized
+by setting ``DALI_MALLOC_POOL_THRESHOLD`` environment variable. If not specified, the value is
+either derived from environment variables controlling ``malloc`` or, if not found, a default value
+of 32M is used.
+
+For host pinned memory, DALI uses a stream-aware memory pool on top of ``cudaMallocHost``.
+Direct usage of ``cudaMallocHost``, while discouraged, can be forced by specifying
+``DALI_USE_PINNED_MEM_POOL=0`` in the environment.
+
+For device memory, DALI uses a stream-aware memory pool built on top of CUDA VMM resource
+(if the platform supports VMM) or plain ``cudaMalloc`` otherwise. The pool can be disabled by
+setting ``DALI_USE_DEVICE_MEM_POOL=0``. Use ``DALI_USE_VMM=0`` to switch from CUDA VMM to
+``cudaMalloc``.
+
+.. warning::
+    Disabling memory pools will result in a dramatic drop in performance. This option is provided
+    only for debugging purposes.
+
+    Disabling CUDA VMM can further degrade performance due to pessimistic synchronization in
+    ``cudaFree``, and it can cause out-of-memory errors due to fragmentation affecting
+    ``cudaMalloc``.
+
+
 Memory Pool Preallocation
 -------------------------
 
