@@ -533,7 +533,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                            " same set of keys, the values may be different.\n")
 
                 try:
-                    tree.assert_same_structure(body_outputs, orelse_outputs)
+                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
                 except ValueError as e:
                     # Suppress the original exception, add DALI explanation at the beginning,
                     # raise the full error message.
@@ -549,7 +549,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                     return fn._conditional.merge(new_body_val, new_orelse_val,
                                                  predicate=split_predicate)
 
-                output_values = tree.map(merge_branches, body_outputs, orelse_outputs)
+                output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.
