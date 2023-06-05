@@ -454,7 +454,8 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
     return types.Constant(magnitude_bin)
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+def _sub_policy_to_augmentation_matrix_map(
+        policy: Policy) -> Tuple[np.ndarray, List[List[_Augmentation]]]:
     """
     Creates a matrix of operators to be called for given sub policy at given stage.
     The output is a tuple `(m, augments)`, where `augments` is a list of augmentations per stage
@@ -477,7 +478,7 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
                     stage_augments.add(aug)
                     stage_augments_list.append(aug)
         augmentations.append(stage_augments_list + [a.identity])
-    identity_id = [len(stage_augments) for stage_augments in augmentations]
+    identity_id = [len(stage_augments) - 1 for stage_augments in augmentations]
     augment_to_id = [{augmentation: i
                       for i, augmentation in enumerate(stage_augments)}
                      for stage_augments in augmentations]
@@ -486,4 +487,9 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
             augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]
-    return types.Constant(augments_by_id), augmentations
+    return augments_by_id, augmentations
+
+
+def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+    matrix, augments = _sub_policy_to_augmentation_matrix_map(policy)
+    return types.Constant(matrix), augments
