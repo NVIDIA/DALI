@@ -45,7 +45,7 @@ test_pytorch() {
 }
 
 test_jax() {
-    ${python_new_invoke_test} -s . test_jax_integration_multigpu
+    ${python_new_invoke_test} -s jax test_integration_multigpu
 }
 
 test_no_fw() {
