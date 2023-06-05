@@ -15,9 +15,6 @@ import sys
 import jax
 import jax.dlpack
 
-import numpy as np
-
-from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.backend import TensorGPU
@@ -190,17 +187,17 @@ class DALIGenericIterator(_DaliBaseIterator):
             return batch
 
         # Gather outputs
-        pipelines_outputs = self._get_outputs()  # This can be accessed like outputs[device_id][output_id]
-        
+        pipelines_outputs = self._get_outputs()  # Can be accessed by outputs[device_id][output_id]
+
         next_output = dict()
         for category_id, category_name in enumerate(self.output_map):
             category_outputs = []
-            
+
             # Gather outputs for current category from all pipelines
             for pipeline_id in range(self._num_gpus):
                 category_outputs.append(
                     _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor()))
-                
+
             if self._num_gpus == 1:
                 next_output[category_name] = category_outputs[0]
             else:
@@ -210,7 +207,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                     tuple(map(
                         lambda jax_shard: jax_shard.device(),
                         category_outputs)))
-
 
         self._schedule_runs()
         self._advance_and_check_drop_last()
