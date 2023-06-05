@@ -22,7 +22,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
 
-def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_size):
+def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_size, multiple_outputs=False):
     """Helper to create DALI pipelines that return GPU tensors with sequential values
     and are iterating over virtual sharded dataset.
 
@@ -36,6 +36,7 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
         device_id : Id of the device that pipeline will run on.
         shard_id : Id of the shard for the pipeline.
         shard_size : Size of the shard for the pipeline.
+        multiple_outputs : If True, pipeline will return multiple outputs.
     """
 
     def create_numpy_sequential_tensors_callback():
@@ -54,7 +55,11 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
             batch=False,
             dtype=types.INT32)
         data = data[0].gpu()
-        return data
+        
+        if not multiple_outputs:
+            return data
+        
+        return data, data / 2, data * 1.5
 
     return sequential_pipeline_def()
 
@@ -125,3 +130,19 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         # Assert correct backing devices for shards
         assert jax_array.device_buffers[0].device() == jax_shard_0.device()
         assert jax_array.device_buffers[1].device() == jax_shard_1.device()
+
+
+def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator():
+    assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
+
+    batch_size = 4
+    shape = (1, 5)
+
+    # given
+    pipe_0 = sequential_sharded_pipeline(
+        batch_size=batch_size, shape=shape, device_id=0, shard_id=0, shard_size=batch_size, multiple_outputs=True)
+    pipe_0.build()
+
+    pipe_1 = sequential_sharded_pipeline(
+        batch_size=batch_size, shape=shape, device_id=1, shard_id=1, shard_size=batch_size, multiple_outputs=True)
+    pipe_1.build()
