@@ -1812,80 +1812,97 @@ def test_gluon_wrong_last_batch_policy_type():
                                output_types=[GluonIterator.DENSE_TAG], last_batch_policy='FILL')
 
 
-def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op):
+def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op, policy):
     batch_size = 2
-    number_of_samples = 10
+    number_of_samples = 11
     images_files = [__file__]*number_of_samples
     labels = list(range(number_of_samples))
 
     @pipeline_def
     def BoringPipeline():
         _, ls = fn.readers.file(files=images_files, labels=labels,
-                                stick_to_shard=True, name="reader")
+                                stick_to_shard=True, name="reader", pad_last_batch=True)
 
         return ls
 
     pipeline = BoringPipeline(batch_size=batch_size, device_id=0, num_threads=1)
 
-    loader = fw_iterator(pipeline, reader_name="reader", auto_reset=auto_reset_op)
+    loader = fw_iterator(pipeline, reader_name="reader", auto_reset=auto_reset_op,
+                         last_batch_policy=policy)
     for _ in range(2):
         loader_iter = iter(loader)
         for i in range(len(loader_iter)):
             data = next(loader_iter)
             for j, d in enumerate(extract_data(data[0])):
-                assert d[0] == i * batch_size + j, f"{d[0]} { i * batch_size + j}"
+                if policy is LastBatchPolicy.FILL:
+                    if i * batch_size + j >= number_of_samples:
+                        assert d[0] == number_of_samples - 1, f"{d[0]} {number_of_samples - 1}"
+                    else:
+                        assert d[0] == i * batch_size + j, f"{d[0]} {i * batch_size + j}"
+                else:
+                    assert d[0] == i * batch_size + j, f"{d[0]} {i * batch_size + j}"
 
 
 def test_mxnet_autoreset_iter():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
     for auto_reset_op in ["yes", "no"]:
-        def fw_iterator(pipeline, reader_name, auto_reset):
-            return MXNetIterator(pipeline, [("data", MXNetIterator.DATA_TAG)],
-                                 reader_name=reader_name, auto_reset=auto_reset)
+        for policy in [LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL]:
+            def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
+                return MXNetIterator(pipeline, [("data", MXNetIterator.DATA_TAG)],
+                                     reader_name=reader_name, auto_reset=auto_reset,
+                                     last_batch_policy=last_batch_policy)
 
-        def extract_data(x):
-            return x.data[0].asnumpy()
+            def extract_data(x):
+                data = x.data[0].asnumpy()
+                data = data[0:-x.pad]
+                return data
 
-        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
+            yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op, policy
 
 
 def test_gluon_autoreset_iter():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     for auto_reset_op in ["yes", "no"]:
-        def fw_iterator(pipeline, reader_name, auto_reset):
-            return GluonIterator(pipeline, reader_name=reader_name, auto_reset=auto_reset)
+        for policy in [LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL]:
+            def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
+                return GluonIterator(pipeline, reader_name=reader_name, auto_reset=auto_reset,
+                                     last_batch_policy=last_batch_policy)
 
-        def extract_data(x):
-            return x[0].asnumpy()
+            def extract_data(x):
+                return x[0].asnumpy()
 
-        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
+            yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op, policy
 
 
 def test_pytorch_autoreset_iter():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     for auto_reset_op in ["yes", "no"]:
-        def fw_iterator(pipeline, reader_name, auto_reset):
-            return PyTorchIterator(pipeline, output_map=["data"], reader_name=reader_name,
-                                   auto_reset=auto_reset)
+        for policy in [LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL]:
+            def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
+                return PyTorchIterator(pipeline, output_map=["data"], reader_name=reader_name,
+                                       auto_reset=auto_reset,
+                                       last_batch_policy=last_batch_policy)
 
-        def extract_data(x):
-            return x["data"].numpy()
+            def extract_data(x):
+                return x["data"].numpy()
 
-        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
+            yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op, policy
 
 
 def test_paddle_autoreset_iter():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     for auto_reset_op in ["yes", "no"]:
-        def fw_iterator(pipeline, reader_name, auto_reset):
-            return PaddleIterator(pipeline, output_map=["data"], reader_name=reader_name,
-                                  auto_reset=auto_reset)
+        for policy in [LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL]:
+            def fw_iterator(pipeline, reader_name, auto_reset, last_batch_policy):
+                return PaddleIterator(pipeline, output_map=["data"], reader_name=reader_name,
+                                      auto_reset=auto_reset,
+                                      last_batch_policy=last_batch_policy)
 
-        def extract_data(x):
-            return np.array(x["data"])
+            def extract_data(x):
+                return np.array(x["data"])
 
-        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
+            yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op, policy
