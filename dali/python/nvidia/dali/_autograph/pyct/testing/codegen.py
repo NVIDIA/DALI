@@ -20,8 +20,8 @@ import string
 import gast
 import numpy as np
 
+from nvidia.dali._autograph.pyct import gast_util
 from nvidia.dali._autograph.pyct import templates
-
 
 class NodeSampler(object):
   sample_map = None
@@ -167,7 +167,7 @@ class CodeGenerator(object):
     # Generate right-hand side
     value_node = self.generate_expression()
     # Put it all together
-    node = gast.Assign(targets=[target_node], value=value_node)
+    node = gast_util.compat_assign(targets=[target_node], value=value_node, type_comment=None)
     return node
 
   def generate_If(self):

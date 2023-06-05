@@ -20,9 +20,10 @@ import functools
 import gast
 
 
-GAST2 = hasattr(gast, 'Str')
-GAST3 = not GAST2
-
+GAST2 = "0.2" in gast.__version__
+GAST3 = "0.3" in gast.__version__
+GAST4 = "0.4" in gast.__version__
+GAST5 = "0.5" in gast.__version__
 
 def _is_constant_gast_2(node):
   return isinstance(node, (gast.Num, gast.Str, gast.Bytes, gast.Ellipsis,
@@ -52,6 +53,14 @@ def _is_ellipsis_gast_2(node):
 
 def _is_ellipsis_gast_3(node):
   return isinstance(node, gast.Constant) and node.value == Ellipsis
+
+
+def compat_assign(targets, value, type_comment):
+  """Wraps around gast.Assign to use same function signature across versions."""
+  if GAST2 or GAST3 or GAST4:
+    return gast.Assign(targets=targets, value=value)
+  else:
+    return gast.Assign(targets=targets, value=value, type_comment=type_comment)
 
 
 if GAST2:
