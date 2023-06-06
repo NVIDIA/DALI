@@ -1678,6 +1678,52 @@ def test_paddle_external_source_variable_size_fail():
                   "data"], to_np=lambda x: np.array(x["data"]), iter_size=5, dynamic_shape=True)
 
 
+# JAX
+
+
+def test_stop_iteration_jax():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    def fw_iter(pipe, size, auto_reset): return JaxIterator(
+        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
+    iter_name = "JaxIterator"
+    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite \
+            in stop_iteration_case_generator():
+        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, \
+            total_iter_num, auto_reset, infinite
+
+
+def test_stop_iteration_jax_fail_multi():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    def fw_iter(pipe, size, auto_reset): return JaxIterator(
+        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
+    check_stop_iter_fail_multi(fw_iter)
+
+
+def test_stop_iteration_jax_fail_single():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    def fw_iter(pipe, size, auto_reset): return JaxIterator(
+        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
+    check_stop_iter_fail_single(fw_iter)
+
+
+def test_jax_iterator_wrapper_first_iteration():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    check_iterator_wrapper_first_iteration(
+        JaxIterator, output_map=["data"],  size=100)
+
+
+def test_jax_external_source_autoreset():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    check_external_source_autoreset(JaxIterator, output_map=["data"],
+                                    to_np=lambda x: x["data"])
+
+
+def test_jax_external_source_do_not_prepare():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    check_external_source_autoreset(JaxIterator, output_map=["data"],
+                                    to_np=lambda x: x["data"], prepare_first_batch=False)
+
+
 def check_prepare_first_batch(Iterator, *args, to_np=None, **kwargs):
     max_batch_size = 4
     iter_limit = 4
@@ -1952,49 +1998,3 @@ def test_jax_autoreset_iter():
                 return np.array(x["data"])
 
             yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op, policy
-
-
-# JAX
-
-
-def test_stop_iteration_jax():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    def fw_iter(pipe, size, auto_reset): return JaxIterator(
-        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
-    iter_name = "JaxIterator"
-    for batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite \
-            in stop_iteration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, \
-            total_iter_num, auto_reset, infinite
-
-
-def test_stop_iteration_jax_fail_multi():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    def fw_iter(pipe, size, auto_reset): return JaxIterator(
-        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
-    check_stop_iter_fail_multi(fw_iter)
-
-
-def test_stop_iteration_jax_fail_single():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    def fw_iter(pipe, size, auto_reset): return JaxIterator(
-        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
-    check_stop_iter_fail_single(fw_iter)
-
-
-def test_jax_iterator_wrapper_first_iteration():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    check_iterator_wrapper_first_iteration(
-        JaxIterator, output_map=["data"],  size=100)
-
-
-def test_jax_external_source_autoreset():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    check_external_source_autoreset(JaxIterator, output_map=["data"],
-                                    to_np=lambda x: x["data"])
-
-
-def test_jax_external_source_do_not_prepare():
-    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
-    check_external_source_autoreset(JaxIterator, output_map=["data"],
-                                    to_np=lambda x: x["data"], prepare_first_batch=False)
