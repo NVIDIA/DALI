@@ -23,6 +23,7 @@ import numpy as np
 from nvidia.dali._autograph.pyct import gast_util
 from nvidia.dali._autograph.pyct import templates
 
+
 class NodeSampler(object):
   sample_map = None
 
