@@ -39,8 +39,7 @@ def get_gast_version():
       except AssertionError as e:
         if "Bad argument number for Assign: 3, expecting 2" in str(e):
           return '0.4'
-        else:
-          return '0.5'
+      return '0.5'
 
 
 def is_constant(node):
