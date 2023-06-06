@@ -202,4 +202,17 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._schedule_runs()
         self._advance_and_check_drop_last()
 
+        # TODO(awolant): Some of these options are impossible for JAX for multigpu.
+        # Clean this up when multi GPU is implemented here.
+        # if self._reader_name:
+        #     if_drop, left = self._remove_padded()
+        #     if np.any(if_drop):
+        #         output = []
+        #         for batch, to_copy in zip(data_batches, left):
+        #             batch = batch.copy()
+        #             for category in self._output_categories:
+        #                 batch[category] = batch[category][0:to_copy]
+        #             output.append(batch)
+        #         return output
+
         return next_output
