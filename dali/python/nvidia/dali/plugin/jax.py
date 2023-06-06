@@ -96,6 +96,7 @@ class DALIGenericIterator(_DaliBaseIterator):
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
                 or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
@@ -113,12 +114,6 @@ class DALIGenericIterator(_DaliBaseIterator):
     Example
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
-
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``,
-    next iteration will return ``[1, 2]``
-
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``,
-    next iteration will return ``[2, 3]``
 
     last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
     next iteration will return ``[1, 2]``
@@ -144,17 +139,13 @@ class DALIGenericIterator(_DaliBaseIterator):
             last_batch_policy=LastBatchPolicy.FILL,
             prepare_first_batch=True):
 
-        # For now this iterator supports only one pipeline. This is due to how multiple
-        # pipelines need to be handled in JAX -> return one output that is backed by
-        # multiple devices.
-        # TODO(awolant): Implement this.
-        # assert len(pipelines) == 1, \
-        #     "DALIGenericIterator for JAX support only one pipeline at the moment."
-
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
+
+        assert last_batch_policy != LastBatchPolicy.PARTIAL, \
+            "JAX iterator does not support partial last batch policy."
 
         _DaliBaseIterator.__init__(
             self,
@@ -222,29 +213,6 @@ class DALIGenericIterator(_DaliBaseIterator):
         #             for category in self._output_categories:
         #                 batch[category] = batch[category][0:to_copy]
         #             output.append(batch)
-        #         return output
-
-        # else:
-        #     if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
-        #                                   self._counter > self._size) and self._size > 0:
-        #         # First calculate how much data is required to return exactly self._size entries.
-        #         diff = self._num_gpus * self.batch_size - (self._counter - self._size)
-        #         # Figure out how many GPUs to grab from.
-        #         numGPUs_tograb = int(np.ceil(diff / self.batch_size))
-        #         # Figure out how many results to grab from the last GPU
-        #         # (as a fractional GPU batch may be required to bring us
-        #         # right up to self._size).
-        #         mod_diff = diff % self.batch_size
-        #         data_fromlastGPU = mod_diff if mod_diff else self.batch_size
-
-        #         # Grab the relevant data.
-        #         # 1) Grab everything from the relevant GPUs.
-        #         # 2) Grab the right data from the last GPU.
-        #         # 3) Append data together correctly and return.
-        #         output = data_batches[0:numGPUs_tograb]
-        #         output[-1] = output[-1].copy()
-        #         for category in self._output_categories:
-        #             output[-1][category] = output[-1][category][0:data_fromlastGPU]
         #         return output
 
         return next_output

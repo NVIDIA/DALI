@@ -443,6 +443,25 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def(
+      "_expose_dlpack_capsule",
+      [](Tensor<CPUBackend> &t) -> py::capsule {
+        SampleView<CPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
+
+        return TensorToDLPackView(sv, t.device_id());
+      },
+      R"code(
+      Exposes tensor data as DLPack compatible capsule.
+
+      Note: 
+        This function does not implement full DLPack contract and 
+      should not be used to export DALI GPU tensors to DLPack compatible
+      endpoints.
+
+      Warning:
+        As private this API may change without notice.
+      )code"
+    )
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
             "buffer info for tensor w/ invalid type.");
