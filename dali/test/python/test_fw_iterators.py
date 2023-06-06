@@ -1420,13 +1420,13 @@ def test_mxnet_iterator_wrapper_first_iteration():
 def test_mxnet_external_source_autoreset():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_external_source_autoreset(MXNetIterator, [(
-        "data", MXNetIterator.DATA_TAG)], to_np=lambda x: x.data[0][0].asnumpy())
+        "data", MXNetIterator.DATA_TAG)], to_np=lambda x: x[0].data[0].asnumpy())
 
 
 def test_mxnet_external_source_do_not_prepare():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_external_source_autoreset(MXNetIterator, [("data", MXNetIterator.DATA_TAG)],
-                                    to_np=lambda x: x.data[0][0].asnumpy(),
+                                    to_np=lambda x: x[0].data[0].asnumpy(),
                                     prepare_first_batch=False)
 
 
