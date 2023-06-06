@@ -48,7 +48,7 @@ The index files can be obtained from TFRecord files by using the ``tfrecord2idx`
 that is distributed with DALI.)code",
       DALI_STRING_VEC)
   .AddOptionalArg("use_o_direct",
-      R"code(If set to True, the data will be read directly from the storage bypassing system
+      R"code(If set to True, the data will be read directly from the storage bypassing the system
 cache.
 
 Mutually exclusive with ``dont_use_mmap=False``.)code",

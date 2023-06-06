@@ -110,9 +110,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
          *   ----------------XXXX************XXXXXXXXXXXXXXXXXXX----------------
          */
         // read again if there is no buffer of the requested piece if outside of the it
-        if (!read_buffer_ || !(seek_pos >= static_cast<int64>(read_buffer_pos_) &&
-                               seek_pos + size <
-                                  static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_))) {
+        bool after_buffer_start = seek_pos >= static_cast<int64>(read_buffer_pos_);
+        bool before_buffer_end = seek_pos + size <
+                                    static_cast<int64>(read_buffer_pos_ + read_buffer_data_size_);
+        // buffer need to exists and the ata we look for needs to be inside it
+        if (!read_buffer_ || !(after_buffer_start && before_buffer_end)) {
           // check how much we need to allocate to house the required sample, but no less than
           // o_direct_chunk_size_
           auto block_start = align_down(seek_pos, o_direct_alignm_);
@@ -151,7 +153,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
             };
             // store the work lambda into queue so the prefetch thread can pick them up latter and
             // execute in multiple threads
-            PutReadWork(work);
+            PutReadWork(std::move(work));
           }
         }
         shared_ptr<void> tmp_mem(read_buffer_, read_buffer_.get() + (seek_pos - read_buffer_pos_));
