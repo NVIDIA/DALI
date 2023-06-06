@@ -16,14 +16,10 @@
 # TODO(mdan): Remove this file once it's safe to break compatibility.
 
 import functools
-
 import gast
 
+from distutils.version import LooseVersion
 
-GAST2 = "0.2" in gast.__version__
-GAST3 = "0.3" in gast.__version__
-GAST4 = "0.4" in gast.__version__
-GAST5 = "0.5" in gast.__version__
 
 def _is_constant_gast_2(node):
   return isinstance(node, (gast.Num, gast.Str, gast.Bytes, gast.Ellipsis,
@@ -57,13 +53,13 @@ def _is_ellipsis_gast_3(node):
 
 def compat_assign(targets, value, type_comment):
   """Wraps around gast.Assign to use same function signature across versions."""
-  if GAST2 or GAST3 or GAST4:
+  if LooseVersion(gast.__version__) < LooseVersion("0.5"):
     return gast.Assign(targets=targets, value=value)
   else:
     return gast.Assign(targets=targets, value=value, type_comment=type_comment)
 
 
-if GAST2:
+if LooseVersion(gast.__version__) == LooseVersion("0.2")::
   is_constant = _is_constant_gast_2
   is_ellipsis = _is_ellipsis_gast_2
 
@@ -71,13 +67,10 @@ if GAST2:
   Name = gast.Name
   Str = gast.Str
 
-elif GAST3:
+else:
   is_constant = _is_constant_gast_3
   is_ellipsis = _is_ellipsis_gast_3
 
   Module = functools.partial(gast.Module, type_ignores=None)  # pylint:disable=invalid-name
   Name = functools.partial(gast.Name, type_comment=None)  # pylint:disable=invalid-name
   Str = functools.partial(gast.Constant, kind=None)  # pylint:disable=invalid-name
-
-else:
-  assert False
