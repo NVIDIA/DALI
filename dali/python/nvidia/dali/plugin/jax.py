@@ -25,8 +25,8 @@ assert sys.version_info.major == 3 and sys.version_info.minor >= 8, \
     "DALI JAX support requires Python 3.8 or above"
 
 
-assert LooseVersion(jax.__version__) >= LooseVersion('0.4.10'), \
-    "DALI JAX support requires JAX 0.4.10 or above"
+assert LooseVersion(jax.__version__) >= LooseVersion('0.4.11'), \
+    "DALI JAX support requires JAX 0.4.11 or above"
 
 
 def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
