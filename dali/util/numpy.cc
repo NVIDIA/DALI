@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,45 +183,50 @@ void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len)
 
 void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_direct_alignm,
                         size_t o_direct_read_len_alignm) {
-  size_t aligned_len = align_up(10, o_direct_read_len_alignm);
-  auto token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
+  size_t token_len = 6 + 1 + 1 + 2;
+  size_t token_read_len = align_up(token_len + 1, o_direct_read_len_alignm);
+  auto token_mem =
+      mm::alloc_raw_shared<char, mm::memory_kind::host>(token_read_len, o_direct_alignm);
   char *token = token_mem.get();
-  auto file = dynamic_cast<ODirectFileStream*>(src);
-  int64_t nread = file->ReadAt(token, aligned_len, 0);
-  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
-               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+  auto file = dynamic_cast<ODirectFileStream *>(src);
+  DALI_ENFORCE(
+      file,
+      "Could not read the numpy file header: expected file stream opened with O_DIRECT flag.");
+  int64_t nread = file->ReadAt(token, token_read_len, 0);
+  DALI_ENFORCE(nread <= static_cast<Index>(token_read_len) &&
+                   nread >= static_cast<Index>(std::min(src->Size(), token_read_len)),
                make_string("Can not read header: ",
-                           static_cast<Index>(std::min(src->Size(), aligned_len)),
-                           " <= ", nread, " <= ", aligned_len));
-  auto char_tmp = token[10];
-  token[10] = '\0';
+                           static_cast<Index>(std::min(src->Size(), token_read_len)), " <= ", nread,
+                           " <= ", token_read_len));
+  auto char_tmp = token[token_len];
+  token[token_len] = '\0';
 
   auto header_len = GetHeaderLen(token);
 
-  int64 offset = 6 + 1 + 1 + 2;
-  // the header_len can be 4GiB according to the NPYv2 file format
+  // the header_len have up to 2**16 -1 bytes. we do not support v2 headers
+  // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
+  // arrays that we do not support anyway
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
-  // while this allocation could be sizable, it is performed on the host.
-  auto block_start = align_down(offset, o_direct_alignm);
-  auto block_end = align_up(header_len + 1, o_direct_alignm);
-  aligned_len = align_up(block_end - block_start, o_direct_read_len_alignm);
+  size_t aligned_token_header_len =
+      align_up(token_len + header_len + 1, std::max(o_direct_alignm, o_direct_read_len_alignm));
   // if header_len goes beyond the previously allocated and read memory reallocate and read again
   // otherwise reuse
-  if (aligned_len != o_direct_read_len_alignm) {
-    token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len, o_direct_alignm);
-    nread = file->ReadAt(token_mem.get(), aligned_len, 0);
+  if (token_read_len != aligned_token_header_len) {
+    token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_token_header_len,
+                                                                  o_direct_alignm);
+    nread = file->ReadAt(token_mem.get(), aligned_token_header_len, 0);
   } else {
     // restore overriden character
-    token[10] = char_tmp;
+    token[token_len] = char_tmp;
   }
-  token = token_mem.get() + alignment_offset(offset, o_direct_alignm);
-  DALI_ENFORCE(nread <= static_cast<Index>(aligned_len) &&
-               nread >= static_cast<Index>(std::min(src->Size(), aligned_len)),
+  DALI_ENFORCE(nread <= static_cast<Index>(aligned_token_header_len) &&
+                   nread >= static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
                make_string("Can not read header: ",
-                           static_cast<Index>(std::min(src->Size(), aligned_len)),
-                           " <= ", nread, " <= ", aligned_len));
+                           static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
+                           " <= ", nread, " <= ", aligned_token_header_len));
   token[header_len] = '\0';
-  ParseHeaderItself(parsed_header, token, header_len);
+  char *header = token_mem.get() + token_len;
+  ParseHeaderItself(parsed_header, header, header_len);
 }
 
 void ParseHeader(HeaderData &parsed_header, InputStream *src) {
@@ -235,9 +240,10 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
 
   // read header: the offset is a magic number
   int64 offset = 6 + 1 + 1 + 2;
-  // the header_len can be 4GiB according to the NPYv2 file format
+  // the header_len have up to 2**16 -1 bytes. we do not support v2 headers
+  // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
+  // arrays that we do not support anyway
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
-  // while this allocation could be sizable, it is performed on the host.
   token.resize(header_len+1);
   src->SeekRead(offset);
   nread = src->Read(token.data(), header_len);

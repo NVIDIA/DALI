@@ -162,15 +162,21 @@ Pipeline::~Pipeline() {
     OperatorBase *op_ptr = &node.InstantiateOperator();
     auto op_type = graph_.NodeType(node_id);
     switch (op_type) {
-      case OpType::CPU:
-        dynamic_cast<InputOperator<CPUBackend> *>(op_ptr)->BreakWaiting();
-        break;
-      case OpType::MIXED:
-        dynamic_cast<InputOperator<MixedBackend> *>(op_ptr)->BreakWaiting();
-        break;
-      case OpType::GPU:
-        dynamic_cast<InputOperator<GPUBackend> *>(op_ptr)->BreakWaiting();
-        break;
+      case OpType::CPU: {
+        auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr);
+        assert(cpu_op_ptr);
+        cpu_op_ptr->BreakWaiting();
+      } break;
+      case OpType::MIXED: {
+        auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr);
+        assert(mixed_op_ptr);
+        mixed_op_ptr->BreakWaiting();
+      } break;
+      case OpType::GPU: {
+        auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr);
+        assert(gpu_op_ptr);
+        gpu_op_ptr->BreakWaiting();
+      } break;
       default:
         assert(false);  // This shouldn't happen.
     }
