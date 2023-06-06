@@ -57,8 +57,10 @@ def gather_ids(dali_train_iter, data_getter, pad_getter, data_size):
     batch_size = dali_train_iter.batch_size
     pad = 0
     for it in iter(dali_train_iter):
-        tmp = data_getter(it[0]).copy()
-        pad += pad_getter(it[0])
+        if not isinstance(it, dict):
+            it = it[0]
+        tmp = data_getter(it).copy()
+        pad += pad_getter(it)
         img_ids_list.append(tmp)
     img_ids_list = np.concatenate(img_ids_list)
     img_ids_list_set = set(img_ids_list)
@@ -733,6 +735,65 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list) == data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
+    
+    
+def test_jax_iterator_last_batch_no_pad_last_batch():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    num_gpus = 1
+    batch_size = 100
+
+    pipes, data_size = create_pipeline(
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
+    )
+
+    dali_train_iter = JaxIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
+        "Reader"), last_batch_policy=LastBatchPolicy.FILL)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(
+            dali_train_iter, lambda x: x["data"].squeeze(-1), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) != 1
+
+
+def test_jax_iterator_last_batch_pad_last_batch():
+    from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
+    num_gpus = 1
+    batch_size = 100
+
+    pipes, data_size = create_pipeline(
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
+    )
+
+    dali_train_iter = JaxIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
+        "Reader"), last_batch_policy=LastBatchPolicy.FILL)
+
+    img_ids_list, img_ids_list_set, mirrored_data, _, _ = \
+        gather_ids(
+            dali_train_iter, lambda x: x["data"].squeeze(-1), lambda x: 0, data_size)
+
+    assert len(img_ids_list) > data_size
+    assert len(img_ids_list_set) == data_size
+    assert len(set(mirrored_data)) == 1
+
+    dali_train_iter.reset()
+    next_img_ids_list, next_img_ids_list_set, next_mirrored_data, _, _ = \
+        gather_ids(
+            dali_train_iter, lambda x: x["data"].squeeze(-1), lambda x: 0, data_size)
+
+    assert len(next_img_ids_list) > data_size
+    assert len(next_img_ids_list_set) == data_size
+    assert len(set(next_mirrored_data)) == 1
 
 
 def create_custom_pipeline(batch_size, num_threads, device_id, num_gpus, data_paths):
