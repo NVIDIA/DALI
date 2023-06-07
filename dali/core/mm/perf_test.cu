@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include "dali/core/mm/default_resources.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -211,48 +212,19 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
     "\n");
 }
 
-class cuda_malloc_async_resource : public mm::async_memory_resource<mm::memory_kind::device> {
- public:
-  cuda_malloc_async_resource() {
-    fake_stream_ = CUDAStreamPool::instance().Get();
-  }
-
- private:
-  void *do_allocate(size_t size, size_t alignment) override {
-    void *ptr;
-    CUDA_CALL(cudaMallocAsync(&ptr, size, fake_stream_.get()));
-    CUDA_CALL(cudaStreamSynchronize(fake_stream_));
-    return ptr;
-  }
-
-  void do_deallocate(void *ptr, size_t size, size_t alignment) override  {
-    CUDA_CALL(cudaFreeAsync(ptr, fake_stream_.get()));
-  }
-
-  void *do_allocate_async(size_t size, size_t alignment, stream_view stream) override  {
-    void *ptr;
-    CUDA_CALL(cudaMallocAsync(&ptr, size, stream.get()));
-    return ptr;
-  }
-
-  void do_deallocate_async(void *ptr, size_t size, size_t alignment, stream_view stream) override {
-    CUDA_CALL(cudaFreeAsync(ptr, stream.get()));
-  }
-
-  CUDAStreamLease fake_stream_;
-};
-
 TEST(MMPerfTest, DefaultGPUAlloc) {
   auto *res = mm::GetDefaultDeviceResource(0);
 
   RunBenchmark(res, 1, 1, 1);
 }
 
+#if CUDA_VERSION >= 11020
 TEST(MMPerfTest, CudaMallocAsync) {
-  cuda_malloc_async_resource res;
+  cuda_malloc_async_memory_resource res;
 
   RunBenchmark(&res, 1, 1, 1);
 }
+#endif
 
 }  // namespace test
 }  // namespace mm
