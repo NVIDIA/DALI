@@ -158,6 +158,20 @@ void ParseHeaderContents(HeaderData& target, const std::string &header) {
   }
 }
 
+void CheckNpyVersion(char *token) {
+  int api_version = token[6];
+  if (api_version != 1) {
+    static std::once_flag unrecognized_version;
+    std::call_once(unrecognized_version, [&]() {
+      std::string actual_version =
+          (api_version == 2 || api_version == 3) ? "higher" : "unrecognized";
+      DALI_WARN(make_string(
+          "Expected file in NPY file format version 1. The provided file uses ", actual_version,
+          " version. Please note, DALI does not support structured NumPy arrays."));
+    });
+  }
+}
+
 uint16_t GetHeaderLen(char *data) {
   std::string header = std::string(data);
   DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
@@ -201,6 +215,7 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
   auto char_tmp = token[token_len];
   token[token_len] = '\0';
 
+  CheckNpyVersion(token);
   auto header_len = GetHeaderLen(token);
 
   // The header_len have up to 2**16 - 1 bytes. We do not support V2 headers
@@ -237,6 +252,7 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   DALI_ENFORCE(nread == 10, "Can not read header.");
   token[nread] = '\0';
 
+  CheckNpyVersion(token.data());
   auto header_len = GetHeaderLen(token.data());
 
   // read header: the offset is a magic number
