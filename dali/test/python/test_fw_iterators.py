@@ -735,8 +735,8 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     assert len(next_img_ids_list) == data_size
     assert len(next_img_ids_list_set) == data_size
     assert len(set(next_mirrored_data)) != 1
-    
-    
+
+
 def test_jax_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.jax import DALIGenericIterator as JaxIterator
     num_gpus = 1

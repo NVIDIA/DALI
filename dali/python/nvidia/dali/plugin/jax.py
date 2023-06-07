@@ -194,8 +194,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             else:
                 # Build sharded JAX array as output for current category
                 for shard in category_outputs:
-                    assert shard.shape == category_outputs[0].shape, "Shards shapes have to be the same."
-                
+                    assert shard.shape == category_outputs[0].shape, \
+                        "Shards shapes have to be the same."
+
                 next_output[category_name] = jax.device_put_sharded(
                     category_outputs,
                     tuple(map(
