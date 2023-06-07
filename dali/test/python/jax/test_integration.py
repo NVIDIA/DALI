@@ -146,3 +146,5 @@ def test_dali_sequential_iterator_to_jax_array():
                     shape[1:],  # TODO(awolant): Explain shape consistency
                     batch_id * batch_size + i,
                     np.int32))
+
+    assert batch_id == 99
