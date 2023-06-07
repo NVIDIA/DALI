@@ -27,19 +27,48 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
+// computes wavelet value for each sample in specified range,
+// and each a and b coeff
 template <typename T, template <typename> class W >
 __global__ void ComputeWavelet(const SampleDesc<T>* sample_data, W<T> wavelet) {
+  // id inside block
+  const int64_t b_id = threadIdx.y * blockDim.x + threadIdx.x;
+  // wavelet sample id
+  const int64_t t_id = blockDim.x * blockDim.y * blockIdx.x + b_id;
   auto& sample = sample_data[blockIdx.z];
-  auto a = sample.a[blockIdx.y];
-  const int64_t block_size = blockDim.x * blockDim.y;
-  const int64_t t_id = block_size * blockIdx.x + threadIdx.y * blockDim.x + threadIdx.x;
   if (t_id >= sample.size_in) return;
-  const T t = sample.span.begin + (T)t_id / sample.span.sampling_rate;
+  __shared__ T shm[1025];
+  auto a = sample.a[blockIdx.y];
+  auto x = std::pow(2.0, a);
+  if (a == 0.0) {
+    shm[b_id] = sample.in[t_id];
+  }
+  else {
+    shm[b_id] = x * sample.in[t_id];
+    shm[1024] = std::pow(2.0, a / 2.0);
+  }
   for (int i = 0; i < sample.size_b; ++i) {
     const int64_t out_id = blockIdx.y * sample.size_b * sample.size_in + i * sample.size_in + t_id;
     auto b = sample.b[i];
-    sample.out[out_id] = wavelet(t, a, b);
+    if (b == 0.0) {
+      sample.out[out_id] = wavelet(shm[b_id]);
+    }
+    else {
+      sample.out[out_id] = wavelet(shm[b_id] - b);
+    }
+    if (a != 0.0) {
+      sample.out[out_id] *= shm[1024];
+    }
   }
+}
+
+// translate input range information to input samples
+template <typename T>
+__global__ void ComputeInputSamples(const SampleDesc<T>* sample_data) {
+  const int64_t t_id = blockDim.x * blockDim.y * blockIdx.x + threadIdx.y * blockDim.x + threadIdx.x;
+  auto& sample = sample_data[blockIdx.y];
+  if (t_id >= sample.size_in) return;
+  sample.in[t_id] = sample.span.begin + (T)t_id / sample.span.sampling_rate;
 }
 
 template <typename T, template <typename> class W >
@@ -65,8 +94,7 @@ DLL_PUBLIC void WaveletGpu<T, W>::Run(KernelContext &ctx,
   ENFORCE_SHAPES(a.shape, b.shape);
 
   auto num_samples = a.num_samples();
-  //std::vector<SampleDesc<T>> sample_data = std::vector<SampleDesc<T>>(num_samples);
-  auto* sample_data = ctx.scratchpad->AllocateHost<SampleDesc<T>>(num_samples);
+  std::vector<SampleDesc<T>> sample_data = std::vector<SampleDesc<T>>(num_samples);
   int64_t max_size_in = 0, max_size_a = 0;
 
   for (int i = 0; i < num_samples; i++) {
@@ -79,20 +107,20 @@ DLL_PUBLIC void WaveletGpu<T, W>::Run(KernelContext &ctx,
     sample.size_b = b.shape.tensor_size(i);
     sample.span = span;
     sample.size_in = std::ceil((sample.span.end - sample.span.begin) * sample.span.sampling_rate);
+    CUDA_CALL(cudaMalloc(&(sample.in), sizeof(T) * sample.size_in));
     max_size_in = std::max(max_size_in, sample.size_in);
   }
 
-  // auto sample_data_gpu = std::get<0>(ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_data));
-  auto* sample_data_gpu = ctx.scratchpad->AllocateGPU<SampleDesc<T>>(num_samples);
-  CUDA_CALL(
-    cudaMemcpyAsync(sample_data_gpu, sample_data, num_samples * sizeof(SampleDesc<T>),
-                    cudaMemcpyHostToDevice, ctx.gpu.stream));
+  auto* sample_data_gpu = std::get<0>(ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, sample_data));
 
   dim3 block(32, 32);
   const int64_t block_size = block.x * block.y;
-  dim3 grid((max_size_in + block_size - 1) / block_size, max_size_a, num_samples);
+  dim3 grid1((max_size_in + block_size - 1) / block_size, num_samples);
+  dim3 grid2((max_size_in + block_size - 1) / block_size, max_size_a, num_samples);
 
-  ComputeWavelet<<<grid, block, 0, ctx.gpu.stream>>>(sample_data_gpu, wavelet_);
+  ComputeInputSamples<<<grid1, block, 0, ctx.gpu.stream>>>(sample_data_gpu);
+  auto shared_mem_size = (block_size + 1) * sizeof(T);
+  ComputeWavelet<<<grid2, block, shared_mem_size, ctx.gpu.stream>>>(sample_data_gpu, wavelet_);
 }
 
 template <typename T, template <typename> class W >
@@ -114,16 +142,8 @@ TensorListShape<> WaveletGpu<T, W>::GetOutputShape(const TensorListShape<> &a_sh
 
 template class WaveletGpu<float, HaarWavelet>;
 template class WaveletGpu<double, HaarWavelet>;
-template class WaveletGpu<float, DaubechiesWavelet>;
-template class WaveletGpu<double, DaubechiesWavelet>;
-template class WaveletGpu<float, SymletWavelet>;
-template class WaveletGpu<double, SymletWavelet>;
-template class WaveletGpu<float, CoifletWavelet>;
-template class WaveletGpu<double, CoifletWavelet>;
 template class WaveletGpu<float, MeyerWavelet>;
 template class WaveletGpu<double, MeyerWavelet>;
-template class WaveletGpu<float, GaussianWavelet>;
-template class WaveletGpu<double, GaussianWavelet>;
 template class WaveletGpu<float, MexicanHatWavelet>;
 template class WaveletGpu<double, MexicanHatWavelet>;
 template class WaveletGpu<float, MorletWavelet>;

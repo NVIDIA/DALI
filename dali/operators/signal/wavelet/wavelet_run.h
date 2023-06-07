@@ -58,24 +58,8 @@ void RunForName(const std::string &name,
   if (name == "HAAR") {
     RunWaveletKernel<T, kernels::signal::HaarWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
   }
-  else if (name == "DB") {
-    throw new std::logic_error("Not implemented.");
-    RunWaveletKernel<T, kernels::signal::DaubechiesWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "SYM") {
-    throw new std::logic_error("Not implemented.");
-    RunWaveletKernel<T, kernels::signal::SymletWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "COIF") {
-    throw new std::logic_error("Not implemented.");
-    RunWaveletKernel<T, kernels::signal::CoifletWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
   else if (name == "MEY") {
     RunWaveletKernel<T, kernels::signal::MeyerWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "GAUS") {
-    throw new std::logic_error("Not implemented.");
-    RunWaveletKernel<T, kernels::signal::GaussianWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
   }
   else if (name == "MEXH") {
     RunWaveletKernel<T, kernels::signal::MexicanHatWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
