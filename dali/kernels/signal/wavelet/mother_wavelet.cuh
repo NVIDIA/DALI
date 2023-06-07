@@ -21,40 +21,113 @@
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
 
+#include <vector>
+
 namespace dali {
 namespace kernels {
 namespace signal {
 
-enum class WaveletName {
-  HAAR,
-  DB,
-  SYM,
-  COIF,
-  BIOR,
-  MEY,
-  GAUS,
-  MEXH,
-  MORL,
-  CGAU,
-  SHAN,
-  FBSP,
-  CMOR
+// wavelets are represented by functors
+// they can store any necessary parameters
+// they must overload () operator
+
+template <typename T>
+class HaarWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  HaarWavelet() = default;
+  HaarWavelet(const std::vector<T> &args);
+  ~HaarWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
 };
 
 template <typename T>
-class MotherWavelet {
+class MeyerWavelet {
   static_assert(std::is_floating_point<T>::value,
     "Data type should be floating point");
-
  public:
-  MotherWavelet(const WaveletName &name);
-  ~MotherWavelet() = default;
+  MeyerWavelet() = default;
+  MeyerWavelet(const std::vector<T> &args);
+  ~MeyerWavelet() = default;
 
-  __device__ T (*waveletFunc)(T t, T a, T b);
+  __device__ T operator()(const T &t) const;
 };
 
-template class MotherWavelet<float>;
-template class MotherWavelet<double>;
+template <typename T>
+class GaussianWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  GaussianWavelet() = default;
+  GaussianWavelet(const std::vector<T> &args);
+  ~GaussianWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
+
+ private:
+  uint8_t N;
+};
+
+template <typename T>
+class MexicanHatWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  MexicanHatWavelet() = default;
+  MexicanHatWavelet(const std::vector<T> &args);
+  ~MexicanHatWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
+
+ private:
+  T sigma;
+};
+
+template <typename T>
+class MorletWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  MorletWavelet() = default;
+  MorletWavelet(const std::vector<T> &args);
+  ~MorletWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
+
+ private:
+  T C;
+};
+
+template <typename T>
+class ShannonWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  ShannonWavelet() = default;
+  ShannonWavelet(const std::vector<T> &args);
+  ~ShannonWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
+};
+
+template <typename T>
+class FbspWavelet {
+  static_assert(std::is_floating_point<T>::value,
+    "Data type should be floating point");
+ public:
+  FbspWavelet() = default;
+  FbspWavelet(const std::vector<T> &args);
+  ~FbspWavelet() = default;
+
+  __device__ T operator()(const T &t) const;
+
+ private:
+  T m;
+  T fb;
+  T fc;
+};
 
 }  // namespace signal
 }  // namespace kernel
