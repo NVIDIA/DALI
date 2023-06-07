@@ -101,15 +101,24 @@ Direct usage of ``cudaMallocHost``, while discouraged, can be forced by specifyi
 ``DALI_USE_PINNED_MEM_POOL=0`` in the environment.
 
 For device memory, DALI uses a stream-aware memory pool built on top of CUDA VMM resource
-(if the platform supports VMM) or plain ``cudaMalloc`` otherwise. The pool can be disabled by
-setting ``DALI_USE_DEVICE_MEM_POOL=0``. Use ``DALI_USE_VMM=0`` to switch from CUDA VMM to
+(if the platform supports VMM). It can be changed to ``cudaMallocAsync`` or even plain
 ``cudaMalloc``.
+In order to skip memory pool entirely and use ``cudaMalloc`` (not recommended), set
+``DALI_USE_DEVICE_MEM_POOL=0``.
+Set ``DALI_USE_CUDA_MALLOC_ASYNC=1`` to use ``cudaMallocAsync`` instead of DALI's internal memory
+pool.
+When using the memory pool (``DALI_USE_DEVICE_MEM_POOL=1`` or unset), you can disable the use of
+VMM by setting ``DALI_USE_VMM=0``. This will cause ``cudaMalloc`` to be used as an upstream memory
+resource for the internal memory pool.
+
+Using ``cudaMallocAsync`` results in slightly slower execution, but it enables memory pool sharing
+with other libraries using the same allocation method.
 
 .. warning::
     Disabling memory pools will result in a dramatic drop in performance. This option is provided
     only for debugging purposes.
 
-    Disabling CUDA VMM can further degrade performance due to pessimistic synchronization in
+    Disabling CUDA VMM can degrade performance due to pessimistic synchronization in
     ``cudaFree``, and it can cause out-of-memory errors due to fragmentation affecting
     ``cudaMalloc``.
 
