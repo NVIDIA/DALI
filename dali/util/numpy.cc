@@ -183,7 +183,7 @@ void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len)
 
 void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_direct_alignm,
                         size_t o_direct_read_len_alignm) {
-  size_t token_len = 6 + 1 + 1 + 2;
+  const size_t token_len = 6 + 1 + 1 + 2;
   size_t token_read_len = align_up(token_len + 1, o_direct_read_len_alignm);
   auto token_mem =
       mm::alloc_raw_shared<char, mm::memory_kind::host>(token_read_len, o_direct_alignm);
@@ -203,10 +203,11 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
 
   auto header_len = GetHeaderLen(token);
 
-  // the header_len have up to 2**16 -1 bytes. we do not support v2 headers
+  // The header_len have up to 2**16 - 1 bytes. We do not support V2 headers
   // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
-  // arrays that we do not support anyway
-  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // arrays (where dtype can be different for each column and the column have names).
+  // Parsing such a dtype in the header will fail.
+  // https://numpy.org/neps/nep-0001-npy-format.html
   size_t aligned_token_header_len =
       align_up(token_len + header_len + 1, std::max(o_direct_alignm, o_direct_read_len_alignm));
   // if header_len goes beyond the previously allocated and read memory reallocate and read again
@@ -215,15 +216,15 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
     token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_token_header_len,
                                                                   o_direct_alignm);
     nread = file->ReadAt(token_mem.get(), aligned_token_header_len, 0);
+    DALI_ENFORCE(nread <= static_cast<Index>(aligned_token_header_len) &&
+                     nread >= static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
+                 make_string("Can not read header: ",
+                             static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
+                             " <= ", nread, " <= ", aligned_token_header_len));
   } else {
     // restore overriden character
     token[token_len] = char_tmp;
   }
-  DALI_ENFORCE(nread <= static_cast<Index>(aligned_token_header_len) &&
-                   nread >= static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
-               make_string("Can not read header: ",
-                           static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
-                           " <= ", nread, " <= ", aligned_token_header_len));
   token[header_len] = '\0';
   char *header = token_mem.get() + token_len;
   ParseHeaderItself(parsed_header, header, header_len);
@@ -240,10 +241,11 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
 
   // read header: the offset is a magic number
   int64 offset = 6 + 1 + 1 + 2;
-  // the header_len have up to 2**16 -1 bytes. we do not support v2 headers
+  // The header_len have up to 2**16 - 1 bytes. We do not support V2 headers
   // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
-  // arrays that we do not support anyway
-  // specification: https://numpy.org/neps/nep-0001-npy-format.html
+  // arrays (where dtype can be different for each column and the column have names).
+  // Parsing such a dtype in the header will fail.
+  // https://numpy.org/neps/nep-0001-npy-format.html
   token.resize(header_len+1);
   src->SeekRead(offset);
   nread = src->Read(token.data(), header_len);
