@@ -119,7 +119,7 @@ __global__ void Check(const void *ptr, size_t size, uint8_t fill, int *failures)
 
 struct block {
   void *ptr;
-  size_t size;
+  size_t size, alignment;
   uint8_t fill;
   cudaStream_t stream;
 };
@@ -130,6 +130,7 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
   stream_view sv(stream);
   std::mt19937_64 rng(12345);
   std::poisson_distribution<> size_dist(1024);
+  std::uniform_int_distribution<> align_log_dist(1, 12);
   const int max_size = 1 << 20;
   std::uniform_int_distribution<> sync_dist(10, 10);
   std::bernoulli_distribution action_dist;
@@ -156,17 +157,19 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       hog.run(stream);
     }
     if (action_dist(rng) || blocks.empty()) {
-      size_t size;
+      size_t size, alignment;
       do {
         size = size_dist(rng);
       } while (size > max_size);
       uint8_t fill = fill_dist(rng);
-      void *ptr = stream ? pool.allocate_async(size, sv) : pool.allocate(size);
+      alignment = 1 << align_log_dist(rng);
+      void *ptr = stream ? pool.allocate_async(size, alignment, sv)
+                         : pool.allocate(size, alignment);
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
       {
         std::lock_guard<Mutex> guard(mtx);
         (void)guard;  // for dummy mutexes
-        blocks.push_back({ ptr, size, fill, stream });
+        blocks.push_back({ ptr, size, alignment, fill, stream });
       }
     } else {
       block blk;
@@ -191,10 +194,10 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       Check<<<div_ceil(blk.size, 1024), 1024, 0, stream>>>(
             blk.ptr, blk.size, blk.fill, failure_buf);
       if (stream) {
-        pool.deallocate_async(blk.ptr, blk.size, sv);
+        pool.deallocate_async(blk.ptr, blk.size, blk.alignment, sv);
       } else {
         CUDA_CALL(cudaStreamSynchronize(stream));
-        pool.deallocate(blk.ptr, blk.size);
+        pool.deallocate(blk.ptr, blk.size, blk.alignment);
       }
     }
   }
