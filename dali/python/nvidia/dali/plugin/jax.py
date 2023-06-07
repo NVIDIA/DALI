@@ -13,6 +13,7 @@
 # limitations under the License.
 import sys
 import jax
+import jax.numpy as jnp
 import jax.dlpack
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -190,17 +191,29 @@ class DALIGenericIterator(_DaliBaseIterator):
 
             if self._num_gpus == 1:
                 next_output[category_name] = category_outputs[0]
-            else:
-                # Build sharded JAX array as output for current category
+            else:   # Asseble output from multiple pipelines
                 for shard in category_outputs:
                     assert shard.shape == category_outputs[0].shape, \
                         "Shards shapes have to be the same."
 
-                next_output[category_name] = jax.device_put_sharded(
-                    category_outputs,
-                    tuple(map(
-                        lambda jax_shard: jax_shard.device(),
-                        category_outputs)))
+                category_outputs_devices = tuple(map(
+                    lambda jax_shard: jax_shard.device(),
+                    category_outputs))
+
+                distinct_category_outputs_devices = set(category_outputs_devices)
+
+                if len(category_outputs_devices) != len(distinct_category_outputs_devices):
+                    if len(distinct_category_outputs_devices) != 1:
+                        raise AssertionError("JAX iterator requires shards to be placed on \
+                                             different devices or all on the same device.")
+                    else:
+                        # All shards are on one device.
+                        next_output[category_name] = jnp.stack(category_outputs)
+                else:
+                    # Build sharded JAX array as output for current category
+                    next_output[category_name] = jax.device_put_sharded(
+                        category_outputs,
+                        category_outputs_devices)
 
         self._schedule_runs()
         self._advance_and_check_drop_last()
