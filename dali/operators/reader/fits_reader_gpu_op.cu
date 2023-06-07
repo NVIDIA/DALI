@@ -200,18 +200,21 @@ void FitsReaderGPU::RunImpl(Workspace &ws) {
               static_cast<uint8_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,
               header.bscale, header.bzero);
+          CUDA_CALL(cudaGetLastError());
         } else if (sample.header[output_idx].bytepix == 2) {
           rice_decompress<uint16_t><<<numBlocks, blockSize, 0, ws.stream()>>>(
               static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
               static_cast<uint16_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,
               header.bscale, header.bzero);
+          CUDA_CALL(cudaGetLastError());
         } else {
           rice_decompress<uint32_t><<<numBlocks, blockSize, 0, ws.stream()>>>(
               static_cast<uint8_t *>(sample_list_gpu.raw_mutable_tensor(sample_id)),
               static_cast<uint32_t *>(output.raw_mutable_tensor(sample_id)), tile_offset_cuda,
               tile_size_cuda, sample.header[output_idx].blocksize, header.rows, header.maxtilelen,
               header.bscale, header.bzero);
+          CUDA_CALL(cudaGetLastError());
         }
       }
     } else {
