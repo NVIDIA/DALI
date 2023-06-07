@@ -218,9 +218,9 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
   CheckNpyVersion(token);
   auto header_len = GetHeaderLen(token);
 
-  // The header_len have up to 2**16 - 1 bytes. We do not support V2 headers
+  // The header_len can have up to 2**16 - 1 bytes. We do not support V2 headers
   // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
-  // arrays (where dtype can be different for each column and the column have names).
+  // arrays (where dtype can be different for each column and the columns have arbitrary names).
   // Parsing such a dtype in the header will fail.
   // https://numpy.org/neps/nep-0001-npy-format.html
   size_t aligned_token_header_len =
@@ -257,9 +257,9 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
 
   // read header: the offset is a magic number
   int64 offset = 6 + 1 + 1 + 2;
-  // The header_len have up to 2**16 - 1 bytes. We do not support V2 headers
+  // The header_len can have up to 2**16 - 1 bytes. We do not support V2 headers
   // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
-  // arrays (where dtype can be different for each column and the column have names).
+  // arrays (where dtype can be different for each column and the columns have arbitrary names).
   // Parsing such a dtype in the header will fail.
   // https://numpy.org/neps/nep-0001-npy-format.html
   token.resize(header_len+1);
