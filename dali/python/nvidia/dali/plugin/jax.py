@@ -191,7 +191,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
             if self._num_gpus == 1:
                 next_output[category_name] = category_outputs[0]
-            else:   # Asseble output from multiple pipelines
+            else:   # Assemble output from multiple pipelines
                 for shard in category_outputs:
                     assert shard.shape == category_outputs[0].shape, \
                         "Shards shapes have to be the same."
