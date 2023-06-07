@@ -98,6 +98,8 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
   std::vector<std::thread> threads;
   for (int tid = 0; tid < num_threads; tid++) {
     threads.emplace_back([&, tid]() {
+      (void)tid;  // Make clang shut up; I prefer to keep this explicitly captured by value, even
+                  // if not used, than end up with it being captured by reference when I need it.
       std::mt19937_64 rng;
       std::uniform_int_distribution<int> stream_dist(-1, num_streams - 1);
       std::uniform_real_distribution<float> size_log_dist(4, 28);
