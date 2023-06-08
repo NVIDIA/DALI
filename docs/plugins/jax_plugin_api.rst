@@ -5,4 +5,3 @@ JAX Plugin API reference
    :members:
    :undoc-members:
    :inherited-members:
-
