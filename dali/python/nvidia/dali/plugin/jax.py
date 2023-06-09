@@ -126,6 +126,9 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
     next iteration will return ``[2, 3]``
+    
+    Note:
+        JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
 
     def __init__(
