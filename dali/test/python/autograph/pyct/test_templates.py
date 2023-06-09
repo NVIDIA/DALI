@@ -19,6 +19,7 @@ import unittest
 
 import gast
 
+from nvidia.dali._autograph.pyct import gast_util
 from nvidia.dali._autograph.pyct import loader
 from nvidia.dali._autograph.pyct import parser
 from nvidia.dali._autograph.pyct import qual_names as qn
@@ -111,7 +112,7 @@ class TemplatesTest(unittest.TestCase):
     node = templates.replace(
         template,
         block=[
-            gast.Assign(
+            gast_util.compat_assign(
                 [
                     gast.Name(
                         'a',
@@ -126,6 +127,7 @@ class TemplatesTest(unittest.TestCase):
                         annotation=None,
                         type_comment=None), gast.Add(),
                     gast.Constant(1, kind=None)),
+                None
             ),
         ] * 2)[0]
     result, _, _ = loader.load_ast(node)

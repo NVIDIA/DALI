@@ -21,6 +21,7 @@ import types
 import gast
 
 from nvidia.dali._autograph.pyct import cache
+from nvidia.dali._autograph.pyct import gast_util
 from nvidia.dali._autograph.pyct import inspect_utils
 from nvidia.dali._autograph.pyct import loader
 from nvidia.dali._autograph.pyct import naming
@@ -466,7 +467,7 @@ class PyToPy(GenericTranspiler):
           nodes, ctx = super(PyToPy, self).transform_function(fn, user_context)
 
           if isinstance(nodes, gast.Lambda):
-            nodes = gast.Assign(
+            nodes = gast_util.compat_assign(
                 targets=[
                     gast.Name(
                         ctx.info.name,
@@ -474,7 +475,8 @@ class PyToPy(GenericTranspiler):
                         annotation=None,
                         type_comment=None)
                 ],
-                value=nodes)
+                value=nodes,
+                type_comment=None)
           else:
             nodes.name = ctx.info.name
 
