@@ -21,8 +21,11 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
+from nvidia.dali.plugin.jax import DALIGenericIterator
 
-def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_size):
+
+def sequential_sharded_pipeline(
+        batch_size, shape, device_id, shard_id, shard_size, multiple_outputs=False):
     """Helper to create DALI pipelines that return GPU tensors with sequential values
     and are iterating over virtual sharded dataset.
 
@@ -36,6 +39,7 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
         device_id : Id of the device that pipeline will run on.
         shard_id : Id of the shard for the pipeline.
         shard_size : Size of the shard for the pipeline.
+        multiple_outputs : If True, pipeline will return multiple outputs.
     """
 
     def create_numpy_sequential_tensors_callback():
@@ -54,7 +58,11 @@ def sequential_sharded_pipeline(batch_size, shape, device_id, shard_id, shard_si
             batch=False,
             dtype=types.INT32)
         data = data[0].gpu()
-        return data
+
+        if not multiple_outputs:
+            return data
+
+        return data, data + 0.25, data + 0.5
 
     return sequential_pipeline_def()
 
@@ -125,3 +133,58 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         # Assert correct backing devices for shards
         assert jax_array.device_buffers[0].device() == jax_shard_0.device()
         assert jax_array.device_buffers[1].device() == jax_shard_1.device()
+
+
+def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_outputs():
+    assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
+
+    batch_size = 4
+    shape = (1, 5)
+
+    # given
+    pipe_0 = sequential_sharded_pipeline(
+        batch_size=batch_size,
+        shape=shape,
+        device_id=0,
+        shard_id=0,
+        shard_size=batch_size,
+        multiple_outputs=True)
+
+    pipe_1 = sequential_sharded_pipeline(
+        batch_size=batch_size,
+        shape=shape,
+        device_id=1,
+        shard_id=1,
+        shard_size=batch_size,
+        multiple_outputs=True)
+
+    output_names = ['data_0', 'data_1', 'data_2']
+
+    # when
+    dali_iterator = DALIGenericIterator([pipe_0, pipe_1], output_names, size=batch_size*10)
+
+    for batch_id, batch in enumerate(dali_iterator):
+        # then
+        # check values for all outputs
+        # for the data_0 values should be the same as in the single output example
+        # for data_1 values are the same + 0.25, for data_2 the same + 0.5
+        for output_id, output_name in enumerate(output_names):
+            jax_array = batch[output_name]
+
+            assert jax.numpy.array_equal(
+                jax_array.device_buffers[0],
+                jax.numpy.stack([
+                    jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
+                    for value in range(batch_id*batch_size, (batch_id+1)*batch_size)]))
+            assert jax.numpy.array_equal(
+                jax_array.device_buffers[1],
+                jax.numpy.stack([
+                    jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
+                    for value in range((batch_id+1)*batch_size, (batch_id+2)*batch_size)]))
+
+            # Assert correct backing devices for shards
+            assert jax_array.device_buffers[0].device() == jax.devices()[0]
+            assert jax_array.device_buffers[1].device() == jax.devices()[1]
+
+    # Assert correct number of batches returned from the iterator
+    assert batch_id == 4

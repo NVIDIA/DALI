@@ -12,3 +12,4 @@ DL Framework Plugins
    plugins/pytorch_tutorials
    plugins/tensorflow_tutorials
    plugins/paddle_tutorials
+   plugins/jax_tutorials

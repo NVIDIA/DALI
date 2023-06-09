@@ -95,7 +95,7 @@ Highlights
 ----------
 - Easy-to-use functional style Python API.
 - Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
-- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
+- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle, JAX.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
 - Flexible graphs let developers create custom pipelines.

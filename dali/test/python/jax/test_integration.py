@@ -123,3 +123,28 @@ def test_dali_sequential_tensors_to_jax_array():
                     shape[1:],  # TODO(awolant): Explain/fix shape consistency
                     batch_id * batch_size + i,
                     np.int32))
+
+
+def test_dali_sequential_iterator_to_jax_array():
+    batch_size = 4
+    shape = (1, 5)
+
+    pipe = sequential_pipeline(batch_size, shape)
+    iter = dax.DALIGenericIterator([pipe], ['data'], size=batch_size*100)
+
+    for batch_id, data in enumerate(iter):
+        # given
+        jax_array = data['data']
+
+        # then
+        assert jax_array.device() == jax.devices()[0]
+
+        for i in range(batch_size):
+            assert jax.numpy.array_equal(
+                jax_array[i],
+                jax.numpy.full(
+                    shape[1:],  # TODO(awolant): Explain shape consistency
+                    batch_id * batch_size + i,
+                    np.int32))
+
+    assert batch_id == 99

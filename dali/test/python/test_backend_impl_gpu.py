@@ -331,3 +331,13 @@ def test_tensor_from_tensor_list_gpu():
         out += ts
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4,), i // 3))
+
+
+def test_tensor_expose_dlpack_capsule():
+    arr = cp.arange(20)
+    tensor = TensorGPU(arr, "NHWC")
+
+    capsule = tensor._expose_dlpack_capsule()
+    arr_from_dlpack = cp.from_dlpack(capsule)
+
+    assert cp.array_equal(arr, arr_from_dlpack)
