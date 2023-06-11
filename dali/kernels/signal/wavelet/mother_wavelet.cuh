@@ -15,13 +15,13 @@
 #ifndef DALI_KERNELS_SIGNAL_WAVELET_MOTHER_WAVELET_CUH_
 #define DALI_KERNELS_SIGNAL_WAVELET_MOTHER_WAVELET_CUH_
 
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
-
-#include <vector>
 
 namespace dali {
 namespace kernels {
@@ -37,7 +37,7 @@ class HaarWavelet {
     "Data type should be floating point");
  public:
   HaarWavelet() = default;
-  HaarWavelet(const std::vector<T> &args);
+  explicit HaarWavelet(const std::vector<T> &args);
   ~HaarWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -49,7 +49,7 @@ class MeyerWavelet {
     "Data type should be floating point");
  public:
   MeyerWavelet() = default;
-  MeyerWavelet(const std::vector<T> &args);
+  explicit MeyerWavelet(const std::vector<T> &args);
   ~MeyerWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -61,7 +61,7 @@ class MexicanHatWavelet {
     "Data type should be floating point");
  public:
   MexicanHatWavelet() = default;
-  MexicanHatWavelet(const std::vector<T> &args);
+  explicit MexicanHatWavelet(const std::vector<T> &args);
   ~MexicanHatWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -76,7 +76,7 @@ class MorletWavelet {
     "Data type should be floating point");
  public:
   MorletWavelet() = default;
-  MorletWavelet(const std::vector<T> &args);
+  explicit MorletWavelet(const std::vector<T> &args);
   ~MorletWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -91,7 +91,7 @@ class ShannonWavelet {
     "Data type should be floating point");
  public:
   ShannonWavelet() = default;
-  ShannonWavelet(const std::vector<T> &args);
+  explicit ShannonWavelet(const std::vector<T> &args);
   ~ShannonWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -107,7 +107,7 @@ class FbspWavelet {
     "Data type should be floating point");
  public:
   FbspWavelet() = default;
-  FbspWavelet(const std::vector<T> &args);
+  explicit FbspWavelet(const std::vector<T> &args);
   ~FbspWavelet() = default;
 
   __device__ T operator()(const T &t) const;
@@ -119,7 +119,7 @@ class FbspWavelet {
 };
 
 }  // namespace signal
-}  // namespace kernel
+}  // namespace kernels
 }  // namespace dali
 
 #endif  // DALI_KERNELS_SIGNAL_WAVELET_MOTHER_WAVELET_CUH_

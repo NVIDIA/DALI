@@ -42,8 +42,7 @@ __global__ void ComputeWavelet(const SampleDesc<T>* sample_data, W<T> wavelet) {
   auto x = std::pow(2.0, a);
   if (a == 0.0) {
     shm[b_id] = sample.in[t_id];
-  }
-  else {
+  } else {
     shm[b_id] = x * sample.in[t_id];
     shm[1024] = std::pow(2.0, a / 2.0);
   }
@@ -53,8 +52,7 @@ __global__ void ComputeWavelet(const SampleDesc<T>* sample_data, W<T> wavelet) {
     auto b = sample.b[i];
     if (b == 0.0) {
       sample.out[out_id] = wavelet(shm[b_id]);
-    }
-    else {
+    } else {
       sample.out[out_id] = wavelet(shm[b_id] - b);
     }
     if (a != 0.0) {
@@ -66,7 +64,8 @@ __global__ void ComputeWavelet(const SampleDesc<T>* sample_data, W<T> wavelet) {
 // translate input range information to input samples
 template <typename T>
 __global__ void ComputeInputSamples(const SampleDesc<T>* sample_data) {
-  const int64_t t_id = blockDim.x * blockDim.y * blockIdx.x + threadIdx.y * blockDim.x + threadIdx.x;
+  const int64_t block_size = blockDim.x * blockDim.y;
+  const int64_t t_id = block_size * blockIdx.x + threadIdx.y * blockDim.x + threadIdx.x;
   auto& sample = sample_data[blockIdx.y];
   if (t_id >= sample.size_in) return;
   sample.in[t_id] = sample.span.begin + (T)t_id / sample.span.sampling_rate;
@@ -107,7 +106,8 @@ DLL_PUBLIC void WaveletGpu<T, W>::Run(KernelContext &ctx,
     sample.b = b.tensor_data(i);
     sample.size_b = b.shape.tensor_size(i);
     sample.span = span;
-    sample.size_in = std::ceil((sample.span.end - sample.span.begin) * sample.span.sampling_rate) + 1;
+    sample.size_in =
+      std::ceil((sample.span.end - sample.span.begin) * sample.span.sampling_rate) + 1;
     sample.in = ctx.scratchpad->AllocateGPU<T>(sample.size_in);
     max_size_in = std::max(max_size_in, sample.size_in);
   }
@@ -133,9 +133,11 @@ TensorListShape<> WaveletGpu<T, W>::GetOutputShape(const TensorListShape<> &a_sh
   TensorListShape<> out_shape(N, 3);
   TensorShape<> tshape;
   for (int i = 0; i < N; i++) {
-    // output tensor will be 3-dimensional of shape: 
+    // output tensor will be 3-dimensional of shape:
     //  a coeffs x b coeffs x signal samples
-    tshape = TensorShape<>({a_shape.tensor_shape(i).num_elements(), b_shape.tensor_shape(i).num_elements(), in_size});
+    tshape = TensorShape<>({a_shape.tensor_shape(i).num_elements(),
+                            b_shape.tensor_shape(i).num_elements(),
+                            in_size});
     out_shape.set_tensor_shape(i, tshape);
   }
   return out_shape;

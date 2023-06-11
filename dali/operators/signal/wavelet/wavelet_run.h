@@ -57,28 +57,34 @@ void RunForName(const DALIWaveletName &name,
                 const std::vector<T> &args) {
   switch (name) {
   case DALIWaveletName::DALI_HAAR:
-    RunWaveletKernel<T, kernels::signal::HaarWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::HaarWavelet;
+    RunWaveletKernel<T, HaarWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_MEY:
-    RunWaveletKernel<T, kernels::signal::MeyerWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::MeyerWavelet;
+    RunWaveletKernel<T, MeyerWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_MEXH:
-    RunWaveletKernel<T, kernels::signal::MexicanHatWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::MexicanHatWavelet;
+    RunWaveletKernel<T, MexicanHatWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_MORL:
-    RunWaveletKernel<T, kernels::signal::MorletWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::MorletWavelet;
+    RunWaveletKernel<T, MorletWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_SHAN:
-    RunWaveletKernel<T, kernels::signal::ShannonWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::ShannonWavelet;
+    RunWaveletKernel<T, ShannonWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_FBSP:
-    RunWaveletKernel<T, kernels::signal::FbspWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+    using kernels::signal::FbspWavelet;
+    RunWaveletKernel<T, FbspWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   default:
     throw new std::invalid_argument("Unknown wavelet name.");
   }
 }
 
-} // namespace dali
+}  // namespace dali
 
-#endif // DALI_OPERATORS_SIGNAL_WAVELET_RUN_H_
+#endif  // DALI_OPERATORS_SIGNAL_WAVELET_WAVELET_RUN_H_

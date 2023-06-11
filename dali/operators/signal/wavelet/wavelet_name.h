@@ -29,6 +29,6 @@ enum DALIWaveletName {
   DALI_FBSP       = 5
 };
 
-} // namespace dali
+}  // namespace dali
 
-#endif // DALI_OPERATORS_SIGNAL_WAVELET_NAME_H_
+#endif  // DALI_OPERATORS_SIGNAL_WAVELET_WAVELET_NAME_H_
