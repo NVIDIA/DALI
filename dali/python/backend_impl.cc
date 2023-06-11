@@ -27,6 +27,7 @@
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
+#include "dali/operators/signal/wavelet/wavelet_name.h"
 #include "dali/pipeline/data/copy_to_external.h"
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/pipeline/data/tensor.h"
@@ -1672,6 +1673,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("IMAGE_TYPE",    DALI_IMAGE_TYPE)
     .value("DATA_TYPE",     DALI_DATA_TYPE)
     .value("INTERP_TYPE",   DALI_INTERP_TYPE)
+    .value("WAVELET_NAME",  DALI_WAVELET_NAME)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
     .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
@@ -1714,6 +1716,16 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3)
     .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR)
     .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
+    .export_values();
+
+  // DALIWaveletName
+  py::enum_<DALIWaveletName>(types_m, "DALIWaveletName", "Wavelet name\n<SPHINX_IGNORE>")
+    .value("HAAR", DALI_HAAR)
+    .value("MEY", DALI_MEY)
+    .value("MEXH", DALI_MEXH)
+    .value("MORL", DALI_MORL)
+    .value("SHAN", DALI_SHAN)
+    .value("FBSP", DALI_FBSP)
     .export_values();
 
   // Operator node
@@ -1998,6 +2010,7 @@ PYBIND11_MODULE(backend_impl, m) {
     DALI_OPSPEC_ADDARG(DALIDataType)
     DALI_OPSPEC_ADDARG(DALIImageType)
     DALI_OPSPEC_ADDARG(DALIInterpType)
+    DALI_OPSPEC_ADDARG(DALIWaveletName)
 #ifdef DALI_BUILD_PROTO3
     DALI_OPSPEC_ADDARG(TFFeature)
 #endif

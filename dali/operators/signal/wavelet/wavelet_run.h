@@ -45,7 +45,7 @@ void RunWaveletKernel(kernels::KernelManager &kmgr,
 
 // translates wavelet name to type and runs RunWaveletKernel() for that type
 template <typename T>
-void RunForName(const std::string &name,
+void RunForName(const DALIWaveletName &name,
                 kernels::KernelManager &kmgr,
                 size_t size,
                 size_t device,
@@ -55,25 +55,26 @@ void RunForName(const std::string &name,
                 TensorListView<StorageGPU, const T> &b,
                 const kernels::signal::WaveletSpan<T> &span,
                 const std::vector<T> &args) {
-  if (name == "HAAR") {
+  switch (name) {
+  case DALIWaveletName::DALI_HAAR:
     RunWaveletKernel<T, kernels::signal::HaarWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "MEY") {
+    break;
+  case DALIWaveletName::DALI_MEY:
     RunWaveletKernel<T, kernels::signal::MeyerWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "MEXH") {
+    break;
+  case DALIWaveletName::DALI_MEXH:
     RunWaveletKernel<T, kernels::signal::MexicanHatWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "MORL") {
+    break;
+  case DALIWaveletName::DALI_MORL:
     RunWaveletKernel<T, kernels::signal::MorletWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "SHAN") {
+    break;
+  case DALIWaveletName::DALI_SHAN:
     RunWaveletKernel<T, kernels::signal::ShannonWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else if (name == "FBSP") {
+    break;
+  case DALIWaveletName::DALI_FBSP:
     RunWaveletKernel<T, kernels::signal::FbspWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
-  }
-  else {
+    break;
+  default:
     throw new std::invalid_argument("Unknown wavelet name.");
   }
 }

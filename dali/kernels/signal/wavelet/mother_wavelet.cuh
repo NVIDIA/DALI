@@ -56,21 +56,6 @@ class MeyerWavelet {
 };
 
 template <typename T>
-class GaussianWavelet {
-  static_assert(std::is_floating_point<T>::value,
-    "Data type should be floating point");
- public:
-  GaussianWavelet() = default;
-  GaussianWavelet(const std::vector<T> &args);
-  ~GaussianWavelet() = default;
-
-  __device__ T operator()(const T &t) const;
-
- private:
-  uint8_t N;
-};
-
-template <typename T>
 class MexicanHatWavelet {
   static_assert(std::is_floating_point<T>::value,
     "Data type should be floating point");
@@ -110,6 +95,10 @@ class ShannonWavelet {
   ~ShannonWavelet() = default;
 
   __device__ T operator()(const T &t) const;
+
+ private:
+  T fb;
+  T fc;
 };
 
 template <typename T>

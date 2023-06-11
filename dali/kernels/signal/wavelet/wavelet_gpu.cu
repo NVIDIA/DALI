@@ -47,6 +47,7 @@ __global__ void ComputeWavelet(const SampleDesc<T>* sample_data, W<T> wavelet) {
     shm[b_id] = x * sample.in[t_id];
     shm[1024] = std::pow(2.0, a / 2.0);
   }
+  __syncthreads();
   for (int i = 0; i < sample.size_b; ++i) {
     const int64_t out_id = blockIdx.y * sample.size_b * sample.size_in + i * sample.size_in + t_id;
     auto b = sample.b[i];
@@ -106,8 +107,8 @@ DLL_PUBLIC void WaveletGpu<T, W>::Run(KernelContext &ctx,
     sample.b = b.tensor_data(i);
     sample.size_b = b.shape.tensor_size(i);
     sample.span = span;
-    sample.size_in = std::ceil((sample.span.end - sample.span.begin) * sample.span.sampling_rate);
-    CUDA_CALL(cudaMalloc(&(sample.in), sizeof(T) * sample.size_in));
+    sample.size_in = std::ceil((sample.span.end - sample.span.begin) * sample.span.sampling_rate) + 1;
+    sample.in = ctx.scratchpad->AllocateGPU<T>(sample.size_in);
     max_size_in = std::max(max_size_in, sample.size_in);
   }
 
@@ -128,7 +129,7 @@ TensorListShape<> WaveletGpu<T, W>::GetOutputShape(const TensorListShape<> &a_sh
                                                    const TensorListShape<> &b_shape,
                                                    const WaveletSpan<T> &span) {
   int N = a_shape.num_samples();
-  int in_size = std::ceil((span.end - span.begin) * span.sampling_rate);
+  int in_size = std::ceil((span.end - span.begin) * span.sampling_rate) + 1;
   TensorListShape<> out_shape(N, 3);
   TensorShape<> tshape;
   for (int i = 0; i < N; i++) {

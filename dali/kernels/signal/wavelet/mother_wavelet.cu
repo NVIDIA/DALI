@@ -50,8 +50,9 @@ MeyerWavelet<T>::MeyerWavelet(const std::vector<T> &args) {
 
 template <typename T>
 __device__ T MeyerWavelet<T>::operator()(const T &t) const {
-  T psi1 = (4/(3*M_PI)*t*std::cos((2*M_PI)/3*t)-1/M_PI*std::sin((4*M_PI)/3*t))/(t-16/9*std::pow(t, 3.0));
-  T psi2 = (8/(3*M_PI)*t*std::cos(8*M_PI/3*t)+1/M_PI*std::sin((4*M_PI)/3)*t)/(t-64/9*std::pow(t, 3.0));
+  T tt = t - 0.5;
+  T psi1 = (4.0/(3.0*M_PI)*tt*std::cos((2.0*M_PI)/3.0*tt)-1.0/M_PI*std::sin((4.0*M_PI)/3.0*tt))/(tt-16.0/9.0*std::pow(tt, 3.0));
+  T psi2 = (8.0/(3.0*M_PI)*tt*std::cos(8.0*M_PI/3.0*tt)+1.0/M_PI*std::sin((4.0*M_PI)/3.0)*tt)/(tt-64.0/9.0*std::pow(tt, 3.0));
   return psi1 + psi2;
 }
 
@@ -63,12 +64,12 @@ MexicanHatWavelet<T>::MexicanHatWavelet(const std::vector<T> &args) {
   if (args.size() != 1) {
     throw new std::invalid_argument("MexicanHatWavelet accepts exactly one argument - sigma.");
   }
-  this->sigma = *args.begin();
+  this->sigma = args[0];
 }
 
 template <typename T>
 __device__ T MexicanHatWavelet<T>::operator()(const T &t) const {
-  return 2/(std::sqrt(3*sigma)*std::pow(M_PI, 0.25))*(1-std::pow(t/sigma, 2.0))*std::exp(-std::pow(t, 2.0)/(2*std::pow(sigma, 2.0)));
+  return 2.0/(std::sqrt(3.0*sigma)*std::pow(M_PI, 0.25))*(1.0-std::pow(t/sigma, 2.0))*std::exp(-std::pow(t, 2.0)/(2.0*std::pow(sigma, 2.0)));
 }
 
 template class MexicanHatWavelet<float>;
@@ -79,12 +80,12 @@ MorletWavelet<T>::MorletWavelet(const std::vector<T> &args) {
   if (args.size() != 1) {
     throw new std::invalid_argument("MorletWavelet accepts exactly 1 argument - C.");
   }
-  this->C = *args.begin();
+  this->C = args[0];
 }
 
 template <typename T>
 __device__ T MorletWavelet<T>::operator()(const T &t) const {
-  return C * std::exp(-std::pow(t, 2.0)) * std::cos(5 * t);
+  return C * std::exp(-std::pow(t, 2.0) / 2.0) * std::cos(5.0 * t);
 }
 
 template class MorletWavelet<float>;
@@ -92,14 +93,17 @@ template class MorletWavelet<double>;
 
 template <typename T>
 ShannonWavelet<T>::ShannonWavelet(const std::vector<T> &args) {
-  if (args.size() != 0) {
-    throw new std::invalid_argument("ShannonWavelet doesn't accept any arguments.");
+  if (args.size() != 2) {
+    throw new std::invalid_argument("ShannonWavelet accepts exactly 2 arguments -> fb, fc in that order.");
   }
+  this->fb = args[0];
+  this->fc = args[1];
 }
 
 template <typename T>
 __device__ T ShannonWavelet<T>::operator()(const T &t) const {
-  return sinc(t - 0.5) - 2 * sinc(2 * t - 1);
+  auto res = std::cos((T)(2.0*M_PI)*fc*t)*std::sqrt(fb);
+  return t == 0.0 ? res : res*std::sin(t*fb*(T)(M_PI))/(t*fb*(T)(M_PI));
 }
 
 template class ShannonWavelet<float>;
@@ -107,17 +111,18 @@ template class ShannonWavelet<double>;
 
 template <typename T>
 FbspWavelet<T>::FbspWavelet(const std::vector<T> &args) {
-  if (args.size() != 0) {
+  if (args.size() != 3) {
     throw new std::invalid_argument("FbspWavelet accepts exactly 3 arguments -> m, fb, fc in that order.");
   }
-  this->m = *args.begin();
-  this->fb = *(args.begin()+1);
-  this->fc = *(args.begin()+2);
+  this->m = args[0];
+  this->fb = args[1];
+  this->fc = args[2];
 }
 
 template <typename T>
 __device__ T FbspWavelet<T>::operator()(const T &t) const {
-  return std::sqrt(fb)*std::pow(sinc(t/std::pow(fb, m)), m)*std::exp(2*M_PI*fc*t);
+  auto res = std::cos((T)(2.0*M_PI)*fc*t)*std::sqrt(fb);
+  return t == 0.0 ? res : res*std::pow(std::sin((T)(M_PI)*t*fb/m)/((T)(M_PI)*t*fb/m), m);
 }
 
 template class FbspWavelet<float>;
