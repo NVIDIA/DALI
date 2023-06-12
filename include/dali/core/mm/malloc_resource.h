@@ -229,7 +229,7 @@ class cuda_malloc_async_memory_resource
     }();
     enum Support {
       unintialized = 0,
-      unsuppoerted = -1,
+      unsupported = -1,
       supported = 1
     };
     static vector<Support> support(num_devices);
@@ -245,7 +245,7 @@ class cuda_malloc_async_memory_resource
         support[device_id] = supported;
       } catch (const CUDAError &e) {
         if (e.rt_error() == cudaErrorNotSupported)
-          support[device_id] = unsuppoerted;
+          support[device_id] = unsupported;
         else
           throw;
       }

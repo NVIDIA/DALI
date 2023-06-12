@@ -75,8 +75,8 @@ double seconds(std::chrono::duration<Rep, Period> time) {
 }
 
 template <typename Rep, typename Period>
-void print_time(std::ostream &os, std::chrono::duration<Rep, Period> time) {
-  print_time(os, seconds(time));
+std::ostream &print_time(std::ostream &os, std::chrono::duration<Rep, Period> time) {
+  return print_time(os, seconds(time));
 }
 
 inline std::string format_time(double seconds) {
