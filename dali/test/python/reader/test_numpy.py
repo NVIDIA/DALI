@@ -192,6 +192,42 @@ def _get_type_and_shape_params():
                         num_threads, batch_size
 
 
+@params(
+    (False, ),
+    (True, ),
+)
+def test_header_parse(use_o_direct):
+    # Test different ndims to see how well we handle headers of different lengths and padding.
+    # The NPY token (header meta-data) + header is padded to the size aligned up to 64 bytes.
+    # In particular the `np.full((1,) * 21, 1., dtype=float32)` and
+    # `np.full((1,) * 22, 1., dtype=float32)` are the boundary between 128 and 192 bytes header.
+    # This make a good case for testing the bounds we use for extracting the header.
+    # The 32 is the max dimensionality handled by the numpy
+    ndims = list(range(33))
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        names = [f"numpy_ndim_{ndim}.npy" for ndim in ndims]
+        paths = [os.path.join(test_data_root, name) for name in names]
+        assert len(paths) == len(ndims)
+        for ndim, path in zip(ndims, paths):
+            np.save(path, np.full((1, ) * ndim, 1., dtype=np.float32))
+
+        reader_kwargs = {} if not use_o_direct else {'use_o_direct': True, 'dont_use_mmap': True}
+
+        @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+        def pipeline(test_filename):
+            arr = fn.readers.numpy(files=[test_filename], **reader_kwargs)
+            return arr
+
+        for ndim, path in zip(ndims, paths):
+            p = pipeline(test_filename=path)
+            p.build()
+            out, = p.run()
+            shapes = out.shape()
+            assert len(shapes) == 1, f"{len(shapes)}"
+            shape = shapes[0]
+            assert shape == (1,) * ndim, f"{ndim} {shape}"
+
+
 @params(*list(_get_type_and_shape_params()))
 def test_types_and_shapes(device, fortran_order, dtype, shapes, file_arg_type, num_threads,
                           batch_size):

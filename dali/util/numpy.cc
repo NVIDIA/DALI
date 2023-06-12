@@ -240,8 +240,8 @@ void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_di
     // restore overriden character
     token[token_len] = char_tmp;
   }
-  token[header_len] = '\0';
   char *header = token_mem.get() + token_len;
+  header[header_len] = '\0';
   ParseHeaderItself(parsed_header, header, header_len);
 }
 
