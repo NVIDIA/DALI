@@ -348,6 +348,12 @@ def test_tensor_str_sample():
 
 
 def test_tensor_expose_dlpack_capsule():
+    # TODO(awolant): Numpy versions for Python 3.6 and 3.7 do not
+    # support from_dlpack. When we upgrade DLPack support for DALI
+    # this test needs to be changed.
+    if not hasattr(np, "from_dlpack"):
+        raise SkipTest("Test requires Numpy DLPack support.")
+
     arr = np.arange(20)
     tensor = TensorCPU(arr, "NHWC")
 
