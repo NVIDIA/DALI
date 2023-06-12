@@ -111,8 +111,8 @@ When using the memory pool (``DALI_USE_DEVICE_MEM_POOL=1`` or unset), you can di
 VMM by setting ``DALI_USE_VMM=0``. This will cause ``cudaMalloc`` to be used as an upstream memory
 resource for the internal memory pool.
 
-Using ``cudaMallocAsync`` results in slightly slower execution, but it enables memory pool sharing
-with other libraries using the same allocation method.
+Using ``cudaMallocAsync`` typically results in slightly slower execution, but it enables memory
+pool sharing with other libraries using the same allocation method.
 
 .. warning::
     Disabling memory pools will result in a dramatic drop in performance. This option is provided
