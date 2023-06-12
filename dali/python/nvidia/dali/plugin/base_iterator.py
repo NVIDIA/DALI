@@ -73,8 +73,7 @@ class _DaliBaseIterator(object):
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards, and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It allows `last_batch_policy` to be
-                PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
+                samples that iterator needs to deal with. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
