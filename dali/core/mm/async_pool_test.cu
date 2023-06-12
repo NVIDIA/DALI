@@ -522,26 +522,41 @@ TEST_F(MMAsyncPoolTest, VM_CrossStreamWithHogs) {
 #if CUDA_VERSION >= 11020
 
 TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiThreadedSingleStreamRandom) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
   using MR = cuda_malloc_async_memory_resource;
   this->MultiThreadedSingleStreamRandom<MR>();
 }
 
 TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiThreadedMultiStreamRandom) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
   using MR = cuda_malloc_async_memory_resource;
   this->MultiThreadedMultiStreamRandom<MR>();
 }
 
 TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiStreamRandomWithGPUHogs) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
   using MR = cuda_malloc_async_memory_resource;
   this->MultiStreamRandomWithGPUHogs<MR>();
 }
 
 TEST_F(MMAsyncPoolTest, cudaMallocAsync_CrossStream) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
   using MR = cuda_malloc_async_memory_resource;
   this->CrossStream<MR>();
 }
 
 TEST_F(MMAsyncPoolTest, cudaMallocAsync_CrossStreamWithHogs) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
   using MR = cuda_malloc_async_memory_resource;
   this->CrossStreamWithHogs<MR>();
 }

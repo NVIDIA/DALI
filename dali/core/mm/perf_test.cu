@@ -29,50 +29,19 @@
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
+#include "dali/test/timing.h"
 
 namespace dali {
 namespace mm {
 namespace test {
 
-using perf_timer = std::chrono::high_resolution_clock;
-
-inline void print_time(std::ostream &os, double seconds) {
-  if (seconds < 1e-6) {
-    os << seconds * 1e+9 << " ns";
-  } else if (seconds < 1e-3) {
-    os << seconds * 1e+6 << " µs";
-  } else if (seconds < 1.0) {
-    os << seconds * 1e+3 << " ms";
-  } else {
-    os << seconds << " s";
-  }
-}
-
-template <typename Rep, typename Period>
-double seconds(std::chrono::duration<Rep, Period> time) {
-  return std::chrono::duration_cast<std::chrono::duration<double>>(time).count();
-}
-
-template <typename Rep, typename Period>
-void print_time(std::ostream &os, std::chrono::duration<Rep, Period> time) {
-  return format_time(seconds(time));
-}
-
-inline std::string format_time(double seconds) {
-  std::stringstream ss;
-  print_time(ss, seconds);
-  return ss.str();
-}
-
-template <typename Rep, typename Period>
-std::string format_time(std::chrono::duration<Rep, Period> time) {
-  return format_time(seconds(time));
-}
+using dali::test::format_time;
+using dali::test::perf_timer;
+using dali::test::seconds;
 
 void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
                   int num_threads,
-                  int num_streams,
-                  double test_time) {
+                  int num_streams) {
   std::vector<CUDAStreamLease> streams;
   streams.reserve(num_streams);
   for (int i = 0; i < num_streams; i++)
@@ -97,14 +66,12 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
 
   std::vector<std::thread> threads;
   for (int tid = 0; tid < num_threads; tid++) {
-    threads.emplace_back([&, tid]() {
-      (void)tid;  // Make clang shut up; I prefer to keep this explicitly captured by value, even
-                  // if not used, than end up with it being captured by reference when I need it.
+    threads.emplace_back([&, tid /* to avoid future bugs */]() {
+      (void)tid;  // Silence a terribly ill-advised warning from clang.
       std::mt19937_64 rng;
       std::uniform_int_distribution<int> stream_dist(-1, num_streams - 1);
-      std::uniform_real_distribution<float> size_log_dist(4, 28);
+      std::uniform_real_distribution<float> size_log_dist(4, 24);
       std::bernoulli_distribution action_dist(0.5);
-      auto test_start = perf_timer::now();
 
       perf_timer::duration alloc_time = {};
       perf_timer::duration dealloc_time = {};
@@ -113,10 +80,9 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
       int64_t num_allocs = 0, num_deallocs = 0;
       int64_t num_async_allocs = 0, num_async_deallocs = 0;
 
-      // while (seconds(perf_timer::now() - test_start) < test_time) {
-      for (int iter = 0; iter < 10000; iter++) {
-        bool is_free = action_dist(rng);
+      for (int iter = 0; iter < 100000; iter++) {
         cudaDeviceSynchronize();
+        bool is_free = action_dist(rng);
         if (is_free) {
           Alloc alloc;
 
@@ -217,14 +183,15 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
 TEST(MMPerfTest, DefaultGPUAlloc) {
   auto *res = mm::GetDefaultDeviceResource(0);
 
-  RunBenchmark(res, 1, 1, 1);
+  RunBenchmark(res, 1, 1);
 }
 
 #if CUDA_VERSION >= 11020
 TEST(MMPerfTest, CudaMallocAsync) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
   cuda_malloc_async_memory_resource res;
-
-  RunBenchmark(&res, 1, 1, 1);
+  RunBenchmark(&res, 1, 1);
 }
 #endif
 

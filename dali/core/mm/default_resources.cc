@@ -235,6 +235,9 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   CUDA_CALL(cudaGetDevice(&device_id));
   if (MMEnv::get().use_cuda_malloc_async) {
     #if CUDA_VERSION >= 11020
+      if (!cuda_malloc_async_memory_resource::is_supported(device_id))
+        throw std::invalid_argument(make_string(
+            "cudaMallocAsync is not supported on device ", device_id));
       return std::make_shared<mm::cuda_malloc_async_memory_resource>(device_id);
     #else
       throw std::invalid_argument(
