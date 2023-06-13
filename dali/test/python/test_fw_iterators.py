@@ -872,6 +872,35 @@ def test_pytorch_iterator_feed_ndarray_types():
     for data_type in types:
         yield check_pytorch_iterator_feed_ndarray_types, data_type
 
+def test_gluon_iterator_sparse_batch():
+    from nvidia.dali.plugin.pytorch import DALIGluonIterator as GluonIterator
+    num_gpus = 1
+    batch_size = 16
+
+    pipes, _ = create_pipeline(
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                            num_gpus=num_gpus, data_paths=data_sets[0],
+                                            random_shuffle=True, stick_to_shard=False,
+                                            shuffle_after_epoch=False, pad_last_batch=True,
+                                            return_labels=True),
+        batch_size, num_gpus
+    )
+
+    dali_train_iter = GluonIterator(pipes, output_map=["labels", "ids"],
+                                    size=pipes[0].epoch_size("Reader"),
+                                    output_types=[GluonIterator.SPARSE_TAG,
+                                                    GluonIterator.DENSE_TAG],
+                                    last_batch_policy=LastBatchPolicy.FILL)
+
+    for it in dali_train_iter:
+        labels, ids = it[0]["labels"], it[0]["ids"]  # gpu 0
+        # labels should be a sparse batch: a sparse tensor
+        # ids should be a dense batch: a single dense tensor
+        assert len(labels) == batch_size
+        assert labels.is_sparse == True
+        assert ids.is_sparse == False
+
+
 
 def test_mxnet_iterator_feed_ndarray():
     from nvidia.dali.plugin.mxnet import feed_ndarray as feed_ndarray
