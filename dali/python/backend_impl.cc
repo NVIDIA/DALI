@@ -122,8 +122,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   d["shape"] = py::tuple(py_shape<Backend>(t));
   // tuple of (raw_data_pointer, if_data_is_read_only)
   tup[0] = py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
-  // if we make it readonly, it prevents us from sharing memory with PyTorch tensor
-  tup[1] = false;
+  tup[1] = true;
   d["data"] = tup;
   if (std::is_same<Backend, GPUBackend>::value) {
     // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
@@ -1721,7 +1720,7 @@ PYBIND11_MODULE(backend_impl, m) {
   // DALIWaveletName
   py::enum_<DALIWaveletName>(types_m, "DALIWaveletName", "Wavelet name\n<SPHINX_IGNORE>")
     .value("HAAR", DALI_HAAR)
-    .value("MEY", DALI_MEY)
+    .value("GAUS", DALI_GAUS)
     .value("MEXH", DALI_MEXH)
     .value("MORL", DALI_MORL)
     .value("SHAN", DALI_SHAN)

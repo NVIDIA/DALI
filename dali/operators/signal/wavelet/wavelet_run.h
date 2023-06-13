@@ -60,9 +60,9 @@ void RunForName(const DALIWaveletName &name,
     using kernels::signal::HaarWavelet;
     RunWaveletKernel<T, HaarWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
-  case DALIWaveletName::DALI_MEY:
-    using kernels::signal::MeyerWavelet;
-    RunWaveletKernel<T, MeyerWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
+  case DALIWaveletName::DALI_GAUS:
+    using kernels::signal::GaussianWavelet;
+    RunWaveletKernel<T, GaussianWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   case DALIWaveletName::DALI_MEXH:
     using kernels::signal::MexicanHatWavelet;

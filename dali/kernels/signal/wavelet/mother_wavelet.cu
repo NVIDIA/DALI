@@ -43,24 +43,47 @@ template class HaarWavelet<float>;
 template class HaarWavelet<double>;
 
 template <typename T>
-MeyerWavelet<T>::MeyerWavelet(const std::vector<T> &args) {
-  if (args.size() != 0) {
-    throw new std::invalid_argument("MeyerWavelet doesn't accept any arguments.");
+GaussianWavelet<T>::GaussianWavelet(const std::vector<T> &args) {
+  if (args.size() != 1) {
+    throw new std::invalid_argument("GaussianWavelet accepts exactly one argument - n.");
   }
+  if (args[0] < 1.0 || args[0] > 8.0) {
+    throw new std::invalid_argument(
+      "GaussianWavelet's argument n should be integer from range [1,8].");
+  }
+  this->n = args[0];
 }
 
 template <typename T>
-__device__ T MeyerWavelet<T>::operator()(const T &t) const {
-  T tt = t - 0.5;
-  T psi1 = (4.0/(3.0*M_PI)*tt*std::cos((2.0*M_PI)/3.0*tt)-1.0/M_PI*std::sin((4.0*M_PI)/3.0*tt))/
-              (tt-16.0/9.0*std::pow(tt, 3.0));
-  T psi2 = (8.0/(3.0*M_PI)*tt*std::cos(8.0*M_PI/3.0*tt)+1.0/M_PI*std::sin((4.0*M_PI)/3.0)*tt)/
-              (tt-64.0/9.0*std::pow(tt, 3.0));
-  return psi1 + psi2;
+__device__ T GaussianWavelet<T>::operator()(const T &t) const {
+  T expTerm = std::exp(-std::pow(t, 2.0));
+  T sqrtTerm = 1.2533141373155001;  // std::sqrt(M_PI/2.0)
+  switch (static_cast<int>(n)) {
+  case 1:
+    return -2.0*t*expTerm/std::sqrt(sqrtTerm);
+  case 2:
+    return (-4.0*std::pow(t, 2.0)+2.0)*expTerm/std::sqrt(3.0*sqrtTerm);
+  case 3:
+    return (8.0*std::pow(t, 3.0)-12.0*t)*expTerm/std::sqrt(15.0*sqrtTerm);
+  case 4:
+    return (-48.0*std::pow(t, 2.0)+16.0*std::pow(t, 4.0)+12.0)*expTerm/std::sqrt(105.0*sqrtTerm);
+  case 5:
+    return (-32.0*std::pow(t, 5.0)+160.0*std::pow(t, 3.0)-120.0*t)*
+              expTerm/std::sqrt(945.0*sqrtTerm);
+  case 6:
+    return (-64.0*std::pow(t, 6.0)+480.0*std::pow(t, 4.0)-720.0*std::pow(t, 2.0)+120.0)*
+              expTerm/std::sqrt(10395.0*sqrtTerm);
+  case 7:
+    return (128.0*std::pow(t, 7.0)-1344.0*std::pow(t, 5.0)+3360.0*std::pow(t, 3.0)-1680.0*t)*
+              expTerm/std::sqrt(135135.0*sqrtTerm);
+  case 8:
+    return (256.0*std::pow(t, 8.0)-3584.0*std::pow(t, 6.0)+13440.0*std::pow(t, 4.0)-13440.0*
+              std::pow(t, 2.0)+1680.0)*expTerm/std::sqrt(2027025.0*sqrtTerm);
+  }
 }
 
-template class MeyerWavelet<float>;
-template class MeyerWavelet<double>;
+template class GaussianWavelet<float>;
+template class GaussianWavelet<double>;
 
 template <typename T>
 MexicanHatWavelet<T>::MexicanHatWavelet(const std::vector<T> &args) {

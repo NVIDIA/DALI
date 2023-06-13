@@ -145,8 +145,8 @@ TensorListShape<> WaveletGpu<T, W>::GetOutputShape(const TensorListShape<> &a_sh
 
 template class WaveletGpu<float, HaarWavelet>;
 template class WaveletGpu<double, HaarWavelet>;
-template class WaveletGpu<float, MeyerWavelet>;
-template class WaveletGpu<double, MeyerWavelet>;
+template class WaveletGpu<float, GaussianWavelet>;
+template class WaveletGpu<double, GaussianWavelet>;
 template class WaveletGpu<float, MexicanHatWavelet>;
 template class WaveletGpu<double, MexicanHatWavelet>;
 template class WaveletGpu<float, MorletWavelet>;

@@ -44,15 +44,17 @@ class HaarWavelet {
 };
 
 template <typename T>
-class MeyerWavelet {
+class GaussianWavelet {
   static_assert(std::is_floating_point<T>::value,
     "Data type should be floating point");
  public:
-  MeyerWavelet() = default;
-  explicit MeyerWavelet(const std::vector<T> &args);
-  ~MeyerWavelet() = default;
+  GaussianWavelet() = default;
+  explicit GaussianWavelet(const std::vector<T> &args);
+  ~GaussianWavelet() = default;
 
   __device__ T operator()(const T &t) const;
+ private:
+  T n;
 };
 
 template <typename T>

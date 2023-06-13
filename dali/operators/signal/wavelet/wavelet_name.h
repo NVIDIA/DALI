@@ -22,7 +22,7 @@ namespace dali {
  */
 enum DALIWaveletName {
   DALI_HAAR       = 0,
-  DALI_MEY        = 1,
+  DALI_GAUS       = 1,
   DALI_MEXH       = 2,
   DALI_MORL       = 3,
   DALI_SHAN       = 4,
