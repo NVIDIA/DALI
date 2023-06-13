@@ -644,7 +644,7 @@ class DALIGluonIterator(_DaliBaseIterator):
                         else:
                             feed_ndarray(single_tensor, pyt_tensors[category][j])
                     
-                    values = torch.hstack(pyt_tensors["data"])
+                    values = torch.hstack(pyt_tensors[category])
                     
                     indices = [[(i, j) for j in range(shape[0])] for i, shape in enumerate(category_shapes[category])]
                     indices = [indice for el_indices in indices for indice in el_indices]
