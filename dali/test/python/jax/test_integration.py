@@ -29,7 +29,7 @@ import nvidia.dali.plugin.jax as dax
 from nose2.tools import cartesian_params
 
 
-def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
+def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
     """Helper function to create DALI TensorGPU.
 
     Args:
@@ -47,7 +47,7 @@ def get_dali_tensor_gpu(value, shape, dtype) -> TensorGPU:
 
         return values
 
-    pipe = dali_pipeline(device_id=0)
+    pipe = dali_pipeline(device_id=device_id)
     pipe.build()
     dali_output = pipe.run()
 

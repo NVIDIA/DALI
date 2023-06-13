@@ -46,6 +46,12 @@ test_pytorch() {
 
 test_jax() {
     ${python_new_invoke_test} -s jax test_integration_multigpu
+
+    # Multiprocess tests
+    CUDA_VISIBLE_DEVICES="1" python jax/jax_client.py &
+    CUDA_VISIBLE_DEVICES="0" python jax/jax_server.py
+
+
 }
 
 test_no_fw() {
