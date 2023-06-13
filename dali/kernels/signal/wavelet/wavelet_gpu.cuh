@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SIGNAL_WAVELET_GPU_CUH_
-#define DALI_KERNELS_SIGNAL_WAVELET_GPU_CUH_
+#ifndef DALI_KERNELS_SIGNAL_WAVELET_WAVELET_GPU_CUH_
+#define DALI_KERNELS_SIGNAL_WAVELET_WAVELET_GPU_CUH_
 
 #include <memory>
 #include <string>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
@@ -26,13 +27,16 @@
 
 // makes sure both tensors have the same number of samples and
 // that they're one-dimensional
-#define ENFORCE_SHAPES(a_shape, b_shape) do {                                                                         \
-DALI_ENFORCE(a_shape.num_samples() == b_shape.num_samples(),"a and b tensors must have the same amount of samples."); \
-for (int i = 0; i < a_shape.num_samples(); ++i) {                                                                     \
-  DALI_ENFORCE(a_shape.tensor_shape(i).size() == 1, "Tensor of a coeffs should be 1-dimensional.");                   \
-  DALI_ENFORCE(b_shape.tensor_shape(i).size() == 1, "Tensor of b coeffs should be 1-dimensional.");                   \
-}                                                                                                                     \
-} while(0);
+#define ENFORCE_SHAPES(a_shape, b_shape) do {                           \
+DALI_ENFORCE(a_shape.num_samples() == b_shape.num_samples(),            \
+             "a and b tensors must have the same amount of samples.");  \
+for (int i = 0; i < a_shape.num_samples(); ++i) {                       \
+  DALI_ENFORCE(a_shape.tensor_shape(i).size() == 1,                     \
+               "Tensor of a coeffs should be 1-dimensional.");          \
+  DALI_ENFORCE(b_shape.tensor_shape(i).size() == 1,                     \
+               "Tensor of b coeffs should be 1-dimensional.");          \
+}                                                                       \
+} while (0);
 
 namespace dali {
 namespace kernels {
@@ -90,6 +94,7 @@ class DLL_PUBLIC WaveletGpu {
   static TensorListShape<> GetOutputShape(const TensorListShape<> &a_shape,
                                           const TensorListShape<> &b_shape,
                                           const WaveletSpan<T> &span);
+
  private:
   W<T> wavelet_;
 };
@@ -98,4 +103,4 @@ class DLL_PUBLIC WaveletGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_WAVELET_GPU_CUH_
+#endif  // DALI_KERNELS_SIGNAL_WAVELET_WAVELET_GPU_CUH_
