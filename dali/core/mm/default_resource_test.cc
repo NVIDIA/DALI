@@ -384,6 +384,11 @@ TEST(MMDefaultResource, ReleaseUnusedBasic) {
   if (device_prop.integrated)
     GTEST_SKIP() << "The memory usage on integrated GPUs cannot be reliably tracked.";
 
+  auto *res = mm::GetDefaultResource<mm::memory_kind::device>();
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool releasing of unused memory.";
+
   ReleaseUnusedTestImpl(256 << 20);
 }
 
