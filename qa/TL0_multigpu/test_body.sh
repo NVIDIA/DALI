@@ -50,8 +50,6 @@ test_jax() {
     # Multiprocess tests
     CUDA_VISIBLE_DEVICES="1" python jax/jax_client.py &
     CUDA_VISIBLE_DEVICES="0" python jax/jax_server.py
-
-
 }
 
 test_no_fw() {
