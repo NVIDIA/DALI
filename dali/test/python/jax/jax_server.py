@@ -56,7 +56,7 @@ def test_lax_workflow(process_id):
 
 def run_multiprocess_workflow(process_id=0):
     jax.distributed.initialize(
-        coordinator_address="localhost:1234",
+        coordinator_address="localhost:12321",
         num_processes=2,
         process_id=process_id)
 
