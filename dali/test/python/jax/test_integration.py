@@ -69,7 +69,10 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     # then
     assert jax.numpy.array_equal(
         jax_array,
-        jax.numpy.full(shape, value))
+        jax.numpy.full(
+            shape,
+            value,
+            types.to_numpy_type(dtype)))
 
     # Make sure JAX array is backed by the GPU
     assert jax_array.device() == jax.devices()[0]
