@@ -14,12 +14,12 @@
 
 
 import jax
+import numpy as np
 
 import logging as log
 
 from test_integration import get_dali_tensor_gpu
 
-import nvidia.dali.types as types
 import nvidia.dali.plugin.jax as dax
 
 
@@ -41,7 +41,7 @@ def print_devices_details(devices_list, process_id):
 
 
 def test_lax_workflow(process_id):
-    array_from_dali = dax._to_jax_array(get_dali_tensor_gpu(1, (1), types.INT32))
+    array_from_dali = dax._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32))
 
     assert array_from_dali.device() == jax.local_devices()[0], \
         "Array should be backed by the device local to current process."
