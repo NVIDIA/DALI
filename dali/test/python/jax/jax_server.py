@@ -15,6 +15,8 @@
 
 import jax
 
+import logging as log
+
 from test_integration import get_dali_tensor_gpu
 
 import nvidia.dali.types as types
@@ -22,20 +24,20 @@ import nvidia.dali.plugin.jax as dax
 
 
 def print_devices(process_id):
-    print(f"PID {process_id}: Local devices = {jax.local_device_count()}, "
-          f"global devices = {jax.device_count()}")
+    log.info(f"Local devices = {jax.local_device_count()}, "
+             f"global devices = {jax.device_count()}")
 
-    print(f"PID {process_id}: All devices: ")
+    log.info("All devices: ")
     print_devices_details(jax.devices(), process_id)
 
-    print(f"PID {process_id}: Local devices:")
+    log.info("Local devices:")
     print_devices_details(jax.local_devices(), process_id)
 
 
 def print_devices_details(devices_list, process_id):
     for device in devices_list:
-        print(f"PID {process_id}: Id = {device.id}, host_id = {device.host_id}, "
-              f"process_id = {device.process_index}, kind = {device.device_kind}")
+        log.info(f"Id = {device.id}, host_id = {device.host_id}, "
+                 f"process_id = {device.process_index}, kind = {device.device_kind}")
 
 
 def test_lax_workflow(process_id):
@@ -49,7 +51,7 @@ def test_lax_workflow(process_id):
     assert sum_across_devices[0] == len(jax.devices()),\
         "Sum across devices should be equal to the number of devices as data per device = [1]"
 
-    print(f"PID {process_id}: Passed lax workflow test")
+    log.info("Passed lax workflow test")
 
 
 def run_multiprocess_workflow(process_id=0):
@@ -57,6 +59,10 @@ def run_multiprocess_workflow(process_id=0):
         coordinator_address="localhost:1234",
         num_processes=2,
         process_id=process_id)
+
+    log.basicConfig(
+        level=log.INFO,
+        format=f"PID {process_id}: %(message)s")
 
     print_devices(process_id=process_id)
     test_lax_workflow(process_id=process_id)
