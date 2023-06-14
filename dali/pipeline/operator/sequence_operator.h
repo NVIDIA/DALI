@@ -437,7 +437,6 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
     for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
-      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(
             expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
@@ -454,6 +453,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                         ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
                         input_desc.NumChannels(sample_idx)));
       }
+      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
     }
   }
 
