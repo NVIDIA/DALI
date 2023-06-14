@@ -43,7 +43,7 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
     """
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = types.Constant(value=value, shape=shape, dtype=dtype, device='gpu')
+        values = types.Constant(value=np.full(shape, value, dtype), device='gpu')
 
         return values
 
@@ -55,7 +55,7 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
 
 @cartesian_params(
-    (types.FLOAT, types.INT32),           # dtypes to test
+    (np.float32, np.int32),               # dtypes to test
     ([], [1], [10], [2, 4], [1, 2, 3]),   # shapes to test
     (1, -99))                             # values to test
 def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
@@ -69,10 +69,7 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     # then
     assert jax.numpy.array_equal(
         jax_array,
-        jax.numpy.full(
-            shape,
-            value,
-            types.to_numpy_type(dtype)))
+        jax.numpy.full(shape, value, dtype))
 
     # Make sure JAX array is backed by the GPU
     assert jax_array.device() == jax.devices()[0]
