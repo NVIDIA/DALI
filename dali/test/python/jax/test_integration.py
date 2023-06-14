@@ -43,7 +43,7 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
     """
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = fn.constant(idata=value, shape=shape, dtype=dtype, device='gpu')
+        values = types.Constant(value=value, shape=shape, dtype=dtype, device='gpu')
 
         return values
 
