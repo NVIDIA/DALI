@@ -81,7 +81,6 @@ void RunBenchmark(mm::async_memory_resource<mm::memory_kind::device> *res,
       int64_t num_async_allocs = 0, num_async_deallocs = 0;
 
       for (int iter = 0; iter < 100000; iter++) {
-        cudaDeviceSynchronize();
         bool is_free = action_dist(rng);
         if (is_free) {
           Alloc alloc;
