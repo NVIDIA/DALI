@@ -624,6 +624,12 @@ inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
         {__VA_ARGS__}                                \
       }                                              \
       break;                                         \
+    case DALI_UINT16:                                \
+      {                                              \
+        typedef uint16 DType;                        \
+        {__VA_ARGS__}                                \
+      }                                              \
+      break;                                         \
     case DALI_INT16:                                 \
       {                                              \
         typedef int16 DType;                         \
