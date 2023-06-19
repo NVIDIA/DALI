@@ -4,7 +4,7 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-pushd /opt/dali/test/python/
+pushd /opt/dali/dali/test/python/
 
 # Multiprocess tests
 export NCCL_DEBUG=INFO
