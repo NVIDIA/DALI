@@ -84,6 +84,7 @@ class VideoReaderResize : public VideoReader,
                   make_cspan(&resample_params_[data_idx], 1), resize_attr_.first_spatial_dim_);
       assert(output_shape == output.shape());
       RunResize(ws, output, input);
+      video_output.SetSourceInfo(data_idx, video_batch.GetMeta(data_idx).GetSourceInfo());
     }
     video_output.SetLayout("FHWC");
   }
