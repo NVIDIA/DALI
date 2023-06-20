@@ -208,7 +208,7 @@ def test_file_names_meta():
     files = sorted(files)
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     for f in files:
-        list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, f), 0, 0, 1))
+        list_file.write("{} {} {} {}\n".format(f, 0, 0, 1))
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1,
