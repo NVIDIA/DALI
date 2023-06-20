@@ -503,9 +503,6 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                 CudaPackageExtraIndex("jax",  # name used in our test script, see the mxnet case
                                       {"113": [PckgVer("0.4.11",
                                                        python_min_ver="3.8",
-                                                       dependencies=["jaxlib"])],
-                                       "121": [PckgVer("0.4.11",
-                                                       python_min_ver="3.8",
                                                        dependencies=["jaxlib"])]},
                                       # name used during installation
                                       name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
