@@ -50,11 +50,15 @@ test_jax() {
     # Workaround for NCCL version mismatch
     # TODO: Fix this in the CI setup_packages.py
     # or move this test to the L3 with JAX container as base
-    python -m pip uninstall -y jax jaxlib
-    python -m pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    echo "DALI_CUDA_VERSION_MAJOR=$DALI_CUDA_MAJOR_VERSION"
+    if [ "$DALI_CUDA_MAJOR_VERSION" == "12" ]
+    then
+      python -m pip uninstall -y jax jaxlib
+      python -m pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
-    CUDA_VISIBLE_DEVICES="1" python jax/jax_client.py &
-    CUDA_VISIBLE_DEVICES="0" python jax/jax_server.py
+      CUDA_VISIBLE_DEVICES="1" python jax/jax_client.py &
+      CUDA_VISIBLE_DEVICES="0" python jax/jax_server.py
+    fi
 }
 
 test_no_fw() {
