@@ -22,7 +22,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator
 
-from jax.sharding import PositionalSharding
+from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from test_integration import get_dali_tensor_gpu
 import jax.numpy as jnp
 
@@ -193,10 +193,8 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
     assert batch_id == 4
 
 
-def test_positional_sharding_workflow():
+def run_basic_sharding_test(sharding):
     # given
-    sharding = PositionalSharding(jax.devices())
-
     dali_shard_0 = get_dali_tensor_gpu(0, (1), np.int32, 0)
     dali_shard_1 = get_dali_tensor_gpu(1, (1), np.int32, 1)
 
@@ -217,3 +215,16 @@ def test_positional_sharding_workflow():
 
     assert dali_sharded_array.device_buffers[0].device() == jax.devices()[0]
     assert dali_sharded_array.device_buffers[1].device() == jax.devices()[1]
+
+
+def test_positional_sharding_workflow():
+    sharding = PositionalSharding(jax.devices())
+
+    run_basic_sharding_test(sharding)
+
+
+def test_named_sharding_workflow():
+    mesh = Mesh(jax.devices(), axis_names=('device'))
+    sharding = NamedSharding(mesh, PartitionSpec('device'))
+
+    run_basic_sharding_test(sharding)
