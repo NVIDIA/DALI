@@ -193,7 +193,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
     assert batch_id == 4
 
 
-def run_basic_sharding_test(sharding):
+def run_sharding_test(sharding):
     # given
     dali_shard_0 = get_dali_tensor_gpu(0, (1), np.int32, 0)
     dali_shard_1 = get_dali_tensor_gpu(1, (1), np.int32, 1)
@@ -220,11 +220,11 @@ def run_basic_sharding_test(sharding):
 def test_positional_sharding_workflow():
     sharding = PositionalSharding(jax.devices())
 
-    run_basic_sharding_test(sharding)
+    run_sharding_test(sharding)
 
 
 def test_named_sharding_workflow():
     mesh = Mesh(jax.devices(), axis_names=('device'))
     sharding = NamedSharding(mesh, PartitionSpec('device'))
 
-    run_basic_sharding_test(sharding)
+    run_sharding_test(sharding)
