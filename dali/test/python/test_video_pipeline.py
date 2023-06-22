@@ -200,7 +200,7 @@ def test_file_list_starts_ends_videopipeline():
         yield _test_file_list_starts_videopipeline, r[0], r[1]
 
 
-def test_file_names_meta():
+def test_source_info():
     files = []
     for cont in video_types:
         path = os.path.join(video_containers_data_root, cont)

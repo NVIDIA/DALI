@@ -188,7 +188,7 @@ def test_multi_gpu_video(device):
 
 
 @params('cpu', 'gpu')
-def test_file_names_meta(device):
+def test_source_info(device):
     filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
     # filter out HEVC because some GPUs do not support it
     filenames = filter(lambda filename: 'hevc' not in filename, filenames)
