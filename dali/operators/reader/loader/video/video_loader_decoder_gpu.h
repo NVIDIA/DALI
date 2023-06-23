@@ -34,6 +34,7 @@ class VideoSampleGpu {
   int sequence_len_ = 0;
   Tensor<GPUBackend> data_;
   int label_ = -1;
+  std::string &FileName();
 };
 
 
