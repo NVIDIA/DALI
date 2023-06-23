@@ -159,6 +159,7 @@ void AsyncPoolTest(Pool &pool, std::vector<block> &blocks, Mutex &mtx, CUDAStrea
       if (hogs++ > max_hogs) {
         CUDA_CALL(cudaStreamSynchronize(stream));
         max_hogs = sync_dist(rng);
+        hogs = 0;
       }
       hog.run(stream);
     }
@@ -171,6 +172,7 @@ void AsyncPoolTest(Pool &pool, std::vector<block> &blocks, Mutex &mtx, CUDAStrea
       alignment = 1 << align_log_dist(rng);
       void *ptr = stream ? pool.allocate_async(size, alignment, sv)
                          : pool.allocate(size, alignment);
+      ASSERT_TRUE(mm::detail::is_aligned(ptr, alignment));
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
       {
         std::lock_guard<Mutex> guard(mtx);
