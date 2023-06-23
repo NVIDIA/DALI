@@ -45,7 +45,7 @@ test_pytorch() {
 }
 
 test_jax() {
-    ${python_new_invoke_test} -s jax test_integration_multigpu
+    CUDA_VISIBLE_DEVICES="0,1" ${python_new_invoke_test} -s jax test_integration_multigpu
 
     # Workaround for NCCL version mismatch
     # TODO: Fix this in the CI setup_packages.py
