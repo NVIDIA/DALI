@@ -75,10 +75,11 @@ class aligned_alloc_helper {
 
 cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_id) {
   // Construct the helper.
-  // The `instance` construction is finished before that of the first instance of
-  // `cuda_malloc_async_memory_resource` - a natural destruction order would be for
-  // all instances of `cuda_malloc_async_memory_resource` to be destroyed before
-  // the helper is destroyed.
+  // Calling this in the constructor guarantees that the construction of the object returned by
+  // `aligned_alloc_helper::instance` is complete before the construction of the first instance
+  // of `cuda_malloc_async_memory_resource` - a natural destruction order would be for all
+  // instances of `cuda_malloc_async_memory_resource` to be destroyed before the helper
+  // is destroyed.
   (void)aligned_alloc_helper::instance();
 
   if (device_id < 0) {
