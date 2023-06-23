@@ -20,8 +20,11 @@ import nvidia.dali.plugin.jax as dax
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-
 from nvidia.dali.plugin.jax import DALIGenericIterator
+
+from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
+from test_integration import get_dali_tensor_gpu
+import jax.numpy as jnp
 
 
 def sequential_sharded_pipeline(
@@ -188,3 +191,40 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
 
     # Assert correct number of batches returned from the iterator
     assert batch_id == 4
+
+
+def run_sharding_test(sharding):
+    # given
+    dali_shard_0 = get_dali_tensor_gpu(0, (1), np.int32, 0)
+    dali_shard_1 = get_dali_tensor_gpu(1, (1), np.int32, 1)
+
+    shards = [dax._to_jax_array(dali_shard_0), dax._to_jax_array(dali_shard_1)]
+
+    assert shards[0].device() == jax.devices()[0]
+    assert shards[1].device() == jax.devices()[1]
+
+    # when
+    dali_sharded_array = jax.make_array_from_single_device_arrays(
+        shape=(2,), sharding=sharding, arrays=shards)
+
+    # then
+    jax_sharded_array = jax.device_put(jnp.arange(2), sharding)
+
+    assert (dali_sharded_array == jax_sharded_array).all()
+    assert len(dali_sharded_array.device_buffers) == jax.device_count()
+
+    assert dali_sharded_array.device_buffers[0].device() == jax.devices()[0]
+    assert dali_sharded_array.device_buffers[1].device() == jax.devices()[1]
+
+
+def test_positional_sharding_workflow():
+    sharding = PositionalSharding(jax.devices())
+
+    run_sharding_test(sharding)
+
+
+def test_named_sharding_workflow():
+    mesh = Mesh(jax.devices(), axis_names=('device'))
+    sharding = NamedSharding(mesh, PartitionSpec('device'))
+
+    run_sharding_test(sharding)
