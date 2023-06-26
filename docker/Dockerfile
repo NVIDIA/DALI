@@ -8,14 +8,14 @@ FROM ${DEPS_IMAGE_NAME} as builder
 ARG PYVER=3.6
 ARG PYV=36
 
-ENV PYVER=${PYVER} PYV=${PYV} PYTHONPATH=/opt/python/v
-
-ENV PYBIN=${PYTHONPATH}/bin \
-    PYLIB=${PYTHONPATH}/lib
-
-ENV PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:${LIBRARY_PATH}
+ENV PYVER=${PYVER} \
+    PYV=${PYV} \
+    PYTHONPATH=/opt/python/v \
+    PYBIN=${PYTHONPATH}/bin \
+    PYLIB=${PYTHONPATH}/lib \
+    PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:${PYBIN}:/opt/python/cp312-cp312/bin:${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
@@ -32,8 +32,8 @@ WORKDIR /opt/dali
 
 ARG CC
 ARG CXX
-ENV CC=${CC}
-ENV CXX=${CXX}
+ENV CC=${CC} \
+    CXX=${CXX}
 # Optional build arguments
 
 ARG ARCH
@@ -94,6 +94,8 @@ ARG BUILD_WITH_LSAN
 ENV BUILD_WITH_LSAN=${BUILD_WITH_LSAN}
 ARG BUILD_WITH_UBSAN
 ENV BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN}
+ARG PYTHON_VERSIONS
+ENV PYTHON_VERSIONS=${PYTHON_VERSIONS:-ON}
 ARG STRIP_BINARY
 ENV STRIP_BINARY=${STRIP_BINARY}
 ARG VERBOSE_LOGS

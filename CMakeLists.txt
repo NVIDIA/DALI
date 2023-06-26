@@ -173,8 +173,16 @@ if (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
       which requires setting Clang as C and CXX compilers and leaving nvcc as CUDA compiler.")
 endif()
 
-# ; creates a list here
-set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9;3.10;3.11")
+# it seems that it is not possible to provide a different default than on/off
+cmake_dependent_option(PYTHON_VERSIONS "Build Python bindings" ON
+                       "BUILD_PYTHON" "")
+if ("${PYTHON_VERSIONS}" STREQUAL  "ON")
+  set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11;3.12")
+endif("${PYTHON_VERSIONS}" STREQUAL  "ON")
+
+if (BUILD_PYTHON)
+  message("Build DALI for python: " "${PYTHON_VERSIONS}")
+endif (BUILD_PYTHON)
 
 if (STATIC_LIBS)
   message (STATUS "Building static libraries")
