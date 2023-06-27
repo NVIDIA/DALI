@@ -180,6 +180,8 @@ if (NOT BUILD_PYTHON AND PYTHON_VERSIONS)
           provided. The latter will be ignored.")
 elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "ON")
   set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11;3.12")
+elseif (NOT ${PYTHON_VERSIONS})
+  set(PYTHON_VERSIONS "")
 endif ()
 
 if (BUILD_PYTHON)
