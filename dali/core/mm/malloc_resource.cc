@@ -19,6 +19,7 @@
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/util/nvml.h"
 
 namespace dali {
 namespace mm {
@@ -107,6 +108,12 @@ bool cuda_malloc_async_memory_resource::is_supported(int device_id) {
     CUDA_CALL(cudaGetDevice(&device_id));
 
   if (!support[device_id]) {
+    nvml::Init();
+    float driverVersion = nvml::GetDriverVersion();
+    if (driverVersion < 495) {
+      support[device_id] = unsupported;
+      return support[device_id] == supported;
+    }
     auto stream = CUDAStreamPool::instance().Get(device_id);
     try {
     void *ptr;

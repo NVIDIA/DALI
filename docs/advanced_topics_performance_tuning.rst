@@ -107,6 +107,10 @@ In order to skip memory pool entirely and use ``cudaMalloc`` (not recommended), 
 ``DALI_USE_DEVICE_MEM_POOL=0``.
 Set ``DALI_USE_CUDA_MALLOC_ASYNC=1`` to use ``cudaMallocAsync`` instead of DALI's internal memory
 pool.
+
+.. note::
+  `cudaMallocAsync`` is not supported for driver < 495 due to synchronization issues
+
 When using the memory pool (``DALI_USE_DEVICE_MEM_POOL=1`` or unset), you can disable the use of
 VMM by setting ``DALI_USE_VMM=0``. This will cause ``cudaMalloc`` to be used as an upstream memory
 resource for the internal memory pool.
