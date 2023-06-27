@@ -179,7 +179,7 @@ if (NOT BUILD_PYTHON AND PYTHON_VERSIONS)
   message(WARNING "The BUILD_PYTHON option is set to off and the PYTHON_VERSIONS variable is
           provided. The latter will be ignored.")
 elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "ON")
-  set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11;3.12")
+  set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11")
 elseif (NOT ${PYTHON_VERSIONS})
   set(PYTHON_VERSIONS "")
 endif ()
