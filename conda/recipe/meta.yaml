@@ -100,6 +100,9 @@ requirements:
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
+    # libprotobuf-static we link statically depends on libabseil so we need to add it to a runtime
+    # dependency
+    - libabseil
     - openjpeg
     - cfitsio
     - astunparse >=1.6.0

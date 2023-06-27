@@ -17,10 +17,8 @@
 
 #include <stdlib.h>
 #include <malloc.h>
-#include <vector>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/cuda_error.h"
-#include "dali/core/cuda_stream.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/device_guard.h"
@@ -206,78 +204,25 @@ class managed_malloc_memory_resource : public managed_async_resource {
 
 #if CUDA_VERSION >= 11020
 
-class cuda_malloc_async_memory_resource
+class DLL_PUBLIC cuda_malloc_async_memory_resource
 : public mm::async_memory_resource<mm::memory_kind::device> {
  public:
   cuda_malloc_async_memory_resource() : cuda_malloc_async_memory_resource(-1) {}
 
-  explicit cuda_malloc_async_memory_resource(int device_id) {
-    if (device_id < 0) {
-      CUDA_CALL(cudaGetDevice(&device_id));
-    }
+  explicit cuda_malloc_async_memory_resource(int device_id);
 
-    device_id_ = device_id;
-    DeviceGuard dg(device_id_);
-    dummy_host_stream_ = CUDAStreamPool::instance().Get(device_id_);
-  }
+  static bool is_supported(int device_id = -1);
 
-  static bool is_supported(int device_id = -1) {
-    static const int num_devices = []() {
-      int ndev;
-      CUDA_CALL(cudaGetDeviceCount(&ndev));
-      return ndev;
-    }();
-    enum Support {
-      unintialized = 0,
-      unsupported = -1,
-      supported = 1
-    };
-    static vector<Support> support(num_devices);
-    if (device_id < 0)
-      CUDA_CALL(cudaGetDevice(&device_id));
-
-    if (!support[device_id]) {
-      auto stream = CUDAStreamPool::instance().Get(device_id);
-      try {
-      void *ptr;
-        CUDA_CALL(cudaMallocAsync(&ptr, 16, stream));
-        CUDA_CALL(cudaFreeAsync(ptr, stream));
-        support[device_id] = supported;
-      } catch (const CUDAError &e) {
-        if (e.rt_error() == cudaErrorNotSupported)
-          support[device_id] = unsupported;
-        else
-          throw;
-      }
-    }
-    return support[device_id] == supported;
-  }
+  int device_id() const noexcept { return device_id_; }
 
  private:
-  void *do_allocate(size_t size, size_t alignment) override {
-    DeviceGuard dg(device_id_);
-    void *ptr;
-    CUDA_CALL(cudaMallocAsync(&ptr, size, dummy_host_stream_));
-    CUDA_CALL(cudaStreamSynchronize(dummy_host_stream_));
-    return ptr;
-  }
+  void *do_allocate(size_t size, size_t alignment) override;
 
-  void do_deallocate(void *ptr, size_t size, size_t alignment) override  {
-    DeviceGuard dg(device_id_);
-    CUDA_DTOR_CALL(cudaFreeAsync(ptr, dummy_host_stream_));
-  }
+  void do_deallocate(void *ptr, size_t size, size_t alignment) override;
 
-  void *do_allocate_async(size_t size, size_t alignment, stream_view stream) override  {
-    DeviceGuard dg(device_id_);
-    void *ptr;
-    CUDA_CALL(cudaMallocAsync(&ptr, size, stream.get()));
-    return ptr;
-  }
+  void *do_allocate_async(size_t size, size_t alignment, stream_view stream) override;
 
-  void do_deallocate_async(void *ptr, size_t size, size_t alignment, stream_view stream) override {
-    DeviceGuard dg(device_id_);
-    CUDA_DTOR_CALL(cudaFreeAsync(ptr, stream.get()));
-  }
+  void do_deallocate_async(void *ptr, size_t size, size_t alignment, stream_view stream) override;
 
   int device_id_;
   CUDAStreamLease dummy_host_stream_;
