@@ -173,15 +173,11 @@ if (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
       which requires setting Clang as C and CXX compilers and leaving nvcc as CUDA compiler.")
 endif()
 
-cmake_dependent_option(PYTHON_VERSIONS "Build Python bindings" ON
-                       "BUILD_PYTHON" OFF)
 if (NOT BUILD_PYTHON AND PYTHON_VERSIONS)
   message(WARNING "The BUILD_PYTHON option is set to off and the PYTHON_VERSIONS variable is
           provided. The latter will be ignored.")
-elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "ON")
+elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "")
   set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11")
-elseif (NOT ${PYTHON_VERSIONS})
-  set(PYTHON_VERSIONS "")
 endif ()
 
 if (BUILD_PYTHON)
