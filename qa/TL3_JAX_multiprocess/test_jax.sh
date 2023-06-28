@@ -6,4 +6,18 @@ function CLEAN_AND_EXIT {
 
 python -c "import jax; print(jax.devices()); assert jax.device_count() > 0"
 
+echo "Test one GPU per process"
+CUDA_VISIBLE_DEVICES="1" python jax_client.py --id 1 --size 8 &
+CUDA_VISIBLE_DEVICES="2" python jax_client.py --id 2 --size 8 &
+CUDA_VISIBLE_DEVICES="3" python jax_client.py --id 3 --size 8 &
+CUDA_VISIBLE_DEVICES="4" python jax_client.py --id 4 --size 8 &
+CUDA_VISIBLE_DEVICES="5" python jax_client.py --id 5 --size 8 &
+CUDA_VISIBLE_DEVICES="6" python jax_client.py --id 6 --size 8 &
+CUDA_VISIBLE_DEVICES="7" python jax_client.py --id 7 --size 8 &
+CUDA_VISIBLE_DEVICES="0" python jax_server.py --size 8
+
+echo "Test multiple GPUs per process"
+CUDA_VISIBLE_DEVICES="4,5,6,7" python jax_client.py --id 1 --size 2 &
+CUDA_VISIBLE_DEVICES="0,1,2,3" python jax_server.py --size 2
+
 CLEAN_AND_EXIT ${PIPESTATUS[0]}
