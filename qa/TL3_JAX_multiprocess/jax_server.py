@@ -21,7 +21,6 @@ import argparse
 
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend import TensorGPU
-import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.jax as dax
 
