@@ -56,24 +56,24 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
 
 def print_devices(process_id):
-    log.warning(f"Local devices = {jax.local_device_count()}, "
-                f"global devices = {jax.device_count()}")
+    log.info(f"Local devices = {jax.local_device_count()}, "
+             f"global devices = {jax.device_count()}")
 
-    log.warning("All devices: ")
+    log.info("All devices: ")
     print_devices_details(jax.devices(), process_id)
 
-    log.warning("Local devices:")
+    log.info("Local devices:")
     print_devices_details(jax.local_devices(), process_id)
 
 
 def print_devices_details(devices_list, process_id):
     for device in devices_list:
-        log.warning(f"Id = {device.id}, platform = {device.platform}, "
-                    f"process_id = {device.process_index}, kind = {device.device_kind}")
+        log.info(f"Id = {device.id}, platform = {device.platform}, "
+                 f"process_id = {device.process_index}, kind = {device.device_kind}")
 
 
 def run_distributed_sharing_test(sharding, process_id):
-    log.warning(f"Sharding: {sharding}")
+    log.info(f"Sharding: {sharding}")
 
     dali_local_shards = []
     for id, device in enumerate(jax.local_devices()):
@@ -118,7 +118,7 @@ def run_multiprocess_workflow(process_id=0, cluster_size=1):
         process_id=process_id)
 
     log.basicConfig(
-        format=f"PID {process_id}: %(message)s")
+        format=f"PID {process_id}: %(message)s", level=log.INFO)
 
     print_devices(process_id=process_id)
 
