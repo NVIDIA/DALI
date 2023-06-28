@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument("--id", type=int, required=True)
     parser.add_argument("--size", type=int, required=True)
     args = parser.parse_args()
-    
+
     assert args.id != 0, "Client can not have process id == 0"
-    
+
     run_multiprocess_workflow(process_id=args.id, cluster_size=args.size)

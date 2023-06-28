@@ -57,7 +57,7 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
 def print_devices(process_id):
     log.warning(f"Local devices = {jax.local_device_count()}, "
-             f"global devices = {jax.device_count()}")
+                f"global devices = {jax.device_count()}")
 
     log.warning("All devices: ")
     print_devices_details(jax.devices(), process_id)
@@ -69,26 +69,26 @@ def print_devices(process_id):
 def print_devices_details(devices_list, process_id):
     for device in devices_list:
         log.warning(f"Id = {device.id}, platform = {device.platform}, "
-                 f"process_id = {device.process_index}, kind = {device.device_kind}")
-        
-        
+                    f"process_id = {device.process_index}, kind = {device.device_kind}")
+
+
 def run_distributed_sharing_test(sharding, process_id):
     log.warning(f"Sharding: {sharding}")
-    
+
     dali_local_shards = []
     for id, device in enumerate(jax.local_devices()):
         current_shard = dax._to_jax_array(
             get_dali_tensor_gpu(process_id, (1), np.int32, id))
-        
+
         assert current_shard.device() == device
-        
+
         dali_local_shards.append(current_shard)
 
     dali_sharded_array = jax.make_array_from_single_device_arrays(
         shape=(jax.device_count(),), sharding=sharding, arrays=dali_local_shards)
 
     assert len(dali_sharded_array.device_buffers) == jax.local_device_count()
-    
+
     for id, buffer in enumerate(dali_sharded_array.device_buffers):
         assert buffer == jnp.array([process_id])
         assert buffer.device() == jax.local_devices()[id]
@@ -105,9 +105,9 @@ def test_positional_sharding_workflow(process_id):
 def test_named_sharding_workflow(process_id):
     mesh = Mesh(jax.devices(), axis_names=('device'))
     sharding = NamedSharding(mesh, PartitionSpec('device'))
-    
+
     run_distributed_sharing_test(sharding=sharding, process_id=process_id)
-    
+
     log.info("Passed named sharding workflow test")
 
 
@@ -130,6 +130,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--size", type=int, required=True)
     args = parser.parse_args()
-    
+
     run_multiprocess_workflow(process_id=0, cluster_size=args.size)
-    
