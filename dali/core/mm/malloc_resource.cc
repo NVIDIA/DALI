@@ -108,12 +108,14 @@ bool cuda_malloc_async_memory_resource::is_supported(int device_id) {
     CUDA_CALL(cudaGetDevice(&device_id));
 
   if (!support[device_id]) {
+#if NVML_ENABLED
     nvml::Init();
     float driverVersion = nvml::GetDriverVersion();
     if (driverVersion < 495) {
       support[device_id] = unsupported;
       return support[device_id] == supported;
     }
+#endif
     auto stream = CUDAStreamPool::instance().Get(device_id);
     try {
     void *ptr;
