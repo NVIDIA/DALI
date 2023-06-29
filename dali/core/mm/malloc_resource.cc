@@ -97,7 +97,7 @@ cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_
     nvml::Init();
     return nvml::GetDriverVersion();
   }();
-  if (driverVersion < 495) {
+  if (driverVersion < 470.60) {
     cudaMemPool_t memPool;
     CUDA_CALL(cudaDeviceGetDefaultMemPool(&memPool, device_id_));
     int val = 0;
