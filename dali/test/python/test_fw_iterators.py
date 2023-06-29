@@ -872,6 +872,7 @@ def test_pytorch_iterator_feed_ndarray_types():
     for data_type in types:
         yield check_pytorch_iterator_feed_ndarray_types, data_type
 
+
 def test_ragged_iterator_sparse_coo_batch():
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
     num_gpus = 1
@@ -879,26 +880,27 @@ def test_ragged_iterator_sparse_coo_batch():
 
     pipes, _ = create_pipeline(
         lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
-                                            num_gpus=num_gpus, data_paths=data_sets[0],
-                                            random_shuffle=True, stick_to_shard=False,
-                                            shuffle_after_epoch=False, pad_last_batch=True,
-                                            return_labels=True),
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True,
+                                         return_labels=True),
         batch_size, num_gpus
     )
 
     dali_train_iter = RaggedIterator(pipes, output_map=["labels", "ids"],
-                                    size=pipes[0].epoch_size("Reader"),
-                                    output_types=[RaggedIterator.SPARSE_COO_TAG,
-                                                    RaggedIterator.DENSE_TAG],
-                                    last_batch_policy=LastBatchPolicy.FILL)
+                                     size=pipes[0].epoch_size("Reader"),
+                                     output_types=[RaggedIterator.SPARSE_COO_TAG,
+                                                   RaggedIterator.DENSE_TAG],
+                                     last_batch_policy=LastBatchPolicy.FILL)
 
     for it in dali_train_iter:
         labels, ids = it[0]["labels"], it[0]["ids"]  # gpu 0
         # labels should be a sparse coo batch: a sparse coo tensor
         # ids should be a dense batch: a single dense tensor
         assert len(labels) == batch_size
-        assert labels.is_sparse == True
-        assert ids.is_sparse == False
+        assert labels.is_sparse is True
+        assert ids.is_sparse is False
+
 
 def test_ragged_iterator_sparse_list_batch():
     from nvidia.dali.plugin.pytorch import DALIRaggedIterator as RaggedIterator
@@ -907,27 +909,26 @@ def test_ragged_iterator_sparse_list_batch():
 
     pipes, _ = create_pipeline(
         lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
-                                            num_gpus=num_gpus, data_paths=data_sets[0],
-                                            random_shuffle=True, stick_to_shard=False,
-                                            shuffle_after_epoch=False, pad_last_batch=True,
-                                            return_labels=True),
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True,
+                                         return_labels=True),
         batch_size, num_gpus
     )
 
     dali_train_iter = RaggedIterator(pipes, output_map=["labels", "ids"],
-                                    size=pipes[0].epoch_size("Reader"),
-                                    output_types=[RaggedIterator.SPARSE_LIST_TAG,
-                                                    RaggedIterator.DENSE_TAG],
-                                    last_batch_policy=LastBatchPolicy.FILL)
+                                     size=pipes[0].epoch_size("Reader"),
+                                     output_types=[RaggedIterator.SPARSE_LIST_TAG,
+                                                   RaggedIterator.DENSE_TAG],
+                                     last_batch_policy=LastBatchPolicy.FILL)
 
     for it in dali_train_iter:
         labels, ids = it[0]["labels"], it[0]["ids"]  # gpu 0
         # labels should be a sparse list batch: a list of dense tensor
         # ids should be a dense batch: a single dense tensor
         assert len(labels) == batch_size
-        assert isinstance(labels, list) == True
-        assert ids.is_sparse == False
-
+        assert isinstance(labels, list) is True
+        assert ids.is_sparse is False
 
 
 def test_mxnet_iterator_feed_ndarray():

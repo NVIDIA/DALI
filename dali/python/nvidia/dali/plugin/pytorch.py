@@ -413,13 +413,18 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          last_batch_policy=last_batch_policy,
                                                          prepare_first_batch=prepare_first_batch)
 
+
 class DALIRaggedIterator(_DaliBaseIterator):
     """
-    General DALI iterator for PyTorch with ragged tensors. It can return any number of
-    outputs from the DALI pipeline in the form of per GPU dictionaries. These dictionaries consisting of
-    PyTorch Tensors (for outputs marked as DALIRaggedIterator.DENSE_TAG), sparse COO PyTorch Tensors (for
-    outputs marked as DALIRaggedIterator.SPARSE_COO_TAG) and list of PyTorch Tensors (for 
-    outputs marked as DALIRaggedIterator.SPARSE_LIST_TAG).
+    General DALI iterator for PyTorch with ragged tensors.
+    It can return any number of outputs from the DALI pipeline
+    in the form of per GPU dictionaries.
+    These dictionaries consisting of PyTorch Tensors
+    (for outputs marked as DALIRaggedIterator.DENSE_TAG),
+    sparse COO PyTorch Tensors
+    (for outputs marked as DALIRaggedIterator.SPARSE_COO_TAG)
+    and list of PyTorch Tensors
+    (for outputs marked as DALIRaggedIterator.SPARSE_LIST_TAG).
 
     Parameters
     ----------
@@ -525,7 +530,11 @@ class DALIRaggedIterator(_DaliBaseIterator):
                  prepare_first_batch=True):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
-        self._output_tags = {DALIRaggedIterator.DENSE_TAG, DALIRaggedIterator.SPARSE_LIST_TAG, DALIRaggedIterator.SPARSE_COO_TAG}
+        self._output_tags = {
+            DALIRaggedIterator.DENSE_TAG,
+            DALIRaggedIterator.SPARSE_LIST_TAG,
+            DALIRaggedIterator.SPARSE_COO_TAG
+        }
 
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         assert output_types is None or set(output_types) <= self._output_tags, \
@@ -575,7 +584,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
             # segregate outputs into categories
             for j, out in enumerate(dali_outputs[i]):
                 category_outputs[self.output_map[j]] = out
-            
+
             # Change DALI TensorLists into Tensors
             category_tensors = dict()
             category_shapes = dict()
@@ -592,7 +601,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 else:
                     category_tensors[category] = [x for x in out]
                     category_shapes[category] = [x.shape() for x in out]
-                
+
                 # check dtype
                 category_torch_type[category] = to_torch_type[out.dtype]
 
@@ -615,7 +624,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
                     pyt_tensors[category] = [
                        torch.empty(shape,
                                    dtype=category_torch_type[category],
-                                   device=category_device[category]) 
+                                   device=category_device[category])
                        for shape in category_shapes[category]
                     ]
 
@@ -635,15 +644,22 @@ class DALIRaggedIterator(_DaliBaseIterator):
                     for k, single_tensor in enumerate(tensor):
                         if isinstance(tensor, (TensorGPU, TensorListGPU)):
                             # Using same cuda_stream used by torch.zeros to set the memory
-                            stream = torch.cuda.current_stream(device=pyt_tensors[category][k].device)
-                            feed_ndarray(single_tensor, pyt_tensors[category][k], cuda_stream=stream)
+                            stream = torch.cuda.current_stream(
+                                device=pyt_tensors[category][k].device
+                            )
+                            feed_ndarray(
+                                single_tensor, pyt_tensors[category][k], cuda_stream=stream
+                            )
                         else:
                             feed_ndarray(single_tensor, pyt_tensors[category][k])
 
-                    if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:                    
+                    if self._outputs_types[j] == DALIRaggedIterator.SPARSE_COO_TAG:
                         values = torch.hstack(pyt_tensors[category])
-                        
-                        indices = [[(i, j) for j in range(shape[0])] for i, shape in enumerate(category_shapes[category])]
+
+                        indices = [
+                            [(i, j) for j in range(shape[0])]
+                            for i, shape in enumerate(category_shapes[category])
+                        ]
                         indices = [indice for el_indices in indices for indice in el_indices]
                         indices = torch.LongTensor(indices, device=values.device)
 
@@ -692,6 +708,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
     DENSE_TAG = "dense"
     SPARSE_LIST_TAG = "sparse_list"
     SPARSE_COO_TAG = "sparse_coo"
+
 
 class TorchPythonFunction(ops.PythonFunctionBase):
     schema_name = "TorchPythonFunction"
