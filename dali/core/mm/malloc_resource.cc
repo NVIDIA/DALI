@@ -93,8 +93,10 @@ cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_
   DeviceGuard dg(device_id_);
   dummy_host_stream_ = CUDAStreamPool::instance().Get(device_id_);
 #if NVML_ENABLED
-  nvml::Init();
-  float driverVersion = nvml::GetDriverVersion();
+  static const float driverVersion = []() {
+    nvml::Init();
+    return nvml::GetDriverVersion();
+  }();
   if (driverVersion < 495) {
     cudaMemPool_t memPool;
     CUDA_CALL(cudaDeviceGetDefaultMemPool(&memPool, device_id_));
