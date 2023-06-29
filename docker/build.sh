@@ -40,16 +40,16 @@ shift $((OPTIND - 1))
 export ARCH=${ARCH:-x86_64}
 export PYVER=${PYVER:-3.6}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-12.1}
+export CUDA_VERSION=${CUDA_VERSION:-12.2}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
   if [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && \
      [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ] && [ $CUDA_VER != "116" ] && [ $CUDA_VER != "117" ] && [ $CUDA_VER != "118" ] && \
-     [ $CUDA_VER != "120" ] && [ $CUDA_VER != "121" ]
+     [ $CUDA_VER != "120" ] && [ $CUDA_VER != "121" ] && [ $CUDA_VER != "122" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0 and 12.1 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1 and 12.2 are supported"
       exit 1
   fi
 else
