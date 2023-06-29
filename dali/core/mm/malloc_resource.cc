@@ -19,7 +19,9 @@
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/align.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif  // NVML_ENABLED
 
 namespace dali {
 namespace mm {
@@ -115,7 +117,7 @@ bool cuda_malloc_async_memory_resource::is_supported(int device_id) {
       support[device_id] = unsupported;
       return support[device_id] == supported;
     }
-#endif
+#endif  // NVML_ENABLED
     auto stream = CUDAStreamPool::instance().Get(device_id);
     try {
     void *ptr;
