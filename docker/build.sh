@@ -182,6 +182,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
                                         BUILD_WITH_LSAN=${BUILD_WITH_LSAN}        \
                                         BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN}      \
+                                        PYTHON_VERSIONS=${PYTHON_VERSIONS}        \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \
                                         GIT_SHA=${GIT_SHA}                        \
                                         DALI_TIMESTAMP=${DALI_TIMESTAMP}          \
@@ -228,6 +229,7 @@ else
                                    --build-arg "BUILD_WITH_ASAN=${BUILD_WITH_ASAN}"        \
                                    --build-arg "BUILD_WITH_LSAN=${BUILD_WITH_LSAN}"        \
                                    --build-arg "BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN}"      \
+                                   --build-arg "PYTHON_VERSIONS=${PYTHON_VERSIONS}"    \
                                    --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}"        \
                                    --build-arg "GIT_SHA=${GIT_SHA}"                        \
                                    --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}"          \
