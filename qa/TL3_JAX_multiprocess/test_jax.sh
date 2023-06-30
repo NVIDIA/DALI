@@ -20,7 +20,7 @@ wait $(jobs -p)
 
 echo "Test multiple GPUs per process"
 CUDA_VISIBLE_DEVICES="4,5,6,7" timeout -k 60s 60s python jax_client.py --id 1 --size 2 &
-CUDA_VISIBLE_DEVICES="0,1,2,3" timeout -k 60s 60s python jax_server.py --size 2
+CUDA_VISIBLE_DEVICES="0,1,2,3" timeout -k 60s 60s python jax_server.py --size 2 &
 
 wait $(jobs -p)
 
