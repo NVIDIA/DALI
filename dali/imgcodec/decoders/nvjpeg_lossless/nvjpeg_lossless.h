@@ -22,6 +22,7 @@
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/version_util.h"
 #include "dali/imgcodec/decoders/decoder_batched_api_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/kernels/dynamic_scratchpad.h"
@@ -78,6 +79,7 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
   std::vector<const unsigned char*> encoded_;
   std::vector<size_t> encoded_len_;
   std::vector<nvjpegImage_t> decoded_;
+  bool is_initialized = false;
 };
 
 class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
@@ -97,7 +99,16 @@ class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
 
     cudaDeviceProp props;
     CUDA_CALL(cudaGetDeviceProperties(&props, device_id));
-    return props.major >= 6;
+
+    int major = -1;
+    int minor = -1;
+    int patch = -1;
+    GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
+    GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
+    GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
+    auto NvJpegVersion = MakeVersionNumber(major, minor, patch);
+
+    return props.major >= 6 && NvJpegVersion >= 12020;
   }
 
   std::shared_ptr<ImageDecoderInstance>

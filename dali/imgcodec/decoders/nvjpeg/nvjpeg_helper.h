@@ -25,6 +25,11 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
 
+#if WITH_DYNAMIC_NVJPEG_ENABLED
+  bool nvjpegIsSymbolAvailable(const char *name);
+#else
+  #define nvjpegIsSymbolAvailable(T) (true)
+#endif
 namespace dali {
 namespace imgcodec {
 

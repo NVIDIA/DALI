@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  // Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,12 +33,24 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
       event_(CUDAEvent::Create(device_id)) {
   DeviceGuard dg(device_id_);
   // TODO(janton): use custom allocators (?)
-  CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_LOSSLESS_JPEG, NULL, NULL, 0, &nvjpeg_handle_));
+  auto ret = nvjpegCreateEx(NVJPEG_BACKEND_LOSSLESS_JPEG, NULL, NULL, 0, &nvjpeg_handle_);
+  if (ret != NVJPEG_STATUS_SUCCESS) {
+    // some nvJPEG version doesn't support NVJPEG_BACKEND_LOSSLESS_JPEG so disable it if
+    // it failed to initialize
+    DALI_WARN_ONCE("The available nvJPEG library version doesn't support Lossless format, please "
+                    " update to the latest one.");
+    is_initialized = false;
+    return;
+  }
+  is_initialized = true;
   per_thread_resources_.push_back(PerThreadResources{nvjpeg_handle_});
   CUDA_CALL(nvjpegJpegStateCreate(nvjpeg_handle_, &state_));
 }
 
 NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
+  if (!is_initialized) {
+    return;
+  }
   DeviceGuard dg(device_id_);
   CUDA_DTOR_CALL(cudaEventSynchronize(event_));
   per_thread_resources_.clear();
@@ -63,6 +75,9 @@ NvJpegLosslessDecoderInstance::PerThreadResources::~PerThreadResources() {
 
 bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts,
                                               const ROI &roi) {
+  if (!is_initialized) {
+    return false;
+  }
   if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY) {
     return false;
   }
