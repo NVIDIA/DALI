@@ -24,7 +24,7 @@ namespace signal {
 template <typename T>
 HaarWavelet<T>::HaarWavelet(const std::vector<T> &args) {
   if (args.size() != 0) {
-    throw new std::invalid_argument("HaarWavelet doesn't accept any arguments.");
+    throw std::invalid_argument("HaarWavelet doesn't accept any arguments.");
   }
 }
 
@@ -45,10 +45,10 @@ template class HaarWavelet<double>;
 template <typename T>
 GaussianWavelet<T>::GaussianWavelet(const std::vector<T> &args) {
   if (args.size() != 1) {
-    throw new std::invalid_argument("GaussianWavelet accepts exactly one argument - n.");
+    throw std::invalid_argument("GaussianWavelet accepts exactly one argument - n.");
   }
   if (args[0] < 1.0 || args[0] > 8.0) {
-    throw new std::invalid_argument(
+    throw std::invalid_argument(
       "GaussianWavelet's argument n should be integer from range [1,8].");
   }
   this->n = args[0];
@@ -88,7 +88,7 @@ template class GaussianWavelet<double>;
 template <typename T>
 MexicanHatWavelet<T>::MexicanHatWavelet(const std::vector<T> &args) {
   if (args.size() != 1) {
-    throw new std::invalid_argument("MexicanHatWavelet accepts exactly one argument - sigma.");
+    throw std::invalid_argument("MexicanHatWavelet accepts exactly one argument - sigma.");
   }
   this->sigma = args[0];
 }
@@ -104,15 +104,14 @@ template class MexicanHatWavelet<double>;
 
 template <typename T>
 MorletWavelet<T>::MorletWavelet(const std::vector<T> &args) {
-  if (args.size() != 1) {
-    throw new std::invalid_argument("MorletWavelet accepts exactly 1 argument - C.");
+  if (args.size() != 0) {
+    throw std::invalid_argument("MorletWavelet doesn't accept any arguments.");
   }
-  this->C = args[0];
 }
 
 template <typename T>
 __device__ T MorletWavelet<T>::operator()(const T &t) const {
-  return C * std::exp(-std::pow(t, 2.0) / 2.0) * std::cos(5.0 * t);
+  return std::exp(-std::pow(t, 2.0) / 2.0) * std::cos(5.0 * t);
 }
 
 template class MorletWavelet<float>;
@@ -121,7 +120,7 @@ template class MorletWavelet<double>;
 template <typename T>
 ShannonWavelet<T>::ShannonWavelet(const std::vector<T> &args) {
   if (args.size() != 2) {
-    throw new std::invalid_argument(
+    throw std::invalid_argument(
       "ShannonWavelet accepts exactly 2 arguments -> fb, fc in that order.");
   }
   this->fb = args[0];
@@ -140,7 +139,7 @@ template class ShannonWavelet<double>;
 template <typename T>
 FbspWavelet<T>::FbspWavelet(const std::vector<T> &args) {
   if (args.size() != 3) {
-    throw new std::invalid_argument(
+    throw std::invalid_argument(
       "FbspWavelet accepts exactly 3 arguments -> m, fb, fc in that order.");
   }
   this->m = args[0];

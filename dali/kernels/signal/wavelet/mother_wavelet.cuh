@@ -82,9 +82,6 @@ class MorletWavelet {
   ~MorletWavelet() = default;
 
   __device__ T operator()(const T &t) const;
-
- private:
-  T C;
 };
 
 template <typename T>
