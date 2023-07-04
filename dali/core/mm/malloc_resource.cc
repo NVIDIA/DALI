@@ -19,6 +19,9 @@
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/align.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif  // NVML_ENABLED
 
 namespace dali {
 namespace mm {
@@ -89,6 +92,18 @@ cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_
   device_id_ = device_id;
   DeviceGuard dg(device_id_);
   dummy_host_stream_ = CUDAStreamPool::instance().Get(device_id_);
+#if NVML_ENABLED
+  static const float driverVersion = []() {
+    nvml::Init();
+    return nvml::GetDriverVersion();
+  }();
+  if (driverVersion < 470.60) {
+    cudaMemPool_t memPool;
+    CUDA_CALL(cudaDeviceGetDefaultMemPool(&memPool, device_id_));
+    int val = 0;
+    CUDA_CALL(cudaMemPoolSetAttribute(memPool, cudaMemPoolReuseAllowOpportunistic, &val));
+  }
+#endif  // NVML_ENABLED
 }
 
 bool cuda_malloc_async_memory_resource::is_supported(int device_id) {
