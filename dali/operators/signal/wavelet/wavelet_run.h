@@ -81,7 +81,7 @@ void RunForName(const DALIWaveletName &name,
     RunWaveletKernel<T, FbspWavelet>(kmgr, size, device, ctx, out, a, b, span, args);
     break;
   default:
-    throw new std::invalid_argument("Unknown wavelet name.");
+    throw std::invalid_argument("Unknown wavelet name.");
   }
 }
 

@@ -25,8 +25,31 @@
 
 namespace dali {
 
-DALI_SCHEMA(Cwt).DocStr("by MW").NumInput(1).NumOutput(1).AddArg("a", "costam",
-                                                                 type2id<float>::value);
+DALI_SCHEMA(Cwt)
+  .DocStr(R"(Performs continuous wavelet transform on a 1D signal (for example, audio).
+
+Result values of transform are computed for all specified scales.
+Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsamples, 1)``
+) of type float32.)")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddArg("a", R"(List of scale coefficients of type float32.)", DALIDataType::DALI_FLOAT_VEC)
+  .AddArg("wavelet", R"(Name of mother wavelet. Currently supported wavelets' names are:
+- HAAR - Haar wavelet
+- GAUS - Gaussian wavelet
+- MEXH - Mexican hat wavelet
+- MORL - Morlet wavelet
+- SHAN - Shannon wavleet
+- FBSP - Frequency B-spline wavelet)", DALIDataType::DALI_WAVELET_NAME)
+  .AddArg("wavelet_args", R"(Additional arguments for mother wavelet. They are passed
+as list of float32 values.
+- HAAR - none
+- GAUS - n (order of derivative)
+- MEXH - sigma
+- MORL - none
+- SHAN - fb (bandwidth parameter > 0), fc (center frequency > 0)
+- FBSP - m (order parameter >= 1), fb (bandwidth parameter > 0), fc (center frequency > 0)
+)", DALIDataType::DALI_FLOAT_VEC);
 
 template <typename T>
 struct CwtImplGPU : public OpImplBase<GPUBackend> {
