@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include <cuda_runtime.h>
 #include <cstddef>
 
-#include <cuda/memory_resource>
+#include <cuda_for_dali/memory_resource>
 
 namespace dali {
 
@@ -36,18 +36,18 @@ namespace dali {
  */
 namespace mm {
 
-namespace memory_kind = cuda::memory_kind;
+namespace memory_kind = cuda_for_dali::memory_kind;
 
-using cuda::memory_resource;
-using cuda::resource_view;
-using cuda::stream_ordered_resource_view;
+using cuda_for_dali::memory_resource;
+using cuda_for_dali::resource_view;
+using cuda_for_dali::stream_ordered_resource_view;
 
 using host_memory_resource = memory_resource<memory_kind::host>;
 using pinned_memory_resource = memory_resource<memory_kind::pinned>;
-using cuda::stream_view;
+using cuda_for_dali::stream_view;
 
 template <typename Kind>
-using async_memory_resource = cuda::stream_ordered_memory_resource<Kind>;
+using async_memory_resource = cuda_for_dali::stream_ordered_memory_resource<Kind>;
 
 using device_async_resource = async_memory_resource<memory_kind::device>;
 using pinned_async_resource = async_memory_resource<memory_kind::pinned>;
@@ -60,7 +60,7 @@ struct stream_context {
 namespace detail {
 
 template <typename Kind>
-constexpr bool is_host_accessible = cuda::kind_has_property<Kind, cuda::memory_access::host>::value;
+constexpr bool is_host_accessible = cuda_for_dali::kind_has_property<Kind, cuda_for_dali::memory_access::host>::value;
 
 }  // namespace detail
 
