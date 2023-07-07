@@ -1,3 +1,4 @@
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //===----------------------------------------------------------------------===//
 //
 // Part of libcu++, the C++ Standard Library for your entire system,
@@ -7,14 +8,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CUDA_STREAM
-#define _CUDA_STREAM
+#ifndef DALI_CORE_MM_CUDA_STREAM_VIEW_H_
+#define DALI_CORE_MM_CUDA_STREAM_VIEW_H_
 
 #include <cstddef>
 // #include <version>
-// #include "detail/__cuda_util"
 
-#include <cuda_runtime_api.h>
+#include <cuda_runtime_api.h>  // NOLINT(build/include_order)
 #include <stdexcept>
 #include "dali/core/cuda_error.h"
 
@@ -30,8 +30,7 @@ namespace cuda_for_dali {
  *
  */
 class stream_view {
-public:
-
+ public:
   using value_type = ::cudaStream_t;
 
   /**
@@ -52,16 +51,18 @@ public:
    * outlive the stream identified by the `cudaStream_t` handle.
    *
    */
-  constexpr stream_view(value_type stream) : __stream{stream} {}
+  constexpr stream_view(value_type stream) : __stream{stream} {}   // NOLINT(runtime/explicit)
 
   /// Disallow construction from an `int`, e.g., `0`.
-  stream_view(int) = delete;
+  stream_view(int) = delete;  // NOLINT(runtime/explicit)
 
   /// Disallow construction from `nullptr`.
-  stream_view(std::nullptr_t) = delete;
+  stream_view(std::nullptr_t) = delete;  // NOLINT(runtime/explicit)
 
   /// Returns the wrapped `cudaStream_t` handle.
-  constexpr value_type get() const noexcept { return __stream; }
+  constexpr value_type get() const noexcept {
+    return __stream;
+  }
 
   /**
    * \brief Synchronizes the wrapped stream.
@@ -80,19 +81,19 @@ public:
    *
    * \return `true` if all operations have completed, or `false` if not.
    */
-  bool ready() const{
+  bool ready() const {
     auto const __result = ::cudaStreamQuery(get());
-    if(__result == ::cudaSuccess){
-        return true;
-    } else if (__result == ::cudaErrorNotReady){
-        return false;
+    if (__result == ::cudaSuccess) {
+      return true;
+    } else if (__result == ::cudaErrorNotReady) {
+      return false;
     }
     CUDA_CALL(__result);
     return false;
   }
 
-private:
-  value_type __stream{0}; ///< Handle of the viewed stream
+ private:
+  value_type __stream{0};  ///< Handle of the viewed stream
 };
 
 /**
@@ -120,10 +121,10 @@ inline constexpr bool operator==(stream_view __lhs, stream_view __rhs) {
  * \return true if unequal, false if equal
  */
 inline constexpr bool operator!=(stream_view __lhs, stream_view __rhs) {
-  return not(__lhs == __rhs);
+  return !(__lhs == __rhs);
 }
 
 }  // namespace cuda_for_dali
 }  // namespace dali
 
-#endif //_CUDA_STREAM
+#endif  // DALI_CORE_MM_CUDA_STREAM_VIEW_H_
