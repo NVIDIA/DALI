@@ -8,8 +8,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+# TODO(klecki): When the test container gets a CMake that supports C++17 as a proper option,
+# swap those lines
+# set(CMAKE_CUDA_STANDARD 17)
+# set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++17")
 
 include_directories(SYSTEM "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 
