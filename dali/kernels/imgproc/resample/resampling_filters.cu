@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ void InitFilters(ResamplingFilters &filters) {
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
   constexpr bool need_staging =
-    !cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value;
+    !cuda_for_dali::kind_has_property<MemoryKind, cuda_for_dali::memory_access::host>::value;
 
   using tmp_kind = std::conditional_t<need_staging, mm::memory_kind::host, MemoryKind>;
   filters.filter_data = mm::alloc_raw_unique<float, tmp_kind>(total_size);

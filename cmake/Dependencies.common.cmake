@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -241,11 +241,6 @@ add_library(cocoapi STATIC ${SOURCE_FILES})
 set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
 list(APPEND DALI_LIBS cocoapi)
 list(APPEND DALI_EXCLUDES libcocoapi.a)
-
-##################################################################
-# libcu++
-##################################################################
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include)
 
 ##################################################################
 # cfitsio
