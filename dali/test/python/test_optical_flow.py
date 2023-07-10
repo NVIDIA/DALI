@@ -239,8 +239,7 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
             assert_raises(RuntimeError, pipe.run,
                           glob="grid size: * is not supported, supported are:")
             raise SkipTest('Skipped as grid size is not supported for this arch')
-
-        if output_grid == 4 and hint_grid not in [4, 8, None]:
+        elif hint_grid not in [4, 8, None]:
             assert_raises(RuntimeError, pipe.run,
                           glob="hint grid size: * is not supported, supported are:")
             raise SkipTest('Skipped as hint grid size is not supported for this arch')
