@@ -33,14 +33,13 @@
 #include <typeinfo>
 #endif
 
-// #if __has_include(<memory_resource>)
+#if __has_include(<memory_resource>)
 #include <memory_resource>
 #define _DALI_STD_PMR_NS ::std::pmr
-// #elif __has_include(<experimental/memory_resource>)
-// #include <experimental/memory_resource>
-// #define _DALI_STD_PMR_NS ::std::experimental::pmr
-// #endif // __has_include(<experimental/memory_resource>)
-
+#elif __has_include(<experimental/memory_resource>)
+#include <experimental/memory_resource>
+#define _DALI_STD_PMR_NS ::std::experimental::pmr
+#endif  // __has_include(<experimental/memory_resource>)
 
 // no-op-define,
 #define _DALI_TEMPLATE_VIS
