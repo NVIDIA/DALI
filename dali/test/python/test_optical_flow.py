@@ -21,6 +21,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn, types
 from test_utils import get_dali_extra_path, get_arch
 from nose_utils import raises, assert_raises
+from nose import SkipTest
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'imgproc')
@@ -234,38 +235,39 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
                        hint_grid=hint_grid, use_temporal_hints=use_temporal_hints)
     pipe.build()
     if get_arch() < 8:
-        if output_grid != 4 and (hint_grid in [4, 8, None]):
+        if output_grid != 4:
             assert_raises(RuntimeError, pipe.run,
                           glob="grid size: * is not supported, supported are:")
-        if output_grid == 4 and hint_grid not in [4, 8, None]:
+            raise SkipTest('Skipped as grid size is not supported for this arch')
+        elif hint_grid not in [4, 8, None]:
             assert_raises(RuntimeError, pipe.run,
                           glob="hint grid size: * is not supported, supported are:")
-    else:
-        for _ in range(2):
-            out = pipe.run()
-            for i in range(batch_size):
-                seq = out[0].at(i)
-                out_field = out[1].as_cpu().at(i)[0]
-                _, ref_field = get_mapping(seq.shape[1:3])
-                dsize = (out_field.shape[1], out_field.shape[0])
-                ref_field = cv2.resize(ref_field, dsize=dsize, interpolation=cv2.INTER_AREA)
-                if interactive:
-                    cv2.imshow("out", flow_to_color(out_field, None, True))
-                    cv2.imshow("ref", flow_to_color(ref_field, None, True))
-                    print(np.max(out_field))
-                    print(np.max(ref_field))
-                    cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
-                    cv2.waitKey(0)
-                err = np.linalg.norm(ref_field - out_field, ord=2, axis=2)
-                assert np.mean(err) < 1  # average error of less than one pixel
-                assert np.max(err) < 100  # no point more than 100px off
-                assert np.sum(err > 1) / np.prod(err.shape) < 0.1  # 90% are within 1px
-                assert np.sum(err > 2) / np.prod(err.shape) < 0.05  # 95% are within 2px
+            raise SkipTest('Skipped as hint grid size is not supported for this arch')
+
+    for _ in range(2):
+        out = pipe.run()
+        for i in range(batch_size):
+            seq = out[0].at(i)
+            out_field = out[1].as_cpu().at(i)[0]
+            _, ref_field = get_mapping(seq.shape[1:3])
+            dsize = (out_field.shape[1], out_field.shape[0])
+            ref_field = cv2.resize(ref_field, dsize=dsize, interpolation=cv2.INTER_AREA)
+            if interactive:
+                cv2.imshow("out", flow_to_color(out_field, None, True))
+                cv2.imshow("ref", flow_to_color(ref_field, None, True))
+                print(np.max(out_field))
+                print(np.max(ref_field))
+                cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
+                cv2.waitKey(0)
+            err = np.linalg.norm(ref_field - out_field, ord=2, axis=2)
+            assert np.mean(err) < 1  # average error of less than one pixel
+            assert np.max(err) < 100  # no point more than 100px off
+            assert np.sum(err > 1) / np.prod(err.shape) < 0.1  # 90% are within 1px
+            assert np.sum(err > 2) / np.prod(err.shape) < 0.05  # 95% are within 2px
 
 
 def test_optflow():
     if not is_of_supported():
-        from nose import SkipTest
         raise SkipTest('Optical Flow is not supported on this platform')
     for output_grid in [1, 2, 4]:
         hint_grid = random.choice([None, 1, 2, 4, 8])
