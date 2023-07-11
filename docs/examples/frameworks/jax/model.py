@@ -22,8 +22,12 @@ from jax import jit, grad
 from jax.scipy.special import logsumexp
 import jax.numpy as jnp
 
+layer_sizes = [784, 1024, 1024, 10]
+param_scale = 0.1
+step_size = 0.001
 
-def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
+
+def init_random_params(scale=param_scale, layer_sizes=layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n))
             for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
@@ -61,7 +65,7 @@ def accuracy(params, iterator):
 
 
 @jit
-def update(params, batch, step_size):
+def update(params, batch, step_size=step_size):
     grads = grad(loss)(params, batch)
     return [(w - step_size * dw, b - step_size * db)
             for (w, b), (dw, db) in zip(params, grads)]
