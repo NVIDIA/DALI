@@ -513,3 +513,95 @@ def test_multiple_ins_gpu():
         outs = pipe.run()
         out_arr = to_array(outs[0][0])
         assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
+
+
+def nonuniform_types_setup(outs, ins):
+    out0 = outs[0]
+    out1 = outs[1]
+    in0 = ins[0]
+    for sample_id in range(len(out0)):
+        out0[sample_id][0] = in0[sample_id][0]
+        out0[sample_id][1] = in0[sample_id][1]
+        out0[sample_id][2] = in0[sample_id][2]
+        out1[sample_id][0] = 3
+
+
+def nonuniform_types_run_cpu(out_img, out_shape, in_img):
+    out_img[:] = 255 - in_img[:]
+    out_shape[:] = out_img.shape
+
+
+def nonuniform_types_run_gpu(out0, out_shape, in0):
+    x, y, z = cuda.grid(3)
+    x_s, y_s, z_s = cuda.gridsize(3)
+    size = out0.size
+    g_idx = x_s*y_s*z + x_s*y + x
+
+    if g_idx == 0:
+        out_shape[:] = out0.shape
+
+    while g_idx < size:
+        j = g_idx // (out0.shape[0] * out0.shape[2])
+        i = (g_idx % (out0.shape[0] * out0.shape[2])) // out0.shape[2]
+        c = g_idx % out0.shape[2]
+        out0[i][j][c] = 255 - in0[i][j][c]
+        g_idx += x_s*y_s*z_s
+
+
+@pipeline_def
+def nonuniform_types_pipe(run_fn=None, out_types=None, in_types=None,
+                          outs_ndim=None, ins_ndim=None, setup_fn=nonuniform_types_setup,
+                          batch_processing=False, device="cpu",
+                          blocks=None, threads_per_block=None):
+    files, _ = dali.fn.readers.caffe(path=lmdb_folder)
+    dec_device = "cpu" if device == "cpu" else "mixed"
+    images_in = dali.fn.decoders.image(files, device=dec_device)
+    out_img, out_shape = numba_function(
+        images_in, run_fn=run_fn, out_types=out_types, in_types=in_types,
+        outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn,
+        batch_processing=batch_processing, device=device,
+        blocks=blocks, threads_per_block=threads_per_block)
+    return images_in, out_img, out_shape
+
+
+@with_setup(check_env_compatibility)
+def test_nonuniform_types_cpu():
+    pipe = nonuniform_types_pipe(
+        batch_size=8, num_threads=1, device_id=0,
+        run_fn=nonuniform_types_run_cpu,
+        out_types=[dali_types.UINT8, dali_types.INT64],
+        in_types=[dali_types.UINT8],
+        outs_ndim=[3, 1],
+        ins_ndim=[3],
+        device="cpu")
+    pipe.build()
+    for _ in range(3):
+        images_in, images_out, img_shape = pipe.run()
+        for i in range(len(images_in)):
+            assert np.array_equal(255 - images_in.at(i), images_out.at(i))
+            assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+
+
+def test_nonuniform_types_gpu():
+    blocks = [16, 16, 1]
+    threads_per_block = [32, 16, 1]
+    pipe = nonuniform_types_pipe(
+        batch_size=8, num_threads=1, device_id=0,
+        run_fn=nonuniform_types_run_gpu,
+        out_types=[dali_types.UINT8, dali_types.INT64],
+        in_types=[dali_types.UINT8],
+        outs_ndim=[3, 1],
+        ins_ndim=[3],
+        device="gpu",
+        blocks=blocks, threads_per_block=threads_per_block)
+    pipe.build()
+    for _ in range(3):
+        images_in, images_out, img_shape = pipe.run()
+        images_in, images_out, img_shape = \
+            (images_in.as_cpu(), images_out.as_cpu(), img_shape.as_cpu())
+        for i in range(len(images_in)):
+            assert np.array_equal(255 - images_in.at(i), images_out.at(i))
+            if not np.array_equal(images_out.at(i).shape, img_shape.at(i)):
+                print(images_out.at(i).shape)
+                print(img_shape.at(i))
+                assert False

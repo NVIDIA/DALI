@@ -33,6 +33,12 @@ class NumbaFuncImpl : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
+  void OutputsSetupFn(std::vector<OutputDesc> &output_desc, int noutputs,
+                      int ninputs, int nsamples);
+
+  void OutputsSetupNoFn(std::vector<OutputDesc> &output_desc, int noutputs,
+                        int ninputs, int nsamples);
+
   void RunImpl(Workspace &ws) override;
 
  private:

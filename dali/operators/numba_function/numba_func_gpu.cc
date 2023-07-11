@@ -14,8 +14,8 @@
 
 
 #include "dali/operators/numba_function/numba_func.h"
-#include "dali/core/cuda_rt_utils.h"
 #include <vector>
+#include "dali/core/cuda_rt_utils.h"
 
 namespace dali {
 
@@ -114,6 +114,79 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 }
 
 template <>
+void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_desc,
+                                               int noutputs, int ninputs, int nsamples) {
+  output_desc.resize(noutputs);
+  out_shapes_.resize(noutputs);
+  for (int i = 0; i < noutputs; i++) {
+    out_shapes_[i].resize(nsamples, outs_ndim_[i]);
+    output_desc[i].type = static_cast<DALIDataType>(out_types_[i]);
+  }
+
+  input_shape_ptrs_.resize(nsamples * ninputs);
+  for (int in_id = 0; in_id < ninputs; in_id++) {
+    for (int i = 0; i < nsamples; i++) {
+      input_shape_ptrs_[nsamples * in_id + i] =
+        reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
+    }
+  }
+
+  output_shape_ptrs_.resize(nsamples * noutputs);
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    for (int i = 0; i < nsamples; i++) {
+      output_shape_ptrs_[nsamples * out_id + i] =
+        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
+    }
+  }
+
+  ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
+    output_shape_ptrs_.data(), outs_ndim_.data(), noutputs,
+    input_shape_ptrs_.data(), ins_ndim_.data(), ninputs, nsamples);
+
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    output_desc[out_id].shape = out_shapes_[out_id];
+    for (int i = 0; i < nsamples; i++) {
+      auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
+      for (int d = 0; d < outs_ndim_[out_id]; d++) {
+        DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
+          "Shape of data should be non negative. ",
+          "After setup function shape for output number ",
+          out_id, " in sample ", i, " at dimension ", d, " is negative."));
+      }
+    }
+  }
+
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    for (int i = 0; i < nsamples; i++) {
+      vector<ssize_t> sizes = calc_sizes(out_types_[out_id], out_shapes_[out_id][i]);
+      out_sizes_.push_back(sizes);
+      out_memory_ptrs_.push_back({nullptr, nullptr});
+    }
+  }
+}
+
+template <>
+void NumbaFuncImpl<GPUBackend>::OutputsSetupNoFn(std::vector<OutputDesc> &output_desc,
+                                                 int noutputs, int ninputs, int nsamples) {
+  DALI_ENFORCE(noutputs == ninputs, make_string(
+      "Size of `out_types` should match size of `in_types` if the custom `setup_fn` function ",
+      "is not provided. Provided ", ninputs, " inputs and ", noutputs,
+      " outputs."));
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    // Assume that inputs and outputs have the same shapes and types
+    for (int i = 0; i < nsamples; i++) {
+      vector<ssize_t> sizes = calc_sizes(in_types_[out_id], in_shapes_[out_id][i]);
+      out_sizes_.push_back(sizes);
+      out_memory_ptrs_.push_back({nullptr, nullptr});
+    }
+  }
+
+  for (int i = 0; i < noutputs; i++) {
+    output_desc[i] = {in_shapes_[i], in_types_[i]};
+  }
+}
+
+template <>
 bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     const Workspace &ws) {
   int ninputs = ws.NumInput();
@@ -139,6 +212,11 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   }
 
   auto N = in_shapes_[0].num_samples();
+  in_sizes_.clear();
+  in_sizes_.reserve(ninputs * N);
+  in_memory_ptrs_.clear();
+  in_memory_ptrs_.reserve(ninputs * N);
+
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     for (int i = 0; i < N; i++) {
       vector<ssize_t> sizes = calc_sizes(in_types_[in_id], in_shapes_[in_id][i]);
@@ -147,74 +225,16 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     }
   }
 
+  out_sizes_.clear();
+  out_memory_ptrs_.clear();
+  out_sizes_.reserve(noutputs * N);
+  out_memory_ptrs_.reserve(noutputs * N);
+
   if (!setup_fn_) {
-    DALI_ENFORCE(out_types_.size() == in_types_.size(), make_string(
-      "Size of `out_types` should match size of `in_types` if the custom `setup_fn` function ",
-      "is not provided. Provided ", in_types_.size(), " inputs and ", out_types_.size(),
-      " outputs."));
-    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-      // Assume that inputs and outputs have the same shapes and types
-      for (int i = 0; i < N; i++) {
-        vector<ssize_t> sizes = calc_sizes(in_types_[out_id], in_shapes_[out_id][i]);
-        out_sizes_.push_back(sizes);
-        out_memory_ptrs_.push_back({nullptr, nullptr});
-      }
-    }
-
-    for (int i = 0; i < noutputs; i++) {
-      const auto &in = ws.Input<GPUBackend>(i);
-      output_desc[i] = {in.shape(), in.type()};
-    }
-    return true;
+    OutputsSetupNoFn(output_desc, noutputs, ninputs, N);
+  } else {
+    OutputsSetupFn(output_desc, noutputs, ninputs, N);
   }
-
-  input_shape_ptrs_.resize(N * ninputs);
-  for (int in_id = 0; in_id < ninputs; in_id++) {
-    for (int i = 0; i < N; i++) {
-      input_shape_ptrs_[N * in_id + i] =
-        reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
-    }
-  }
-
-  out_shapes_.resize(noutputs);
-  for (int i = 0; i < noutputs; i++) {
-    out_shapes_[i].resize(N, outs_ndim_[i]);
-    output_desc[i].type = static_cast<DALIDataType>(out_types_[i]);
-  }
-
-  output_shape_ptrs_.resize(N * noutputs);
-  for (int out_id = 0; out_id < noutputs; out_id++) {
-    for (int i = 0; i < N; i++) {
-      output_shape_ptrs_[N * out_id + i] =
-        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
-    }
-  }
-
-  ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
-    output_shape_ptrs_.data(), outs_ndim_.data(), noutputs,
-    input_shape_ptrs_.data(), ins_ndim_.data(), ninputs, N);
-
-  for (int out_id = 0; out_id < noutputs; out_id++) {
-    output_desc[out_id].shape = out_shapes_[out_id];
-    for (int i = 0; i < N; i++) {
-      auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
-      for (int d = 0; d < outs_ndim_[out_id]; d++) {
-        DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
-          "Shape of data should be non negative. ",
-          "After setup function shape for output number ",
-          out_id, " in sample ", i, " at dimension ", d, " is negative."));
-      }
-    }
-  }
-
-  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-    for (int i = 0; i < N; i++) {
-      vector<ssize_t> sizes = calc_sizes(out_types_[out_id], out_shapes_[out_id][i]);
-      out_sizes_.push_back(sizes);
-      out_memory_ptrs_.push_back({nullptr, nullptr});
-    }
-  }
-
   return true;
 }
 
