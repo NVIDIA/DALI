@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "4.7.0" %}
+{% set build_version = "4.8.0" %}
 
   package:
     name: dali-opencv
     version: {{ build_version }}
 
   source:
-    fn: opencv-4.7.0.tar.gz
-    url: https://github.com/opencv/opencv/archive/refs/tags/4.7.0.tar.gz
-    sha256: 8df0079cdbe179748a18d44731af62a245a45ebf5085223dc03133954c662973
+    fn: opencv-4.8.0.tar.gz
+    url: https://github.com/opencv/opencv/archive/refs/tags/4.8.0.tar.gz
+    sha256: cbf47ecc336d2bff36b0dcd7d6c179a9bb59e805136af6b9670ca944aef889bd
+    patches:
+      - patches/opencv-libwebp-CVE-2023-1999.patch
 
   build:
     number: 0
