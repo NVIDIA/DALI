@@ -12,50 +12,68 @@
 # See the License for the specific language governing permissions and
 
 
-# This file is modified version of mnist_classifier_fromscratch.py from JAX codebase.
-# File in its unchanged form is included.
-
 from jax import jit, grad
 import jax.numpy as jnp
-from mnist_classifier_fromscratch import init_random_params as jax_init_random_params
-from mnist_classifier_fromscratch import loss, predict
+from jax.scipy.special import logsumexp
+import numpy.random as npr
 
 
-layer_sizes = [784, 1024, 1024, 10]
-param_scale = 0.1
-step_size = 0.001
+layers = [784, 1024, 1024, 10]
 
 
-def init_random_params():
-    return jax_init_random_params(param_scale, layer_sizes)
+def init_model(layers=layers, rng=npr.RandomState(0)):
+    model = []
+    for in_size, out_size, in zip(layers[:-1], layers[1:]):
+        new_w = 0.1 * rng.randn(in_size, out_size)
+        new_b = 0.1 * rng.randn(out_size)
+        new_layer = (new_w, new_b)
+        model.append(new_layer)
+
+    return model
 
 
-def accuracy(params, iterator):
+def predict(model, images):
+    input = images
+    for w, b in model[:-1]:
+        output = jnp.dot(input, w) + b
+        input = jnp.tanh(output)
+
+    last_w, last_b = model[-1]
+    last_output = jnp.dot(input, last_w) + last_b
+    return last_output - logsumexp(last_output, axis=1, keepdims=True)
+
+
+def loss(model, batch):
+    predicted_labels = predict(model, batch['images'])
+    return -jnp.mean(jnp.sum(predicted_labels * batch['labels'], axis=1))
+
+
+def accuracy(model, iterator):
     correct_predictions_num = 0
     for batch in iterator:
-        inputs = batch['images']
-        targets = batch['labels']
+        images = batch['images']
+        labels = batch['labels']
 
-        predicted_class = jnp.argmax(predict(params, inputs), axis=1)
+        predicted_class = jnp.argmax(predict(model, images), axis=1)
         correct_predictions_num = correct_predictions_num + \
-            jnp.sum(predicted_class == targets.ravel())
+            jnp.sum(predicted_class == labels.ravel())
 
     return correct_predictions_num / iterator.size
 
 
 @jit
-def update(params, batch, step_size=step_size):
-    grads = grad(loss)(params, (batch['images'], batch['labels']))
-    
-    updated_params = []
-    
-    for params, updates in zip(params, grads):
-        w, b = params
+def update(model, batch, learning_rate=0.001):
+    grads = grad(loss)(model, batch)
+
+    updated_model = []
+
+    for model, updates in zip(model, grads):
+        w, b = model
         dw, db = updates
-        
-        new_w = w - step_size * dw
-        new_b = b - step_size * db
-        
-        updated_params.append((new_w, new_b))
-    
-    return updated_params
+
+        new_w = w - learning_rate * dw
+        new_b = b - learning_rate * db
+
+        updated_model.append((new_w, new_b))
+
+    return updated_model
