@@ -79,7 +79,7 @@ class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
   std::vector<const unsigned char*> encoded_;
   std::vector<size_t> encoded_len_;
   std::vector<nvjpegImage_t> decoded_;
-  bool is_initialized = false;
+  bool is_initialized_ = false;
 };
 
 class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {

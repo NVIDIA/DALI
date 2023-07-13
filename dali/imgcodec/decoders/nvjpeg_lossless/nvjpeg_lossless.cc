@@ -1,4 +1,4 @@
-  // Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,16 +39,16 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
     // it failed to initialize
     DALI_WARN_ONCE("The available nvJPEG library version doesn't support Lossless format, please "
                     " update to the latest one.");
-    is_initialized = false;
+    is_initialized_ = false;
     return;
   }
-  is_initialized = true;
+  is_initialized_ = true;
   per_thread_resources_.push_back(PerThreadResources{nvjpeg_handle_});
   CUDA_CALL(nvjpegJpegStateCreate(nvjpeg_handle_, &state_));
 }
 
 NvJpegLosslessDecoderInstance::~NvJpegLosslessDecoderInstance() {
-  if (!is_initialized) {
+  if (!is_initialized_) {
     return;
   }
   DeviceGuard dg(device_id_);
@@ -75,7 +75,7 @@ NvJpegLosslessDecoderInstance::PerThreadResources::~PerThreadResources() {
 
 bool NvJpegLosslessDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts,
                                               const ROI &roi) {
-  if (!is_initialized) {
+  if (!is_initialized_) {
     return false;
   }
   if (opts.format != DALI_ANY_DATA && opts.format != DALI_GRAY) {
