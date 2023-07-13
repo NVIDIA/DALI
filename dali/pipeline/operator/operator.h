@@ -33,6 +33,7 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
@@ -153,6 +154,13 @@ class DLL_PUBLIC OperatorBase {
     }
   }
 
+  virtual void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  virtual void RestoreState(const OpCheckpoint &cpt) {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
 
  protected:
   /**

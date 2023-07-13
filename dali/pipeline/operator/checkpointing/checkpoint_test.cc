@@ -1,0 +1,244 @@
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
+
+#include <gtest/gtest.h>
+#include <stdexcept>
+
+#include "dali/test/dali_test.h"
+
+namespace dali {
+
+template <typename Backend>
+class DummyOperatorWithState : public Operator<Backend> {};
+
+template<>
+class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
+ public:
+  explicit DummyOperatorWithState(const OpSpec &spec)
+      : Operator<CPUBackend>(spec)
+      , state_(spec.GetArgument<uint32_t>("dummy_state")) {}
+
+  void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const override {
+    cpt.MutableCheckpointState() = state_;
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    state_ = cpt.CheckpointState<uint32_t>();
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, 
+                 const Workspace &ws) override { return false; }
+
+  uint32_t GetState() const { return state_; }
+
+ private:
+  uint32_t state_; 
+};
+
+struct DummyGPUData {
+  uint32_t *ptr;
+  AccessOrder order;
+
+  inline DummyGPUData(cudaStream_t stream, uint32_t value) : order(stream) {
+    CUDA_CALL(cudaMallocAsync(&ptr, sizeof(uint32_t), stream));
+    CUDA_CALL(cudaMemcpyAsync(ptr, &value, sizeof(uint32_t), 
+                              cudaMemcpyHostToDevice, stream));
+  }
+
+  inline ~DummyGPUData() {
+    CUDA_CALL(cudaFreeAsync(ptr, order.stream()));
+  }
+};
+
+template<>
+class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
+ public:
+  explicit DummyOperatorWithState(const OpSpec &spec)
+      : Operator<GPUBackend>(spec)
+      , state_(spec.GetArgument<cudaStream_t>("cuda_stream"), 
+               spec.GetArgument<uint32_t>("dummy_state")) {}
+
+  void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const override {
+    std::any &cpt_state = cpt.MutableCheckpointState();
+    CUDA_CALL(cudaMemcpyAsync(std::any_cast<uint32_t *>(&cpt_state), state_.ptr,
+                              sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    CUDA_CALL(cudaMemcpy(state_.ptr, &cpt.CheckpointState<uint32_t>(),
+                         sizeof(uint32_t), cudaMemcpyHostToDevice));
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, 
+                 const Workspace &ws) override { return false; }
+
+  virtual void RunImpl(Workspace &ws) {}
+  
+  uint32_t GetState() const { 
+    uint32_t ret;
+    state_.order.wait(AccessOrder::host());
+    CUDA_CALL(cudaMemcpy(&ret, state_.ptr, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    return ret;
+  }
+
+ private:
+  DummyGPUData state_;
+};
+
+DALI_REGISTER_OPERATOR(DummySource, DummyOperatorWithState<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(DummySource, DummyOperatorWithState<GPUBackend>, GPU);
+
+DALI_SCHEMA(DummySource)
+  .DocStr("Dummy")
+  .NumInput(0)
+  .NumOutput(2)
+  .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
+
+DALI_REGISTER_OPERATOR(DummyInnerLayer, DummyOperatorWithState<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(DummyInnerLayer, DummyOperatorWithState<GPUBackend>, GPU);
+
+DALI_SCHEMA(DummyInnerLayer)
+  .DocStr("Dummy")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
+
+DALI_REGISTER_OPERATOR(DummyOutput, DummyOperatorWithState<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(DummyOutput, DummyOperatorWithState<GPUBackend>, GPU);
+
+DALI_SCHEMA(DummyOutput)
+  .DocStr("Dummy")
+  .NumInput(2)
+  .NumOutput(1)
+  .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
+
+class CheckpointTest : public DALITest {
+ public:
+  inline OpSpec& PrepareSpec(OpSpec &spec) {
+    spec.AddArg("max_batch_size", 1)
+      .AddArg("num_threads", 1)
+      .AddArg("cuda_stream", 0)
+      .AddArg("pixels_per_image_hint", 0);
+    return spec;
+  }
+
+  uint32_t GetDummyState(const OperatorBase &dummy_op) {
+    try {
+      return GetDummyStateTyped<CPUBackend>(dummy_op);
+    } catch(const std::bad_cast &) {
+      try {
+        return GetDummyStateTyped<GPUBackend>(dummy_op);
+      } catch(const std::bad_cast &) {
+        DALI_FAIL("Passed OperatorBase is not a dummy operator. ");
+      }
+    }
+  }
+
+  enum OperatorStatesPolicy {
+    ZERO_STATE,
+    UNIQUE_STATES,
+  };
+
+  using GraphFactory = std::function<OpGraph(OperatorStatesPolicy)>;
+
+  void RunTestOnGraph(GraphFactory make_graph_instance) {
+    cudaStream_t stream = 0;
+    Checkpoint checkpoint;
+
+    // Crate a graph instance with unique operator states.
+    OpGraph original_graph = make_graph_instance(UNIQUE_STATES);
+    checkpoint.Build(original_graph);
+
+    int nodes_cnt = original_graph.NumOp();
+    for (OpNodeId i = 0; i < nodes_cnt; i++) {
+      DALI_ENFORCE(original_graph.Node(i).spec.name() == checkpoint.GetOpCheckpoint(i).OperatorName());
+      original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i), stream);
+    }
+
+    // Crate a new graph instance, 
+    OpGraph new_graph = make_graph_instance(ZERO_STATE);
+
+    DALI_ENFORCE(new_graph.NumOp() == nodes_cnt);
+    for (OpNodeId i = 0; i < nodes_cnt; i++) {
+      DALI_ENFORCE(new_graph.Node(i).spec.name() == checkpoint.GetOpCheckpoint(i).OperatorName());
+      new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
+    }
+
+    for (OpNodeId i = 0; i < nodes_cnt; i++)
+      DALI_ENFORCE(
+        this->GetDummyState(*original_graph.Node(i).op) == 
+        this->GetDummyState(*new_graph.Node(i).op));
+  }
+
+  uint32_t NextState(OperatorStatesPolicy policy) {
+    switch (policy) {
+      case UNIQUE_STATES:
+        return this->counter_++;
+      case ZERO_STATE:
+        return 0;
+      default:
+        DALI_FAIL("Invalid enum value. ");
+    }
+  }
+
+ private:
+  template<class Backend>
+  uint32_t GetDummyStateTyped(const OperatorBase &dummy_op) {
+    return dynamic_cast<const DummyOperatorWithState<Backend> &>(dummy_op).GetState();
+  }
+
+  uint32_t counter_;
+};
+
+TEST_F(CheckpointTest, TestCPUOnly) {
+  this->RunTestOnGraph([this](OperatorStatesPolicy policy) {
+    OpGraph graph;
+
+    graph.AddOp(this->PrepareSpec(
+            OpSpec("DummySource")
+            .AddArg("device", "cpu")
+            .AddArg("dummy_state", this->NextState(policy))
+            .AddOutput("data_node_1", "cpu")
+            .AddOutput("data_node_2", "cpu")), "");
+
+    graph.AddOp(this->PrepareSpec(
+            OpSpec("DummyInnerLayer")
+            .AddArg("device", "cpu")
+            .AddArg("dummy_state", this->NextState(policy))
+            .AddInput("data_node_1", "cpu")
+            .AddOutput("data_node_3", "cpu")), "");
+
+    graph.AddOp(this->PrepareSpec(
+            OpSpec("DummyInnerLayer")
+            .AddArg("device", "cpu")
+            .AddArg("dummy_state", this->NextState(policy))
+            .AddInput("data_node_2", "cpu")
+            .AddOutput("data_node_4", "cpu")), "");
+
+    graph.AddOp(this->PrepareSpec(
+            OpSpec("DummyOutput")
+            .AddArg("device", "cpu")
+            .AddArg("dummy_state", this->NextState(policy))
+            .AddInput("data_node_3", "cpu")
+            .AddInput("data_node_4", "cpu")
+            .AddOutput("data_output", "cpu")), "");
+
+    graph.InstantiateOperators();
+    return graph;
+  });
+}
+
+}  // namespace dali
