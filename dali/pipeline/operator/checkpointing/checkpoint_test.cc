@@ -13,12 +13,13 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
-#include "dali/core/cuda_stream_pool.h"
 
 #include <gtest/gtest.h>
 #include <stdexcept>
+#include <vector>
 
 #include "dali/test/dali_test.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 
@@ -40,13 +41,13 @@ class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
     state_ = cpt.CheckpointState<uint32_t>();
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const Workspace &ws) override { return false; }
 
   uint32_t GetState() const { return state_; }
 
  private:
-  uint32_t state_; 
+  uint32_t state_;
 };
 
 struct DummyGPUData {
@@ -69,7 +70,7 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
  public:
   explicit DummyOperatorWithState(const OpSpec &spec)
       : Operator<GPUBackend>(spec)
-      , state_(spec.GetArgument<cudaStream_t>("cuda_stream"), 
+      , state_(spec.GetArgument<cudaStream_t>("cuda_stream"),
                spec.GetArgument<uint32_t>("dummy_state")) {}
 
   void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const override {
@@ -85,12 +86,12 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
                          sizeof(uint32_t), cudaMemcpyHostToDevice));
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const Workspace &ws) override { return false; }
 
   virtual void RunImpl(Workspace &ws) {}
-  
-  uint32_t GetState() const { 
+
+  uint32_t GetState() const {
     uint32_t ret;
     state_.order.wait(AccessOrder::host());
     CUDA_CALL(cudaMemcpy(&ret, state_.ptr, sizeof(uint32_t), cudaMemcpyDeviceToHost));
@@ -173,20 +174,22 @@ class CheckpointTest : public DALITest {
     OpGraph new_graph = make_graph_instance(ZERO_STATE);
 
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      DALI_ENFORCE(original_graph.Node(i).spec.name() == checkpoint.GetOpCheckpoint(i).OperatorName());
+      DALI_ENFORCE(original_graph.Node(i).spec.name() ==
+                   checkpoint.GetOpCheckpoint(i).OperatorName());
       original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i), this->stream_.get());
     }
 
     DALI_ENFORCE(new_graph.NumOp() == nodes_cnt);
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      DALI_ENFORCE(new_graph.Node(i).spec.name() == checkpoint.GetOpCheckpoint(i).OperatorName());
+      DALI_ENFORCE(new_graph.Node(i).spec.name() ==
+                   checkpoint.GetOpCheckpoint(i).OperatorName());
       checkpoint.GetOpCheckpoint(i).Synchronize();
       new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
     }
 
     for (OpNodeId i = 0; i < nodes_cnt; i++)
       DALI_ENFORCE(
-        this->GetDummyState(*original_graph.Node(i).op) == 
+        this->GetDummyState(*original_graph.Node(i).op) ==
         this->GetDummyState(*new_graph.Node(i).op));
   }
 

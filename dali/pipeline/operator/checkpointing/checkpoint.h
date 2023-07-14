@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
 #define DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
 
+#include <vector>
+
 #include "dali/pipeline/graph/op_graph.h"
 
 namespace dali {

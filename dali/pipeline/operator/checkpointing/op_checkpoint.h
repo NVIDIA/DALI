@@ -1,4 +1,4 @@
-
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,10 +29,13 @@ namespace dali {
  */
 class OpCheckpoint {
  public:
-  OpCheckpoint(const OpSpec &spec)
+  explicit OpCheckpoint(const OpSpec &spec)
       : operator_name_(spec.name())
       , order_(AccessOrder::host()) {}
 
+  /**
+   * @brief Returns name of the corresponding operator. Can be used for validation.
+   */
   const std::string &OperatorName() const {
     return operator_name_;
   }
@@ -41,7 +44,7 @@ class OpCheckpoint {
     try {
       return std::any_cast<const T &>(state_);
     } catch (const std::bad_any_cast &e) {
-      DALI_FAIL(make_string("Specified type of requested checkpoint data (`", 
+      DALI_FAIL(make_string("Specified type of requested checkpoint data (`",
                 typeid(T).name(),
                 "`) doesn't match the data type saved in checkpoint. ",
                 e.what()));
@@ -52,16 +55,25 @@ class OpCheckpoint {
     return state_;
   }
 
-  AccessOrder& Order() { return order_; }
+  /**
+   * @brief AccessOrder getter.
+   * 
+   * Order must be set by an operator, when setting the checkping asynchronously.
+  */
+  AccessOrder& Order() {
+    return order_;
+  }
 
-  void Synchronize() { order_.wait(AccessOrder::host()); }
+  void Synchronize() {
+    order_.wait(AccessOrder::host());
+  }
 
  private:
-  const std::string operator_name_;  // used for a sanity check
+  const std::string operator_name_;
   std::any state_;
   AccessOrder order_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
+#endif  // DALI_PIPELINE_OPERATOR_CHECKPOINTING_OP_CHECKPOINT_H_
