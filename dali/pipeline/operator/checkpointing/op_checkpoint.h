@@ -29,7 +29,9 @@ namespace dali {
  */
 class OpCheckpoint {
  public:
-  OpCheckpoint(const OpSpec &spec) : operator_name_(spec.name()) {}
+  OpCheckpoint(const OpSpec &spec)
+      : operator_name_(spec.name())
+      , order_(AccessOrder::host()) {}
 
   const std::string &OperatorName() const {
     return operator_name_;
@@ -39,7 +41,7 @@ class OpCheckpoint {
     try {
       return std::any_cast<const T &>(state_);
     } catch (const std::bad_any_cast &e) {
-      DALI_FAIL(make_string("Specified type of requested checkpoint data ` (`", 
+      DALI_FAIL(make_string("Specified type of requested checkpoint data (`", 
                 typeid(T).name(),
                 "`) doesn't match the data type saved in checkpoint. ",
                 e.what()));
@@ -52,10 +54,12 @@ class OpCheckpoint {
 
   AccessOrder& Order() { return order_; }
 
+  void Synchronize() { order_.wait(AccessOrder::host()); }
+
  private:
-  AccessOrder order_;
-  std::any state_;
   const std::string operator_name_;  // used for a sanity check
+  std::any state_;
+  AccessOrder order_;
 };
 
 }  // namespace dali
