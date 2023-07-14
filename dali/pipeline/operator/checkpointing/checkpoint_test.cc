@@ -78,9 +78,9 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
       DALI_FAIL("Cuda stream was not provided for GPU operator checkpointing. ");
     std::any &cpt_state = cpt.MutableCheckpointState();
     cpt_state = static_cast<uint32_t>(0);
+    cpt.SetOrder(AccessOrder(*stream));
     CUDA_CALL(cudaMemcpyAsync(&std::any_cast<uint32_t &>(cpt_state), state_.ptr,
                               sizeof(uint32_t), cudaMemcpyDeviceToHost, *stream));
-    cpt.SetOrder(AccessOrder(*stream));
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
