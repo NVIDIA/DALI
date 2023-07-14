@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_CHECKPOINTING_OP_CHECKPOINT_H_
 
 #include <any>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,16 +57,14 @@ class OpCheckpoint {
   }
 
   /**
-   * @brief AccessOrder getter.
-   * 
-   * Order must be set by an operator, when setting the checkping asynchronously.
+   * @brief Sets the access order of the checkpoint data, synchronizing if necessary.
+   *
+   * GPU operators saving state asynchronously must set the adequate access order.
   */
-  AccessOrder& Order() {
-    return order_;
-  }
-
-  void Synchronize() {
-    order_.wait(AccessOrder::host());
+  void SetOrder(AccessOrder order) {
+    DALI_ENFORCE(order, "Resetting order to an empty one is not supported. ");
+    order.wait(order_);
+    order_ = order;
   }
 
  private:

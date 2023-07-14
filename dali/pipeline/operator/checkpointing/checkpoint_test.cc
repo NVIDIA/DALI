@@ -33,7 +33,7 @@ class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec)
       , state_(spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const override {
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const override {
     cpt.MutableCheckpointState() = state_;
   }
 
@@ -73,12 +73,14 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
       , state_(spec.GetArgument<cudaStream_t>("cuda_stream"),
                spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const override {
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const override {
+    if (!stream)
+      DALI_FAIL("Cuda stream was not provided for GPU operator checkpointing. ");
     std::any &cpt_state = cpt.MutableCheckpointState();
     cpt_state = static_cast<uint32_t>(0);
     CUDA_CALL(cudaMemcpyAsync(&std::any_cast<uint32_t &>(cpt_state), state_.ptr,
-                              sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
-    cpt.Order() = AccessOrder(stream);
+                              sizeof(uint32_t), cudaMemcpyDeviceToHost, *stream));
+    cpt.SetOrder(AccessOrder(*stream));
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
@@ -183,7 +185,7 @@ class CheckpointTest : public DALITest {
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
       DALI_ENFORCE(new_graph.Node(i).spec.name() ==
                    checkpoint.GetOpCheckpoint(i).OperatorName());
-      checkpoint.GetOpCheckpoint(i).Synchronize();
+      checkpoint.GetOpCheckpoint(i).SetOrder(AccessOrder::host());
       new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
     }
 

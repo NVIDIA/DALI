@@ -157,7 +157,7 @@ class DLL_PUBLIC OperatorBase {
   /**
    * @brief Saves operator state into a checkpoint.
   */
-  virtual void SaveState(OpCheckpoint &cpt, cudaStream_t stream) const {
+  virtual void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const {
     DALI_FAIL("Checkpointing is not implemented for this operator.");
   }
 
