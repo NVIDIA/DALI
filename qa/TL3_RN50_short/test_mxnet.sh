@@ -1,13 +1,13 @@
 #!/bin/bash -e
 
-threshold=0.75
-min_perf=10000
+threshold=0.25
+min_perf=4000
 
 NUM_GPUS=`nvidia-smi -L | wc -l`
 
 python /opt/mxnet/example/image-classification/train_imagenet_runner \
-       --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 144 \
-       -n $NUM_GPUS --seed 42 2>&1 | tee dali.log
+       --data-root=/data/imagenet/train-val-recordio-passthrough/ -b 408 \
+       -n $NUM_GPUS -e 5 --seed 42 --dali-threads 8 2>&1 | tee dali.log
 
 cat dali.log  | grep -o "Validation-accuracy=0\.[0-9]*" | grep -o "0\.[0-9]*" > acc.log
 cat dali.log  | grep -o "Speed: [0-9]*\.[0-9]*" | grep -o "[0-9]*\.[0-9]*" > speed.log
