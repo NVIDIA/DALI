@@ -21,15 +21,15 @@
 
 #include "dali/core/any.h"
 #include "dali/core/convert.h"
-#include "dali/core/static_switch.h"
-#include "dali/core/util.h"
 #include "dali/core/math_util.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/util.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/slice/slice_kernel_utils.h"
 
 namespace dali {
 
@@ -46,11 +46,9 @@ enum class ArgSource {
 struct SubscriptArg {
   void Init(const OpSpec &spec, const std::string &name) {
     this->name = name;
-    src = spec.HasTensorArgument(name)
-              ? ArgSource::Input
-              : spec.HasArgument(name)
-                  ? ArgSource::Value
-                  : ArgSource::None;
+    src = spec.HasTensorArgument(name) ? ArgSource::Input :
+          spec.HasArgument(name)       ? ArgSource::Value :
+                                         ArgSource::None;
     if (src == ArgSource::Value)
       scalar_value = spec.GetArgument<int64_t>(name);
   }
@@ -69,12 +67,12 @@ struct SubscriptArg {
       const auto &shape = inp.shape();
 
       int n = batch_size;
-      DALI_ENFORCE(shape.num_samples() == n, make_string(
-          "Unexpected number of samples in argument `", name, "`. Got: ",
-          shape.num_samples(), ", expected ", n, "."));
+      DALI_ENFORCE(shape.num_samples() == n,
+                   make_string("Unexpected number of samples in argument `", name,
+                               "`. Got: ", shape.num_samples(), ", expected ", n, "."));
 
-      DALI_ENFORCE(shape.sample_dim() == 0,
-        make_string("Array indices must be scalar (0D). Got ", shape.sample_dim(), "D tensor."));
+      DALI_ENFORCE(shape.sample_dim() == 0, make_string("Array indices must be scalar (0D). Got ",
+                                                        shape.sample_dim(), "D tensor."));
 
       values.resize(n);
       DALIDataType type_id = inp.type();
@@ -154,8 +152,11 @@ class TensorSubscript : public Operator<Backend> {
 
     int nsub = last_subscript + 1;
     if (spec_.TryGetArgument(nsub_declared_, "num_subscripts")) {
-      DALI_ENFORCE(nsub_declared_ >= nsub, make_string("The internal argument `num_subscripts` "
-      "declares fewer (", nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
+      DALI_ENFORCE(
+          nsub_declared_ >= nsub,
+          make_string("The internal argument `num_subscripts` "
+                      "declares fewer (",
+                      nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
     } else {
       // Not declared? No problem, just use the actual number.
       nsub_declared_ = nsub;
@@ -181,7 +182,7 @@ class TensorSubscript : public Operator<Backend> {
     int nsub = subscripts_.size();
     int ndim = in_shape.sample_dim();
     DALI_ENFORCE(ndim >= nsub_declared_,
-        make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
+                 make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
 
     int nsamples = in_shape.num_samples();
     start_.resize(nsamples, ndim);
@@ -209,9 +210,13 @@ class TensorSubscript : public Operator<Backend> {
         int64_t at = s.at.values[i];
         int64_t idx = at < 0 ? in_extent + at : at;
         if (idx < 0 || idx >= in_extent)
-          DALI_FAIL(make_string("Index ", at, " is out of range "
-            "for axis ", d, " of length ", in_extent, "\n"
-            "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
+          DALI_FAIL(make_string("Index ", at,
+                                " is out of range "
+                                "for axis ",
+                                d, " of length ", in_extent,
+                                "\n"
+                                "Detected while processing sample #",
+                                i, " of shape (", in_shape[i], ")"));
         start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
       }
@@ -222,20 +227,16 @@ class TensorSubscript : public Operator<Backend> {
         int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : 0;
         int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
         int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
-        // TODO(michalz) Remove when strides are supported
-        DALI_ENFORCE(step == 1, "Indexing with non-unit step is not implemented");
-        if (lo < 0) lo += in_extent;
-        if (hi < 0) hi += in_extent;
+        if (lo < 0)
+          lo += in_extent;
+        if (hi < 0)
+          hi += in_extent;
         lo = clamp(lo, 0_i64, in_extent);
         hi = clamp(hi, 0_i64, in_extent);
         start_.tensor_shape_span(i)[d] = lo;
         step_.tensor_shape_span(i)[d] = step;
 
-        // NOTE: this code is currently not used, since the underlying kernels
-        //       don't support strides.
-        // TODO(michalz): Remove this comment when strides are supported.
-        int64_t out_extent = step > 0 ? div_ceil(hi - lo,  step)
-                                      : div_ceil(lo - hi, -step);
+        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
         if (out_extent < 0)
           out_extent = 0;
         shape_.tensor_shape_span(i)[d] = out_extent;
@@ -270,7 +271,7 @@ class TensorSubscript : public Operator<Backend> {
     for (; d < nsub; d++) {
       if (subscripts_[d].IsDefined()) {
         if (d != group_start)
-          collapsed_dims_.push_back({ group_start, d - group_start });
+          collapsed_dims_.push_back({group_start, d - group_start});
         group_start = d + 1;
       }
 
@@ -283,7 +284,7 @@ class TensorSubscript : public Operator<Backend> {
     }
 
     if (in_dims != group_start)
-      collapsed_dims_.push_back({ group_start, in_dims - group_start });
+      collapsed_dims_.push_back({group_start, in_dims - group_start});
 
     collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
     collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
@@ -309,7 +310,9 @@ class TensorSubscript : public Operator<Backend> {
     return out_layout;
   }
 
-  bool CanInferOutputs() const override { return true; }
+  bool CanInferOutputs() const override {
+    return true;
+  }
 
   using Operator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override {

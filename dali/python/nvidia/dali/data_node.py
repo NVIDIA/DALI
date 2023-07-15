@@ -20,6 +20,7 @@ from ._utils.hacks import not_iterable
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
+
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
@@ -27,7 +28,6 @@ def _arithm_op(*args, **kwargs):
 
 
 class _NewAxis:
-
     def __init__(self, name=None):
         if name is not None:
             if not isinstance(name, str):
@@ -72,6 +72,7 @@ class DataNode(object):
     # the pipeline can backtrack through the user-defined graph
     def gpu(self):
         from nvidia.dali import _conditionals
+
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
@@ -161,12 +162,13 @@ class DataNode(object):
 
     def __bool__(self):
         raise TypeError(
-            "\"DataNode\" was used in conditional context - it might have been used in truth"
+            '"DataNode" was used in conditional context - it might have been used in truth'
             " evaluation for `if` statement, logical expression or cast to a boolean."
             " To use conditional execution via `if` statements you need to specify"
             " `enable_conditionals=True` in `@nvidia.dali.pipeline_def` decorator."
             " You can read more about conditional execution in specific section of the Pipeline"
-            " documentation. Bool conversion can be achieved with the `cast` operator.")
+            " documentation. Bool conversion can be achieved with the `cast` operator."
+        )
 
     def __getitem__(self, val):
         idxs = []
@@ -178,26 +180,23 @@ class DataNode(object):
             if idx is None:
                 idxs.append((None, None, None, None))
                 return True
-            elif isinstance(idx, slice):
-                if idx.step is not None and idx.step != 1:
-                    raise NotImplementedError("Slicing with non-unit step is not implemented.")
-                idxs.append((None, idx.start, idx.stop, None))
+            if isinstance(idx, slice):
+                idxs.append((None, idx.start, idx.stop, idx.step))
                 return True
-            elif isinstance(idx, _NewAxis):
+            if isinstance(idx, _NewAxis):
                 new_axes.append(dim)
                 if idx.name is not None:
                     new_axis_names.append(idx.name)
                 return True
-            elif idx is Ellipsis:
+            if idx is Ellipsis:
                 raise NotImplementedError("Ellipsis in indexing is not implemented")
-            elif isinstance(idx, (float, str)):
+            if isinstance(idx, (float, str)):
                 raise TypeError("Invalid type for an index: ", type)
-            else:
-                idxs.append((idx, None, None, None))
-                return False
+            idxs.append((idx, None, None, None))
+            return False
 
         if not isinstance(val, tuple):
-            val = (val, )
+            val = (val,)
         d = 0
         for v in val:
             if process_index(v, d):
@@ -205,7 +204,9 @@ class DataNode(object):
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
-                raise ValueError("New axis name must be specified for all axes or none.")
+                raise ValueError(
+                    "New axis name must be specified for all axes or none."
+                )
             new_axis_names = "".join(new_axis_names)
         else:
             new_axis_names = None
@@ -222,6 +223,7 @@ class DataNode(object):
                 slice_args["step_%i" % i] = step
 
         import nvidia.dali.fn
+
         if len(slice_args) == 0:
             # No true slicing arguments - only full range : and dali.newaxis.
             # We need to ensure there are enough dimensions in the input for the number of
@@ -231,13 +233,21 @@ class DataNode(object):
             if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
                 sliced = self  # no check needed, ExpandDims will do the trick
             else:
-                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+                sliced = nvidia.dali.fn.subscript_dim_check(
+                    self, num_subscripts=len(idxs)
+                )
         else:
-            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
-        if len(new_axes) == 0:
-            return sliced
-        else:
-            return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
+            sliced = nvidia.dali.fn.tensor_subscript(
+                self, **slice_args, num_subscripts=len(idxs)
+            )
+
+        return (
+            sliced
+            if len(new_axes) == 0
+            else nvidia.dali.fn.expand_dims(
+                sliced, axes=new_axes, new_axis_names=new_axis_names
+            )
+        )
 
 
 not_iterable(DataNode)
@@ -245,6 +255,8 @@ not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError(f"Expected outputs of type compatible with \"DataNode\". "
-                        f"Received output type with name \"{type(maybe_node).__name__}\" "
-                        f"that does not match.")
+        raise TypeError(
+            f'Expected outputs of type compatible with "DataNode". '
+            f'Received output type with name "{type(maybe_node).__name__}" '
+            f"that does not match."
+        )
