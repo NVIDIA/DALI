@@ -18,11 +18,11 @@
 
 namespace dali {
 
-#define INDEX_ARGS(idx) \
-     AddOptionalArg<int>("at_" #idx, "Position index", nullptr, true) \
-    .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr, true) \
-    .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr, true) \
-    .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
+#define INDEX_ARGS(idx)                                              \
+  AddOptionalArg<int>("at_" #idx, "Position index", nullptr, true)   \
+      .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr, true) \
+      .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr, true)   \
+      .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
 
 
 DALI_SCHEMA(TensorSubscript)
@@ -30,8 +30,9 @@ DALI_SCHEMA(TensorSubscript)
     .DocStr(R"(Applies NumPy-like indexing to a batch of tensors.)")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg<int>("num_subscripts",
-      "Number of subscripts supplied, including full-range - used for validation only.", nullptr)
+    .AddOptionalArg<int>(
+        "num_subscripts",
+        "Number of subscripts supplied, including full-range - used for validation only.", nullptr)
     .INDEX_ARGS(0)
     .INDEX_ARGS(1)
     .INDEX_ARGS(2)
@@ -81,12 +82,13 @@ void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
   kernels::KernelContext ctx;
   for (int i = 0; i < N; i++) {
     tv_in.shape = simplified_in_shape_[i];
-    tv_in.data = static_cast<const T*>(input.raw_tensor(i));
+    tv_in.data = input.tensor<T>(i);
     tv_out.shape = simplified_out_shape_[i];
-    tv_out.data = static_cast<T*>(output.raw_mutable_tensor(i));
+    tv_out.data = output.mutable_tensor<T>(i);
     kernels::SliceArgs<T, ndim> args;
     args.anchor = simplified_anchor_[i].to_static<ndim>();
     args.shape = tv_out.shape;
+    args.step = step_[i];
     K.Schedule(ctx, tv_out, tv_in, args, tp);
   }
   tp.RunAll();
@@ -104,7 +106,8 @@ that the input has sufficient number of dimensions and passes through the input.
     .NumOutput(1)
     .PassThrough({{0, 0}})
     .AddArg("num_subscripts",
-      "Number of subscripts supplied, which is the minimum required in the input.", DALI_INT32);
+            "Number of subscripts supplied, which is the minimum required in the input.",
+            DALI_INT32);
 
 
 template <typename Backend>
@@ -119,8 +122,9 @@ struct SubscriptDimCheck : public Operator<Backend> {
 
   void RunImpl(Workspace &ws) override {
     auto &in = ws.Input<Backend>(0);
-    DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
-      num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
+    DALI_ENFORCE(num_subscripts_ <= in.sample_dim(),
+                 make_string("Too many indices (", num_subscripts_, ") for a ", in.sample_dim(),
+                             "-D tensor."));
     auto &out = ws.Output<Backend>(0);
     out.ShareData(in);
   }

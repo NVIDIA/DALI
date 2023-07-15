@@ -393,6 +393,11 @@ class SliceCPU {
     auto out_strides = GetStrides(out.shape);
     auto in_strides = GetStrides(in.shape);
 
+    // modify the input strides to apply stepping
+    for (int d = 0; d < in_strides.static_ndim; ++d) {
+      in_strides[d] *= args.step[d];
+    }
+
     // fill values should not be empty. It should be left default if not used
     assert(!args.fill_values.empty());
     const OutputType *fill_values = args.fill_values.data();
