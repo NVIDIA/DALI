@@ -75,9 +75,12 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const override {
     if (!stream)
-      DALI_FAIL("Cuda stream was not provided for GPU operator checkpointing. ");
+      FAIL() << "Cuda stream was not provided for GPU operator checkpointing.";
+
     std::any &cpt_state = cpt.MutableCheckpointState();
-    cpt_state = static_cast<uint32_t>(0);
+    if (!cpt_state.has_value())
+      cpt_state = static_cast<uint32_t>(0);
+
     cpt.SetOrder(AccessOrder(*stream));
     CUDA_CALL(cudaMemcpyAsync(&std::any_cast<uint32_t &>(cpt_state), state_.ptr,
                               sizeof(uint32_t), cudaMemcpyDeviceToHost, *stream));
@@ -153,7 +156,8 @@ class CheckpointTest : public DALITest {
       try {
         return GetDummyStateTyped<GPUBackend>(dummy_op);
       } catch(const std::bad_cast &) {
-        DALI_FAIL("Passed OperatorBase is not a dummy operator. ");
+        ADD_FAILURE() << "Passed OperatorBase in not a dummy operator.";
+        return 0;
       }
     }
   }
@@ -176,23 +180,22 @@ class CheckpointTest : public DALITest {
     OpGraph new_graph = make_graph_instance(ZERO_STATE);
 
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      DALI_ENFORCE(original_graph.Node(i).spec.name() ==
-                   checkpoint.GetOpCheckpoint(i).OperatorName());
+      ASSERT_EQ(original_graph.Node(i).spec.name(),
+                checkpoint.GetOpCheckpoint(i).OperatorName());
       original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i), this->stream_.get());
     }
 
-    DALI_ENFORCE(new_graph.NumOp() == nodes_cnt);
+    ASSERT_EQ(new_graph.NumOp(), nodes_cnt);
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      DALI_ENFORCE(new_graph.Node(i).spec.name() ==
-                   checkpoint.GetOpCheckpoint(i).OperatorName());
+      ASSERT_EQ(new_graph.Node(i).spec.name(),
+                checkpoint.GetOpCheckpoint(i).OperatorName());
       checkpoint.GetOpCheckpoint(i).SetOrder(AccessOrder::host());
       new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
     }
 
     for (OpNodeId i = 0; i < nodes_cnt; i++)
-      DALI_ENFORCE(
-        this->GetDummyState(*original_graph.Node(i).op) ==
-        this->GetDummyState(*new_graph.Node(i).op));
+      EXPECT_EQ(this->GetDummyState(*original_graph.Node(i).op),
+                this->GetDummyState(*new_graph.Node(i).op));
   }
 
   uint32_t NextState(OperatorStatesPolicy policy) {
@@ -202,7 +205,8 @@ class CheckpointTest : public DALITest {
       case ZERO_STATE:
         return 0;
       default:
-        DALI_FAIL("Invalid enum value. ");
+        ADD_FAILURE() << "Invalid enum value.";
+        return 0;
     }
   }
 
