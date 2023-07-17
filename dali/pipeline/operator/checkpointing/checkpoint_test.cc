@@ -61,7 +61,7 @@ struct DummyGPUData {
   }
 
   inline ~DummyGPUData() {
-    CUDA_CALL(cudaFreeAsync(ptr, order.stream()));
+    CUDA_CALL(cudaFree(ptr));
   }
 };
 
