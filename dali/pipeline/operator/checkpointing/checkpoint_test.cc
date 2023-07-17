@@ -55,7 +55,7 @@ struct DummyGPUData {
   AccessOrder order;
 
   inline DummyGPUData(cudaStream_t stream, uint32_t value) : order(stream) {
-    CUDA_CALL(cudaMallocAsync(&ptr, sizeof(uint32_t), stream));
+    CUDA_CALL(cudaMalloc(&ptr, sizeof(uint32_t)));
     CUDA_CALL(cudaMemcpyAsync(ptr, &value, sizeof(uint32_t),
                               cudaMemcpyHostToDevice, stream));
   }
