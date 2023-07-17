@@ -38,7 +38,7 @@ NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
     // some nvJPEG version doesn't support NVJPEG_BACKEND_LOSSLESS_JPEG so disable it if
     // it failed to initialize
     DALI_WARN_ONCE("The available nvJPEG library version doesn't support Lossless format, please "
-                    " update to the latest one.");
+                   "update to the latest one.");
     is_initialized_ = false;
     return;
   }
