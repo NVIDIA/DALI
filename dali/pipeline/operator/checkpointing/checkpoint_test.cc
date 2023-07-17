@@ -94,7 +94,7 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const Workspace &ws) override { return false; }
 
-  virtual void RunImpl(Workspace &ws) {}
+  void RunImpl(Workspace &ws) override {}
 
   uint32_t GetState() const {
     uint32_t ret;
