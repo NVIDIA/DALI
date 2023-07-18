@@ -61,7 +61,7 @@ struct DummyGPUData {
   }
 
   inline ~DummyGPUData() {
-    CUDA_CALL(cudaFree(ptr));
+    CUDA_DTOR_CALL(cudaFree(ptr));
   }
 };
 
