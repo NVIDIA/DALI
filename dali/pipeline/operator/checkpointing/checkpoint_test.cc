@@ -216,7 +216,7 @@ class CheckpointTest : public DALITest {
     return dynamic_cast<const DummyOperatorWithState<Backend> &>(dummy_op).GetState();
   }
 
-  uint32_t counter_;
+  uint32_t counter_ = 0;
   CUDAStreamLease stream_;
 };
 
