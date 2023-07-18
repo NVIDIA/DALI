@@ -33,6 +33,7 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
@@ -153,6 +154,23 @@ class DLL_PUBLIC OperatorBase {
     }
   }
 
+  /**
+   * @brief Saves operator state into a checkpoint.
+  */
+  virtual void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Restores operator state from checkpoint.
+   *
+   * Executor synchronizes checkpoints before restoring them.
+   *
+   * Implementation can be blocking, as the performance is not critical.
+  */
+  virtual void RestoreState(const OpCheckpoint &cpt) {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
 
  protected:
   /**
