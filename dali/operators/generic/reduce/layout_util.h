@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_GENERIC_REDUCE_LAYOUT_UTIL_H__
 
 #include "dali/core/tensor_layout.h"
+#include "dali/core/util.h"
 
 namespace dali {
 namespace reduce_util {
@@ -24,30 +25,16 @@ namespace reduce_util {
  * @brief Removes the specified axes from the layout
  *
  * @param layout The layout to remove axes from. Max supported layout size is 64.
- * @param axes list of unique axes from [0...layout.size() - 1] range describing
+ * @param axes list of axes from [0...layout.size() - 1] range describing
  *             what axes to remove from the layout
  */
 template <typename Axes>
 inline TensorLayout ReduceLayout(const TensorLayout &layout, Axes &&axes) {
-  int in_ndim = layout.size();
-  assert(in_ndim >= 0 && in_ndim <= 64);
-  assert(axes.size() <= in_ndim);
-  uint64_t mask = 0;
-  for (auto a : axes) {
-    assert(0 <= a && a < in_ndim);
-    uint64_t a_mask = 1_u64 << a;
-    assert(!(mask & a_mask));  // axes must be unique for the correct out layout dim
-    mask |= a_mask;
-  }
-  int out_ndim = in_ndim - axes.size();
+  uint64_t mask = to_bit_mask(axes);
   TensorLayout out_layout;
-  if (out_ndim <= 0) {
-    return out_layout;
-  }
-  out_layout.resize(out_ndim);
-  for (int in_idx = 0, out_idx = 0; in_idx < in_ndim; in_idx++) {
-    if (!(mask & (1_u64 << in_idx))) {
-      out_layout[out_idx++] = layout[in_idx];
+  for (int idx = 0; idx < layout.size(); idx++) {
+    if (!(mask & (1_u64 << idx))) {
+      out_layout += layout[idx];
     }
   }
   return out_layout;
