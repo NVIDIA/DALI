@@ -899,6 +899,8 @@ def generate_layout_broadcasting_cases():
         (("ABCD", "BCD"), "ABCD"),
         (("BCD", "ABCD"), "ABCD"),
         (("ABCD", "ABCD"), "ABCD"),
+        (("ABCD", "ABC"), Exception()),
+        (("X", "ABCD"), Exception()),
     ]
 
     ternary_layouts = [
@@ -909,6 +911,7 @@ def generate_layout_broadcasting_cases():
         ((0, "BCD", 4), 4),
         ((3, 4, "CD"), 4),
         ((4, "ABCD", 4), "ABCD"),
+        ((4, "A", "B"), Exception()),
     ]
 
     bin_ops = floaty_operations[:5] + bitwise_operations[:3] + \
@@ -937,7 +940,9 @@ def generate_layout_broadcasting_cases():
             input_devs = get_input_dev(num_inputs)
             in_types = get_input_types(num_inputs, op_name in ("&|^"))
             args_desc = tuple(tensor_desc(arg) for arg in args_desc)
-            yield op_name, args_desc, tensor_desc(out_desc), input_devs, in_types, op
+            if not isinstance(out_desc, Exception):
+                out_desc = tensor_desc(out_desc)
+            yield op_name, args_desc, out_desc, input_devs, in_types, op
 
 
 @params(*tuple(generate_layout_broadcasting_cases()))
@@ -956,14 +961,19 @@ def test_layout_broadcasting(op_name, args_desc, out_desc, in_devs, in_types, op
 
     p = pipeline()
     p.build()
-    o, = p.run()
-    expected_shape, expected_layout = out_desc
-    expected_layout = expected_layout or ""
-    assert o.layout() == expected_layout, f"got `{o.layout()}`, expected `{expected_layout}`"
-    out_shape = o.shape()
-    assert len(out_shape) == batch_size, f"got `{len(out_shape)}`, expected `{batch_size}`"
-    for sample_shape in out_shape:
-        assert sample_shape == expected_shape, f"got `{sample_shape}`, expected `{expected_shape}`"
+    if not isinstance(out_desc, Exception):
+        o, = p.run()
+        expected_shape, expected_layout = out_desc
+        expected_layout = expected_layout or ""
+        assert o.layout() == expected_layout, f"got `{o.layout()}`, expected `{expected_layout}`"
+        out_shape = o.shape()
+        assert len(out_shape) == batch_size, f"got `{len(out_shape)}`, expected `{batch_size}`"
+        for sample_shape in out_shape:
+            assert sample_shape == expected_shape, \
+                f"got `{sample_shape}`, expected `{expected_shape}`"
+    else:
+        with assert_raises(Exception, glob="They must be equal or one must be a suffix"):
+            o, = p.run()
 
 
 def test_broadcasting_dimensionality_limits():
