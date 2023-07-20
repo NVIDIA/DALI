@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
     ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[0]->SetLayout(TensorLayout());
-  in[1]->SetLayout(TensorLayout("HW"));
+  in[1]->SetLayout(TensorLayout("DH"));
   in[2]->SetLayout(TensorLayout("DHW"));
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
