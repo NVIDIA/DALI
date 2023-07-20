@@ -961,7 +961,10 @@ def test_layout_broadcasting(op_name, args_desc, out_desc, in_devs, in_types, op
 
     p = pipeline()
     p.build()
-    if not isinstance(out_desc, Exception):
+    if isinstance(out_desc, Exception):
+        with assert_raises(Exception, glob="They must be equal or one must be a suffix"):
+            p.run()
+    else:
         o, = p.run()
         expected_shape, expected_layout = out_desc
         expected_layout = expected_layout or ""
@@ -971,9 +974,6 @@ def test_layout_broadcasting(op_name, args_desc, out_desc, in_devs, in_types, op
         for sample_shape in out_shape:
             assert sample_shape == expected_shape, \
                 f"got `{sample_shape}`, expected `{expected_shape}`"
-    else:
-        with assert_raises(Exception, glob="They must be equal or one must be a suffix"):
-            o, = p.run()
 
 
 def test_broadcasting_dimensionality_limits():
