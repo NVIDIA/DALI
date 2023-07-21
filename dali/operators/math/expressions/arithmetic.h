@@ -86,10 +86,11 @@ inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
 
 /**
  * @brief Checks if the child is a (possibly improper) suffix of the parent.
- * The child must not be longer than the parent.
  */
-inline bool HasSuffix(const TensorLayout &parent, const TensorLayout &child) {
-  assert(parent.size() >= child.size());
+inline bool EndsWith(const TensorLayout &parent, const TensorLayout &child) {
+  if (parent.size() < child.size()) {
+    return false;
+  }
   for (int i = 0; i < child.size(); i++) {
     if (parent[parent.size() - 1 - i] != child[child.size() - 1 - i]) {
       return false;
@@ -118,10 +119,10 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const Workspace &ws) {
   for (int i = 1; i < expr.GetSubexpressionCount(); i++) {
     auto next_layout = GetCommonLayout<Backend>(func[i], ws);
     if (result_layout.size() >= next_layout.size()) {
-      if (HasSuffix(result_layout, next_layout)) {
+      if (EndsWith(result_layout, next_layout)) {
         continue;
       }
-    } else if (HasSuffix(next_layout, result_layout)) {
+    } else if (EndsWith(next_layout, result_layout)) {
       result_layout = next_layout;
       continue;
     }
