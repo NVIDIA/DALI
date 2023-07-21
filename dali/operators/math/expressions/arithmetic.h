@@ -353,7 +353,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
       result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
       // sample_ndim is assumed to be constant between iterations.
       if (result_layout_.size() != result_shape_.sample_dim()) {
-        // If the largest dimentional tensors do not have layout set but some
+        // If the tensors with the most dimensions do not have a layout set but some
         // smaller-dim tensors do, the `GetCommonLayout` returns layout smaller than needed and
         // we cannot use it. For example if `a` has shape (1, 1, 1), layout ""
         // and `b` (3,) and "C", the `a * b` shape is (1, 1, 3)
