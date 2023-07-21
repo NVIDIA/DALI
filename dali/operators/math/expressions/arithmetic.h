@@ -87,12 +87,12 @@ inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
 /**
  * @brief Checks if the child is a (possibly improper) suffix of the parent.
  */
-inline bool EndsWith(const TensorLayout &parent, const TensorLayout &child) {
-  if (parent.size() < child.size()) {
+inline bool EndsWith(const TensorLayout &whole, const TensorLayout &suffix) {
+  if (whole.size() < suffix.size()) {
     return false;
   }
-  for (int i = 0; i < child.size(); i++) {
-    if (parent[parent.size() - 1 - i] != child[child.size() - 1 - i]) {
+  for (int i = 0; i < suffix.size(); i++) {
+    if (whole[whole.size() - 1 - i] != suffix[suffix.size() - 1 - i]) {
       return false;
     }
   }

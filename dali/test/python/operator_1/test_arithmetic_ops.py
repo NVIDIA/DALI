@@ -881,6 +881,10 @@ def generate_layout_broadcasting_cases():
             types += (np.float32, )
         return tuple(rng.choice(types, size=(num_inputs, )))
 
+    # The input layouts and the expected output layout.
+    # A number N denotes an ND tensor without a layout.
+    # `Exception` means that applying an operator with the arguments with
+    # given layouts should raise an error.
     bin_layouts = [
         ((4, "C"), 4),
         (("C", 3), 3),
