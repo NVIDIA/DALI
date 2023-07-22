@@ -53,14 +53,13 @@ def set_all_values_to_255_sample(out0, in0):
 
 
 def set_all_values_to_255_sample_gpu(out0, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    while g_idx < size:
-        out0[g_idx] = 255
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = 255
 
 
 def set_all_values_to_float_batch(out0, in0):
@@ -72,14 +71,13 @@ def set_all_values_to_float_sample(out0, in0):
 
 
 def set_all_values_to_float_sample_gpu(out0, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    while g_idx < size:
-        out0[g_idx] = 0.5
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = 0.5
 
 
 def setup_change_out_shape(out_shape, in_shape):
@@ -101,14 +99,13 @@ def change_out_shape_sample(out0, in0):
 
 
 def change_out_shape_sample_gpu(out0, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    while g_idx < size:
-        out0[g_idx] = 42
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = 42
 
 
 def get_data(shapes, dtype):
@@ -142,7 +139,7 @@ def _testimpl_numba_func(device, shapes, dtype, run_fn, out_types, in_types,
         in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim,
         batch_processing=batch_processing, blocks=blocks, threads_per_block=threads_per_block)
     pipe.build()
-    for _ in range(3):
+    for it in range(3):
         outs = pipe.run()
         for i in range(batch_size):
             out_arr = to_array(outs[0][i])
@@ -196,10 +193,10 @@ def test_numba_func_gpu():
         ([(10, 10, 10)], np.float32, set_all_values_to_float_sample_gpu, [dali_types.FLOAT],
          [dali_types.FLOAT], [3], [3], None, None,
          [np.full((10, 10, 10), 0.5, dtype=np.float32)]),
-        ([(10, 20, 30), (20, 10, 30)], np.int64, change_out_shape_sample_gpu, [dali_types.INT64],
+        ([(100, 20, 30), (20, 100, 30)], np.int64, change_out_shape_sample_gpu, [dali_types.INT64],
          [dali_types.INT64], [3], [3], setup_change_out_shape, None,
-         [np.full((20, 30, 10), 42, dtype=np.int32),
-          np.full((10, 30, 20), 42, dtype=np.int32)]),
+         [np.full((20, 30, 100), 42, dtype=np.int32),
+          np.full((100, 30, 20), 42, dtype=np.int32)]),
     ]
 
     device = "gpu"
@@ -252,17 +249,13 @@ def reverse_col_sample(out0, in0):
 
 
 def reverse_col_sample_gpu(out0, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    while g_idx < size:
-        j = g_idx // (out0.shape[0] * out0.shape[2])
-        i = (g_idx % (out0.shape[0] * out0.shape[2])) // out0.shape[2]
-        c = g_idx % out0.shape[2]
-        out0[i][j][c] = 255 - in0[i][j][c]
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = 255 - in0[z][y][x]
 
 
 def rot_image_batch(out0, in0):
@@ -279,17 +272,13 @@ def rot_image_sample(out0, in0):
 
 
 def rot_image_sample_gpu(out0, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    while g_idx < size:
-        j = g_idx // (out0.shape[0] * out0.shape[2])
-        i = (g_idx % (out0.shape[0] * out0.shape[2])) // out0.shape[2]
-        c = g_idx % out0.shape[2]
-        out0[i][j][c] = in0[j][out0.shape[0] - i - 1][c]
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = in0[y][out0.shape[0] - z - 1][x]
 
 
 def rot_image_setup(outs, ins):
@@ -326,7 +315,7 @@ def test_numba_func_image_gpu():
         (reverse_col_sample_gpu, [dali_types.UINT8], [dali_types.UINT8],
          [3], [3], None, None, lambda x: 255 - x),
         (rot_image_sample_gpu, [dali_types.UINT8], [dali_types.UINT8],
-         [3], [3], rot_image_setup, None, lambda x: np.rot90(x)),
+         [3], [3], rot_image_setup, None, np.rot90),
     ]
     device = "gpu"
     blocks = [32, 32, 1]
@@ -347,18 +336,14 @@ def split_images_col_sample(out0, out1, out2, in0):
 
 
 def split_images_col_sample_gpu(out0, out1, out2, in0):
-    x, y, z = cuda.grid(3)
-    x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
+    tx, ty = cuda.grid(2)
+    x_s, y_s = cuda.gridsize(2)
 
-    while g_idx < size:
-        j = g_idx // (out0.shape[0])
-        i = g_idx % out0.shape[0]
-        out0[i][j] = in0[i][j][0]
-        out1[i][j] = in0[i][j][1]
-        out2[i][j] = in0[i][j][2]
-        g_idx += x_s*y_s*z_s
+    for y in range(ty, out0.shape[0], y_s):
+        for x in range(tx, out0.shape[1], x_s):
+            out0[y][x] = in0[y][x][0]
+            out1[y][x] = in0[y][x][1]
+            out2[y][x] = in0[y][x][2]
 
 
 def setup_split_images_col(outs, ins):
@@ -447,19 +432,14 @@ def multiple_ins_run(out0, in0, in1, in2):
 
 
 def multiple_ins_run_gpu(out0, in0, in1, in2):
-    x, y, z = cuda.grid(3)
-    x_s, y_s, z_s = cuda.gridsize(3)
-    size = in0.size
-    g_idx = x_s*y_s*z + x_s*y + x
+    tx, ty = cuda.grid(2)
+    x_s, y_s = cuda.gridsize(2)
 
-    while g_idx < size:
-        j = g_idx // (in0.shape[0])
-        i = g_idx % in0.shape[0]
-        out0[i][j][0] = in0[i][j]
-        out0[i][j][1] = in1[i][j]
-        out0[i][j][2] = in2[i][j]
-
-        g_idx += x_s*y_s*z_s
+    for y in range(ty, out0.shape[0], y_s):
+        for x in range(tx, out0.shape[1], x_s):
+            out0[y][x][0] = in0[y][x]
+            out0[y][x][1] = in1[y][x]
+            out0[y][x][2] = in2[y][x]
 
 
 @pipeline_def
@@ -501,7 +481,7 @@ def test_multiple_ins_gpu():
     threads_per_block = [16, 1, 1]
     pipe = numba_multiple_ins_pipe(
         shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0,
-        run_fn=multiple_ins_run,
+        run_fn=multiple_ins_run_gpu,
         setup_fn=multiple_ins_setup,
         out_types=[dali_types.UINT8],
         in_types=[dali_types.UINT8 for i in range(3)],
@@ -532,20 +512,16 @@ def nonuniform_types_run_cpu(out_img, out_shape, in_img):
 
 
 def nonuniform_types_run_gpu(out0, out_shape, in0):
-    x, y, z = cuda.grid(3)
+    tx, ty, tz = cuda.grid(3)
     x_s, y_s, z_s = cuda.gridsize(3)
-    size = out0.size
-    g_idx = x_s*y_s*z + x_s*y + x
 
-    if g_idx == 0:
+    if tx + ty + tz == 0:
         out_shape[:] = out0.shape
 
-    while g_idx < size:
-        j = g_idx // (out0.shape[0] * out0.shape[2])
-        i = (g_idx % (out0.shape[0] * out0.shape[2])) // out0.shape[2]
-        c = g_idx % out0.shape[2]
-        out0[i][j][c] = 255 - in0[i][j][c]
-        g_idx += x_s*y_s*z_s
+    for z in range(tz, out0.shape[0], z_s):
+        for y in range(ty, out0.shape[1], y_s):
+            for x in range(tx, out0.shape[2], x_s):
+                out0[z][y][x] = 255 - in0[z][y][x]
 
 
 @pipeline_def
@@ -601,7 +577,4 @@ def test_nonuniform_types_gpu():
             (images_in.as_cpu(), images_out.as_cpu(), img_shape.as_cpu())
         for i in range(len(images_in)):
             assert np.array_equal(255 - images_in.at(i), images_out.at(i))
-            if not np.array_equal(images_out.at(i).shape, img_shape.at(i)):
-                print(images_out.at(i).shape)
-                print(img_shape.at(i))
-                assert False
+            assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
