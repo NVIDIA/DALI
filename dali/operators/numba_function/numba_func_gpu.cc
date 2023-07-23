@@ -173,7 +173,6 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupNoFn(std::vector<OutputDesc> &output
       "is not provided. Provided ", ninputs, " inputs and ", noutputs,
       " outputs."));
   for (int out_id = 0; out_id < noutputs; out_id++) {
-    // Assume that inputs and outputs have the same shapes and types
     for (int i = 0; i < nsamples; i++) {
       vector<ssize_t> sizes = calc_sizes(in_types_[out_id], in_shapes_[out_id][i]);
       out_sizes_.push_back(sizes);
