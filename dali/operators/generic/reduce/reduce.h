@@ -74,7 +74,7 @@ class Reduce : public Operator<Backend>, AxesHelper {
     auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
     auto &input = ws.Input<Backend>(0);
     auto &output = ws.Output<Backend>(0);
-    reduce_util::PropagateLayout(input, output, make_span(axes_), keep_dims_);
+    reduce_util::PropagateLayout(output, input, make_span(axes_), keep_dims_);
     reduce_impl.RunImplImpl(ws);
   }
 

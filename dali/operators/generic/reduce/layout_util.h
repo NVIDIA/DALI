@@ -40,8 +40,8 @@ inline TensorLayout ReduceLayout(const TensorLayout &layout, Axes &&axes) {
   return out_layout;
 }
 
-template <typename Input, typename Output, typename Axes>
-inline void PropagateLayout(const Input &input, Output &output, Axes &&axes, bool keep_dims) {
+template <typename Output, typename Input, typename Axes>
+inline void PropagateLayout(Output &output, const Input &input, Axes &&axes, bool keep_dims) {
   const auto &in_layout = input.GetLayout();
   if (!in_layout.empty() && output.GetLayout().empty()) {
     if (keep_dims) {
