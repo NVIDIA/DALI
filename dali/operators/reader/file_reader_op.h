@@ -54,6 +54,16 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
     label_output.mutable_data<int>()[0] = image_label.label;
   }
 
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    auto &loader = dynamic_cast<FileLabelLoader &>(*loader_);
+    cpt.MutableCheckpointState() = loader.PopClonedState();
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    auto &loader = dynamic_cast<FileLabelLoader &>(*loader_);
+    loader.SetState(cpt.CheckpointState<FileLabelLoaderState>());
+  }
+
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };

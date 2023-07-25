@@ -38,6 +38,11 @@ struct ImageLabelWrapper {
   int label;
 };
 
+struct FileLabelLoaderState {
+  std::default_random_engine rng;
+  int current_epoch;
+};
+
 class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit inline FileLabelLoader(
@@ -46,83 +51,107 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
-      current_epoch_(0) {
+      current_epoch_(0),
+      state_queue_front_(0),
+      state_queue_back_(0),
+      checkpoint_epoch_(0) {
 
-      vector<string> files;
-      vector<int> labels;
+    vector<string> files;
+    vector<int> labels;
 
-      has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
-      has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
-      has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
-      has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
-      bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
+    has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
+    has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
+    has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
+    has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
+    bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
 
-      // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
-      // GetArgument.
-      spec.TryGetArgument(case_sensitive_filter_, "case_sensitive_filter");
+    // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
+    // GetArgument.
+    spec.TryGetArgument(case_sensitive_filter_, "case_sensitive_filter");
 
-      DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
-        "``file_root`` argument is required when not using ``files`` or ``file_list``.");
+    DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
+      "``file_root`` argument is required when not using ``files`` or ``file_list``.");
 
-      DALI_ENFORCE(has_files_arg_ + has_file_list_arg_ <= 1,
-        "File paths can be provided through ``files`` or ``file_list`` but not both.");
+    DALI_ENFORCE(has_files_arg_ + has_file_list_arg_ <= 1,
+      "File paths can be provided through ``files`` or ``file_list`` but not both.");
 
-      DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
-        "The argument ``labels`` is valid only when file paths "
-        "are provided as ``files`` argument.");
+    DALI_ENFORCE(has_files_arg_ || !has_labels_arg_,
+      "The argument ``labels`` is valid only when file paths "
+      "are provided as ``files`` argument.");
 
-      DALI_ENFORCE(!has_file_filters_arg || filters_.size() > 0,
-                   "``file_filters`` list cannot be empty.");
+    DALI_ENFORCE(!has_file_filters_arg || filters_.size() > 0,
+                  "``file_filters`` list cannot be empty.");
 
-      if (has_file_list_arg_) {
-        DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
-        if (!has_file_root_arg_) {
-          auto idx = file_list_.rfind(filesystem::dir_sep);
-          if (idx != string::npos) {
-            file_root_ = file_list_.substr(0, idx);
-          }
+    if (has_file_list_arg_) {
+      DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
+      if (!has_file_root_arg_) {
+        auto idx = file_list_.rfind(filesystem::dir_sep);
+        if (idx != string::npos) {
+          file_root_ = file_list_.substr(0, idx);
         }
       }
+    }
 
-      if (has_files_arg_) {
-        DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
-        if (has_labels_arg_) {
-          DALI_ENFORCE(files.size() == labels.size(), make_string("Provided ", labels.size(),
-            " labels for ", files.size(), " files."));
+    if (has_files_arg_) {
+      DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
+      if (has_labels_arg_) {
+        DALI_ENFORCE(files.size() == labels.size(), make_string("Provided ", labels.size(),
+          " labels for ", files.size(), " files."));
 
+        for (int i = 0, n = files.size(); i < n; i++)
+          image_label_pairs_.emplace_back(std::move(files[i]), labels[i]);
+      } else {
           for (int i = 0, n = files.size(); i < n; i++)
-            image_label_pairs_.emplace_back(std::move(files[i]), labels[i]);
-        } else {
-            for (int i = 0, n = files.size(); i < n; i++)
-              image_label_pairs_.emplace_back(std::move(files[i]), i);
-        }
+            image_label_pairs_.emplace_back(std::move(files[i]), i);
       }
+    }
 
-      /*
-      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
-      * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
-      * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLabelLoader so all
-      * DALI instances will do shuffling after each epoch
-      */
-      DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
-                   "shuffle_after_epoch and stick_to_shard cannot be both true");
-      DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
-                   "shuffle_after_epoch and random_shuffle cannot be both true");
-      /*
-       * Imply `stick_to_shard` from  `shuffle_after_epoch`
-       */
-      if (shuffle_after_epoch_) {
-        stick_to_shard_ = true;
-      }
+    /*
+     * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks differently
+     * after each epoch so coexistence with `stick_to_shard` doesn't make any sense
+     * Still when `shuffle_after_epoch` we will set `stick_to_shard` internally in the FileLabelLoader so all
+     * DALI instances will do shuffling after each epoch
+     */
+    DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
+                  "shuffle_after_epoch and stick_to_shard cannot be both true");
+    DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
+                  "shuffle_after_epoch and random_shuffle cannot be both true");
+    /*
+     * Imply `stick_to_shard` from  `shuffle_after_epoch`
+     */
+    if (shuffle_after_epoch_) {
+      stick_to_shard_ = true;
+    }
     if (!dont_use_mmap_) {
       mmap_reserver_ = FileStream::MappingReserver(
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
+
+    if (checkpointing_) {
+      /*
+       * TODO: explain the queue size
+       */
+      state_queue_.resize(spec.GetArgument<int>("prefetch_queue_depth") + 1);
+      CheckpointingNewShard();
+    }
   }
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
+
+  FileLabelLoaderState PopClonedState() {
+    DALI_ENFORCE(checkpointing_, "Cannot export loader state when checkpointing is not enabled. ");
+    std::lock_guard<std::mutex> lock(state_queue_mutex_);
+    auto result = state_queue_[state_queue_front_];
+    state_queue_front_ = (state_queue_front_ + 1) % state_queue_.size();
+    return result;
+  }
+
+  void SetState(FileLabelLoaderState state) {
+    e_ = state.rng;
+    current_epoch_ = state.current_epoch;
+  }
 
  protected:
   Index SizeImpl() override;
@@ -200,6 +229,13 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     }
   }
 
+  void CheckpointingNewShard() override {
+    std::lock_guard<std::mutex> lock(state_queue_mutex_);
+    state_queue_[state_queue_back_].rng = e_;
+    state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
+    state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
+  }
+
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
   using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
 
@@ -217,6 +253,14 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   Index current_index_;
   int current_epoch_;
   FileStream::MappingReserver mmap_reserver_;
+
+  // checkpointing
+  std::vector<FileLabelLoaderState> state_queue_;
+  Index state_queue_front_;
+  Index state_queue_back_;
+  int checkpoint_epoch_;
+  std::mutex state_queue_mutex_;
+  using Loader<CPUBackend, ImageLabelWrapper>::checkpointing_;
 };
 
 }  // namespace dali

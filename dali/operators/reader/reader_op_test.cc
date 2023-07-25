@@ -16,6 +16,8 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <cstdio>
+#include <fstream>
+#include <filesystem>
 #include <string>
 #include <thread>
 #include <utility>
@@ -24,6 +26,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/operators/reader/reader_op.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/test/dali_test.h"
@@ -471,6 +474,86 @@ TEST(ReaderTestSimple, CheckNumSamples) {
   ASSERT_EQ(num_samples(1, 10), 10 / 1);
   ASSERT_EQ(num_samples(2, 10), 10 / 2);
   ASSERT_EQ(num_samples(3, 10), static_cast<Index>(std::ceil(10 * 1.0 / 3)));
+}
+
+class FileReaderTest : public DALITest {
+ public:
+  void SetUp() override {
+    constexpr int filecount = 4;
+
+    for (int i = 0; i < filecount; i++) {
+      std::string path = make_string("/tmp/dali_test_file_", to_string(i));
+      filepaths_.push_back(path);
+
+      // write a single byte to the file
+      std::ofstream f(path);
+      f << (uint8_t) i;
+    }
+  }
+
+  void TearDown() override {
+    for (const auto &path : filepaths_)
+      std::remove(path.data());
+  }
+
+  std::vector<std::string> filepaths_;
+};
+
+TEST_F(FileReaderTest, SimpleCheckpointTest) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 2;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.AddOperator(
+        OpSpec("FileReader")
+        .AddOutput("data_out", "cpu")
+        .AddOutput("labels", "cpu")
+        .AddArg("files", filepaths_)
+        .AddArg("checkpointing", true)
+        .AddArg("random_shuffle", true)
+        .AddArg("initial_fill", 3)
+        // .AddArg("prefetch_queue_depth", 4)
+        .AddArg("pad_last_batch", true), "file_reader");
+
+    std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
+    pipe.Build(outputs);
+  };
+
+  Workspace ws;
+  auto run_epoch = [&](Pipeline &pipe) {
+    std::vector<uint8_t> result;
+    for (size_t it = 0; it < (filepaths_.size() + batch_size - 1) / batch_size; it++) {
+      pipe.RunCPU();
+      pipe.RunGPU();
+      pipe.Outputs(&ws);
+
+      auto shape = ws.Output<CPUBackend>(0).AsTensor().shape();
+      for (int nr = 0; nr < shape[0]; nr++)
+        result.push_back(ws.Output<CPUBackend>(0).tensor<uint8_t>(0)[nr]);
+    }
+    return result;
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<OpCheckpoint> checkpoints;
+
+  std::vector<std::vector<uint8_t>> results_by_epoch;
+  for (int i = 0; i < epochs; ++i) {
+    auto node = pipe.GetOperatorNode("file_reader");
+    OpCheckpoint cpt(node->spec);
+    node->op->SaveState(cpt, std::nullopt);
+    checkpoints.push_back(cpt);
+    results_by_epoch.push_back(run_epoch(pipe));
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    auto node = fresh_pipe.GetOperatorNode("file_reader");
+    node->op->RestoreState(checkpoints[i]);
+    EXPECT_EQ(run_epoch(fresh_pipe), results_by_epoch[i]);
+  }
 }
 
 };  // namespace dali

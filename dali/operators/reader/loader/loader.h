@@ -81,6 +81,11 @@ class Loader {
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
+
+    // TODO(staniewzki): add default value in operator schemas
+    if (!options.TryGetArgument(checkpointing_, "checkpointing")) {
+      checkpointing_ = false;
+    }
   }
 
   virtual ~Loader() {
@@ -114,6 +119,11 @@ class Loader {
                        std::is_same<T, Tensor<GPUBackend>>::value)>
   PrepareEmptyTensor(T&) {
     DALI_ERROR("Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
+  }
+
+  // Called when loader is moving to the next shard, to create a new checkpoint.
+  virtual void CheckpointingNewShard() {
+    DALI_FAIL("Checkpointing is not implemented for this loader. ");
   }
 
   // Get a random read sample
@@ -164,6 +174,9 @@ class Loader {
       // remove shard that was fully consumed
       shards_.pop_front();
       returned_sample_counter_ = 0;
+
+      if (checkpointing_)
+        CheckpointingNewShard();
     }
 
     // choose the random index
@@ -321,6 +334,9 @@ class Loader {
   const int initial_empty_size_;
   const int tensor_init_bytes_;
   bool initial_buffer_filled_ = false;
+
+  // when enabled, the loader creates a checkpoint at the start of every epoch.
+  bool checkpointing_;
 
   // rng
   std::default_random_engine e_;
