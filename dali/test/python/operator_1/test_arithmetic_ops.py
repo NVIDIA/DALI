@@ -21,6 +21,7 @@ from nvidia.dali.tensors import TensorListGPU
 import numpy as np
 from nose.tools import assert_equals
 from nose.plugins.attrib import attr
+from nose2.tools import params
 import itertools
 
 from test_utils import np_type_to_dali
@@ -861,6 +862,122 @@ def test_ternary_ops_broadcasting():
                                               selected_input_arithm_types,
                                               selected_input_arithm_types):
                 yield check_ternary_op, kinds, types_in, op, get_sh, op_desc
+
+
+def generate_layout_broadcasting_cases():
+    rng = np.random.default_rng(4242)
+
+    def get_input_dev(num_inputs):
+        placement = rng.choice(["cpu", "gpu", "non_uniform"])
+        if placement != "non_uniform":
+            return (placement, ) * num_inputs
+        placement = [rng.choice(["cpu", "gpu"]) for _ in range(num_inputs - 1)]
+        placement.append("gpu" if placement[-1] == "cpu" else "cpu")
+        return tuple(placement)
+
+    def get_input_types(num_inputs, integral_only):
+        types = (np.int32, np.uint8)
+        if not integral_only:
+            types += (np.float32, )
+        return tuple(rng.choice(types, size=(num_inputs, )))
+
+    # The input layouts and the expected output layout.
+    # A number N denotes an ND tensor without a layout.
+    # `Exception` means that applying an operator with the arguments with
+    # given layouts should raise an error.
+    bin_layouts = [
+        ((4, "C"), 4),
+        (("C", 3), 3),
+        (("C", 2), 2),
+        (("C", 1), "C"),
+        ((1, "C"), "C"),
+        ((0, "C"), "C"),
+        (("C", 0), "C"),
+        (("ABCD", 0), "ABCD"),
+        ((0, "ABCD"), "ABCD"),
+        (("ABCD", 3), "ABCD"),
+        ((1, "ABCD"), "ABCD"),
+        (("ABCD", "D"), "ABCD"),
+        (("D", "ABCD"), "ABCD"),
+        (("ABCD", "CD"), "ABCD"),
+        (("ABCD", "BCD"), "ABCD"),
+        (("BCD", "ABCD"), "ABCD"),
+        (("ABCD", "ABCD"), "ABCD"),
+        (("ABCD", "ABC"), Exception()),
+        (("X", "ABCD"), Exception()),
+    ]
+
+    ternary_layouts = [
+        (("ABCD", "CD", "D"), "ABCD"),
+        (("ABCD", "D", "CD"), "ABCD"),
+        ((3, "ABCD", "CD"), "ABCD"),
+        ((0, "ABCD", 0), "ABCD"),
+        ((0, "BCD", 4), 4),
+        ((3, 4, "CD"), 4),
+        ((4, "ABCD", 4), "ABCD"),
+        ((4, "A", "B"), Exception()),
+    ]
+
+    bin_ops = floaty_operations[:5] + bitwise_operations[:3] + \
+        comparisons_operations[:2] + sane_operations
+
+    def tensor_desc(ndim_or_layout):
+        if isinstance(ndim_or_layout, int):
+            ndim = ndim_or_layout
+            layout = None
+        else:
+            assert isinstance(ndim_or_layout, str)
+            ndim = len(ndim_or_layout)
+            layout = ndim_or_layout
+        max_shape = (5, 7, 11, 13)
+        shape = tuple() if ndim == 0 else max_shape[-ndim:]
+        return shape, layout
+
+    for num_inputs, layouts, op_lists in [
+        (2, bin_layouts, bin_ops),
+        (3, ternary_layouts, ternary_operations),
+    ]:
+        for i, (args_desc, out_desc) in enumerate(layouts):
+            assert (len(args_desc) == num_inputs)
+            op, op_name = op_lists[i % len(op_lists)][:2]
+            op = op if not isinstance(op, tuple) else op[0]
+            input_devs = get_input_dev(num_inputs)
+            in_types = get_input_types(num_inputs, op_name in ("&|^"))
+            args_desc = tuple(tensor_desc(arg) for arg in args_desc)
+            if not isinstance(out_desc, Exception):
+                out_desc = tensor_desc(out_desc)
+            yield op_name, args_desc, out_desc, input_devs, in_types, op
+
+
+@params(*tuple(generate_layout_broadcasting_cases()))
+def test_layout_broadcasting(op_name, args_desc, out_desc, in_devs, in_types, op):
+    assert len(args_desc) == len(in_devs)
+    assert len(in_types) == len(in_devs)
+    batch_size = 4
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def pipeline():
+        in_nodes = [
+            types.Constant(np.full(shape, 1, dtype=in_type), device=in_dev, layout=layout)
+            for (shape, layout), in_dev, in_type in zip(args_desc, in_devs, in_types)
+        ]
+        return op(*in_nodes)
+
+    p = pipeline()
+    p.build()
+    if isinstance(out_desc, Exception):
+        with assert_raises(Exception, glob="They must be equal or one must be a suffix"):
+            p.run()
+    else:
+        o, = p.run()
+        expected_shape, expected_layout = out_desc
+        expected_layout = expected_layout or ""
+        assert o.layout() == expected_layout, f"got `{o.layout()}`, expected `{expected_layout}`"
+        out_shape = o.shape()
+        assert len(out_shape) == batch_size, f"got `{len(out_shape)}`, expected `{batch_size}`"
+        for sample_shape in out_shape:
+            assert sample_shape == expected_shape, \
+                f"got `{sample_shape}`, expected `{expected_shape}`"
 
 
 def test_broadcasting_dimensionality_limits():
