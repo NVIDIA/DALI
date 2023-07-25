@@ -23,6 +23,7 @@
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 #include "dali/kernels/reduce/reductions.h"
+#include "dali/operators/generic/reduce/layout_util.h"
 #include "dali/operators/util/axes_utils.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -71,6 +72,9 @@ class Reduce : public Operator<Backend>, AxesHelper {
 
   void RunImpl(Workspace &ws) override {
     auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
+    auto &input = ws.Input<Backend>(0);
+    auto &output = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(output, input, make_span(axes_), keep_dims_);
     reduce_impl.RunImplImpl(ws);
   }
 
