@@ -82,7 +82,7 @@ class Loader {
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
 
-    // TODO(staniewzki): add default value in operator schemas
+    // TODO(mstaniewski): add default value in operator schemas
     if (!options.TryGetArgument(checkpointing_, "checkpointing")) {
       checkpointing_ = false;
     }

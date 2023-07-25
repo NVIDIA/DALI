@@ -38,6 +38,9 @@ struct ImageLabelWrapper {
   int label;
 };
 
+/**
+ * @brief State structure for FileLabelLoader, used for checkpointing.
+ */
 struct FileLabelLoaderState {
   std::default_random_engine rng;
   int current_epoch;
@@ -130,7 +133,13 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
     if (checkpointing_) {
       /*
-       * TODO: explain the queue size
+       * A checkpoint is created every time the prefetching thread starts working
+       * on a new epoch. Therefore, we are guaranteed, there will be at most
+       * prefetch_queue_depth checkpoints waiting in the queue at a time.
+       *
+       * The +1 is added, because there could be a situation, where a batch is
+       * collected from the prefetch_queue (possibly leading to creation of another checkpoint),
+       * but the checkpoint from the corresponding epoch is not yet collected.
        */
       state_queue_.resize(spec.GetArgument<int>("prefetch_queue_depth") + 1);
       CheckpointingNewShard();
@@ -140,6 +149,11 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
 
+  /**
+   * @brief Collects a state checkpoint from inner queue.
+   *
+   * Should be called exactly once each epoch.
+  */
   FileLabelLoaderState PopClonedState() {
     DALI_ENFORCE(checkpointing_, "Cannot export loader state when checkpointing is not enabled. ");
     std::lock_guard<std::mutex> lock(state_queue_mutex_);
@@ -148,6 +162,9 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     return result;
   }
 
+  /**
+   * @brief Recovers the loader's state from a checkpoint.
+  */
   void SetState(FileLabelLoaderState state) {
     e_ = state.rng;
     current_epoch_ = state.current_epoch;
