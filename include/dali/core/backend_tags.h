@@ -16,7 +16,7 @@
 #define DALI_CORE_BACKEND_TAGS_H_
 
 #include <type_traits>
-#include "dali/core/mm/cuda_memory_resource.h"
+#include "dali/core/mm/memory_resource.h"
 
 namespace dali {
 
@@ -59,22 +59,22 @@ template <typename MemoryKind>
 struct kind2storage;
 
 template <>
-struct kind2storage<cuda_for_dali::memory_kind::host> {
+struct kind2storage<mm::memory_kind::host> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage<cuda_for_dali::memory_kind::pinned> {
+struct kind2storage<mm::memory_kind::pinned> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage<cuda_for_dali::memory_kind::device> {
+struct kind2storage<mm::memory_kind::device> {
   using type = StorageGPU;
 };
 
 template <>
-struct kind2storage<cuda_for_dali::memory_kind::managed> {
+struct kind2storage<mm::memory_kind::managed> {
   using type = StorageUnified;
 };
 

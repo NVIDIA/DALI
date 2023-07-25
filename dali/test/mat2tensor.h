@@ -72,7 +72,7 @@ template <typename MemoryKind = mm::memory_kind::device, typename T = uint8_t, i
 std::pair<TensorView<kind2storage_t<MemoryKind>, T, ndims>, mm::uptr<T>>
 copy_as_tensor(const cv::Mat &mat) {
   static_assert(
-      cuda_for_dali::kind_has_property<MemoryKind, cuda_for_dali::memory_access::device>::value,
+      mm::is_device_accessible<MemoryKind>,
       "A GPU-accessible memory kind is required.");
   auto tvin = kernels::view_as_tensor<const T, ndims>(mat);
   return copy<MemoryKind>(tvin);
