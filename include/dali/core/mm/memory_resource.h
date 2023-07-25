@@ -37,6 +37,7 @@ namespace dali {
 namespace mm {
 
 namespace memory_kind = cuda_for_dali::memory_kind;
+namespace memory_access = cuda_for_dali::memory_access;
 
 using cuda_for_dali::memory_resource;
 using cuda_for_dali::resource_view;
@@ -45,6 +46,8 @@ using cuda_for_dali::stream_ordered_resource_view;
 using host_memory_resource = memory_resource<memory_kind::host>;
 using pinned_memory_resource = memory_resource<memory_kind::pinned>;
 using cuda_for_dali::stream_view;
+
+using cuda_for_dali::kind_has_property;
 
 template <typename Kind>
 using async_memory_resource = cuda_for_dali::stream_ordered_memory_resource<Kind>;
@@ -57,13 +60,14 @@ struct stream_context {
   stream_view stream;
 };
 
-namespace detail {
-
 template <typename Kind>
 constexpr bool is_host_accessible =
-    cuda_for_dali::kind_has_property<Kind, cuda_for_dali::memory_access::host>::value;
+    mm::kind_has_property<Kind, mm::memory_access::host>::value;
 
-}  // namespace detail
+template <typename Kind>
+constexpr bool is_device_accessible =
+    mm::kind_has_property<Kind, mm::memory_access::device>::value;
+
 
 }  // namespace mm
 }  // namespace dali

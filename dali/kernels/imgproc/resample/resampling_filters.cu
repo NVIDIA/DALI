@@ -72,8 +72,7 @@ void InitFilters(ResamplingFilters &filters) {
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
-  constexpr bool need_staging =
-    !cuda_for_dali::kind_has_property<MemoryKind, cuda_for_dali::memory_access::host>::value;
+  constexpr bool need_staging = !mm::is_host_accessible<MemoryKind>;
 
   using tmp_kind = std::conditional_t<need_staging, mm::memory_kind::host, MemoryKind>;
   filters.filter_data = mm::alloc_raw_unique<float, tmp_kind>(total_size);

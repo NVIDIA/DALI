@@ -73,7 +73,7 @@ class ScatterGatherTest : public testing::Test {
 
   template <typename MemoryKind>
   void Memcpy(void *dst, const void *src, size_t size, cudaMemcpyKind kind) {
-    if (cuda_for_dali::kind_has_property<MemoryKind, cuda_for_dali::memory_access::host>::value) {
+    if (mm::is_host_accessible<MemoryKind>) {
       memcpy(dst, src, size);
     } else {
       CUDA_CALL(cudaMemcpy(dst, src, size, kind));
@@ -82,7 +82,7 @@ class ScatterGatherTest : public testing::Test {
 
   template <typename MemoryKind>
   void Memset(void *dst, int c, size_t size) {
-    if (cuda_for_dali::kind_has_property<MemoryKind, cuda_for_dali::memory_access::host>::value) {
+    if (mm::is_host_accessible<MemoryKind>) {
       memset(dst, c, size);
     } else {
       CUDA_CALL(cudaMemset(dst, c, size));
