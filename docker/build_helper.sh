@@ -22,6 +22,9 @@ while getopts 'h' option; do
 done
 shift $((OPTIND - 1))
 
+echo $BUILD_CVCUDA
+echo $BUILD_NVJPEG
+
 export ARCH=${ARCH}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_TEST=${BUILD_TEST:-ON}

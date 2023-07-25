@@ -161,6 +161,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_PROTOBUF=${BUILD_PROTOBUF}          \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
                                         BUILD_NVJPEG2K=${BUILD_NVJPEG2K}          \
+                                        BUILD_CVCUDA=${BUILD_CVCUDA}              \
                                         BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
@@ -209,6 +210,7 @@ else
                                    --build-arg "BUILD_PROTOBUF=${BUILD_PROTOBUF}"          \
                                    --build-arg "BUILD_NVJPEG=${BUILD_NVJPEG}"              \
                                    --build-arg "BUILD_NVJPEG2K=${BUILD_NVJPEG2K}"          \
+                                   --build-arg "BUILD_CVCUDA=${BUILD_CVCUDA}"              \
                                    --build-arg "BUILD_LIBTIFF=${BUILD_LIBTIFF}"            \
                                    --build-arg "BUILD_NVOF=${BUILD_NVOF}"                  \
                                    --build-arg "BUILD_NVDEC=${BUILD_NVDEC}"                \
