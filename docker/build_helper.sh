@@ -97,6 +97,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_CFITSIO=${BUILD_CFITSIO}             \
       -DBUILD_CUFILE=${BUILD_CUFILE}               \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}               \
+      -DBUILD_CVCUDA=${BUILD_CVCUDA}               \
       -DLINK_LIBCUDA=${LINK_LIBCUDA}               \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
       -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG} \
