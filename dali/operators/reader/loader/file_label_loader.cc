@@ -84,7 +84,14 @@ FileLabelLoaderState FileLabelLoader::PopClonedState() {
 void FileLabelLoader::SetState(FileLabelLoaderState state) {
   e_ = state.rng;
   current_epoch_ = state.current_epoch;
+  checkpoint_epoch_ = state.current_epoch;
+
+  // Re-run reset
   Reset(true);
+
+  // Reset checkpointing
+  state_queue_front_ = state_queue_back_;
+  CheckpointingNewShard();
 }
 
 Index FileLabelLoader::SizeImpl() {
