@@ -173,7 +173,10 @@ copy_and_patch() {
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
 
-    strip_so $TMPDIR/$patchedpath
+    if [[ "$STRIP_DEBUG" != "NO" ]]; then
+        echo "Stripping $patchedpath from debug info"
+        strip_so $TMPDIR/$patchedpath
+    fi
 
     echo "Patching DT_SONAME field in $patchedpath"
     patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
