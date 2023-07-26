@@ -242,7 +242,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
     if (shuffle_after_epoch_) {
       if (checkpointing_) {
-        // With checkpointing is enabled, dataset order must be easy to restore.
+        // With checkpointing enabled, dataset order must be easy to restore.
         // The shuffling is run with different seed every epoch, so this doesn't impact
         // the random distribution.
         image_label_pairs_ = backup_image_label_pairs_;
