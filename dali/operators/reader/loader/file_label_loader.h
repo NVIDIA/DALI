@@ -38,14 +38,6 @@ struct ImageLabelWrapper {
   int label;
 };
 
-/**
- * @brief State structure for FileLabelLoader, used for checkpointing.
- */
-struct FileLabelLoaderState {
-  std::default_random_engine rng;
-  int current_epoch;
-};
-
 class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit inline FileLabelLoader(
@@ -54,10 +46,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     : Loader<CPUBackend, ImageLabelWrapper>(spec),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
-      current_epoch_(0),
-      state_queue_front_(0),
-      state_queue_back_(0),
-      checkpoint_epoch_(0) {
+      current_epoch_(0) {
 
     vector<string> files;
     vector<int> labels;
@@ -130,41 +119,13 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
                                   static_cast<unsigned int>(initial_buffer_fill_));
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
-
-    if (checkpointing_) {
-      /*
-       * A checkpoint is created every time the prefetching thread starts working
-       * on a new epoch. Therefore, we are guaranteed, there will be at most
-       * prefetch_queue_depth checkpoints waiting in the queue at a time.
-       *
-       * The +1 is added, because there could be a situation, where a batch is
-       * collected from the prefetch_queue (possibly leading to creation of another checkpoint),
-       * but the checkpoint from the corresponding epoch is not yet collected.
-       */
-      state_queue_.resize(spec.GetArgument<int>("prefetch_queue_depth") + 1);
-      CheckpointingNewShard();
-    }
   }
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
 
-  /**
-   * @brief Collects a state checkpoint from inner queue.
-   *
-   * Should be called exactly once each epoch.
-  */
-  FileLabelLoaderState PopClonedState();
-
-  /**
-   * @brief Recovers the loader's state from a checkpoint.
-  */
-  void SetState(FileLabelLoaderState state);
-
  protected:
   Index SizeImpl() override;
-
-  void CheckpointingNewShard() override;
 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
@@ -252,6 +213,10 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     }
   }
 
+  void RestoreStateImpl(const LoaderStateSnapshot &state) override {
+    current_epoch_ = state.current_epoch;
+  }
+
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
   using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
 
@@ -270,14 +235,6 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   Index current_index_;
   int current_epoch_;
   FileStream::MappingReserver mmap_reserver_;
-
-  // checkpointing
-  std::vector<FileLabelLoaderState> state_queue_;
-  Index state_queue_front_;
-  Index state_queue_back_;
-  int checkpoint_epoch_;
-  std::mutex state_queue_mutex_;
-  using Loader<CPUBackend, ImageLabelWrapper>::checkpointing_;
 };
 
 }  // namespace dali

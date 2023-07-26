@@ -55,15 +55,11 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   }
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    // Downcasting here is safe, as the loader is guaranteed to be FileLabelLoader
-    auto &loader = dynamic_cast<FileLabelLoader &>(*loader_);
-    cpt.MutableCheckpointState() = loader.PopClonedState();
+    cpt.MutableCheckpointState() = loader_->PopStateSnapshot();
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    // Downcasting here is safe, as the loader is guaranteed to be FileLabelLoader
-    auto &loader = dynamic_cast<FileLabelLoader &>(*loader_);
-    loader.SetState(cpt.CheckpointState<FileLabelLoaderState>());
+    loader_->RestoreStateFromSnapshot(cpt.CheckpointState<LoaderStateSnapshot>());
   }
 
  protected:

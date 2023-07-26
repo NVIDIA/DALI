@@ -73,36 +73,8 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   image_label.image.SetMeta(meta);
 }
 
-FileLabelLoaderState FileLabelLoader::PopClonedState() {
-  DALI_ENFORCE(checkpointing_, "Cannot export loader state when checkpointing is not enabled. ");
-  std::lock_guard<std::mutex> lock(state_queue_mutex_);
-  auto result = state_queue_[state_queue_front_];
-  state_queue_front_ = (state_queue_front_ + 1) % state_queue_.size();
-  return result;
-}
-
-void FileLabelLoader::SetState(FileLabelLoaderState state) {
-  e_ = state.rng;
-  current_epoch_ = state.current_epoch;
-  checkpoint_epoch_ = state.current_epoch;
-
-  // Re-run reset
-  Reset(true);
-
-  // Reset checkpointing
-  state_queue_front_ = state_queue_back_;
-  CheckpointingNewShard();
-}
-
 Index FileLabelLoader::SizeImpl() {
   return static_cast<Index>(image_label_pairs_.size());
-}
-
-void FileLabelLoader::CheckpointingNewShard() {
-  std::lock_guard<std::mutex> lock(state_queue_mutex_);
-  state_queue_[state_queue_back_].rng = e_;
-  state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
-  state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
 }
 
 }  // namespace dali

@@ -42,6 +42,15 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 
 DLL_PUBLIC Index num_samples(const size_t shard_num,
                              const size_t size);
+
+/**
+ * @brief Structure describing Loader base state, at the begining of an epoch.
+*/
+struct LoaderStateSnapshot {
+  std::default_random_engine rng;
+  int current_epoch;
+};
+
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind
  *        into memory.
@@ -60,6 +69,9 @@ class Loader {
       initial_empty_size_(2 * options.GetArgument<int>("prefetch_queue_depth")
                           * options.GetArgument<int>("max_batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
+      state_queue_front_(0),
+      state_queue_back_(0),
+      checkpoint_epoch_(0),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")),
@@ -82,15 +94,29 @@ class Loader {
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
 
-    // TODO(mstaniewski): add default value in operator schemas
+    // TODO(mstaniewski): add a proper internal argument in schema
     if (!options.TryGetArgument(checkpointing_, "checkpointing")) {
       checkpointing_ = false;
     }
 
     if (checkpointing_) {
+      // DALI_ENFORCE(SupportsCheckpointing(), "Checkpointing is disabled for this loader. ");
+
       // TODO(mstaniewski): support pad_last_batch=false
       DALI_ENFORCE(pad_last_batch_,
         "Currently, checkpointing is only supported with pad_last_batch=true");
+
+      /*
+       * A checkpoint is created every time the prefetching thread starts working
+       * on a new epoch. Therefore, we are guaranteed, there will be at most
+       * prefetch_queue_depth checkpoints waiting in the queue at a time.
+       *
+       * The +1 is added, because there could be a situation, where a batch is
+       * collected from the prefetch_queue (possibly leading to creation of another checkpoint),
+       * but the checkpoint from the corresponding epoch is not yet collected.
+       */
+      state_queue_.resize(options.GetArgument<int>("prefetch_queue_depth") + 1);
+      PushStateSnapshot();
     }
   }
 
@@ -127,9 +153,43 @@ class Loader {
     DALI_ERROR("Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
   }
 
-  // Called when loader is moving to the next shard, to create a new checkpoint.
-  virtual void CheckpointingNewShard() {
-    DALI_FAIL("Checkpointing is not implemented for this loader. ");
+  /**
+   * @brief Called when loader is moving to the next shard,
+   *  to create a new snapshot and store it in the inner queue.
+   */
+  void PushStateSnapshot() {
+    std::lock_guard<std::mutex> lock(state_queue_mutex_);
+    state_queue_[state_queue_back_].rng = e_;
+    state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
+    state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
+  }
+
+  /**
+   * @brief Collects a state snapshot from the inner queue.
+  */
+  LoaderStateSnapshot PopStateSnapshot() {
+    DALI_ENFORCE(checkpointing_, "PopStateSnapshot called, but checkpointing is not enabled. ");
+    std::lock_guard<std::mutex> lock(state_queue_mutex_);
+    auto result = state_queue_[state_queue_front_];
+    state_queue_front_ = (state_queue_front_ + 1) % state_queue_.size();
+    return result;
+  }
+
+  /**
+   * @brief Restores the loader's state from a snapshot.
+  */
+  void RestoreStateFromSnapshot(const LoaderStateSnapshot &state){
+    e_ = state.rng;
+    checkpoint_epoch_ = state.current_epoch;
+
+    RestoreStateImpl(state);
+
+    // Re-run reset
+    Reset(true);
+
+    // Reset checkpointing
+    state_queue_front_ = state_queue_back_;
+    PushStateSnapshot();
   }
 
   // Get a random read sample
@@ -183,7 +243,7 @@ class Loader {
 
       if (checkpointing_) {
         // Create a checkpoint before processing the new shard
-        CheckpointingNewShard();
+        PushStateSnapshot();
       }
     }
 
@@ -285,6 +345,12 @@ class Loader {
   // Reset reader to the first sample
   virtual void Reset(bool wrap_to_shard) = 0;
 
+  // Overloadable method to handle restoring state in subclasses
+  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {
+    // Fails by default, checkpointing should be manually enabled in the subclasses.
+    DALI_FAIL("This loader does not support checkpointing. ");
+  }
+
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
      return current_index >= Size() ||
@@ -345,6 +411,11 @@ class Loader {
 
   // when enabled, the loader creates a checkpoint at the start of every epoch.
   bool checkpointing_;
+  std::vector<LoaderStateSnapshot> state_queue_;
+  Index state_queue_front_;
+  Index state_queue_back_;
+  int checkpoint_epoch_;
+  std::mutex state_queue_mutex_;
 
   // rng
   std::default_random_engine e_;
