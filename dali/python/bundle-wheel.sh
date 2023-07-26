@@ -173,6 +173,8 @@ copy_and_patch() {
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
 
+    strip_so $TMPDIR/$patchedpath
+
     echo "Patching DT_SONAME field in $patchedpath"
     patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
 }
