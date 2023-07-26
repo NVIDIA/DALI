@@ -86,6 +86,12 @@ class Loader {
     if (!options.TryGetArgument(checkpointing_, "checkpointing")) {
       checkpointing_ = false;
     }
+
+    if (checkpointing_) {
+      // TODO(mstaniewski): support pad_last_batch=false
+      DALI_ENFORCE(pad_last_batch_,
+        "Currently, checkpointing is only supported with pad_last_batch=true");
+    }
   }
 
   virtual ~Loader() {
@@ -175,8 +181,10 @@ class Loader {
       shards_.pop_front();
       returned_sample_counter_ = 0;
 
-      if (checkpointing_)
+      if (checkpointing_) {
+        // Create a checkpoint before processing the new shard
         CheckpointingNewShard();
+      }
     }
 
     // choose the random index

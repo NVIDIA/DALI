@@ -154,24 +154,17 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
    *
    * Should be called exactly once each epoch.
   */
-  FileLabelLoaderState PopClonedState() {
-    DALI_ENFORCE(checkpointing_, "Cannot export loader state when checkpointing is not enabled. ");
-    std::lock_guard<std::mutex> lock(state_queue_mutex_);
-    auto result = state_queue_[state_queue_front_];
-    state_queue_front_ = (state_queue_front_ + 1) % state_queue_.size();
-    return result;
-  }
+  FileLabelLoaderState PopClonedState();
 
   /**
    * @brief Recovers the loader's state from a checkpoint.
   */
-  void SetState(FileLabelLoaderState state) {
-    e_ = state.rng;
-    current_epoch_ = state.current_epoch;
-  }
+  void SetState(FileLabelLoaderState state);
 
  protected:
   Index SizeImpl() override;
+
+  void CheckpointingNewShard() override;
 
   void PrepareMetadataImpl() override {
     if (image_label_pairs_.empty()) {
@@ -228,6 +221,13 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
+
+    if (checkpointing_ && shuffle_after_epoch_) {
+      // save initial order
+      // moving to prevent one copy, as it is restored in the Reset()
+      backup_image_label_pairs_ = std::move(image_label_pairs_);
+    }
+
     Reset(true);
   }
 
@@ -241,16 +241,15 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
+      if (checkpointing_) {
+        // With checkpointing is enabled, dataset order must be easy to restore.
+        // The shuffling is run with different seed every epoch, so this doesn't impact
+        // the random distribution.
+        image_label_pairs_ = backup_image_label_pairs_;
+      }
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
-  }
-
-  void CheckpointingNewShard() override {
-    std::lock_guard<std::mutex> lock(state_queue_mutex_);
-    state_queue_[state_queue_back_].rng = e_;
-    state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
-    state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
   }
 
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
@@ -258,6 +257,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
+  vector<std::pair<string, int>> backup_image_label_pairs_;
   vector<string> filters_;
 
   bool has_files_arg_ = false;

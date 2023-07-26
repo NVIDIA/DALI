@@ -17,7 +17,6 @@
 #include <chrono>
 #include <cstdio>
 #include <fstream>
-#include <filesystem>
 #include <string>
 #include <thread>
 #include <utility>
@@ -479,7 +478,7 @@ TEST(ReaderTestSimple, CheckNumSamples) {
 class FileReaderTest : public DALITest {
  public:
   void SetUp() override {
-    constexpr int filecount = 4;
+    constexpr int filecount = 16;
 
     for (int i = 0; i < filecount; i++) {
       std::string path = make_string("/tmp/dali_test_file_", to_string(i));
@@ -499,12 +498,13 @@ class FileReaderTest : public DALITest {
   std::vector<std::string> filepaths_;
 
   OpSpec MakeOpSpec() {
+      // Currently, only pad_last_batch=true is supported.
       return OpSpec("FileReader")
             .AddOutput("data_out", "cpu")
             .AddOutput("labels", "cpu")
             .AddArg("files", filepaths_)
             .AddArg("checkpointing", true)
-            .AddArg("random_shuffle", true);
+            .AddArg("pad_last_batch", true);
   }
 
   void BuildPipeline(Pipeline &pipe) {
@@ -549,8 +549,99 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
   auto prepare_pipeline = [this](Pipeline &pipe) {
     pipe.AddOperator(
         MakeOpSpec()
-        .AddArg("initial_fill", 3)
-        .AddArg("pad_last_batch", true), "file_reader");
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<OpCheckpoint> checkpoints;
+  for (int i = 0; i < epochs; ++i) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 4;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("random_shuffle", true)
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<OpCheckpoint> checkpoints;
+  for (int i = 0; i < epochs; ++i) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 4;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("shuffle_after_epoch", true)
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<OpCheckpoint> checkpoints;
+  for (int i = 0; i < epochs; ++i) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingStickToShard) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 2;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("stick_to_shard", true)
+        .AddArg("shard_id", 1)
+        .AddArg("num_shards", 3)
+        .AddArg("initial_fill", 3), "file_reader");
     BuildPipeline(pipe);
   };
 
