@@ -572,8 +572,8 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
 }
 
 TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
-  constexpr int batch_size = 3;
-  constexpr int epochs = 4;
+  constexpr int batch_size = 7;
+  constexpr int epochs = 8;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
     pipe.AddOperator(
@@ -602,8 +602,8 @@ TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
 }
 
 TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
-  constexpr int batch_size = 3;
-  constexpr int epochs = 4;
+  constexpr int batch_size = 5;
+  constexpr int epochs = 8;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
     pipe.AddOperator(
@@ -633,7 +633,7 @@ TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
 
 TEST_F(FileReaderTest, CheckpointingStickToShard) {
   constexpr int batch_size = 3;
-  constexpr int epochs = 2;
+  constexpr int epochs = 8;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
     pipe.AddOperator(
