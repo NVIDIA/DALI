@@ -24,10 +24,10 @@
 
 namespace dali {
 
-class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
+class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
   }
@@ -63,7 +63,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
 };
 
 }  // namespace dali

@@ -57,8 +57,10 @@ struct LoaderStateSnapshot {
  *
  * @tparam Backend
  * @tparam LoadTarget Type into which samples are loaded.
+ * @tparam supports_checkpointing A marker for checkpointing support.
  */
-template <typename Backend, typename LoadTarget>
+template <typename Backend, typename LoadTarget,
+          bool supports_checkpointing = false>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
@@ -100,7 +102,7 @@ class Loader {
     }
 
     if (checkpointing_) {
-      // DALI_ENFORCE(SupportsCheckpointing(), "Checkpointing is disabled for this loader. ");
+      DALI_ENFORCE(supports_checkpointing, "Checkpointing is disabled for this loader. ");
 
       // TODO(mstaniewski): support pad_last_batch=false
       DALI_ENFORCE(pad_last_batch_,
@@ -346,10 +348,7 @@ class Loader {
   virtual void Reset(bool wrap_to_shard) = 0;
 
   // Overloadable method to handle restoring state in subclasses
-  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {
-    // Fails by default, checkpointing should be manually enabled in the subclasses.
-    DALI_FAIL("This loader does not support checkpointing. ");
-  }
+  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {}
 
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {

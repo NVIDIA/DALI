@@ -38,12 +38,15 @@ struct ImageLabelWrapper {
   int label;
 };
 
-class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
+template<bool supports_checkpointing>
+class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapper,
+                                                     supports_checkpointing> {
  public:
-  explicit inline FileLabelLoader(
+  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing>;
+  explicit inline FileLabelLoaderBase(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
-    : Loader<CPUBackend, ImageLabelWrapper>(spec),
+    : Base(spec),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
@@ -217,8 +220,18 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
     current_epoch_ = state.current_epoch;
   }
 
-  using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
-  using Loader<CPUBackend, ImageLabelWrapper>::num_shards_;
+  using Base::shard_id_;
+  using Base::num_shards_;
+  using Base::stick_to_shard_;
+  using Base::shuffle_;
+  using Base::dont_use_mmap_;
+  using Base::initial_buffer_fill_;
+  using Base::copy_read_data_;
+  using Base::read_ahead_;
+  using Base::checkpointing_;
+  using Base::PrepareEmptyTensor;
+  using Base::MoveToNextShard;
+  using Base::ShouldSkipImage;
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
@@ -236,6 +249,8 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
   int current_epoch_;
   FileStream::MappingReserver mmap_reserver_;
 };
+
+using FileLabelLoader = FileLabelLoaderBase<true>;
 
 }  // namespace dali
 
