@@ -76,6 +76,7 @@ np = None
 assert_array_equal = None
 assert_allclose = None
 cp = None
+absdiff_checked = False
 
 
 def import_numpy():
@@ -128,6 +129,47 @@ def get_gpu_num():
     return len(out_list)
 
 
+def get_absdiff(left, right):
+
+    assert left.dtype == right.dtype, f"dtypes mismatch {left.dtype} {right.dtype}"
+
+    def make_signed(dtype):
+        if not np.issubdtype(dtype, np.signedinteger):
+            return dtype
+        return {
+            np.dtype(np.int8): np.uint8,
+            np.dtype(np.int16): np.uint16,
+            np.dtype(np.int32): np.uint32,
+            np.dtype(np.int64): np.uint64,
+        }[dtype]
+
+    # np.abs of diff doesn't handle overflow for unsigned types
+    absdiff = np.maximum(left, right) - np.minimum(left, right)
+    # max - min can overflow for signed types, wrap them up
+    absdiff = absdiff.astype(make_signed(left.dtype))
+    return absdiff
+
+
+def _check_absdiff():
+    global absdiff_checked
+    if not absdiff_checked:
+        absdiff_checked = True
+        for i in range(-128, 127):
+            for j in range(-128, 127):
+                left = np.array([i, i], dtype=np.int8)
+                right = np.array([j, j], dtype=np.int8)
+                diff = get_absdiff(left, right)
+                expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+                assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+        for i in range(0, 255):
+            for j in range(0, 255):
+                left = np.array([i, i], dtype=np.uint8)
+                right = np.array([j, j], dtype=np.uint8)
+                diff = get_absdiff(left, right)
+                expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+                assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+
+
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
 def check_batch(batch1, batch2, batch_size=None,
                 eps=1e-07, max_allowed_error=None,
@@ -155,6 +197,7 @@ def check_batch(batch1, batch2, batch_size=None,
         return False
 
     import_numpy()
+    _check_absdiff()
     if isinstance(batch1, dali.backend_impl.TensorListGPU):
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
@@ -203,10 +246,7 @@ def check_batch(batch1, batch2, batch_size=None,
                     left = left.astype(int)
                 if right.dtype == bool:
                     right = right.astype(int)
-                # abs doesn't handle overflow for uint8, so get minimal value of a-b and b-a
-                diff1 = np.abs(left - right)
-                diff2 = np.abs(right - left)
-                absdiff = np.minimum(diff2, diff1)
+                absdiff = get_absdiff(left, right)
                 err = np.mean(absdiff)
                 max_err = np.max(absdiff)
                 min_err = np.min(absdiff)
