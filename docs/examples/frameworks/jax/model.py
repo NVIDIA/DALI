@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 
 
-from jax import jit, grad, pmap, lax, tree_map
+from jax import jit, grad, lax, pmap
+from functools import partial
 import jax.numpy as jnp
 from jax.scipy.special import logsumexp
 import numpy.random as npr
@@ -79,6 +80,7 @@ def update(model, batch, learning_rate=0.001):
     return updated_model
 
 
+@partial(pmap, axis_name='data')
 def update_parallel(model, batch, learning_rate=0.001):
     grads = grad(loss)(model, batch)
     
