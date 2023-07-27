@@ -178,7 +178,7 @@ class Loader {
   /**
    * @brief Restores the loader's state from a snapshot.
   */
-  void RestoreStateFromSnapshot(const LoaderStateSnapshot &state){
+  void RestoreStateFromSnapshot(const LoaderStateSnapshot &state) {
     e_ = state.rng;
     checkpoint_epoch_ = state.current_epoch;
 
