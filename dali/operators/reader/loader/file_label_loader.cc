@@ -76,5 +76,4 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
 Index FileLabelLoader::SizeImpl() {
   return static_cast<Index>(image_label_pairs_.size());
 }
-
 }  // namespace dali
