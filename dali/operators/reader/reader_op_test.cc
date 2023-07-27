@@ -555,6 +555,7 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
   auto prepare_pipeline = [this](Pipeline &pipe) {
     pipe.AddOperator(
         MakeOpSpec()
+        .AddArg("prefetch_queue_depth", 20)
         .AddArg("initial_fill", 3), "file_reader");
     BuildPipeline(pipe);
   };
@@ -615,6 +616,7 @@ TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("shuffle_after_epoch", true)
+        .AddArg("prefetch_queue_depth", 9)
         .AddArg("initial_fill", 10), "file_reader");
     BuildPipeline(pipe);
   };
@@ -647,6 +649,7 @@ TEST_F(FileReaderTest, CheckpointingMultipleShards) {
         MakeOpSpec()
         .AddArg("shard_id", 2)
         .AddArg("num_shards", num_shards)
+        .AddArg("prefetch_queue_depth", 11)
         .AddArg("initial_fill", 20), "file_reader");
     BuildPipeline(pipe);
   };
@@ -711,6 +714,7 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("shuffle_after_epoch", true)
+        .AddArg("prefetch_queue_depth", 2)
         .AddArg("initial_fill", 3), "file_reader");
     BuildPipeline(pipe);
   };
