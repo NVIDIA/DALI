@@ -31,6 +31,25 @@ struct RNGBaseFields;
 
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public Operator<Backend> {
+ public:
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      cpt.MutableCheckpointState() = rng_;
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+    }
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      rng_ = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+    }
+  }
+
  protected:
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),
