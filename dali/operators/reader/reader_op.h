@@ -46,7 +46,7 @@ namespace dali {
  *                    samples.
  * @tparam ParseTarget Type passed into Parser for parsing, usually it is the same
  *                     as the LoadTarget.
- * @tparam ParseTarget A marker for checkpointing support.
+ * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
           typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
