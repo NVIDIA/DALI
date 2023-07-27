@@ -84,7 +84,8 @@ option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 
-option(BUILD_CVCUDA "Build with CV-CUDA" ON)  # Built from thirdparty sources
+cmake_dependent_option(BUILD_CVCUDA "Build with CV-CUDA" ON
+                       "NOT STATIC_LIBS" OFF)  # Built from thirdparty sources; doesn't support static libs build
 
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
