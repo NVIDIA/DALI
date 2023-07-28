@@ -29,8 +29,8 @@ namespace dali {
 
 DALI_SCHEMA(experimental__MedianBlur)
   .DocStr(R"doc(
-Median blur performs smoothing of an image or sequence of images by calculating
-the median color of surrounding rectangular region for each pixel.
+Median blur performs smoothing of an image or sequence of images by replacing each pixel
+with the median color of a surrounding rectangular region.
   )doc")
   .NumInput(1)
   .InputDox(0, "input", "TensorList",
