@@ -49,7 +49,6 @@ DLL_PUBLIC Index num_samples(const size_t shard_num,
 struct LoaderStateSnapshot {
   std::default_random_engine rng;
   int current_epoch;
-  int virtual_shard_id;
 };
 
 /**
@@ -164,7 +163,6 @@ class Loader {
     std::lock_guard<std::mutex> lock(state_queue_mutex_);
     state_queue_[state_queue_back_].rng = e_;
     state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
-    state_queue_[state_queue_back_].virtual_shard_id = virtual_shard_id_;
     state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
   }
 
@@ -185,7 +183,8 @@ class Loader {
   void RestoreStateFromSnapshot(const LoaderStateSnapshot &state) {
     e_ = state.rng;
     checkpoint_epoch_ = state.current_epoch;
-    virtual_shard_id_ = state.virtual_shard_id;
+    if (!stick_to_shard_)
+      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
 
     RestoreStateImpl(state);
 
