@@ -84,6 +84,9 @@ option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 
+cmake_dependent_option(BUILD_CVCUDA "Build with CV-CUDA" ON
+                       "NOT STATIC_LIBS" OFF)  # Built from thirdparty sources; doesn't support static libs build
+
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
 set(KERNEL_SRCS_PATTERN_EXCLUDE "" CACHE STRING
@@ -209,6 +212,44 @@ message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 # Cmake path
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
+# Discover what architectures does nvcc support
+if (DALI_CLANG_ONLY)
+  set(USED_CUDA_COMPILER ${CMAKE_CXX_COMPILER})
+else()
+  set(USED_CUDA_COMPILER ${CMAKE_CUDA_COMPILER})
+endif()
+
+
+message(STATUS "CUDA .cu files compiler: ${USED_CUDA_COMPILER}")
+
+CUDA_find_supported_arch_values(CUDA_supported_archs ${USED_CUDA_COMPILER} ${CUDA_known_archs})
+message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
+
+set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
+list(SORT CUDA_TARGET_ARCHS_SORTED)
+CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_TARGET_ARCHS_SORTED})
+message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
+if (NOT CUDA_targeted_archs)
+  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
+      " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
+endif()
+
+
+# Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
+if (DALI_CLANG_ONLY)
+  CUDA_get_gencode_args(CUDA_gencode_flags_clang ${USED_CUDA_COMPILER} ${CUDA_targeted_archs})
+  message(STATUS "Generated gencode flags for clang: ${CUDA_gencode_flags_clang}")
+  CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
+  message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
+endif()
+
+CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
+message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+
+
 # Dependencies
 if(${ARCH} MATCHES "aarch64-linux")
   message("Target set to aarch64-linux")
@@ -231,6 +272,7 @@ propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_CFITSIO)
+propagate_option(BUILD_CVCUDA)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
@@ -272,7 +314,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # CXX flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-free-nonheap-object -Wno-unused-variable -Wno-unused-function -Wno-strict-overflow -fno-strict-aliasing -fPIC -fvisibility=hidden")
@@ -357,42 +398,13 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
 endif()
 
-# Discover what architectures does nvcc support
-if (DALI_CLANG_ONLY)
-  set(USED_CUDA_COMPILER ${CMAKE_CXX_COMPILER})
-else()
-  set(USED_CUDA_COMPILER ${CMAKE_CUDA_COMPILER})
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
 
-
-message(STATUS "CUDA .cu files compiler: ${USED_CUDA_COMPILER}")
-
-CUDA_find_supported_arch_values(CUDA_supported_archs ${USED_CUDA_COMPILER} ${CUDA_known_archs})
-message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
-
-set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
-list(SORT CUDA_TARGET_ARCHS_SORTED)
-CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_TARGET_ARCHS_SORTED})
-message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
-if (NOT CUDA_targeted_archs)
-  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
-      " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
-endif()
-
-
-# Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
-if (DALI_CLANG_ONLY)
-  CUDA_get_gencode_args(CUDA_gencode_flags_clang ${USED_CUDA_COMPILER} ${CUDA_targeted_archs})
-  message(STATUS "Generated gencode flags for clang: ${CUDA_gencode_flags_clang}")
-  CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
-  message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
-endif()
-
-CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
-message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
-
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Include directories
 include_directories(

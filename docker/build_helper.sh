@@ -22,6 +22,7 @@ while getopts 'h' option; do
 done
 shift $((OPTIND - 1))
 
+
 export ARCH=${ARCH}
 export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 export BUILD_TEST=${BUILD_TEST:-ON}
@@ -44,6 +45,7 @@ export BUILD_LIBTAR=${BUILD_LIBTAR:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
 export BUILD_CFITSIO=${BUILD_CFITSIO:-ON}
+export BUILD_CVCUDA=${BUILD_CVCUDA:-ON}
 export BUILD_CUFILE=${BUILD_CUFILE:-OFF}
 export BUILD_NVCOMP=${BUILD_NVCOMP:-OFF}
 export LINK_LIBCUDA=${LINK_LIBCUDA:-OFF}
@@ -96,6 +98,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_CFITSIO=${BUILD_CFITSIO}             \
       -DBUILD_CUFILE=${BUILD_CUFILE}               \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}               \
+      -DBUILD_CVCUDA=${BUILD_CVCUDA}               \
       -DLINK_LIBCUDA=${LINK_LIBCUDA}               \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
       -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG} \

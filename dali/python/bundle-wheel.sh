@@ -122,6 +122,8 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
     "${DEPS_PATH}/lib/libcfitsio.so.4"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
 )
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
@@ -170,6 +172,11 @@ copy_and_patch() {
 
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
+
+    if [[ "$STRIP_DEBUG" != "NO" ]]; then
+        echo "Stripping $patchedpath from debug info"
+        strip_so $TMPDIR/$patchedpath
+    fi
 
     echo "Patching DT_SONAME field in $patchedpath"
     patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
