@@ -129,9 +129,7 @@ def get_gpu_num():
     return len(out_list)
 
 
-def get_absdiff(left, right):
-
-    assert left.dtype == right.dtype, f"dtypes mismatch {left.dtype} {right.dtype}"
+def _get_absdiff(left, right):
 
     def make_signed(dtype):
         if not np.issubdtype(dtype, np.signedinteger):
@@ -146,28 +144,34 @@ def get_absdiff(left, right):
     # np.abs of diff doesn't handle overflow for unsigned types
     absdiff = np.maximum(left, right) - np.minimum(left, right)
     # max - min can overflow for signed types, wrap them up
-    absdiff = absdiff.astype(make_signed(left.dtype))
+    absdiff = absdiff.astype(make_signed(absdiff.dtype))
     return absdiff
 
 
 def _check_absdiff():
+    for i in range(-128, 127):
+        for j in range(-128, 127):
+            left = np.array([i, i], dtype=np.int8)
+            right = np.array([j, j], dtype=np.int8)
+            diff = _get_absdiff(left, right)
+            expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+    for i in range(0, 255):
+        for j in range(0, 255):
+            left = np.array([i, i], dtype=np.uint8)
+            right = np.array([j, j], dtype=np.uint8)
+            diff = _get_absdiff(left, right)
+            expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+
+
+def get_absdiff(left, right):
+    # Make sanity checks, in particular, if wrapping signed integers works as expected
     global absdiff_checked
     if not absdiff_checked:
         absdiff_checked = True
-        for i in range(-128, 127):
-            for j in range(-128, 127):
-                left = np.array([i, i], dtype=np.int8)
-                right = np.array([j, j], dtype=np.int8)
-                diff = get_absdiff(left, right)
-                expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
-                assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
-        for i in range(0, 255):
-            for j in range(0, 255):
-                left = np.array([i, i], dtype=np.uint8)
-                right = np.array([j, j], dtype=np.uint8)
-                diff = get_absdiff(left, right)
-                expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
-                assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+        _check_absdiff()
+    return _get_absdiff(left, right)
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
@@ -197,7 +201,6 @@ def check_batch(batch1, batch2, batch_size=None,
         return False
 
     import_numpy()
-    _check_absdiff()
     if isinstance(batch1, dali.backend_impl.TensorListGPU):
         batch1 = batch1.as_cpu()
     if isinstance(batch2, dali.backend_impl.TensorListGPU):
