@@ -108,6 +108,29 @@ def change_out_shape_sample_gpu(out0, in0):
                 out0[z][y][x] = 42
 
 
+# in shape [x] -> out shape [2, 2, 2, x]
+def change_ndim_setup(outs_shape, ins_shapes):
+    out_shape = outs_shape[0]
+    in_shape = ins_shapes[0]
+    for sample_id in range(len(out_shape)):
+        out_shape[sample_id][:] = [2, 2, 2, in_shape[sample_id][0]]
+
+
+def change_ndim_gpu(out0, in0):
+    tx, ty = cuda.grid(2)
+    x_s, y_s = cuda.gridsize(2)
+    tid = ty * x_s + tx
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                for x in range(tid, out0.shape[3], x_s * y_s):
+                    out0[i][j][k][x] = x
+
+
+def change_dim_expected_out(d):
+    return np.array(list(range(d)) * 8).reshape(2, 2, 2, d)
+
+
 def get_data(shapes, dtype):
     return [np.empty(shape, dtype=dtype) for shape in shapes]
 
@@ -197,6 +220,9 @@ def test_numba_func_gpu():
          [dali_types.INT64], [3], [3], setup_change_out_shape, None,
          [np.full((20, 30, 100), 42, dtype=np.int32),
           np.full((100, 30, 20), 42, dtype=np.int32)]),
+        ([(20), (30)], np.int32, change_ndim_gpu, [dali_types.INT32], [dali_types.INT32], [4], [1],
+         change_ndim_setup, None,
+         [change_dim_expected_out(20), change_dim_expected_out(30)]),
     ]
 
     device = "gpu"
