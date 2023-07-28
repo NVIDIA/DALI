@@ -197,7 +197,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
 
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
@@ -221,6 +221,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   }
 
   using Base::shard_id_;
+  using Base::virtual_shard_id_;
   using Base::num_shards_;
   using Base::stick_to_shard_;
   using Base::shuffle_;
