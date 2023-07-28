@@ -33,6 +33,7 @@ Median blur performs smoothing of an image or sequence of images by calculating
 the median color of surrounding rectangular region for each pixel.
   )doc")
   .NumInput(1)
+  .InputDox(0, "input", "TensorList",
             "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
   .NumOutput(1)
   .InputLayout({"HWC", "FHWC", "CHW", "FCHW"})
