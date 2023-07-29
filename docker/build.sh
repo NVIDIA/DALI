@@ -38,7 +38,7 @@ shift $((OPTIND - 1))
 
 #########Set Me###############
 export ARCH=${ARCH:-x86_64}
-export PYVER=${PYVER:-3.6}
+export PYVER=${PYVER:-3.8}
 export PYV=${PYVER/./}
 export CUDA_VERSION=${CUDA_VERSION:-12.2}
 export CUDA_VER=${CUDA_VERSION//./}
@@ -322,6 +322,10 @@ if [ "$CREATE_RUNNER" == "YES" ]; then
         export CUDA_IMAGE_NAME="nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04"
     elif [ ${CUDA_VER} == "110" ] ; then
         export CUDA_IMAGE_NAME="nvidia/cuda:11.0-cudnn8-devel-ubuntu18.04"
+    elif [ ${CUDA_VER} == "121" ] ; then
+        export CUDA_IMAGE_NAME="nvcr.io/nvidia/cuda:12.1.1-cudnn8-devel-ubuntu20.04"
+    elif [ ${CUDA_VER} == "122" ] ; then
+        export CUDA_IMAGE_NAME="nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu20.04"
     else
         echo "**************************************************************"
         echo "Not supported CUDA version"
