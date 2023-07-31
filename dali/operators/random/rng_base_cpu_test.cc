@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ class RNGCheckpointingTest : public ::testing::Test {
     EXPECT_NE(run_iteration(original_pipe), run_iteration(original_pipe));
 
     // warmup, mutates the internal operator state
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < iterations; i++)
       run_iteration(original_pipe);
 
     // save and restore the pipeline
