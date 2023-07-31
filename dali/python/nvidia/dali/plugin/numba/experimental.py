@@ -53,9 +53,6 @@ _to_numba = {
     dali_types.FLOAT64: numba_types.float64,
 }
 
-# Numba does not support float16 in Python 3.6
-if 'float16' in dir(numba_types):
-    _to_numba[dali_types.FLOAT16] = numba_types.float16
 
 # Minimal version of Numba that is required for Numba GPU operator to work
 minimal_numba_version = LooseVersion('0.55.2')
