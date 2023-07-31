@@ -166,7 +166,7 @@ def compare_eager_with_pipeline(pipe, eager_op, *, eager_source=get_data_eager, 
         assert len(out_fn) == len(out_eager)
 
         for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
-            assert isinstance(tensor_out_fn, type(tensor_out_eager))
+            assert type(tensor_out_fn) is type(tensor_out_eager)
 
             if tensor_out_fn.dtype == types.BOOL:
                 for t_fn, t_eager in zip(tensor_out_fn, tensor_out_eager):
@@ -278,7 +278,7 @@ def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
                 if i == len(iter_eager) - 1:
                     tensor_out_fn = _slice_tensorlist(tensor_out_fn, len(tensor_out_eager))
 
-                assert isinstance(tensor_out_fn, type(tensor_out_eager))
+                assert type(tensor_out_fn) is type(tensor_out_eager)
                 check_batch(tensor_out_fn, tensor_out_eager, len(tensor_out_eager))
 
 

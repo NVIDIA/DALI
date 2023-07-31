@@ -45,9 +45,9 @@ def test_tensorlist_getitem_gpu():
     tensorlist = pipe.run()[0]
     list_of_tensors = [x for x in tensorlist]
 
-    assert not isinstance(tensorlist[0], cp.ndarray)
-    assert isinstance(tensorlist[0], TensorGPU)
-    assert isinstance(tensorlist[-3], TensorGPU)
+    assert type(tensorlist[0]) is not cp.ndarray
+    assert type(tensorlist[0]) is TensorGPU
+    assert type(tensorlist[-3]) is TensorGPU
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="TensorListCPU index out of range"):
         tensorlist[len(tensorlist)]

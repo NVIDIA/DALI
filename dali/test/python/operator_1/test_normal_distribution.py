@@ -145,8 +145,9 @@ def test_normal_distribution():
                     use_shape_like_in = False if shape is None else random.choice([True, False])
                     variable_shape = random.choice([True, False])
                     shape_arg = None
-                    def shape_gen_f(): return random_shape(shape)
-                    if not variable_shape:
+                    if variable_shape:
+                        def shape_gen_f(): return random_shape(shape)
+                    else:
                         shape_arg = shape
                         shape_gen_f = None
                     yield check_normal_distribution, \

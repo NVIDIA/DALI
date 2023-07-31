@@ -79,7 +79,7 @@ def video_reader_pipeline_base(
     pipeline = dali.pipeline.Pipeline(batch_size=batch_size, **pipeline_params)
     with pipeline:
         outputs = video_reader(**video_reader_params, **resize_params)
-        if isinstance(outputs, list):
+        if type(outputs) is list:
             outputs = outputs[0]
         pipeline.set_outputs(outputs)
     pipeline.build()
