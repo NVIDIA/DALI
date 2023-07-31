@@ -13,8 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <random>
 #include <algorithm>
+#include <random>
+#include <string>
 
 #include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/pipeline.h"
@@ -33,8 +34,7 @@ class RNGCheckpointingTest : public ::testing::Test {
     for (Pipeline *pipe : {&original_pipe, &restored_pipe}) {
       pipe->AddOperator(
         OpSpec(name)
-        .AddOutput("data_out", "cpu"), "rng_op"
-      );
+        .AddOutput("data_out", "cpu"), "rng_op");
       std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
       pipe->Build(outputs);
     }
