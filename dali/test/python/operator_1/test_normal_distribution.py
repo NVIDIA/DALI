@@ -145,10 +145,10 @@ def test_normal_distribution():
                     use_shape_like_in = False if shape is None else random.choice([True, False])
                     variable_shape = random.choice([True, False])
                     shape_arg = None
-                    if variable_shape:
-                        def shape_gen_f(): return random_shape(shape)
-                    else:
+                    def shape_gen_f(): return random_shape(shape)
+                    if not variable_shape:
                         shape_arg = shape
+                        shape_gen_f = None
                     yield check_normal_distribution, \
                         device, dtype, shape_arg, use_shape_like_in, variable_shape, \
                         mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size
