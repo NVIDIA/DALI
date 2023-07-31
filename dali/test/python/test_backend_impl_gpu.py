@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,9 +45,9 @@ def test_tensorlist_getitem_gpu():
     tensorlist = pipe.run()[0]
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist[0]) != cp.ndarray
-    assert type(tensorlist[0]) == TensorGPU
-    assert type(tensorlist[-3]) == TensorGPU
+    assert not isinstance(tensorlist[0], cp.ndarray)
+    assert isinstance(tensorlist[0], TensorGPU)
+    assert isinstance(tensorlist[-3], TensorGPU)
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="TensorListCPU index out of range"):
         tensorlist[len(tensorlist)]

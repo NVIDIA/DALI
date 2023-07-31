@@ -82,10 +82,10 @@ def test_tensorlist_getitem_cpu():
     tensorlist = TensorListCPU(arr, "NHWC")
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist.at(0)) == np.ndarray
-    assert type(tensorlist[0]) != np.ndarray
-    assert type(tensorlist[0]) == TensorCPU
-    assert type(tensorlist[-3]) == TensorCPU
+    assert isinstance(tensorlist.at(0), np.ndarray)
+    assert not isinstance(tensorlist[0], np.ndarray)
+    assert isinstance(tensorlist[0], TensorCPU)
+    assert isinstance(tensorlist[-3], TensorCPU)
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
