@@ -46,8 +46,10 @@ namespace dali {
  *                    samples.
  * @tparam ParseTarget Type passed into Parser for parsing, usually it is the same
  *                     as the LoadTarget.
+ * @tparam supports_checkpointing A marker for checkpointing support.
  */
-template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
+template <typename Backend, typename LoadTarget,
+          typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
@@ -357,7 +359,7 @@ class DataReader : public Operator<Backend> {
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;
@@ -373,10 +375,19 @@ class DataReader : public Operator<Backend> {
   using DataReader<Backend, LoadTarget, ParseTarget>::parser_;          \
   using DataReader<Backend, LoadTarget, ParseTarget>::prefetched_batch_queue_;
 
+#define USE_READER_OPERATOR_MEMBERS_3(Backend, LoadTarget, ParseTarget, supports_checkpointing) \
+  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::loader_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::parser_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget,                                            \
+                   supports_checkpointing>::prefetched_batch_queue_;
+
+#define GET_MACRO3(_1, _2, _3, NAME, ...) NAME
+
 #define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
-  GET_MACRO(__VA_ARGS__,                          \
-            USE_READER_OPERATOR_MEMBERS_2,        \
-            USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
+  GET_MACRO3(__VA_ARGS__,                          \
+             USE_READER_OPERATOR_MEMBERS_3,        \
+             USE_READER_OPERATOR_MEMBERS_2,        \
+             USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
 
 };  // namespace dali
 

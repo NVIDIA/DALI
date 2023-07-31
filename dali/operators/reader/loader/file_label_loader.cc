@@ -23,11 +23,13 @@ namespace dali {
 
 using filesystem::dir_sep;
 
-void FileLabelLoader::PrepareEmpty(ImageLabelWrapper &image_label) {
+template<bool checkpointing_supported>
+void FileLabelLoaderBase<checkpointing_supported>::PrepareEmpty(ImageLabelWrapper &image_label) {
   PrepareEmptyTensor(image_label.image);
 }
 
-void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
+template<bool checkpointing_supported>
+void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper &image_label) {
   auto image_pair = image_label_pairs_[current_index_++];
 
   // handle wrap-around
@@ -73,7 +75,12 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
   image_label.image.SetMeta(meta);
 }
 
-Index FileLabelLoader::SizeImpl() {
+template<bool checkpointing_supported>
+Index FileLabelLoaderBase<checkpointing_supported>::SizeImpl() {
   return static_cast<Index>(image_label_pairs_.size());
 }
+
+template class FileLabelLoaderBase<false>;
+template class FileLabelLoaderBase<true>;
+
 }  // namespace dali

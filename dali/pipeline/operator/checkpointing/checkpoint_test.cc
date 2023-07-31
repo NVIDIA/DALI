@@ -33,7 +33,7 @@ class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec)
       , state_(spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const override {
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
     cpt.MutableCheckpointState() = state_;
   }
 
@@ -73,7 +73,7 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
       , state_(spec.GetArgument<cudaStream_t>("cuda_stream"),
                spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) const override {
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
     if (!stream)
       FAIL() << "Cuda stream was not provided for GPU operator checkpointing.";
 
