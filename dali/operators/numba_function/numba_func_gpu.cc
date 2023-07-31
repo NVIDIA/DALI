@@ -76,7 +76,6 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 }
 
 
-/// @brief Setup output descriptors calling the setup_fn to determine the output shapes
 template <>
 void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_desc,
                                                int noutputs, int ninputs, int nsamples) {
@@ -133,7 +132,7 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_d
   }
 }
 
-/// @brief Setup output descriptors copying shapes from inputs
+
 template <>
 void NumbaFuncImpl<GPUBackend>::OutputsSetupNoFn(std::vector<OutputDesc> &output_desc,
                                                  int noutputs, int ninputs, int nsamples) {

@@ -21,7 +21,7 @@
 
 namespace dali {
 
-// The structure of an array descriiptor can be viewed here:
+// The structure of an array descriptor can be viewed here:
 // https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
 // https://github.com/numba/numba/blob/3b9dde799bc499188f9d7728ad590776899624e1/numba/_arraystruct.h#L9C1
 struct NumbaDevArray {
@@ -73,9 +73,11 @@ class NumbaFuncImpl : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
+  /// @brief Setup output descriptors calling the setup_fn to determine the output shapes
   void OutputsSetupFn(std::vector<OutputDesc> &output_desc, int noutputs,
                       int ninputs, int nsamples);
 
+  /// @brief Setup output descriptors copying shapes from inputs
   void OutputsSetupNoFn(std::vector<OutputDesc> &output_desc, int noutputs,
                         int ninputs, int nsamples);
 
