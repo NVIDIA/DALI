@@ -233,9 +233,9 @@ def bin_promote_dtype(left_dtype, right_dtype):
 
 
 def hack_builtin_types(input_type):
-    if type(input_type) == int:
+    if type(input_type) is int:
         return np.int32
-    elif type(input_type) == float:
+    elif type(input_type) is float:
         return np.float32
     else:
         return input_type

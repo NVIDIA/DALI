@@ -1209,7 +1209,7 @@ Attempt to convert it to a constant node failed.""") from ex
 
 
 def _is_boolean_like(input):
-    if type(input) == bool:
+    if type(input) is bool:
         return True
     if isinstance(input, _ScalarConstant):
         if input.dtype in _bool_types:
@@ -1223,7 +1223,7 @@ def _is_boolean_like(input):
 def _is_integer_like(input):
     if _is_boolean_like(input):
         return True
-    if type(input) == int:
+    if type(input) is int:
         return True
     if isinstance(input, _ScalarConstant):
         if input.dtype in _int_like_types:
@@ -1232,7 +1232,7 @@ def _is_integer_like(input):
 
 
 def _is_real_like(input):
-    if type(input) == float:
+    if type(input) is float:
         return True
     if isinstance(input, _ScalarConstant):
         if input.dtype in _float_types:
@@ -1242,11 +1242,11 @@ def _is_real_like(input):
 
 def _to_type_desc(input):
     """ <type> description required by ArithmeticGenericOp """
-    if type(input) == bool:
+    if type(input) is bool:
         return "bool"
-    if type(input) == int:
+    if type(input) is int:
         return "int32"
-    if type(input) == float:
+    if type(input) is float:
         return "float32"  # TODO(klecki): current DALI limitation
     if isinstance(input, _ScalarConstant):
         dtype_to_desc = {

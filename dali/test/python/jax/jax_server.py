@@ -51,7 +51,7 @@ def test_lax_workflow(process_id):
 
     sum_across_devices = jax.pmap(lambda x: jax.lax.psum(x, 'i'), axis_name='i')(array_from_dali)
 
-    assert sum_across_devices[0] == len(jax.devices()),\
+    assert sum_across_devices[0] == len(jax.devices()), \
         "Sum across devices should be equal to the number of devices as data per device = [1]"
 
     log.info("Passed lax workflow test")
