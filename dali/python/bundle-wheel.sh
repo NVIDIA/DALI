@@ -124,6 +124,9 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libcfitsio.so.4"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
+    # cvcuda adds _d suffix to lib names for debug builds
+    "lib/libcvcuda_d.so.0"
+    "lib/libnvcv_types_d.so.0"
 )
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
