@@ -24,10 +24,10 @@
 
 namespace dali {
 
-class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
+class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
   }
@@ -54,16 +54,8 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     label_output.mutable_data<int>()[0] = image_label.label;
   }
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = loader_->PopStateSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    loader_->RestoreStateFromSnapshot(cpt.CheckpointState<LoaderStateSnapshot>());
-  }
-
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 };
 
 }  // namespace dali

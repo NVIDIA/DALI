@@ -97,10 +97,10 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
 
 using RLEMaskPtr = std::shared_ptr<RLEMask>;
 
-class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<false> {
+class DLL_PUBLIC CocoLoader : public FileLabelLoader {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
-      : FileLabelLoaderBase<false>(spec, spec.GetArgument<bool>("shuffle_after_epoch"))
+      : FileLabelLoader(spec, spec.GetArgument<bool>("shuffle_after_epoch"))
       , spec_(spec) {
     has_preprocessed_annotations_ = HasPreprocessedAnnotations(spec);
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),

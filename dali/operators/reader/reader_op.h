@@ -31,6 +31,19 @@
 
 namespace dali {
 
+template <typename Backend, typename LoadTarget,
+          typename ParseTarget = LoadTarget>
+struct DataReaderCheckpoint {
+  using LoadTargetPtr = std::shared_ptr<LoadTarget>;
+  using BatchQueueElement = std::vector<LoadTargetPtr>;
+
+  std::vector<BatchQueueElement> prefetched_batch_queue_;
+  int curr_batch_consumer_;
+  int curr_batch_producer_;
+  bool consumer_cycle_;
+  bool producer_cycle_;
+};
+
 /**
  * @brief BaseClass for operators that perform prefetching work
  *
@@ -49,7 +62,7 @@ namespace dali {
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
-          typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
+          typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
@@ -64,8 +77,7 @@ class DataReader : public Operator<Backend> {
         curr_batch_producer_(0),
         consumer_cycle_(false),
         producer_cycle_(false),
-        device_id_(-1),
-        samples_processed_(0) {
+        device_id_(-1) {
           if (std::is_same<Backend, GPUBackend>::value) {
             device_id_ = spec.GetArgument<int>("device_id");
           }
@@ -224,6 +236,36 @@ class DataReader : public Operator<Backend> {
     prefetched_batch_queue_[curr_batch_consumer_].clear();
   }
 
+  using Checkpoint = DataReaderCheckpoint<Backend, LoadTarget, ParseTarget>;
+
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    {
+      // Wait until the prefetch queue is full.
+      std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+      consumer_.wait(prefetch_lock, [this]() { return finished_ || IsPrefetchQueueFull(); });
+      if (prefetch_error_) std::rethrow_exception(prefetch_error_);
+    }
+
+    // Now, the prefetching thread is idle, because there is no space in queue.
+    // We can safely access prefetching data.
+    cpt.MutableCheckpointState() = Checkpoint {
+      prefetched_batch_queue_,
+      curr_batch_consumer_,
+      curr_batch_producer_,
+      consumer_cycle_,
+      producer_cycle_,
+    };
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    const auto &state = cpt.CheckpointState<Checkpoint>();
+    prefetched_batch_queue_ = state.prefetched_batch_queue_;
+    curr_batch_consumer_ = state.curr_batch_consumer_;
+    curr_batch_producer_ = state.curr_batch_producer_;
+    consumer_cycle_ = state.consumer_cycle_;
+    producer_cycle_ = state.producer_cycle_;
+  }
+
  protected:
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
     using OutputCache = std::unordered_map<std::string, std::vector<Tensor<CPUBackend>>>;
@@ -352,14 +394,11 @@ class DataReader : public Operator<Backend> {
   bool producer_cycle_;
   int device_id_;
 
-  // keep track of how many samples have been processed over all threads.
-  std::atomic<int> samples_processed_;
-
   // stores any catched exceptions in the prefetch worker
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;
@@ -375,19 +414,10 @@ class DataReader : public Operator<Backend> {
   using DataReader<Backend, LoadTarget, ParseTarget>::parser_;          \
   using DataReader<Backend, LoadTarget, ParseTarget>::prefetched_batch_queue_;
 
-#define USE_READER_OPERATOR_MEMBERS_3(Backend, LoadTarget, ParseTarget, supports_checkpointing) \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::loader_;          \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::parser_;          \
-  using DataReader<Backend, LoadTarget, ParseTarget,                                            \
-                   supports_checkpointing>::prefetched_batch_queue_;
-
-#define GET_MACRO3(_1, _2, _3, NAME, ...) NAME
-
 #define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
-  GET_MACRO3(__VA_ARGS__,                          \
-             USE_READER_OPERATOR_MEMBERS_3,        \
-             USE_READER_OPERATOR_MEMBERS_2,        \
-             USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
+  GET_MACRO(__VA_ARGS__,                          \
+            USE_READER_OPERATOR_MEMBERS_2,        \
+            USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
 
 };  // namespace dali
 
