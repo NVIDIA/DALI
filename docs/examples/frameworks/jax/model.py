@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 
 
-from jax import jit, grad
+from jax import jit, grad, lax, pmap
+from functools import partial
 import jax.numpy as jnp
 from jax.scipy.special import logsumexp
 import numpy.random as npr
@@ -64,6 +65,26 @@ def accuracy(model, iterator):
 @jit
 def update(model, batch, learning_rate=0.001):
     grads = grad(loss)(model, batch)
+
+    updated_model = []
+
+    for model, updates in zip(model, grads):
+        w, b = model
+        dw, db = updates
+
+        new_w = w - learning_rate * dw
+        new_b = b - learning_rate * db
+
+        updated_model.append((new_w, new_b))
+
+    return updated_model
+
+
+@partial(pmap, axis_name='data')
+def update_parallel(model, batch, learning_rate=0.001):
+    grads = grad(loss)(model, batch)
+    
+    grads = lax.pmean(grads, axis_name='data')
 
     updated_model = []
 
