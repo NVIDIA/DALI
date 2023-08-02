@@ -73,11 +73,15 @@ class NumbaFuncImpl : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  /// @brief Setup output descriptors calling the setup_fn to determine the output shapes
+  /**
+   * @brief Setup output descriptors calling the setup_fn to determine the output shapes
+   */
   void OutputsSetupFn(std::vector<OutputDesc> &output_desc, int noutputs,
                       int ninputs, int nsamples);
 
-  /// @brief Setup output descriptors copying shapes from inputs
+  /**
+   * @brief Setup output descriptors copying shapes from inputs
+   */
   void OutputsSetupNoFn(std::vector<OutputDesc> &output_desc, int noutputs,
                         int ninputs, int nsamples);
 
