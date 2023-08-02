@@ -955,9 +955,7 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
         pipeline = _Pipeline.current()
         if pipeline is None:
             _Pipeline._raise_pipeline_required("PythonFunction operator")
-        # if pipeline.exec_async or pipeline.exec_pipelined:
-        #     raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
-        #                        "`exec_pipelined` set to False.")
+
         if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
                 f"Operator {type(self).__name__} expects "

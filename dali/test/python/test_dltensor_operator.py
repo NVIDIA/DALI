@@ -276,7 +276,8 @@ def cupy_compare(fun, synchronize, pre1, pre2, post1, post2):
 
 
 def cupy_case(fun, synchronize=True):
-    common_case(cupy_wrapper(fun, synchronize), 'gpu', partial(cupy_compare, fun, synchronize), synchronize)
+    common_case(cupy_wrapper(fun, synchronize), 'gpu',
+                partial(cupy_compare, fun, synchronize), synchronize)
 
 
 def cupy_simple(in1, in2):
