@@ -118,6 +118,8 @@ DEPS_LIST=(
     "$PREFIX/lib/libavfilter.so.8"
     "$PREFIX/lib/libavutil.so.57"
     "$PREFIX/lib/libswscale.so.6"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
 )
 
 DEPS_SONAME=(
@@ -126,6 +128,8 @@ DEPS_SONAME=(
     "libavfilter.so.8"
     "libavutil.so.57"
     "libswscale.so.6"
+    "libcvcuda.so.0"
+    "libnvcv_types.so.0"
 )
 
 if [ "$BUILD_NVCOMP" = "ON" ]; then
