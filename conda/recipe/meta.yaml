@@ -69,6 +69,7 @@ requirements:
     - make
     - patchelf
     - python-clang
+    - git-lfs
   host:
     - python
     - future
