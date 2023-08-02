@@ -428,7 +428,8 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   int num_samples = in.num_samples();
 
   SampleDesc *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc>(num_samples);
-  auto [norm_add_gpu, norm_mul_gpu, fill_values_gpu] = SetupParams(ctx, args);
+  if (!mean_)
+    std::tie(mean_, inv_stddev_, fill_values_) = SetupParams(ctx, args);
   bool need_pad = out_nchannels_ != nchannels_;
   bool need_crop_x = false;
   bool need_flip_x = false;
@@ -451,9 +452,9 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
     sample_desc.input_W = in_sample.shape[1];
     sample_desc.input_C = in_sample.shape[2];  // nchannels_
 
-    sample_desc.norm_add = norm_add_gpu + sample_id * nchannels_;
-    sample_desc.norm_mul = norm_mul_gpu + sample_id * nchannels_;
-    sample_desc.fill_values = fill_values_gpu + sample_id * out_nchannels_;
+    sample_desc.norm_add = mean_ + sample_id * nchannels_;
+    sample_desc.norm_mul = inv_stddev_ + sample_id * nchannels_;
+    sample_desc.fill_values = fill_values_ + sample_id * out_nchannels_;
     sample_desc.flip_x = args[sample_id].flip_x;
     if (args[sample_id].flip_x) {
       need_flip_x = true;
@@ -468,11 +469,18 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   auto tiles_cpu = collapsed_block_setup_.Blocks();
   auto grid_dim = collapsed_block_setup_.GridDim();
   auto block_dim = collapsed_block_setup_.BlockDim();
+  if (!tiles_gpu_) {
+    cudaMalloc(&tiles_gpu_, sizeof(BlockDesc<1>) * tiles_cpu.size());
+    cudaMemcpyAsync(tiles_gpu_, tiles_cpu.data(), sizeof(BlockDesc<1>) * tiles_cpu.size(), cudaMemcpyHostToDevice, ctx.gpu.stream);
+  }
 
-  auto [sample_descs_gpu, tiles_gpu] = ctx.scratchpad->ToContiguousGPU(
-      ctx.gpu.stream, make_span(sample_descs_cpu, num_samples), tiles_cpu);
+  auto [sample_descs_gpu] = ctx.scratchpad->ToContiguousGPU(
+      ctx.gpu.stream, make_span(sample_descs_cpu, num_samples));
 
-  auto dispatch = [samples = sample_descs_cpu, tiles = tiles_gpu, &ctx, need_crop_x, grid_dim,
+  // auto [sample_descs_gpu, tiles_gpu] = ctx.scratchpad->ToContiguousGPU(
+  //     ctx.gpu.stream, make_span(sample_descs_cpu, num_samples), tiles_cpu);
+
+  auto dispatch = [samples = sample_descs_gpu, tiles = tiles_gpu_, &ctx, need_crop_x, grid_dim,
                    block_dim](auto pad_v, auto flip_x_v) {
     if (need_crop_x) {
       SliceHwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,

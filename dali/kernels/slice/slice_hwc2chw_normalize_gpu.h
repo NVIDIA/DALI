@@ -100,7 +100,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   void SetupNumChannels(const TensorListShape<ndim> &input_shape, span<const SampleArgs> args);
 
   // This is a multiple of LCM(3, 4) = LCM(Number of Channels, 4) where 4 is from 4-byte reads
-  static constexpr int kBlockSizeMul = 24;
+  static constexpr int kBlockSizeMul = 24 * 2;
   static constexpr int kBlockWidth = 128;
   // TODO(klecki): Generalize for other static channel values
   static constexpr int kStaticChannels = 3;
@@ -117,6 +117,10 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   // HWC -> CHW permutation
   static constexpr std::array<int, ndim> perm_ = {2, 0, 1};
   BlockSetup<1, -1> collapsed_block_setup_;
+  BlockDesc<1> *tiles_gpu_ = nullptr;
+  float *mean_= nullptr;
+  float *inv_stddev_;
+  Out *fill_values_;
 };
 
 }  // namespace slice_flip_normalize
