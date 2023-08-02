@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -144,12 +144,12 @@ def test_normal_distribution():
                 for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
                     use_shape_like_in = False if shape is None else random.choice([True, False])
                     variable_shape = random.choice([True, False])
-                    shape_gen_f = None
                     shape_arg = None
                     if variable_shape:
                         def shape_gen_f(): return random_shape(shape)
                     else:
                         shape_arg = shape
+                        shape_gen_f = None
                     yield check_normal_distribution, \
                         device, dtype, shape_arg, use_shape_like_in, variable_shape, \
                         mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size

@@ -14,11 +14,14 @@
 
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 import logging as log
 
 from test_integration import get_dali_tensor_gpu
+
+from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 
 import nvidia.dali.plugin.jax as dax
 
@@ -48,10 +51,44 @@ def test_lax_workflow(process_id):
 
     sum_across_devices = jax.pmap(lambda x: jax.lax.psum(x, 'i'), axis_name='i')(array_from_dali)
 
-    assert sum_across_devices[0] == len(jax.devices()),\
+    assert sum_across_devices[0] == len(jax.devices()), \
         "Sum across devices should be equal to the number of devices as data per device = [1]"
 
     log.info("Passed lax workflow test")
+
+
+def run_distributed_sharing_test(sharding, process_id):
+    dali_local_shard = dax._to_jax_array(
+        get_dali_tensor_gpu(process_id, (1), np.int32, 0))
+
+    # Note: we pass only one local shard but the array virtually
+    # combines all shards together
+    dali_sharded_array = jax.make_array_from_single_device_arrays(
+        shape=(2,), sharding=sharding, arrays=[dali_local_shard])
+
+    # This array should be backed only by one device buffer that holds
+    # local part of the data. This buffer should be on the local device.
+    assert len(dali_sharded_array.device_buffers) == 1
+    assert dali_sharded_array.device_buffer == jnp.array([process_id])
+    assert dali_sharded_array.device_buffer.device() == jax.local_devices()[0]
+    assert dali_sharded_array.device_buffer.device() == jax.devices()[process_id]
+
+
+def test_positional_sharding_workflow(process_id):
+    sharding = PositionalSharding(jax.devices())
+
+    run_distributed_sharing_test(sharding=sharding, process_id=process_id)
+
+    log.info("Passed positional sharding workflow test")
+
+
+def test_named_sharding_workflow(process_id):
+    mesh = Mesh(jax.devices(), axis_names=('device'))
+    sharding = NamedSharding(mesh, PartitionSpec('device'))
+
+    run_distributed_sharing_test(sharding=sharding, process_id=process_id)
+
+    log.info("Passed named sharding workflow test")
 
 
 def run_multiprocess_workflow(process_id=0):
@@ -65,7 +102,10 @@ def run_multiprocess_workflow(process_id=0):
         format=f"PID {process_id}: %(message)s")
 
     print_devices(process_id=process_id)
+
     test_lax_workflow(process_id=process_id)
+    test_positional_sharding_workflow(process_id=process_id)
+    test_named_sharding_workflow(process_id=process_id)
 
 
 if __name__ == "__main__":

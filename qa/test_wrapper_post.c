@@ -68,10 +68,12 @@ void direct_free(void *p) {
 }
 
 _Unwind_Reason_Code (*orig_Unwind_Backtrace)(_Unwind_Trace_Fn trace, void * trace_argument);
+void * (*orig_deregister_frame_info_bases)(const void *begin);
 static __thread int unsafeness_depth;
 
 static void unwind_init() {
     orig_Unwind_Backtrace = get_dlsym("_Unwind_Backtrace");
+    orig_deregister_frame_info_bases =  get_dlsym("__deregister_frame_info_bases");
 }
 
 _Unwind_Reason_Code _Unwind_Backtrace(_Unwind_Trace_Fn trace, void * trace_argument) {
@@ -85,9 +87,20 @@ _Unwind_Reason_Code _Unwind_Backtrace(_Unwind_Trace_Fn trace, void * trace_argum
     return ret;
 }
 
+void * __deregister_frame_info_bases(const void *begin) {
+    if (!orig_deregister_frame_info_bases) {
+        unwind_init();
+    }
+    void * ret;
+    ++unsafeness_depth;
+    ret = orig_deregister_frame_info_bases(begin);
+    --unsafeness_depth;
+    return ret;
+}
+
 int use_direct_malloc() {
     // as this lib is passed to LD_PREOLOAD, __thread variable is not created as thread library
     // is not available. So deffer the check of unsafeness_depth until orig_Unwind_Backtrace is
     // accessed and every thing is up and running
-    return orig_Unwind_Backtrace && unsafeness_depth;
+    return orig_Unwind_Backtrace && orig_deregister_frame_info_bases && unsafeness_depth;
 }

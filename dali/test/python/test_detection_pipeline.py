@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -375,12 +375,12 @@ def run_for_dataset(args, dataset):
                 image_ssd_crop, image_decode_crop, \
                 image_slice_cpu, image_slice_gpu, \
                 boxes_ssd_crop, boxes_random_crop, \
-                labels_ssd_crop, labels_random_crop,\
+                labels_ssd_crop, labels_random_crop, \
                 image_resized_cpu, image_resized_gpu, \
                 image_normalized_cpu, image_normalized_gpu, \
                 image_twisted_cpu, image_twisted_gpu, \
                 image_legacy_twisted_cpu, image_legacy_twisted_gpu, \
-                image_flipped_cpu, image_flipped_gpu,\
+                image_flipped_cpu, image_flipped_gpu, \
                 boxes_flipped_cpu, boxes_flipped_gpu, \
                 encoded_boxes_cpu, encoded_boxes_gpu, \
                 encoded_labels_cpu, encoded_labels_gpu, \

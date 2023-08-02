@@ -216,7 +216,7 @@ struct MMEnv {
 inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
   static auto rsrc = std::make_shared<malloc_memory_resource>();
   size_t threshold = MMEnv::get().host_malloc_threshold;
-  if (threshold >= 0) {
+  if (threshold > 0) {
     using pool_t = pool_resource<mm::memory_kind::host, mm::coalescing_free_tree, spinlock>;
     static auto pool = std::make_shared<pool_t>(rsrc.get());
     size_t thresholds[] = { threshold };

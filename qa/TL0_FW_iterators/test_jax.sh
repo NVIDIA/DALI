@@ -12,7 +12,7 @@ do_once() {
 test_body() {
     # General tests for iterators
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*jax*' test_fw_iterators.py
-    
+
     # More specific JAX tests
     ${python_new_invoke_test} -s jax test_integration
 }

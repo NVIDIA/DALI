@@ -55,6 +55,12 @@ if (BUILD_TEST)
   target_link_libraries(dali_imgcodec_test PRIVATE gtest dynlink_cuda stdc++fs ${DALI_LIBS})
   target_link_libraries(dali_imgcodec_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   target_link_libraries(dali_imgcodec_test PRIVATE "-pie")
+
+  if (BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
+    target_link_libraries(dali_imgcodec_test PRIVATE dynlink_nvjpeg)
+    target_link_libraries(dali_imgcodec_test PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
+  endif(BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
+
   set_target_properties(dali_imgcodec_test PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(dali_imgcodec_test PROPERTIES OUTPUT_NAME "dali_imgcodec_test.bin")
   set_target_properties(dali_imgcodec_test PROPERTIES

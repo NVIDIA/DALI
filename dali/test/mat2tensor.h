@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,8 +71,9 @@ TensorView<StorageCPU, T, ndim> view_as_tensor(cv::Mat &mat) {
 template <typename MemoryKind = mm::memory_kind::device, typename T = uint8_t, int ndims = 3>
 std::pair<TensorView<kind2storage_t<MemoryKind>, T, ndims>, mm::uptr<T>>
 copy_as_tensor(const cv::Mat &mat) {
-  static_assert(cuda::kind_has_property<MemoryKind, cuda::memory_access::device>::value,
-                "A GPU-accessible memory kind is required.");
+  static_assert(
+      mm::is_device_accessible<MemoryKind>,
+      "A GPU-accessible memory kind is required.");
   auto tvin = kernels::view_as_tensor<const T, ndims>(mat);
   return copy<MemoryKind>(tvin);
 }

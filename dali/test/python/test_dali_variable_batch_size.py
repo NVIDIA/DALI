@@ -279,7 +279,7 @@ ops_image_default_args = [
     fn.shapes,
     fn.sphere,
     fn.stack,
-    fn.water,
+    fn.water
 ]
 
 
@@ -340,7 +340,8 @@ ops_image_custom_args = [
         'run_fn': numba_set_all_values_to_255_batch,
         'setup_fn': numba_setup_out_shape
         }),
-    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]})
+    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]}),
+    (fn.experimental.median_blur, {'devices': ['gpu']})
 ]
 
 
@@ -1408,6 +1409,7 @@ tested_methods = [
     "experimental.decoders.video",
     "experimental.filter",
     "experimental.inflate",
+    "experimental.median_blur",
     "experimental.peek_image_shape",
     "experimental.remap",
     "external_source",

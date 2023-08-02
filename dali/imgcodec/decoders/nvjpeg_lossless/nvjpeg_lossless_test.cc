@@ -45,7 +45,7 @@ TEST(NvJpegLosslessDecoderTest, Factory) {
   NvJpegLosslessDecoderFactory decoder;
 
   if (!decoder.IsSupported(device_id))
-    GTEST_SKIP() << "Need SM60+ to execute this test\n";
+    GTEST_SKIP() << "Need SM60+ and nvJPEG >= 12.2 to execute this test\n";
 
   EXPECT_TRUE(decoder.IsSupported(device_id));
   auto props = decoder.GetProperties();

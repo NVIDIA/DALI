@@ -6,3 +6,4 @@ JAX
    :glob:
 
    jax_plugin_api
+   ../examples/frameworks/jax/index
