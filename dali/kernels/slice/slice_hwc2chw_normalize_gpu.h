@@ -100,7 +100,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   void SetupNumChannels(const TensorListShape<ndim> &input_shape, span<const SampleArgs> args);
 
   // This is a multiple of LCM(3, 4) = LCM(Number of Channels, 4) where 4 is from 4-byte reads
-  static constexpr int kBlockSizeMul = 24 * 2;
+  static constexpr int kBlockSizeMul = 24 * 8;
   static constexpr int kBlockWidth = 128;
   // TODO(klecki): Generalize for other static channel values
   static constexpr int kStaticChannels = 3;

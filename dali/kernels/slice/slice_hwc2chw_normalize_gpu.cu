@@ -87,7 +87,7 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 
   const auto block = blocks[blockIdx.x];
   const auto sample = samples[block.sample_idx];
-  __shared__ float tile[kBlockSize + 32 * 4];
+  __shared__ uint8_t tile[kBlockSize + 32 * 4];
 
   // Preload the norm values so they are accessed via registers and not from gmem via pointer.
   float norm_mul[kStaticChannels], norm_add[kStaticChannels];
@@ -103,8 +103,8 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   auto bytes_skipped =
       ::min(static_cast<int64_t>(aligned_in_start - in_start), block.end.x - block.start.x);
 
-  float *aligned_tile = tile + 32 * 4;
-  float *prologue_tile = aligned_tile - bytes_skipped;
+  uint8_t *aligned_tile = tile + 32 * 4;
+  uint8_t *prologue_tile = aligned_tile - bytes_skipped;
   const In *prologue_in = sample.in + block.start.x;
 
   const uchar4 *aligned_in_char4 =
@@ -128,7 +128,7 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   int64_t left_after_main = left_after_prologue - processed_in_main;
 
   // epilogue
-  float *epilogue_tile = aligned_tile + processed_in_main;
+  uint8_t *epilogue_tile = aligned_tile + processed_in_main;
   const In *epilogue_in = reinterpret_cast<const In *>(aligned_in_char4 + processed_in_main / 4);
 
   for (int64_t idx = threadIdx.x; idx < left_after_main; idx++) {
@@ -190,7 +190,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 
   const auto block = blocks[blockIdx.x];
   const auto sample = samples[block.sample_idx];
-  __shared__ float tile[kBlockSize + 32 * 4];
+  __shared__ uint8_t tile[kBlockSize + 32 * 4];
 
   // Preload the norm values so they are accessed via registers and not from gmem via pointer.
   float norm_mul[kStaticChannels], norm_add[kStaticChannels];
@@ -209,7 +209,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   int y_start = block.start.x / out_stride;
   int y_end = block.end.x / out_stride + 1;
 
-  float *tile_row = tile;
+  uint8_t *tile_row = tile;
 
   for (int y = y_start; y < y_end; y++) {
     int xc_start, xc_end;
@@ -237,8 +237,8 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
     auto bytes_skipped =
         ::min(static_cast<int32_t>(aligned_in_start - in_start), xc_end - xc_start);
 
-    float *prologue_tile = tile_row;
-    float *aligned_tile = tile_row + bytes_skipped;
+    uint8_t *prologue_tile = tile_row;
+    uint8_t *aligned_tile = tile_row + bytes_skipped;
 
     const uchar4 *aligned_in_char4 = reinterpret_cast<const uchar4 *>(prologue_in + bytes_skipped);
 
@@ -262,7 +262,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
     int64_t left_after_main = left_after_prologue - processed_in_main;
 
     // epilogue
-    float *epilogue_tile = aligned_tile + processed_in_main;
+    uint8_t *epilogue_tile = aligned_tile + processed_in_main;
     const In *epilogue_in = reinterpret_cast<const In *>(aligned_in_char4 + processed_in_main / 4);
 
     for (int64_t idx = threadIdx.x; idx < left_after_main; idx++) {
