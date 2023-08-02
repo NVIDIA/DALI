@@ -140,13 +140,15 @@ class DALIGenericIterator(_DaliBaseIterator):
             auto_reset=False,
             last_batch_padded=False,
             last_batch_policy=LastBatchPolicy.FILL,
-            prepare_first_batch=True):
+            prepare_first_batch=True,
+            sharding=None):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         if len(set(output_map)) != len(output_map):
             raise AssertionError("output_map names should be distinct")
         self._output_categories = set(output_map)
         self.output_map = output_map
+        self._sharding = sharding
 
         assert last_batch_policy != LastBatchPolicy.PARTIAL, \
             "JAX iterator does not support partial last batch policy."
@@ -199,25 +201,32 @@ class DALIGenericIterator(_DaliBaseIterator):
                 for shard in category_outputs:
                     assert shard.shape == category_outputs[0].shape, \
                         "Shards shapes have to be the same."
-
-                category_outputs_devices = tuple(map(
-                    lambda jax_shard: jax_shard.device(),
-                    category_outputs))
-
-                distinct_category_outputs_devices = set(category_outputs_devices)
-
-                if len(category_outputs_devices) != len(distinct_category_outputs_devices):
-                    if len(distinct_category_outputs_devices) != 1:
-                        raise AssertionError("JAX iterator requires shards to be placed on \
-                                             different devices or all on the same device.")
-                    else:
-                        # All shards are on one device.
-                        next_output[category_name] = jnp.stack(category_outputs)
+                if self._sharding is not None:
+                    shard_shape = category_outputs[0].shape
+                    global_shape = (self._num_gpus * shard_shape[0], *shard_shape[1:])
+                    next_output[category_name] = jax.make_array_from_single_device_arrays(
+                        global_shape,
+                        self._sharding,
+                        category_outputs)
                 else:
-                    # Build sharded JAX array as output for current category
-                    next_output[category_name] = jax.device_put_sharded(
-                        category_outputs,
-                        category_outputs_devices)
+                    category_outputs_devices = tuple(map(
+                        lambda jax_shard: jax_shard.device(),
+                        category_outputs))
+
+                    distinct_category_outputs_devices = set(category_outputs_devices)
+
+                    if len(category_outputs_devices) != len(distinct_category_outputs_devices):
+                        if len(distinct_category_outputs_devices) != 1:
+                            raise AssertionError("JAX iterator requires shards to be placed on \
+                                                different devices or all on the same device.")
+                        else:
+                            # All shards are on one device.
+                            next_output[category_name] = jnp.stack(category_outputs)
+                    else:
+                        # Build sharded JAX array as output for current category
+                        next_output[category_name] = jax.device_put_sharded(
+                            category_outputs,
+                            category_outputs_devices)
 
         self._schedule_runs()
         self._advance_and_check_drop_last()
