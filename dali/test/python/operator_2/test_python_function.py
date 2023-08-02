@@ -40,8 +40,6 @@ def test_dlpack_conversions():
     slice = reshaped[:, 2:5, :]
     dlpack = ops._dlpack_from_array(slice)
     result_array = ops._dlpack_to_array(dlpack)
-    print(slice)
-    print(result_array)
     assert result_array.shape == slice.shape
     assert numpy.array_equal(result_array, slice)
 
@@ -51,9 +49,10 @@ def resize(image):
 
 
 class CommonPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, _seed, image_dir):
-        super().__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
-                         exec_pipelined=False)
+    def __init__(self, batch_size, num_threads, device_id, _seed, image_dir,
+                 prefetch_queue_depth=2):
+        super().__init__(batch_size, num_threads, device_id, seed=_seed,
+                         prefetch_queue_depth=prefetch_queue_depth)
         self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.decoders.Image(device='cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize, output_layouts='HWC')
@@ -78,25 +77,16 @@ class BasicPipeline(CommonPipeline):
 
 
 class PythonOperatorPipeline(CommonPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function,
+                 prefetch_queue_depth=2):
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir,
+                         prefetch_queue_depth=prefetch_queue_depth)
         self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):
         images, labels = self.load()
         processed = self.python_function(images)
         assert isinstance(processed, _DataNode)
-        return processed
-
-
-class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super().__init__(batch_size, num_threads, device_id, seed, image_dir, function)
-        self.python_function = ops.PythonFunction(function=function)
-
-    def define_graph(self):
-        images, labels = self.load()
-        processed = self.python_function([images, images])
         return processed
 
 
@@ -315,13 +305,6 @@ def test_python_operator_invalid_function():
     invalid_pipe.run()
 
 
-@raises(TypeError, "do not support multiple input sets")
-def test_python_operator_invalid_pipeline():
-    invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                 images_dir, Rotate)
-    invalid_pipe.build()
-
-
 def split_red_blue(image):
     return image[:, :, 0], image[:, :, 2]
 
@@ -499,9 +482,9 @@ def func_with_side_effects(images):
 
 def test_func_with_side_effects():
     pipe_one = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
-                                      func_with_side_effects)
+                                      func_with_side_effects, prefetch_queue_depth=1)
     pipe_two = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
-                                      func_with_side_effects)
+                                      func_with_side_effects, prefetch_queue_depth=1)
 
     pipe_one.build()
     pipe_two.build()
@@ -529,12 +512,6 @@ class AsyncPipeline(Pipeline):
 
     def define_graph(self):
         return self.op()
-
-
-@raises(RuntimeError, "exec_async*exec_pipelined*False")
-def test_wrong_pipeline():
-    pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
-    pipe.build()
 
 
 def test_output_layout():

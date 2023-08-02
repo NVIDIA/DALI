@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -191,18 +191,18 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
     SetOutputLayouts(ws);
     std::lock_guard<std::mutex> operator_guard(operator_lock);
     py::gil_scoped_acquire interpreter_guard{};
-    py::object output_o = py::none();
+    output_o_ = py::none();
     auto curr_batch_size = GetCurrBatchSize(ws);
     try {
       detail::StreamSynchronizer<Backend> sync(ws, synchronize_stream_);
       if (batch_processing) {
-        auto input = detail::PrepareDLTensorInputs<Backend>(ws);
-        output_o = python_function(*input);
+        input_o_ = detail::PrepareDLTensorInputs<Backend>(ws);
+        output_o_ = python_function(*input_o_);
       } else {
-        auto inputs = detail::PrepareDLTensorInputsPerSample<Backend>(ws);
+        input_o_ = detail::PrepareDLTensorInputsPerSample<Backend>(ws);
         py::list out_batch;
-        if (inputs.size() > 0) {
-          for (auto &input_tuple : inputs) {
+        if (input_o_.size() > 0) {
+          for (auto &input_tuple : input_o_) {
             py::object output = python_function(*input_tuple);
             if (!output.is_none()) out_batch.append(output);
           }
@@ -212,22 +212,22 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
             if (!output.is_none()) out_batch.append(output);
           }
         }
-        if (out_batch.size() != 0) output_o = out_batch;
+        if (out_batch.size() != 0) output_o_ = out_batch;
       }
     } catch(const py::error_already_set &e) {
       throw std::runtime_error(to_string("DLTensorPythonFunction error: ") + to_string(e.what()));
     }
-    if (!output_o.is_none()) {
+    if (!output_o_.is_none()) {
       if (batch_processing) {
-        detail::PrepareOutputs<Backend>(ws, output_o, curr_batch_size);
+        detail::PrepareOutputs<Backend>(ws, output_o_, curr_batch_size);
       } else {
-        detail::PrepareOutputsPerSample<Backend>(ws, output_o, curr_batch_size);
+        detail::PrepareOutputsPerSample<Backend>(ws, output_o_, curr_batch_size);
       }
     } else {
       DALI_ENFORCE(ws.NumOutput() == 0, "Python function returned 0 outputs and "
           + std::to_string(ws.NumOutput()) + " were expected.");
     }
-  };
+  }
 
   void SetOutputLayouts(Workspace &ws) {
     Index output_idx = 0;
@@ -242,6 +242,8 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
   py::object python_function;
+  py::object output_o_;
+  py::list input_o_;
   bool synchronize_stream_;
   bool batch_processing;
   std::vector<TensorLayout> output_layouts_;
@@ -268,6 +270,16 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
       }
       return curr_batch_size;
     }
+  }
+
+  ~DLTensorPythonFunctionImpl() {
+    auto interpreter_lock = py::gil_scoped_acquire();
+    python_function.dec_ref();
+    python_function.release();
+    output_o_.dec_ref();
+    output_o_.release();
+    input_o_.dec_ref();
+    input_o_.release();
   }
 };
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019, 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,15 +81,14 @@ def random_seed():
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
-ITERS = 128
+ITERS = 32
 SEED = random_seed()
 NUM_WORKERS = 6
 
 
 class CommonPipeline(Pipeline):
     def __init__(self, device):
-        super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED,
-                         exec_async=False, exec_pipelined=False)
+        super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED, prefetch_queue_depth=2)
         self.input = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device='mixed' if device == 'gpu' else 'cpu',
                                          output_type=types.RGB, hw_decoder_load=0)
@@ -260,10 +259,15 @@ def cupy_wrapper(fun, synchronize):
         return lambda in1, in2: cupy_adapter(fun, in1, in2)
 
 
-def cupy_compare(fun, pre1, pre2, post1, post2):
+def cupy_compare(fun, synchronize, pre1, pre2, post1, post2):
     cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
     cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
-    cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
+    if synchronize:
+        cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
+    else:
+        stream = cupy.cuda.Stream()
+        cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2, stream=stream)
+        stream.synchronize()
     for i in range(BATCH_SIZE):
         assert post1.at(i).shape == cupy_post1[i].shape
         assert post2.at(i).shape == cupy_post2[i].shape
@@ -272,7 +276,7 @@ def cupy_compare(fun, pre1, pre2, post1, post2):
 
 
 def cupy_case(fun, synchronize=True):
-    common_case(cupy_wrapper(fun, synchronize), 'gpu', partial(cupy_compare, fun), synchronize)
+    common_case(cupy_wrapper(fun, synchronize), 'gpu', partial(cupy_compare, fun, synchronize), synchronize)
 
 
 def cupy_simple(in1, in2):
@@ -288,7 +292,7 @@ def gray_scale_call(input):
     output = cupy.ndarray((height, width), dtype=cupy.float32)
     gray_scale_kernel(grid=((height + 31) // 32, (width + 31) // 32),
                       block=(32, 32),
-                      stream=ops.PythonFunction.current_stream(),
+                      stream=cupy.cuda.get_current_stream(),
                       args=(output, input, height, width))
     return output
 
@@ -304,9 +308,15 @@ def cupy_kernel_mix_channels(in1, in2):
     return [mix_channels_kernel(in1[i], in2[i]) for i in range(BATCH_SIZE)], in2
 
 
-def cupy_kernel_gray_scale(in1, in2):
-    out1 = [gray_scale_call(arr) for arr in in1]
-    out2 = [gray_scale_call(arr) for arr in in2]
+def cupy_kernel_gray_scale(in1, in2, stream=None):
+    if stream is None:
+        stream = ops.PythonFunction.current_stream()
+    s = cupy.cuda.Stream()
+    s.ptr = stream.ptr
+    with s:
+        out1 = [gray_scale_call(arr) for arr in in1]
+        out2 = [gray_scale_call(arr) for arr in in2]
+    s.ptr = 0
     return out1, out2
 
 

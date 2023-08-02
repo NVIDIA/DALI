@@ -495,6 +495,11 @@ class DLL_PUBLIC Pipeline {
    */
   static bool IsDeserializable(const std::string &serialized_pipeline);
 
+  /**
+   * @brief Shutdown the executor
+   */
+  DLL_PUBLIC void Shutdown();
+
   // For testing
   template <typename T>
   friend class PipelineTest;

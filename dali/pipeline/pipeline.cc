@@ -977,6 +977,10 @@ bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
   return DeserializePipeline(serialized_pipeline, def);
 }
 
+void Pipeline::Shutdown() {
+  executor_->Shutdown();
+}
+
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(
     EdgeMeta &meta, const std::string &input_name, const std::string &input_dev,
     const std::string &device, const std::string &output_dev) {

@@ -1831,7 +1831,7 @@ PYBIND11_MODULE(backend_impl, m) {
              }
              p->Build(build_args);
          })
-    .def("Build", [](Pipeline *p) { p->Build(); } )
+    .def("Build", [](Pipeline *p) { p->Build(); })
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
@@ -1862,12 +1862,14 @@ PYBIND11_MODULE(backend_impl, m) {
           p->SetOutputDescs(out_desc);
         })
     .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
-    .def("RunGPU", &Pipeline::RunGPU)
+    .def("RunGPU", &Pipeline::RunGPU, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->Outputs(&ws);
-
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->Outputs(&ws);
+          }
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
@@ -1881,7 +1883,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("ShareOutputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->ShareOutputs(&ws);
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->ShareOutputs(&ws);
+          }
 
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
@@ -1893,10 +1898,7 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           return outs;
         }, py::return_value_policy::take_ownership)
-    .def("ReleaseOutputs",
-        [](Pipeline *p) {
-          p->ReleaseOutputs();
-        })
+    .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
@@ -2004,7 +2006,12 @@ PYBIND11_MODULE(backend_impl, m) {
           DALI_ENFORCE(meta,
               "Operator " + op_name + "  not found or does not expose valid metadata.");
           return ReaderMetaToDict(meta);
-        });
+        })
+    // On the pipeline destruction we need to release the GIL to shutdown the executor
+    // This way, Python operators that might be still running do not deadlock
+    .def("Shutdown", [](Pipeline *p) {
+      p->Shutdown();
+    }, py::call_guard<py::gil_scoped_release>());
 
 #define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \
