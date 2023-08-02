@@ -425,7 +425,6 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
                                         const TensorListView<StorageGPU, const In, ndim> &in,
                                         span<const SampleArgs> args) {
   using SampleDesc = Hwc2ChwSampleDesc<Out, In>;
-  using Tile = kernels::BlockDesc<1>;
   int num_samples = in.num_samples();
 
   SampleDesc *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc>(num_samples);
