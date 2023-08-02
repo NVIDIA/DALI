@@ -25,7 +25,7 @@ namespace dali {
 template <typename Backend>
 class StatelessOperator : public Operator<Backend> {
  public:
-  inline explicit StatelessOperator(OpSpec &spec) : Operator(spec) {}
+  inline explicit StatelessOperator(const OpSpec &spec) : Operator<Backend>(spec) {}
 
   inline ~StatelessOperator() override {}
 
