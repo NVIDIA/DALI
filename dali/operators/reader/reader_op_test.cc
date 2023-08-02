@@ -491,8 +491,10 @@ class FileReaderTest : public DALITest {
   }
 
   void TearDown() override {
-    for (const auto &path : filepaths_)
-      std::remove(path.data());
+    for (const auto &path : filepaths_) {
+        int ret = std::remove(path.data());
+        DALI_ENFORCE(ret == 0, "Failed to remove the file: ", path, ". Error code: ", ret);
+    }
   }
 
   std::vector<std::string> filepaths_;
