@@ -37,11 +37,28 @@ struct DataReaderCheckpoint {
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
   using BatchQueueElement = std::vector<LoadTargetPtr>;
 
+  /* DataReader state */
   std::vector<BatchQueueElement> prefetched_batch_queue_;
   int curr_batch_consumer_;
   int curr_batch_producer_;
   bool consumer_cycle_;
   bool producer_cycle_;
+
+  LoaderCheckpoint<Backend, LoadTarget> loader_state_;
+
+  DataReaderCheckpoint(
+    std::vector<BatchQueueElement> &&batch_queue_copy,
+    int curr_batch_consumer,
+    int curr_batch_producer,
+    bool consumer_cycle,
+    bool producer_cycle,
+    LoaderCheckpoint<Backend, LoadTarget> &&loader_state)
+      : prefetched_batch_queue_(std::move(batch_queue_copy))
+      , curr_batch_consumer_(curr_batch_consumer)
+      , curr_batch_producer_(curr_batch_producer)
+      , consumer_cycle_(consumer_cycle)
+      , producer_cycle_(producer_cycle)
+      , loader_state_(std::move(loader_state)) {}
 };
 
 /**
@@ -239,6 +256,9 @@ class DataReader : public Operator<Backend> {
   using Checkpoint = DataReaderCheckpoint<Backend, LoadTarget, ParseTarget>;
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    // Make sure the prefetch thread is running
+    StartPrefetchThread();
+
     {
       // Wait until the prefetch queue is full.
       std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
@@ -246,15 +266,24 @@ class DataReader : public Operator<Backend> {
       if (prefetch_error_) std::rethrow_exception(prefetch_error_);
     }
 
+    std::vector<BatchQueueElement> batch_queue_copy;
+    for (const auto &batch : prefetched_batch_queue_) {
+      batch_queue_copy.emplace_back();
+      for (const auto &sample : batch) 
+        batch_queue_copy.back().push_back(
+          std::make_shared<LoadTarget>(loader_->CopyTarget(*sample)));
+    }
+
     // Now, the prefetching thread is idle, because there is no space in queue.
     // We can safely access prefetching data.
-    cpt.MutableCheckpointState() = Checkpoint {
-      prefetched_batch_queue_,
+    cpt.MutableCheckpointState() = (Checkpoint {
+      std::move(batch_queue_copy),
       curr_batch_consumer_,
       curr_batch_producer_,
       consumer_cycle_,
       producer_cycle_,
-    };
+      loader_->SaveState(),
+    });
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
@@ -264,6 +293,7 @@ class DataReader : public Operator<Backend> {
     curr_batch_producer_ = state.curr_batch_producer_;
     consumer_cycle_ = state.consumer_cycle_;
     producer_cycle_ = state.producer_cycle_;
+    loader_->RestoreState(state.loader_state_);
   }
 
  protected:

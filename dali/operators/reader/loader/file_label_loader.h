@@ -38,6 +38,12 @@ struct ImageLabelWrapper {
   int label;
 };
 
+struct FileLabelLoaderCheckpoint {
+  vector<std::pair<string, int>> image_label_pairs_;
+  Index current_index_;
+  int current_epoch_;
+};
+
 class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit inline FileLabelLoader(
@@ -105,7 +111,7 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
      * DALI instances will do shuffling after each epoch
      */
     DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
-                  "shuffle_after_epoch and stick_to_shard cannot be both true");
+                  "shu/fileffle_after_epoch and stick_to_shard cannot be both true");
     DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
                   "shuffle_after_epoch and random_shuffle cannot be both true");
     /*
@@ -123,6 +129,15 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
+
+  ImageLabelWrapper CopyTarget(const ImageLabelWrapper &target) override {
+    Tensor<CPUBackend> tensor;
+    tensor.Copy(target.image);
+    return ImageLabelWrapper {
+      std::move(tensor), 
+      target.label
+    };
+  }
 
  protected:
   Index SizeImpl() override;
@@ -199,6 +214,21 @@ class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> 
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
+  }
+
+  std::any SaveStateImpl() override {
+    return FileLabelLoaderCheckpoint {
+      image_label_pairs_,
+      current_index_,
+      current_epoch_,
+    };
+  }
+
+  void RestoreStateImpl(const std::any &opaque_state) override {
+    const auto &state = std::any_cast<FileLabelLoaderCheckpoint>(opaque_state);
+    image_label_pairs_ = state.image_label_pairs_;
+    current_index_ = state.current_index_;
+    current_epoch_ = state.current_epoch_;
   }
 
   using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
