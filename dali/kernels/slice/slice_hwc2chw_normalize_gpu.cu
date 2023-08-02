@@ -101,7 +101,7 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   auto in_start = reinterpret_cast<std::uintptr_t>(sample.in + block.start.x);
   auto aligned_in_start = align_up(in_start, 32 * 4);
   auto bytes_skipped =
-      ::min(aligned_in_start - in_start, static_cast<uint64_t>(block.end.x - block.start.x));
+      ::min(static_cast<int64_t>(aligned_in_start - in_start), block.end.x - block.start.x);
 
   float *aligned_tile = tile + 32 * 4;
   float *prologue_tile = aligned_tile - bytes_skipped;
@@ -235,7 +235,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
     // align to 4
     auto aligned_in_start = align_up(in_start, 4);
     auto bytes_skipped =
-        ::min(aligned_in_start - in_start, static_cast<uint64_t>(xc_end - xc_start));
+        ::min(static_cast<int32_t>(aligned_in_start - in_start), xc_end - xc_start);
 
     float *prologue_tile = tile_row;
     float *aligned_tile = tile_row + bytes_skipped;
