@@ -111,9 +111,9 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that if present will be used to build
-                output jax.Array for each category. If ``None`` iterator returns values compatible
-                with pmapped JAX functions.
+    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+                build an output jax.Array for each category. If ``None``, the iterator returns
+                values compatible with pmapped JAX functions.
 
     Example
     -------
