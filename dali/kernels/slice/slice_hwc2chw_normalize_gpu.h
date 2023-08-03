@@ -118,7 +118,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   static constexpr std::array<int, ndim> perm_ = {2, 0, 1};
   BlockSetup<1, -1> collapsed_block_setup_;
   BlockDesc<1> *tiles_gpu_ = nullptr;
-  float *mean_= nullptr;
+  float *mean_ = nullptr;
   float *inv_stddev_;
   Out *fill_values_;
 };

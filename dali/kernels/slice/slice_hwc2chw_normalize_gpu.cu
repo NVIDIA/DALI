@@ -471,7 +471,8 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   auto block_dim = collapsed_block_setup_.BlockDim();
   if (!tiles_gpu_) {
     cudaMalloc(&tiles_gpu_, sizeof(BlockDesc<1>) * tiles_cpu.size());
-    cudaMemcpyAsync(tiles_gpu_, tiles_cpu.data(), sizeof(BlockDesc<1>) * tiles_cpu.size(), cudaMemcpyHostToDevice, ctx.gpu.stream);
+    cudaMemcpyAsync(tiles_gpu_, tiles_cpu.data(), sizeof(BlockDesc<1>) * tiles_cpu.size(),
+                    cudaMemcpyHostToDevice, ctx.gpu.stream);
   }
 
   auto [sample_descs_gpu] = ctx.scratchpad->ToContiguousGPU(
