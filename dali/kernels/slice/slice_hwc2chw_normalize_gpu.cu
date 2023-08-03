@@ -26,7 +26,6 @@ namespace kernels {
 
 namespace slice_flip_normalize {
 
-
 template <typename Out, typename In>
 struct Hwc2ChwSampleDesc {
   Out *__restrict__ out;
@@ -35,6 +34,9 @@ struct Hwc2ChwSampleDesc {
   const float *__restrict__ norm_mul;
   const void *__restrict__ fill_values;
 
+  uint32_t first_block;
+  int64_t sample_size;
+
   // Dimensions of the output
   int H, W, C;
   // Dimensions of the input (relevant to input stride)
@@ -42,6 +44,17 @@ struct Hwc2ChwSampleDesc {
 
   bool flip_x;
 };
+
+template <typename Out, typename In>
+inline __device__ uint32_t FindSampleIdx(const Hwc2ChwSampleDesc<Out, In> *samples,
+                                         uint32_t num_samples) {
+  uint32_t i = 0;
+  for (uint32_t jump = (1 << (32 - __clz(num_samples) - 1)); jump; jump >>= 1) {
+    if (i + jump < num_samples && samples[i + jump].first_block <= blockIdx.x)
+      i += jump;
+  }
+  return i;
+}
 
 /**
  * @brief
@@ -81,12 +94,14 @@ struct Hwc2ChwSampleDesc {
 template <typename Out, typename In, bool enable_mirror, bool enable_pad, int kBlockSize,
           int kStaticChannels>
 __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
-                                 const BlockDesc<1> *blocks) {
+                                 uint32_t num_samples) {
   // TODO(klecki): generalize for wider input types
   static_assert(std::is_same<In, uint8_t>::value, "Only uint8_t supported as input");
 
-  const auto block = blocks[blockIdx.x];
-  const auto sample = samples[block.sample_idx];
+  int sample_idx = FindSampleIdx(samples, num_samples);
+  const auto sample = samples[sample_idx];
+  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
   __shared__ float tile[kBlockSize + 32 * 4];
 
   // Preload the norm values so they are accessed via registers and not from gmem via pointer.
@@ -98,23 +113,23 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
     norm_add[c] = sample.norm_add[c];
   }
 
-  auto in_start = reinterpret_cast<std::uintptr_t>(sample.in + block.start.x);
+  auto in_start = reinterpret_cast<std::uintptr_t>(sample.in + start_x);
   auto aligned_in_start = align_up(in_start, 32 * 4);
   auto bytes_skipped =
-      ::min(static_cast<int64_t>(aligned_in_start - in_start), block.end.x - block.start.x);
+      ::min(static_cast<int64_t>(aligned_in_start - in_start), end_x - start_x);
 
   float *aligned_tile = tile + 32 * 4;
   float *prologue_tile = aligned_tile - bytes_skipped;
-  const In *prologue_in = sample.in + block.start.x;
+  const In *prologue_in = sample.in + start_x;
 
   const uchar4 *aligned_in_char4 =
-      reinterpret_cast<const uchar4 *>(sample.in + block.start.x + bytes_skipped);
+      reinterpret_cast<const uchar4 *>(sample.in + start_x + bytes_skipped);
 
   // prologue
   for (int64_t idx = threadIdx.x; idx < bytes_skipped; idx += blockDim.x) {
     prologue_tile[idx] = prologue_in[idx];
   }
-  int64_t left_after_prologue = block.end.x - block.start.x - bytes_skipped;
+  int64_t left_after_prologue = end_x - start_x - bytes_skipped;
 
   // aligned load
   for (int64_t idx = threadIdx.x; idx < left_after_prologue / 4; idx += blockDim.x) {
@@ -138,9 +153,9 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   __syncthreads();
   const auto *__restrict__ fill_values = static_cast<const Out *>(sample.fill_values);
 
-  // idx is not divided by the static channels (mostly the block.start.x)
-  for (int64_t idx = threadIdx.x + block.start.x / kStaticChannels, base_x = threadIdx.x;
-       idx < block.end.x / kStaticChannels; idx += blockDim.x, base_x += blockDim.x) {
+  // idx is not divided by the static channels (mostly the start_x)
+  for (int64_t idx = threadIdx.x + start_x / kStaticChannels, base_x = threadIdx.x;
+       idx < end_x / kStaticChannels; idx += blockDim.x, base_x += blockDim.x) {
     // TODO(klecki): forceinline device function
     int64_t out_offset;
     if constexpr (enable_mirror) {
@@ -184,12 +199,16 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 template <typename Out, typename In, bool enable_mirror, bool enable_pad, int kBlockSize,
           int kStaticChannels>
 __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
-                                      const BlockDesc<1> *blocks) {
+                                      uint32_t num_samples) {
   // TODO(klecki): generalize for wider input types
   static_assert(std::is_same<In, uint8_t>::value, "Only uint8_t supported as input");
 
-  const auto block = blocks[blockIdx.x];
-  const auto sample = samples[block.sample_idx];
+  int sample_idx = FindSampleIdx(samples, num_samples);
+
+  const auto sample = samples[sample_idx];
+  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
+
   __shared__ float tile[kBlockSize + 32 * 4];
 
   // Preload the norm values so they are accessed via registers and not from gmem via pointer.
@@ -206,8 +225,8 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   int out_stride = sample.W * sample.input_C;
 
   // The rows we start and end with, we are indexed by output coordinates
-  int y_start = block.start.x / out_stride;
-  int y_end = block.end.x / out_stride + 1;
+  int y_start = start_x / out_stride;
+  int y_end = end_x / out_stride + 1;
 
   float *tile_row = tile;
 
@@ -216,7 +235,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 
     // The first row doesn't start with 0 due to tiling, the rest do.
     if (y == y_start) {
-      xc_start = block.start.x - y_start * out_stride;
+      xc_start = start_x - y_start * out_stride;
 
     } else {
       xc_start = 0;
@@ -224,7 +243,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 
     // Similarly for the end of row for last row
     if (y == y_end - 1) {
-      xc_end = block.end.x - (y_end - 1) * out_stride;
+      xc_end = end_x - (y_end - 1) * out_stride;
     } else {
       xc_end = out_stride;
     }
@@ -274,8 +293,8 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
   __syncthreads();
   const auto *__restrict__ fill_values = static_cast<const Out *>(sample.fill_values);
 
-  for (int64_t idx = threadIdx.x + block.start.x / kStaticChannels, base_x = threadIdx.x;
-       idx < block.end.x / kStaticChannels; idx += blockDim.x, base_x += blockDim.x) {
+  for (int64_t idx = threadIdx.x + start_x / kStaticChannels, base_x = threadIdx.x;
+       idx < end_x / kStaticChannels; idx += blockDim.x, base_x += blockDim.x) {
     int64_t out_offset;
     if constexpr (enable_mirror) {
       if (sample.flip_x) {
@@ -433,16 +452,28 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   bool need_crop_x = false;
   bool need_flip_x = false;
 
+  uint32_t offset_blk = 0;
+  int nonempty_samples = 0;
+
   for (int sample_id = 0; sample_id < num_samples; sample_id++) {
     auto [in_sample, in_roi] = RealignSample(in[sample_id], args[sample_id].roi);
     // we adjusted the in_roi to start from 0, so roi.extent() == roi.hi
     if (in_sample.shape[1] != in_roi.hi.x) {
       need_crop_x = true;
     }
+    int64_t sample_size = volume(in_sample.shape);
 
-    auto &sample_desc = sample_descs_cpu[sample_id];
+    if (sample_size == 0) {
+      continue;
+    }
+
+    auto &sample_desc = sample_descs_cpu[nonempty_samples++];
     sample_desc.in = in_sample.data;
     sample_desc.out = out.tensor_data(sample_id);
+
+    sample_desc.first_block = offset_blk;
+    sample_desc.sample_size = sample_size;
+    offset_blk += div_ceil(sample_size, kBlockSizeMul * kBlockWidth);
 
     // The output shape here is after the permutation
     sample_desc.H = out.tensor_shape(sample_id)[1];
@@ -460,27 +491,31 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
     }
   }
 
-  collapsed_block_setup_.SetDefaultBlockSize({kBlockSizeMul * kBlockWidth});
-  collapsed_block_setup_.SetBlockDim(dim3{128, 1, 1});
+  if (nonempty_samples == 0)
+    return;
+
+  // collapsed_block_setup_.SetDefaultBlockSize({kBlockSizeMul * kBlockWidth});
+  // collapsed_block_setup_.SetBlockDim(dim3{128, 1, 1});
 
   // TODO(klecki): hand tiling may give a slightly better results thanks to initial alignment
-  collapsed_block_setup_.SetupBlocks(collapsed_tiling_shape_, true);
-  auto tiles_cpu = collapsed_block_setup_.Blocks();
-  auto grid_dim = collapsed_block_setup_.GridDim();
-  auto block_dim = collapsed_block_setup_.BlockDim();
+  // collapsed_block_setup_.SetupBlocks(collapsed_tiling_shape_, true);
+  // auto tiles_cpu = collapsed_block_setup_.Blocks();
+  // auto grid_dim = collapsed_block_setup_.GridDim();
+  // auto block_dim = collapsed_block_setup_.BlockDim();
 
-  auto [sample_descs_gpu, tiles_gpu] = ctx.scratchpad->ToContiguousGPU(
-      ctx.gpu.stream, make_span(sample_descs_cpu, num_samples), tiles_cpu);
+  auto [sample_descs_gpu] = ctx.scratchpad->ToContiguousGPU(
+      ctx.gpu.stream, make_span(sample_descs_cpu, nonempty_samples));
 
-  auto dispatch = [samples = sample_descs_cpu, tiles = tiles_gpu, &ctx, need_crop_x, grid_dim,
-                   block_dim](auto pad_v, auto flip_x_v) {
+  auto dispatch = [samples = sample_descs_gpu, &ctx, need_crop_x, offset_blk, nonempty_samples](
+                      auto pad_v, auto flip_x_v) {
     if (need_crop_x) {
       SliceHwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
                             kStaticChannels>
-          <<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples, tiles);
+          <<<offset_blk, 128, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
     } else {
       Hwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
-                       kStaticChannels><<<grid_dim, block_dim, 0, ctx.gpu.stream>>>(samples, tiles);
+                       kStaticChannels>
+          <<<offset_blk, 128, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
     }
   };
 
