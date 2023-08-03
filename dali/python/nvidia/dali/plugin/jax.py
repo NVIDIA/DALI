@@ -223,6 +223,9 @@ class DALIGenericIterator(_DaliBaseIterator):
         return category_outputs
 
     def _build_output_with_device_put(self, next_output, category_name, category_outputs):
+        """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
+        with pmppped JAX functions.
+        """
         category_outputs_devices = tuple(map(
             lambda jax_shard: jax_shard.device(),
             category_outputs))
@@ -241,6 +244,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             return jax.device_put_sharded(category_outputs, category_outputs_devices)
 
     def _build_output_with_sharding(self, category_outputs):
+        """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.
+        This output is compatible with automatic parallelization with JAX.
+        """
         shard_shape = category_outputs[0].shape
         global_shape = (self._num_gpus * shard_shape[0], *shard_shape[1:])
         return jax.make_array_from_single_device_arrays(
