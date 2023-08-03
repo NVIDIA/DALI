@@ -205,7 +205,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 if self._sharding is not None:
                     next_output[category_name] = self._build_output_with_sharding(category_outputs)
                 else:
-                    next_output[category_name] = self._build_output_with_devices(
+                    next_output[category_name] = self._build_output_with_device_put(
                         next_output, category_name, category_outputs)
 
         self._schedule_runs()
@@ -222,7 +222,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return category_outputs
 
-    def _build_output_with_devices(self, next_output, category_name, category_outputs):
+    def _build_output_with_device_put(self, next_output, category_name, category_outputs):
         category_outputs_devices = tuple(map(
             lambda jax_shard: jax_shard.device(),
             category_outputs))
