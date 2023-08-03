@@ -60,7 +60,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
     bool flip_x;                        // wether to mirror in x-axis, EnableFlipX must be true.
   };
 
-  SliceHwc2ChwNormalizeGPU() : collapsed_block_setup_(1) {}
+  SliceHwc2ChwNormalizeGPU() = default;
 
   ~SliceHwc2ChwNormalizeGPU() = default;
 
@@ -116,7 +116,6 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   int out_nchannels_ = -1;
   // HWC -> CHW permutation
   static constexpr std::array<int, ndim> perm_ = {2, 0, 1};
-  BlockSetup<1, -1> collapsed_block_setup_;
 };
 
 }  // namespace slice_flip_normalize

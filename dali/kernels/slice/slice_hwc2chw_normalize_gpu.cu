@@ -461,7 +461,7 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
     if (in_sample.shape[1] != in_roi.hi.x) {
       need_crop_x = true;
     }
-    int64_t sample_size = volume(in_sample.shape);
+    int64_t sample_size = collapsed_tiling_shape_[sample_id][0];
 
     if (sample_size == 0) {
       continue;
@@ -493,15 +493,6 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
 
   if (nonempty_samples == 0)
     return;
-
-  // collapsed_block_setup_.SetDefaultBlockSize({kBlockSizeMul * kBlockWidth});
-  // collapsed_block_setup_.SetBlockDim(dim3{128, 1, 1});
-
-  // TODO(klecki): hand tiling may give a slightly better results thanks to initial alignment
-  // collapsed_block_setup_.SetupBlocks(collapsed_tiling_shape_, true);
-  // auto tiles_cpu = collapsed_block_setup_.Blocks();
-  // auto grid_dim = collapsed_block_setup_.GridDim();
-  // auto block_dim = collapsed_block_setup_.BlockDim();
 
   auto [sample_descs_gpu] = ctx.scratchpad->ToContiguousGPU(
       ctx.gpu.stream, make_span(sample_descs_cpu, nonempty_samples));
