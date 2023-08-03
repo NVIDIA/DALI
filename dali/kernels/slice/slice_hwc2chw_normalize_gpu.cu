@@ -56,11 +56,6 @@ inline __device__ uint32_t FindSampleIdx(const Hwc2ChwSampleDesc<Out, In> *sampl
   return i;
 }
 
-/**
- * @brief
- *
- */
-
 /** @defgroup Hwc2Chw The Slice Hwc2Chw Normalize Mirror-x Pad-channel kernel
  *
  * Kernel that reads a HWC u8 image and outputs a CHW normalized float image, that can be cropped
