@@ -14,6 +14,7 @@
 import sys
 import jax
 import jax.numpy as jnp
+from jax.sharding import NamedSharding, PositionalSharding
 import jax.dlpack
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -110,9 +111,9 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that if present will be used to build
-                output jax.Array for each category. If ``None`` iterator returns values compatible
-                with pmaped JAX functions.
+    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+                build an output jax.Array for each category. If ``None``, the iterator returns
+                values compatible with pmapped JAX functions.
 
     Example
     -------
@@ -151,6 +152,10 @@ class DALIGenericIterator(_DaliBaseIterator):
             raise AssertionError("output_map names should be distinct")
         self._output_categories = set(output_map)
         self.output_map = output_map
+
+        if sharding is not None:
+            assert isinstance(sharding, (NamedSharding, PositionalSharding)), \
+                "`sharding` should be an instance of `NamedSharding` or `PositionalSharding`"
         self._sharding = sharding
 
         assert last_batch_policy != LastBatchPolicy.PARTIAL, \
@@ -200,7 +205,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 if self._sharding is not None:
                     next_output[category_name] = self._build_output_with_sharding(category_outputs)
                 else:
-                    next_output[category_name] = self._build_output_with_devices(
+                    next_output[category_name] = self._build_output_with_device_put(
                         next_output, category_name, category_outputs)
 
         self._schedule_runs()
@@ -217,7 +222,10 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return category_outputs
 
-    def _build_output_with_devices(self, next_output, category_name, category_outputs):
+    def _build_output_with_device_put(self, next_output, category_name, category_outputs):
+        """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
+        with pmppped JAX functions.
+        """
         category_outputs_devices = tuple(map(
             lambda jax_shard: jax_shard.device(),
             category_outputs))
@@ -236,6 +244,9 @@ class DALIGenericIterator(_DaliBaseIterator):
             return jax.device_put_sharded(category_outputs, category_outputs_devices)
 
     def _build_output_with_sharding(self, category_outputs):
+        """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.
+        This output is compatible with automatic parallelization with JAX.
+        """
         shard_shape = category_outputs[0].shape
         global_shape = (self._num_gpus * shard_shape[0], *shard_shape[1:])
         return jax.make_array_from_single_device_arrays(
