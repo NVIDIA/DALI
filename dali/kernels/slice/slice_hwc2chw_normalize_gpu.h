@@ -102,6 +102,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   // This is a multiple of LCM(3, 4) = LCM(Number of Channels, 4) where 4 is from 4-byte reads
   static constexpr int kBlockSizeMul = 24;
   static constexpr int kBlockWidth = 128;
+  static constexpr int kThreadBlockSize = 128;
   // TODO(klecki): Generalize for other static channel values
   static constexpr int kStaticChannels = 3;
 

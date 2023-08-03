@@ -32,10 +32,10 @@ struct Hwc2ChwSampleDesc {
   const In *__restrict__ in;
   const float *__restrict__ norm_add;
   const float *__restrict__ norm_mul;
-  const void *__restrict__ fill_values;
+  const Out *__restrict__ fill_values;
 
-  uint32_t first_block;
   int64_t sample_size;
+  uint32_t first_block;
 
   // Dimensions of the output
   int H, W, C;
@@ -45,6 +45,7 @@ struct Hwc2ChwSampleDesc {
   bool flip_x;
 };
 
+// TODO(klecki): Generalize the utility for binsearch indexing of thread blocks with Cast kernel.
 template <typename Out, typename In>
 inline __device__ uint32_t FindSampleIdx(const Hwc2ChwSampleDesc<Out, In> *samples,
                                          uint32_t num_samples) {
@@ -174,7 +175,6 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
       sample.out[c * sample.H * sample.W + out_offset] = ConvertSat<Out>(fpout);
     }
 
-    // TODO(klecki): Check if it is better to put another loop
     if constexpr (enable_pad) {
       for (int c = kStaticChannels; c < sample.C; c++) {
         sample.out[c * sample.H * sample.W + out_offset] = fill_values[c];
@@ -312,7 +312,6 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
       sample.out[c * sample.H * sample.W + out_offset] = ConvertSat<Out>(fpout);
     }
 
-    // TODO(klecki): Check if it is better to put another loop
     if constexpr (enable_pad) {
       for (int c = kStaticChannels; c < sample.C; c++) {
         sample.out[c * sample.H * sample.W + out_offset] = fill_values[c];
@@ -497,11 +496,11 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
     if (need_crop_x) {
       SliceHwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
                             kStaticChannels>
-          <<<offset_blk, 128, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
+          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
     } else {
       Hwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
                        kStaticChannels>
-          <<<offset_blk, 128, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
+          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
     }
   };
 
