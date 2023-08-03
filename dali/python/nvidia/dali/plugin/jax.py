@@ -14,6 +14,7 @@
 import sys
 import jax
 import jax.numpy as jnp
+from jax.sharding import NamedSharding, PositionalSharding
 import jax.dlpack
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -151,6 +152,10 @@ class DALIGenericIterator(_DaliBaseIterator):
             raise AssertionError("output_map names should be distinct")
         self._output_categories = set(output_map)
         self.output_map = output_map
+
+        if sharding is not None:
+            assert isinstance(sharding, (NamedSharding, PositionalSharding)), \
+                "`sharding` should be an instance of `NamedSharding` or `PositionalSharding`"
         self._sharding = sharding
 
         assert last_batch_policy != LastBatchPolicy.PARTIAL, \
