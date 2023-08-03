@@ -14,6 +14,7 @@
 import sys
 import jax
 import jax.numpy as jnp
+from jax.sharding import NamedSharding, PositionalSharding
 import jax.dlpack
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
@@ -110,6 +111,9 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
+    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+                build an output jax.Array for each category. If ``None``, the iterator returns
+                values compatible with pmapped JAX functions.
 
     Example
     -------
@@ -140,13 +144,19 @@ class DALIGenericIterator(_DaliBaseIterator):
             auto_reset=False,
             last_batch_padded=False,
             last_batch_policy=LastBatchPolicy.FILL,
-            prepare_first_batch=True):
+            prepare_first_batch=True,
+            sharding=None):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         if len(set(output_map)) != len(output_map):
             raise AssertionError("output_map names should be distinct")
         self._output_categories = set(output_map)
         self.output_map = output_map
+
+        if sharding is not None:
+            assert isinstance(sharding, (NamedSharding, PositionalSharding)), \
+                "`sharding` should be an instance of `NamedSharding` or `PositionalSharding`"
+        self._sharding = sharding
 
         assert last_batch_policy != LastBatchPolicy.PARTIAL, \
             "JAX iterator does not support partial last batch policy."
@@ -181,45 +191,68 @@ class DALIGenericIterator(_DaliBaseIterator):
             self._first_batch = None
             return batch
 
-        # Gather outputs
         pipelines_outputs = self._get_outputs()  # Can be accessed by outputs[device_id][output_id]
 
         next_output = dict()
         for category_id, category_name in enumerate(self.output_map):
-            category_outputs = []
-
-            # Gather outputs for current category from all pipelines
-            for pipeline_id in range(self._num_gpus):
-                category_outputs.append(
-                    _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor()))
+            category_outputs = self._gather_outputs_for_category(
+                pipelines_outputs, category_id)
 
             if self._num_gpus == 1:
                 next_output[category_name] = category_outputs[0]
-            else:   # Assemble output from multiple pipelines
-                for shard in category_outputs:
-                    assert shard.shape == category_outputs[0].shape, \
-                        "Shards shapes have to be the same."
-
-                category_outputs_devices = tuple(map(
-                    lambda jax_shard: jax_shard.device(),
-                    category_outputs))
-
-                distinct_category_outputs_devices = set(category_outputs_devices)
-
-                if len(category_outputs_devices) != len(distinct_category_outputs_devices):
-                    if len(distinct_category_outputs_devices) != 1:
-                        raise AssertionError("JAX iterator requires shards to be placed on \
-                                             different devices or all on the same device.")
-                    else:
-                        # All shards are on one device.
-                        next_output[category_name] = jnp.stack(category_outputs)
+            else:
+                self._assert_shards_shapes(category_outputs)
+                if self._sharding is not None:
+                    next_output[category_name] = self._build_output_with_sharding(category_outputs)
                 else:
-                    # Build sharded JAX array as output for current category
-                    next_output[category_name] = jax.device_put_sharded(
-                        category_outputs,
-                        category_outputs_devices)
+                    next_output[category_name] = self._build_output_with_device_put(
+                        next_output, category_name, category_outputs)
 
         self._schedule_runs()
         self._advance_and_check_drop_last()
 
         return next_output
+
+    def _gather_outputs_for_category(self, pipelines_outputs, category_id):
+        category_outputs = []
+
+        for pipeline_id in range(self._num_gpus):
+            category_outputs.append(
+                _to_jax_array(pipelines_outputs[pipeline_id][category_id].as_tensor()))
+
+        return category_outputs
+
+    def _build_output_with_device_put(self, next_output, category_name, category_outputs):
+        """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
+        with pmppped JAX functions.
+        """
+        category_outputs_devices = tuple(map(
+            lambda jax_shard: jax_shard.device(),
+            category_outputs))
+
+        distinct_category_outputs_devices = set(category_outputs_devices)
+
+        if len(category_outputs_devices) != len(distinct_category_outputs_devices):
+            if len(distinct_category_outputs_devices) != 1:
+                raise AssertionError("JAX iterator requires shards to be placed on \
+                                                different devices or all on the same device.")
+            else:
+                # All shards are on one device (CPU or one GPU)
+                return jnp.stack(category_outputs)
+        else:
+            # Build sharded JAX array as output for current category (compatible with pmap)
+            return jax.device_put_sharded(category_outputs, category_outputs_devices)
+
+    def _build_output_with_sharding(self, category_outputs):
+        """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.
+        This output is compatible with automatic parallelization with JAX.
+        """
+        shard_shape = category_outputs[0].shape
+        global_shape = (self._num_gpus * shard_shape[0], *shard_shape[1:])
+        return jax.make_array_from_single_device_arrays(
+            global_shape, self._sharding, category_outputs)
+
+    def _assert_shards_shapes(self, category_outputs):
+        for shard in category_outputs:
+            assert shard.shape == category_outputs[0].shape, \
+                "Shards shapes have to be the same."

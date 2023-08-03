@@ -23,6 +23,7 @@ import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
+from jax.experimental import mesh_utils
 from test_integration import get_dali_tensor_gpu
 import jax.numpy as jnp
 
@@ -217,6 +218,57 @@ def run_sharding_test(sharding):
     assert dali_sharded_array.device_buffers[1].device() == jax.devices()[1]
 
 
+def run_sharding_iterator_test(sharding):
+    assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
+
+    batch_size = 4
+    shape = (1, 5)
+
+    # given
+    pipe_0 = sequential_sharded_pipeline(
+        batch_size=batch_size,
+        shape=shape,
+        device_id=0,
+        shard_id=0,
+        shard_size=batch_size,
+        multiple_outputs=True)
+
+    pipe_1 = sequential_sharded_pipeline(
+        batch_size=batch_size,
+        shape=shape,
+        device_id=1,
+        shard_id=1,
+        shard_size=batch_size,
+        multiple_outputs=True)
+
+    output_names = ['data_0', 'data_1', 'data_2']
+
+    # when
+    dali_iterator = DALIGenericIterator(
+        [pipe_0, pipe_1], output_names, size=batch_size*10, sharding=sharding)
+
+    for batch_id, batch in enumerate(dali_iterator):
+        # then
+        # check values for all outputs
+        # for the data_0 values should be the same as in the single output example
+        # for data_1 values are the same + 0.25, for data_2 the same + 0.5
+        for output_id, output_name in enumerate(output_names):
+            jax_array = batch[output_name]
+
+            assert jax.numpy.array_equal(
+                jax_array,
+                jax.numpy.stack([
+                    jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
+                    for value in range(batch_id*batch_size, (batch_id+2)*batch_size)]))
+
+            # Assert correct backing devices for shards
+            assert jax_array.device_buffers[0].device() == jax.devices()[0]
+            assert jax_array.device_buffers[1].device() == jax.devices()[1]
+
+    # Assert correct number of batches returned from the iterator
+    assert batch_id == 4
+
+
 def test_positional_sharding_workflow():
     sharding = PositionalSharding(jax.devices())
 
@@ -228,3 +280,17 @@ def test_named_sharding_workflow():
     sharding = NamedSharding(mesh, PartitionSpec('device'))
 
     run_sharding_test(sharding)
+
+
+def test_positional_sharding_workflow_with_iterator():
+    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
+    sharding = PositionalSharding(mesh)
+
+    run_sharding_iterator_test(sharding)
+
+
+def test_named_sharding_workflow_with_iterator():
+    mesh = Mesh(jax.devices(), axis_names=('batch'))
+    sharding = NamedSharding(mesh, PartitionSpec('batch'))
+
+    run_sharding_iterator_test(sharding)
