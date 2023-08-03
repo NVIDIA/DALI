@@ -112,7 +112,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 so one batch is already prepared when the iterator is prompted for the data
     sharding : ``jax.sharding.Sharding`` comaptible object that if present will be used to build
                 output jax.Array for each category. If ``None`` iterator returns values compatible
-                with pmaped JAX functions.
+                with pmapped JAX functions.
 
     Example
     -------
