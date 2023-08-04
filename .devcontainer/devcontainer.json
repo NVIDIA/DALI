@@ -1,0 +1,17 @@
+{
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools-extension-pack",
+                "donjayamanne.python-extension-pack"
+            ]
+        }
+    },
+    "runArgs": [
+        "--gpus",
+        "all"
+    ]
+}
