@@ -491,10 +491,10 @@ class FileReaderTest : public DALITest {
   }
 
   void TearDown() override {
-    for (const auto &path : filepaths_) {
-        int ret = std::remove(path.data());
-        DALI_ENFORCE(ret == 0,
-                     make_string("Failed to remove the file: ", path, ". Error code: ", ret));
+    for (const auto &path: filepaths_) {
+      int ret = std::remove(path.data());
+      DALI_ENFORCE(ret == 0,
+                   make_string("Failed to remove the file: ", path, ". Error code: ", ret));
     }
   }
 
