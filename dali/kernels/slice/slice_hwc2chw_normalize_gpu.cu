@@ -46,12 +46,11 @@ struct Hwc2ChwSampleDesc {
 };
 
 // TODO(klecki): Generalize the utility for binsearch indexing of thread blocks with Cast kernel.
-template <typename Out, typename In>
-inline __device__ uint32_t FindSampleIdx(const Hwc2ChwSampleDesc<Out, In> *samples,
+inline __device__ uint32_t FindSampleIdx(const uint32_t *first_blocks,
                                          uint32_t num_samples) {
   uint32_t i = 0;
   for (uint32_t jump = (1 << (32 - __clz(num_samples) - 1)); jump; jump >>= 1) {
-    if (i + jump < num_samples && samples[i + jump].first_block <= blockIdx.x)
+    if (i + jump < num_samples && first_blocks[i + jump] <= blockIdx.x)
       i += jump;
   }
   return i;
@@ -89,12 +88,12 @@ inline __device__ uint32_t FindSampleIdx(const Hwc2ChwSampleDesc<Out, In> *sampl
  */
 template <typename Out, typename In, bool enable_mirror, bool enable_pad, int kBlockSize,
           int kStaticChannels>
-__global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
+__global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples, uint32_t *first_blocks,
                                  uint32_t num_samples) {
   // TODO(klecki): generalize for wider input types
   static_assert(std::is_same<In, uint8_t>::value, "Only uint8_t supported as input");
 
-  int sample_idx = FindSampleIdx(samples, num_samples);
+  int sample_idx = FindSampleIdx(first_blocks, num_samples);
   const auto sample = samples[sample_idx];
   int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
@@ -194,11 +193,11 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
 template <typename Out, typename In, bool enable_mirror, bool enable_pad, int kBlockSize,
           int kStaticChannels>
 __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
-                                      uint32_t num_samples) {
+                                      uint32_t *first_blocks, uint32_t num_samples) {
   // TODO(klecki): generalize for wider input types
   static_assert(std::is_same<In, uint8_t>::value, "Only uint8_t supported as input");
 
-  int sample_idx = FindSampleIdx(samples, num_samples);
+  int sample_idx = FindSampleIdx(first_blocks, num_samples);
 
   const auto sample = samples[sample_idx];
   int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
@@ -441,6 +440,7 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   int num_samples = in.num_samples();
 
   SampleDesc *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc>(num_samples);
+  uint32_t *first_blocks_cpu = ctx.scratchpad->AllocatePinned<uint32_t>(num_samples);
   auto [norm_add_gpu, norm_mul_gpu, fill_values_gpu] = SetupParams(ctx, args);
   bool need_pad = out_nchannels_ != nchannels_;
   bool need_crop_x = false;
@@ -461,10 +461,12 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
       continue;
     }
 
-    auto &sample_desc = sample_descs_cpu[nonempty_samples++];
+    auto &sample_desc = sample_descs_cpu[nonempty_samples];
+    auto &first_block = first_blocks_cpu[nonempty_samples++];
     sample_desc.in = in_sample.data;
     sample_desc.out = out.tensor_data(sample_id);
 
+    first_block = offset_blk;
     sample_desc.first_block = offset_blk;
     sample_desc.sample_size = sample_size;
     offset_blk += div_ceil(sample_size, kBlockSizeMul * kBlockWidth);
@@ -488,19 +490,20 @@ void SliceHwc2ChwNormalizeGPU<Out>::Run(KernelContext &ctx,
   if (nonempty_samples == 0)
     return;
 
-  auto [sample_descs_gpu] = ctx.scratchpad->ToContiguousGPU(
-      ctx.gpu.stream, make_span(sample_descs_cpu, nonempty_samples));
+  auto [sample_descs_gpu, first_blocks_gpu] =
+      ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nonempty_samples),
+                                      make_span(first_blocks_cpu, nonempty_samples));
 
-  auto dispatch = [samples = sample_descs_gpu, &ctx, need_crop_x, offset_blk, nonempty_samples](
-                      auto pad_v, auto flip_x_v) {
+  auto dispatch = [samples = sample_descs_gpu, blocks = first_blocks_gpu, &ctx, need_crop_x,
+                   offset_blk, nonempty_samples](auto pad_v, auto flip_x_v) {
     if (need_crop_x) {
       SliceHwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
                             kStaticChannels>
-          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
+          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, blocks, nonempty_samples);
     } else {
       Hwc2ChwNormalize<Out, In, flip_x_v.value, pad_v.value, kBlockSizeMul * kBlockWidth,
                        kStaticChannels>
-          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, nonempty_samples);
+          <<<offset_blk, kThreadBlockSize, 0, ctx.gpu.stream>>>(samples, blocks, nonempty_samples);
     }
   };
 
