@@ -21,11 +21,11 @@ RUN git clone https://github.com/NVIDIA/DALI_deps /opt/dali_deps && \
     git submodule init && \
     git submodule update --depth 1 --init --recursive
 RUN cd /opt/dali_deps && /opt/dali_deps/build_scripts/build_deps.sh
-
+RUN rm -r /opt/dali_deps
 
 # Add more packages for DALI
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3-distutils python3-clang python3-pip shellcheck libgl1 \
+    python3-distutils python3-clang python3-pip pre-commit shellcheck libgl1 \
     git-lfs pkg-config clang clang-format g++-13 gcc-13 libtbb-dev 
 
 RUN useradd -rm -d /home/dev -s /bin/bash -G sudo -U -u 1000 dev && \
@@ -36,8 +36,6 @@ USER dev
 # Add DALI_extra, the correct commit will be checked as a part of the
 # running tests scripts defined in DALI_EXTRA_VERSION
 RUN git clone https://github.com/NVIDIA/DALI_extra.git /opt/dali_extra
-
-RUN pip3 install pre-commit
 
 ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 ENTRYPOINT /bin/bash
