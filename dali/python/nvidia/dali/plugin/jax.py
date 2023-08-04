@@ -152,7 +152,6 @@ class DALIGenericIterator(_DaliBaseIterator):
             raise AssertionError("output_map names should be distinct")
         self._output_categories = set(output_map)
         self.output_map = output_map
-        self._sharding = sharding
 
         if sharding is not None:
             assert isinstance(sharding, (NamedSharding, PositionalSharding)), \
