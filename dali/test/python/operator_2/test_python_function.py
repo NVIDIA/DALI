@@ -159,7 +159,7 @@ def random_seed():
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
-ITERS = 32
+ITERS = 16
 SEED = random_seed()
 NUM_WORKERS = 6
 

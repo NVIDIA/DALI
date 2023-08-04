@@ -1588,6 +1588,30 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
 
+struct PyPipeline: public Pipeline {
+  PyPipeline(int batch_size, int num_threads, int device_id, int64_t seed,
+             bool pipelined_execution, int prefetch_queue_depth,
+             bool async_execution, size_t bytes_per_sample_hint,
+             bool set_affinity, int max_num_stream,
+             int default_cuda_stream_priority):
+             Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
+                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
+                      max_num_stream, default_cuda_stream_priority) {}
+
+  PyPipeline(string serialized_pipe, int batch_size, int num_threads, int device_id,
+             bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
+             size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
+             int default_cuda_stream_priority):
+             Pipeline(serialized_pipe, batch_size, num_threads, device_id, pipelined_execution,
+                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
+                      max_num_stream, default_cuda_stream_priority) {}
+
+  ~PyPipeline() override {
+    py::gil_scoped_release interpreter_unlock{};
+    Shutdown();
+  }
+};
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1766,14 +1790,14 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class
-  py::class_<Pipeline>(m, "Pipeline")
+  py::class_<Pipeline, PyPipeline>(m, "Pipeline")
     .def(py::init(
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1,
                 int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                       batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
                       max_num_stream, default_cuda_stream_priority);
@@ -1798,7 +1822,7 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false, int max_num_stream = -1,
              int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                                serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
@@ -2006,12 +2030,7 @@ PYBIND11_MODULE(backend_impl, m) {
           DALI_ENFORCE(meta,
               "Operator " + op_name + "  not found or does not expose valid metadata.");
           return ReaderMetaToDict(meta);
-        })
-    // On the pipeline destruction we need to release the GIL to shutdown the executor
-    // This way, Python operators that might be still running do not deadlock
-    .def("Shutdown", [](Pipeline *p) {
-      p->Shutdown();
-    }, py::call_guard<py::gil_scoped_release>());
+        });
 
 #define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \

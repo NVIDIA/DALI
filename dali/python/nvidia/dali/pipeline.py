@@ -299,10 +299,6 @@ Parameters
             raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
 
-    def __del__(self):
-        if self._pipe:
-            self._pipe.Shutdown()
-
     @property
     def batch_size(self):
         """Batch size."""
