@@ -59,6 +59,7 @@ struct SliceSampleDesc {
   TensorShape<Dims> out_shape;
   TensorShape<Dims> in_shape;
   TensorShape<Dims> anchor;
+  TensorShape<Dims> step;
 
   const void *__restrict__ fill_values;
   int channel_dim;
@@ -104,10 +105,10 @@ union PackedBuffer {
 template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
                                const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                               uint64_t offset, uint64_t block_end) {
+                               const int64_t* step, uint64_t offset, uint64_t block_end) {
   if (Dims > 1 && out_strides[Dims - 1] == static_cast<uint32_t>(in_strides[Dims - 1])) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, offset,
+    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, step, offset,
                                                     block_end);
     return;
   }
@@ -125,9 +126,9 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
       #pragma unroll
       for (int d = 0; d < Dims; d++) {
         int i_d = div_mod(idx, idx, out_strides[d]);
-        in_idx += i_d * in_strides[d];
+        in_idx += i_d * in_strides[d] * step[d];
       }
-      in_idx += idx;  // remaining dims have equal strides
+      in_idx += idx;
       result.values[i] = clamp<OutputType>(in[in_idx]);
     }
     result.store(&out[offset], i);
@@ -143,14 +144,14 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
 template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
                           const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
-                          const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
+                          const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor, const int64_t *step,
                           const OutputType *__restrict__ fill_values, int channel_dim,
                           uint64_t offset, uint64_t block_end) {
   if (Dims > 1 && anchor[Dims - 1] == 0 && in_shape[Dims - 1] == out_shape[Dims - 1] &&
       channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, out_shape,
-                                                      in_shape, anchor, fill_values, channel_dim,
+                                                      in_shape, anchor, step, fill_values, channel_dim,
                                                       offset, block_end);
     return;
   }
@@ -183,7 +184,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 
       #pragma unroll
       for (int d = 0; d < Dims - 1; d++) {
-        i_d = div_mod(idx, idx, out_strides[d]);
+        i_d = div_mod(idx, idx, out_strides[d]) * step[d];
         if (d == channel_dim)
           i_c = i_d;
         out_of_bounds |= is_out_of_bounds(anchor[d] + i_d, in_shape[d]);
@@ -191,7 +192,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       }
 
       constexpr int d = LastDim;
-      i_d = idx;  // out_strides[d] is 1
+      i_d = idx * step[d];  // out_strides[d] is 1
       if (AllDims && d == channel_dim)
         i_c = i_d;
       out_of_bounds |= is_out_of_bounds(inner_in_anchor + i_d, inner_in_extent);
@@ -217,16 +218,17 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
   auto *in = static_cast<const InputType*>(sample.in);
   auto *out_strides = sample.out_strides;
   auto *in_strides = sample.in_strides.data();
+  auto *step = sample.step.data();
   if (SupportPad && sample.need_pad) {
     auto *anchor = sample.anchor.data();
     auto *in_shape = sample.in_shape.data();
     auto *out_shape = sample.out_shape.data();
     auto *fill_values = static_cast<const OutputType*>(sample.fill_values);
     auto channel_dim = sample.channel_dim;
-    SliceFunc<Dims>(out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values,
+    SliceFunc<Dims>(out, in, out_strides, in_strides, out_shape, in_shape, anchor, step, fill_values,
                     channel_dim, offset, block_end);
   } else {
-    SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, offset, block_end);
+    SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, step, offset, block_end);
   }
 }
 
@@ -355,6 +357,7 @@ class SliceGPU {
       sample_desc.anchor = anchor;
       sample_desc.in_shape = in_shape;
       sample_desc.out_shape = out_shape;
+      sample_desc.step = slice_args[i].step;
 
       const InputType *in_data = in.tensor_data(i);
       // `sample_desc.in` is expected to point to the slice anchor

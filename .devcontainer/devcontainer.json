@@ -6,6 +6,7 @@
         "vscode": {
             "extensions": [
                 "ms-vscode.cpptools-extension-pack",
+                "nvidia.nsight-vscode-edition",
                 "donjayamanne.python-extension-pack",
                 "ms-python.pylint",
                 "ms-python.black-formatter"

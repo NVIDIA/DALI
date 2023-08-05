@@ -50,6 +50,7 @@ void TensorSubscript<GPUBackend>::RunTyped(Workspace &ws) {
     ctx->tmp_out.data[i] = static_cast<T *>(output.raw_mutable_tensor(i));
     ctx->args[i].shape = ctx->tmp_out.shape[i];
     ctx->args[i].anchor = simplified_anchor_[i];
+    ctx->args[i].step = step_[i];
   }
 
   kernels::KernelContext kctx;

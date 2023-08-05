@@ -147,9 +147,9 @@ def test_runtime_stride_dim1():
             # fmt: off
             ref = x[::strides[j]]
             # fmt: on
-            j = (j + 1) % len(strides)
             assert np.array_equal(ref, cpu.at(i))
-            # assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            j = (j + 1) % len(strides)
 
 def test_runtime_stride_dim2():
     def data_gen():
@@ -172,9 +172,9 @@ def test_runtime_stride_dim2():
             # fmt: off
             ref = x[:, ::strides[j]]
             # fmt: on
-            j = (j + 1) % len(strides)
             assert np.array_equal(ref, cpu.at(i))
-            # assert np.array_equal(ref, gpu.as_cpu().at(i))
+            assert np.array_equal(ref, gpu.as_cpu().at(i))
+            j = (j + 1) % len(strides)
 
 
 def test_new_axis():
