@@ -6,7 +6,9 @@
         "vscode": {
             "extensions": [
                 "ms-vscode.cpptools-extension-pack",
-                "donjayamanne.python-extension-pack"
+                "donjayamanne.python-extension-pack",
+                "ms-python.pylint",
+                "ms-python.black-formatter"
             ]
         }
     },

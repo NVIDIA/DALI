@@ -119,7 +119,7 @@ bool CanRunPlainCopy(const TensorShape<Dims> &out_strides, const TensorShape<Dim
   // If the strides are not the default ones, or the window anchor and shape
   // are different than the bounds of the input, we can't run plain memcpy
   for (int d = 0; d < Dims; d++) {
-    if (args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
+    if (args.step[d] != 1 || args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
         default_out_strides[d] != out_strides[d] || default_in_strides[d] != in_strides[d])
       return false;
   }

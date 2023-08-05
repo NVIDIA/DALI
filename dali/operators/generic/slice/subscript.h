@@ -209,14 +209,14 @@ class TensorSubscript : public Operator<Backend> {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
         int64_t at = s.at.values[i];
         int64_t idx = at < 0 ? in_extent + at : at;
-        if (idx < 0 || idx >= in_extent)
-          DALI_FAIL(make_string("Index ", at,
-                                " is out of range "
-                                "for axis ",
-                                d, " of length ", in_extent,
-                                "\n"
-                                "Detected while processing sample #",
-                                i, " of shape (", in_shape[i], ")"));
+        // clang-format off
+        if (idx < 0 || idx >= in_extent) {
+          DALI_FAIL(make_string(
+            "Index ", at, " is out of range for axis ", d,
+            " of length ", in_extent, "\nDetected while processing "
+            " sample #", i, " of shape (", in_shape[i], ")"));
+        }
+        // clang-format on
         start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
       }
@@ -224,9 +224,15 @@ class TensorSubscript : public Operator<Backend> {
     if (s.IsRange()) {
       for (int i = 0; i < nsamples; i++) {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
-        int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : 0;
-        int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
         int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
+
+        // Default lo and hi depends on the sign of the step
+        const int64_t default_lo = step > 0 ? 0 : -1;
+        const int64_t default_hi = step > 0 ? in_extent : 0;
+
+        int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : default_lo;
+        int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : default_hi;
+
         if (lo < 0)
           lo += in_extent;
         if (hi < 0)
@@ -236,7 +242,7 @@ class TensorSubscript : public Operator<Backend> {
         start_.tensor_shape_span(i)[d] = lo;
         step_.tensor_shape_span(i)[d] = step;
 
-        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
+        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi + 1, -step);
         if (out_extent < 0)
           out_extent = 0;
         shape_.tensor_shape_span(i)[d] = out_extent;

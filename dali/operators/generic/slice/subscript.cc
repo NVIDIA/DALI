@@ -82,9 +82,9 @@ void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
   kernels::KernelContext ctx;
   for (int i = 0; i < N; i++) {
     tv_in.shape = simplified_in_shape_[i];
-    tv_in.data = input.tensor<T>(i);
+    tv_in.data = static_cast<const T *>(input.raw_tensor(i));
     tv_out.shape = simplified_out_shape_[i];
-    tv_out.data = output.mutable_tensor<T>(i);
+    tv_out.data = static_cast<T *>(output.raw_mutable_tensor(i));
     kernels::SliceArgs<T, ndim> args;
     args.anchor = simplified_anchor_[i].to_static<ndim>();
     args.shape = tv_out.shape;
