@@ -127,19 +127,19 @@ __global__ void Hwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples, uint
   int64_t left_after_prologue = end_x - start_x - bytes_skipped;
 
   // aligned load
-  for (int64_t idx = threadIdx.x; idx < left_after_prologue / 4; idx += blockDim.x) {
+  for (int64_t idx = threadIdx.x; idx < left_after_prologue >> 2; idx += blockDim.x) {
     uchar4 in = aligned_in_char4[idx];
     aligned_tile[idx * 4 + 0] = in.x;
     aligned_tile[idx * 4 + 1] = in.y;
     aligned_tile[idx * 4 + 2] = in.z;
     aligned_tile[idx * 4 + 3] = in.w;
   }
-  int64_t processed_in_main = (left_after_prologue / 4) * 4;
+  int64_t processed_in_main = left_after_prologue & -4;  // equivalent to (x / 4) * 4
   int64_t left_after_main = left_after_prologue - processed_in_main;
 
   // epilogue
   float *epilogue_tile = aligned_tile + processed_in_main;
-  const In *epilogue_in = reinterpret_cast<const In *>(aligned_in_char4 + processed_in_main / 4);
+  const In *epilogue_in = reinterpret_cast<const In *>(aligned_in_char4 + (processed_in_main >> 2));
 
   for (int64_t idx = threadIdx.x; idx < left_after_main; idx++) {
     epilogue_tile[idx] = epilogue_in[idx];
@@ -263,7 +263,7 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
     int64_t left_after_prologue = xc_end - xc_start - bytes_skipped;
 
     // aligned load
-    for (int64_t idx = threadIdx.x; idx < left_after_prologue / 4; idx += blockDim.x) {
+    for (int64_t idx = threadIdx.x; idx < left_after_prologue >> 2; idx += blockDim.x) {
       uchar4 in = aligned_in_char4[idx];
       aligned_tile[idx * 4 + 0] = in.x;
       aligned_tile[idx * 4 + 1] = in.y;
@@ -271,12 +271,13 @@ __global__ void SliceHwc2ChwNormalize(const Hwc2ChwSampleDesc<Out, In> *samples,
       aligned_tile[idx * 4 + 3] = in.w;
     }
 
-    int64_t processed_in_main = (left_after_prologue / 4) * 4;
+    int64_t processed_in_main = left_after_prologue & -4;  // equivalent to (x / 4) * 4
     int64_t left_after_main = left_after_prologue - processed_in_main;
 
     // epilogue
     float *epilogue_tile = aligned_tile + processed_in_main;
-    const In *epilogue_in = reinterpret_cast<const In *>(aligned_in_char4 + processed_in_main / 4);
+    const In *epilogue_in =
+        reinterpret_cast<const In *>(aligned_in_char4 + (processed_in_main >> 2));
 
     for (int64_t idx = threadIdx.x; idx < left_after_main; idx++) {
       epilogue_tile[idx] = epilogue_in[idx];

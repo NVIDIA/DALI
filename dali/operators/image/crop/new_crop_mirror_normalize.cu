@@ -100,7 +100,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
   bool SetupSliceHwc2ChwNormalize(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
     TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16), (
       return SetupSliceHwc2ChwNormalizeTyped<OutputType>(output_desc, ws);
-    ), DALI_FAIL(make_string("Not supported output type:", output_type_)););  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported output type:", output_type_)););  // NOLINT
   }
 
   template <typename Out>
@@ -141,7 +141,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     // const auto &req = k.Setup(ctx, sh, cargs);
     // // k.test();
     auto cargs = make_cspan(args);
-    auto &req = kmgr_.Setup<Kernel>(0, ctx, sh, make_cspan(args));
+    auto &req = kmgr_.Setup<Kernel>(0, ctx, sh, cargs);
     output_desc[0].type = output_type_;
     output_desc[0].shape = req.output_shapes[0];
     return true;
@@ -154,10 +154,10 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
           VALUE_SWITCH(channel_dim_idx_, ChannelDim, CHANNEL_DIMS, (
             return SetupSfnGpuGenericTyped<OutputType, InputType,
                                            SpatialNdim, ChannelDim>(output_desc, ws);
-          ), DALI_FAIL(make_string("Not supported channel dimension:", channel_dim_idx_)););  // NOLINT
-        ), DALI_FAIL(make_string("Not supported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
-      ), DALI_FAIL(make_string("Not supported output type:", output_type_)););  // NOLINT
-    ), DALI_FAIL(make_string("Not supported input type:", input_type_)););  // NOLINT
+          ), DALI_FAIL(make_string("Unsupported channel dimension:", channel_dim_idx_)););  // NOLINT
+        ), DALI_FAIL(make_string("Unsupported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type:", output_type_)););  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type:", input_type_)););  // NOLINT
   }
 
   template <typename Out, typename In, int spatial_ndim, int channel_dim>
@@ -278,7 +278,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
       RunSfnKernel<Kernel, float16, uint8_t, 3>(ws, cargs);
       return;
     }
-    DALI_FAIL(make_string("Not supported output type:", output_type_));
+    DALI_FAIL(make_string("Unsupported output type:", output_type_));
   }
 
   void RunSfnGpuGeneric(Workspace &ws) {
@@ -293,10 +293,10 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
 
             auto &args = any_cast<typename Kernel::Args &>(kernel_args_);
             RunSfnKernel<Kernel, OutputType, InputType, ndim>(ws, args);
-          ), DALI_FAIL(make_string("Not supported channel dimension:", channel_dim_idx_)););  // NOLINT
-        ), DALI_FAIL(make_string("Not supported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
-      ), DALI_FAIL(make_string("Not supported output type:", output_type_)););  // NOLINT
-    ), DALI_FAIL(make_string("Not supported input type:", input_type_)););  // NOLINT
+          ), DALI_FAIL(make_string("Unsupported channel dimension:", channel_dim_idx_)););  // NOLINT
+        ), DALI_FAIL(make_string("Unsupported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
+      ), DALI_FAIL(make_string("Unsupported output type:", output_type_)););  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type:", input_type_)););  // NOLINT
   }
 
   template <typename Kernel, typename Out, typename In, int ndim, typename Args>
