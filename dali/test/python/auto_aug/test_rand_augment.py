@@ -19,7 +19,7 @@ import numpy as np
 from scipy.stats import chisquare
 from nose2.tools import params
 
-from nvidia.dali import fn, types
+from nvidia.dali import fn, tensors, types
 from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import rand_augment
 from nvidia.dali.auto_aug.core import augmentation
@@ -29,6 +29,55 @@ from nose_utils import assert_raises
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+
+
+def debug_discrepancy_helper(*batch_pairs):
+    """
+    Accepts list of triples: left_batch, right_batch, name of a batch.
+    Prepares a list of statistics for any differences between samples in the corresponding batches.
+    """
+
+    def as_array_list(batch):
+        if isinstance(batch, tensors.TensorListGPU):
+            batch = batch.as_cpu()
+        return [np.array(sample) for sample in batch]
+
+    batch_names = [name for _, _, name in batch_pairs]
+    batch_pairs = [(as_array_list(left), as_array_list(right)) for left, right, _ in batch_pairs]
+    batch_stats = []
+    for batch_name, batch_pair in zip(batch_names, batch_pairs):
+        left, right = batch_pair
+        num_samples = len(left), len(right)
+        sample_diffs = []
+        for sample_idx, (sample_left, sample_right) in enumerate(zip(left, right)):
+            if sample_left.shape != sample_right.shape:
+                sample_diffs.append({
+                    "sample_idx": sample_idx,
+                    "sample_left_shape": sample_left.shape,
+                    "sample_right_shape": sample_right.shape,
+                })
+            else:
+                absdiff = np.maximum(sample_right, sample_left) - np.minimum(
+                    sample_right, sample_left)
+                err = np.mean(absdiff)
+                max_err = np.max(absdiff)
+                min_err = np.min(absdiff)
+                total_errors = np.sum(absdiff != 0)
+                if any(val != 0 for val in (err, max_err, max_err, total_errors)):
+                    sample_diffs.append({
+                        "sample_idx": sample_idx,
+                        "mean_error": err,
+                        "max_error": max_err,
+                        "min_err": min_err,
+                        "total_errors": total_errors,
+                        "shape": sample_left.shape
+                    })
+        batch_stats.append({
+            "batch_name": batch_name,
+            "num_samples": num_samples,
+            "sample_diffs": sample_diffs
+        })
+    return batch_stats
 
 
 @params(*tuple(
@@ -48,9 +97,9 @@ def test_run_rand_aug(i, args):
                   seed=43)
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
-        image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
-        if uniformly_resized:
-            image = fn.resize(image, size=(244, 244))
+        decoded_image = fn.decoders.image(encoded_image, device="cpu" if dev == "cpu" else "mixed")
+        resized_image = decoded_image if not uniformly_resized else fn.resize(
+            decoded_image, size=(244, 244))
         extra = {} if not use_shape else {"shape": fn.peek_image_shape(encoded_image)}
         if fill_value is not None:
             extra["fill_value"] = fill_value
@@ -59,18 +108,30 @@ def test_run_rand_aug(i, args):
                 extra["max_translate_rel"] = 0.9
             else:
                 extra["max_translate_abs"] = 400
-        image = rand_augment.rand_augment(image, n=n, m=m, **extra)
-        return image
+        raugmented_image = rand_augment.rand_augment(resized_image, n=n, m=m, **extra)
+        return encoded_image, decoded_image, resized_image, raugmented_image
 
     # run the pipeline twice to make sure instantiation preserves determinism
     p1 = pipeline()
     p1.build()
     p2 = pipeline()
     p2.build()
-    for _ in range(3):
-        out1, = p1.run()
-        out2, = p2.run()
-        check_batch(out1, out2)
+    for iteration_idx in range(3):
+        encoded1, decoded1, resized1, out1 = p1.run()
+        encoded2, decoded2, resized2, out2 = p2.run()
+        try:
+            check_batch(out1, out2)
+        except AssertionError as e:
+            diffs = debug_discrepancy_helper(
+                (encoded1, encoded2, "encoded"),
+                (decoded1, decoded2, "decoded"),
+                (resized1, resized2, "resized"),
+                (out1, out2, "out"),
+            )
+            iter_diff = {"iteration_idx": iteration_idx, "diffs": diffs}
+            raise AssertionError(
+                f"The outputs do not match, the differences between encoded, decoded, "
+                f"resized and augmented batches are respectively: {repr(iter_diff)}") from e
 
 
 @params(*tuple(enumerate(itertools.product(
