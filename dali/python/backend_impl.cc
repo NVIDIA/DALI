@@ -1589,22 +1589,7 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
 }
 
 struct PyPipeline: public Pipeline {
-  PyPipeline(int batch_size, int num_threads, int device_id, int64_t seed,
-             bool pipelined_execution, int prefetch_queue_depth,
-             bool async_execution, size_t bytes_per_sample_hint,
-             bool set_affinity, int max_num_stream,
-             int default_cuda_stream_priority):
-             Pipeline(batch_size, num_threads, device_id, seed, pipelined_execution,
-                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream, default_cuda_stream_priority) {}
-
-  PyPipeline(string serialized_pipe, int batch_size, int num_threads, int device_id,
-             bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
-             size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-             int default_cuda_stream_priority):
-             Pipeline(serialized_pipe, batch_size, num_threads, device_id, pipelined_execution,
-                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream, default_cuda_stream_priority) {}
+  using Pipeline::Pipeline;
 
   ~PyPipeline() override {
     py::gil_scoped_release interpreter_unlock{};

@@ -153,6 +153,17 @@ class SinkTestPipeline(CommonPipeline):
         return images
 
 
+class PythonOperatorInputSetsPipeline(PythonOperatorPipeline):
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir, function)
+        self.python_function = ops.PythonFunction(function=function)
+
+    def define_graph(self):
+        images, labels = self.load()
+        processed = self.python_function([images, images])
+        return processed
+
+
 def random_seed():
     return int(random.random() * (1 << 32))
 
@@ -303,6 +314,13 @@ def test_python_operator_invalid_function():
                                           invalid_function)
     invalid_pipe.build()
     invalid_pipe.run()
+
+
+@raises(TypeError, "do not support multiple input sets")
+def test_python_operator_with_input_sets():
+    invalid_pipe = PythonOperatorInputSetsPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
+                                                   images_dir, Rotate)
+    invalid_pipe.build()
 
 
 def split_red_blue(image):
