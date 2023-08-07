@@ -31,6 +31,36 @@
 
 namespace dali {
 
+template <typename Backend, typename LoadTarget,
+          typename ParseTarget = LoadTarget>
+struct DataReaderCheckpoint {
+  using LoadTargetPtr = std::shared_ptr<LoadTarget>;
+  using BatchQueueElement = std::vector<LoadTargetPtr>;
+
+  /* DataReader state */
+  std::vector<BatchQueueElement> prefetched_batch_queue_;
+  int curr_batch_consumer_;
+  int curr_batch_producer_;
+  bool consumer_cycle_;
+  bool producer_cycle_;
+
+  LoaderCheckpoint<Backend, LoadTarget> loader_state_;
+
+  DataReaderCheckpoint(
+    std::vector<BatchQueueElement> &&batch_queue_copy,
+    int curr_batch_consumer,
+    int curr_batch_producer,
+    bool consumer_cycle,
+    bool producer_cycle,
+    LoaderCheckpoint<Backend, LoadTarget> &&loader_state)
+      : prefetched_batch_queue_(std::move(batch_queue_copy))
+      , curr_batch_consumer_(curr_batch_consumer)
+      , curr_batch_producer_(curr_batch_producer)
+      , consumer_cycle_(consumer_cycle)
+      , producer_cycle_(producer_cycle)
+      , loader_state_(std::move(loader_state)) {}
+};
+
 /**
  * @brief BaseClass for operators that perform prefetching work
  *
@@ -49,7 +79,7 @@ namespace dali {
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
-          typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
+          typename ParseTarget = LoadTarget>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
@@ -64,8 +94,7 @@ class DataReader : public Operator<Backend> {
         curr_batch_producer_(0),
         consumer_cycle_(false),
         producer_cycle_(false),
-        device_id_(-1),
-        samples_processed_(0) {
+        device_id_(-1) {
           if (std::is_same<Backend, GPUBackend>::value) {
             device_id_ = spec.GetArgument<int>("device_id");
           }
@@ -224,6 +253,49 @@ class DataReader : public Operator<Backend> {
     prefetched_batch_queue_[curr_batch_consumer_].clear();
   }
 
+  using Checkpoint = DataReaderCheckpoint<Backend, LoadTarget, ParseTarget>;
+
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    // Make sure the prefetch thread is running
+    StartPrefetchThread();
+
+    {
+      // Wait until the prefetch queue is full.
+      std::unique_lock<std::mutex> prefetch_lock(prefetch_access_mutex_);
+      consumer_.wait(prefetch_lock, [this]() { return finished_ || IsPrefetchQueueFull(); });
+      if (prefetch_error_) std::rethrow_exception(prefetch_error_);
+    }
+
+    std::vector<BatchQueueElement> batch_queue_copy;
+    for (const auto &batch : prefetched_batch_queue_) {
+      batch_queue_copy.emplace_back();
+      for (const auto &sample : batch) 
+        batch_queue_copy.back().push_back(
+          std::make_shared<LoadTarget>(loader_->CopyTarget(*sample)));
+    }
+
+    // Now, the prefetching thread is idle, because there is no space in queue.
+    // We can safely access prefetching data.
+    cpt.MutableCheckpointState() = (Checkpoint {
+      std::move(batch_queue_copy),
+      curr_batch_consumer_,
+      curr_batch_producer_,
+      consumer_cycle_,
+      producer_cycle_,
+      loader_->SaveState(),
+    });
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    const auto &state = cpt.CheckpointState<Checkpoint>();
+    prefetched_batch_queue_ = state.prefetched_batch_queue_;
+    curr_batch_consumer_ = state.curr_batch_consumer_;
+    curr_batch_producer_ = state.curr_batch_producer_;
+    consumer_cycle_ = state.consumer_cycle_;
+    producer_cycle_ = state.producer_cycle_;
+    loader_->RestoreState(state.loader_state_);
+  }
+
  protected:
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
     using OutputCache = std::unordered_map<std::string, std::vector<Tensor<CPUBackend>>>;
@@ -352,14 +424,11 @@ class DataReader : public Operator<Backend> {
   bool producer_cycle_;
   int device_id_;
 
-  // keep track of how many samples have been processed over all threads.
-  std::atomic<int> samples_processed_;
-
   // stores any catched exceptions in the prefetch worker
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;
@@ -375,19 +444,10 @@ class DataReader : public Operator<Backend> {
   using DataReader<Backend, LoadTarget, ParseTarget>::parser_;          \
   using DataReader<Backend, LoadTarget, ParseTarget>::prefetched_batch_queue_;
 
-#define USE_READER_OPERATOR_MEMBERS_3(Backend, LoadTarget, ParseTarget, supports_checkpointing) \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::loader_;          \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::parser_;          \
-  using DataReader<Backend, LoadTarget, ParseTarget,                                            \
-                   supports_checkpointing>::prefetched_batch_queue_;
-
-#define GET_MACRO3(_1, _2, _3, NAME, ...) NAME
-
 #define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
-  GET_MACRO3(__VA_ARGS__,                          \
-             USE_READER_OPERATOR_MEMBERS_3,        \
-             USE_READER_OPERATOR_MEMBERS_2,        \
-             USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
+  GET_MACRO(__VA_ARGS__,                          \
+            USE_READER_OPERATOR_MEMBERS_2,        \
+            USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
 
 };  // namespace dali
 

@@ -26,6 +26,7 @@
 #include <vector>
 #include <deque>
 #include <atomic>
+#include <any>
 
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
@@ -43,12 +44,25 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 DLL_PUBLIC Index num_samples(const size_t shard_num,
                              const size_t size);
 
-/**
- * @brief Structure describing Loader base state, at the begining of an epoch.
-*/
-struct LoaderStateSnapshot {
-  std::default_random_engine rng;
-  int current_epoch;
+struct ShardBoundaries {
+  Index start;
+  Index end;
+};
+
+template<typename Backend, typename LoadTarget>
+struct LoaderCheckpoint {
+  using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
+
+  std::default_random_engine e_;
+  std::vector<LoadTargetSharedPtr> sample_buffer_;
+  bool initial_buffer_filled_ = false;
+  Index read_sample_counter_;
+  Index returned_sample_counter_;
+  int virtual_shard_id_;
+  LoadTargetSharedPtr last_sample_ptr_tmp;
+  std::deque<ShardBoundaries> shards_;
+
+  std::any subclass_state_;
 };
 
 /**
@@ -59,8 +73,7 @@ struct LoaderStateSnapshot {
  * @tparam LoadTarget Type into which samples are loaded.
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
-template <typename Backend, typename LoadTarget,
-          bool supports_checkpointing = false>
+template <typename Backend, typename LoadTarget>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
@@ -71,9 +84,6 @@ class Loader {
       initial_empty_size_(2 * options.GetArgument<int>("prefetch_queue_depth")
                           * options.GetArgument<int>("max_batch_size")),
       tensor_init_bytes_(options.GetArgument<int>("tensor_init_bytes")),
-      state_queue_front_(0),
-      state_queue_back_(0),
-      checkpoint_epoch_(0),
       seed_(options.GetArgument<Index>("seed")),
       shard_id_(options.GetArgument<int>("shard_id")),
       num_shards_(options.GetArgument<int>("num_shards")),
@@ -95,31 +105,6 @@ class Loader {
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
-
-    // TODO(mstaniewski): add a proper internal argument in schema
-    if (!options.TryGetArgument(checkpointing_, "checkpointing")) {
-      checkpointing_ = false;
-    }
-
-    if (checkpointing_) {
-      DALI_ENFORCE(supports_checkpointing, "Checkpointing is disabled for this loader. ");
-
-      // TODO(mstaniewski): support pad_last_batch=false
-      DALI_ENFORCE(pad_last_batch_,
-        "Currently, checkpointing is only supported with pad_last_batch=true");
-
-      /*
-       * A checkpoint is created every time the prefetching thread starts working
-       * on a new epoch. Therefore, we are guaranteed, there will be at most
-       * prefetch_queue_depth checkpoints waiting in the queue at a time.
-       *
-       * The +1 is added, because there could be a situation, where a batch is
-       * collected from the prefetch_queue (possibly leading to creation of another checkpoint),
-       * but the checkpoint from the corresponding epoch is not yet collected.
-       */
-      state_queue_.resize(options.GetArgument<int>("prefetch_queue_depth") + 1);
-      PushStateSnapshot();
-    }
   }
 
   virtual ~Loader() {
@@ -153,47 +138,6 @@ class Loader {
                        std::is_same<T, Tensor<GPUBackend>>::value)>
   PrepareEmptyTensor(T&) {
     DALI_ERROR("Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
-  }
-
-  /**
-   * @brief Called when loader is moving to the next shard,
-   *  to create a new snapshot and store it in the inner queue.
-   */
-  void PushStateSnapshot() {
-    std::lock_guard<std::mutex> lock(state_queue_mutex_);
-    state_queue_[state_queue_back_].rng = e_;
-    state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;
-    state_queue_back_ = (state_queue_back_ + 1) % state_queue_.size();
-  }
-
-  /**
-   * @brief Collects a state snapshot from the inner queue.
-  */
-  LoaderStateSnapshot PopStateSnapshot() {
-    DALI_ENFORCE(checkpointing_, "PopStateSnapshot called, but checkpointing is not enabled. ");
-    std::lock_guard<std::mutex> lock(state_queue_mutex_);
-    auto result = state_queue_[state_queue_front_];
-    state_queue_front_ = (state_queue_front_ + 1) % state_queue_.size();
-    return result;
-  }
-
-  /**
-   * @brief Restores the loader's state from a snapshot.
-  */
-  void RestoreStateFromSnapshot(const LoaderStateSnapshot &state) {
-    e_ = state.rng;
-    checkpoint_epoch_ = state.current_epoch;
-    if (!stick_to_shard_)
-      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
-
-    RestoreStateImpl(state);
-
-    // Re-run reset
-    Reset(true);
-
-    // Reset checkpointing
-    state_queue_front_ = state_queue_back_;
-    PushStateSnapshot();
   }
 
   // Get a random read sample
@@ -244,11 +188,6 @@ class Loader {
       // remove shard that was fully consumed
       shards_.pop_front();
       returned_sample_counter_ = 0;
-
-      if (checkpointing_) {
-        // Create a checkpoint before processing the new shard
-        PushStateSnapshot();
-      }
     }
 
     // choose the random index
@@ -336,6 +275,57 @@ class Loader {
     return stick_to_shard_;
   }
 
+  using Checkpoint = LoaderCheckpoint<Backend, LoadTarget>;
+
+  Checkpoint SaveState() {
+    std::vector<LoadTargetSharedPtr> copied_buffer_;
+    for (const auto &sample : sample_buffer_)
+      copied_buffer_.push_back(std::make_shared<LoadTarget>(CopyTarget(*sample)));
+    
+    auto copied_last_sample_= std::make_shared<LoadTarget>(CopyTarget(*last_sample_ptr_tmp));
+
+    return Checkpoint {
+      e_,
+      std::move(copied_buffer_),
+      initial_buffer_filled_,
+      read_sample_counter_,
+      returned_sample_counter_,
+      virtual_shard_id_,
+      copied_last_sample_,
+      shards_,
+      SaveStateImpl(),
+    };
+  }
+
+  void RestoreState(const Checkpoint &state) {
+    e_ = state.e_;
+    // sample_buffer_ = std::move(state.sample_buffer_);
+    initial_buffer_filled_ = state.initial_buffer_filled_;
+    read_sample_counter_ = state.read_sample_counter_;
+    returned_sample_counter_ = state.returned_sample_counter_;
+    virtual_shard_id_ = state.virtual_shard_id_;
+    last_sample_ptr_tmp = state.last_sample_ptr_tmp;
+    shards_ = state.shards_;
+
+    for (const auto &sample : state.sample_buffer_)
+      sample_buffer_.push_back(std::make_unique<LoadTarget>(CopyTarget(*sample)));
+
+    if (initial_buffer_filled_) {
+      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+      for (int i = 0; i < initial_empty_size_; ++i) {
+        auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+        PrepareEmpty(*tensor_ptr);
+        empty_tensors_.push_back(std::move(tensor_ptr));
+      }
+    }
+
+    RestoreStateImpl(state.subclass_state_);
+  }
+
+  virtual LoadTarget CopyTarget(const LoadTarget &target) {
+    DALI_FAIL("This loader does not support checkpointing. ");
+  }
+
  protected:
   virtual Index SizeImpl() = 0;
 
@@ -348,9 +338,6 @@ class Loader {
   }
   // Reset reader to the first sample
   virtual void Reset(bool wrap_to_shard) = 0;
-
-  // Overloadable method to handle restoring state in subclasses
-  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {}
 
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
@@ -398,6 +385,9 @@ class Loader {
     return cache_ && cache_->IsCached(key);
   }
 
+  virtual std::any SaveStateImpl() { return {}; }
+  virtual void RestoreStateImpl(const std::any &opaque_state) {}
+
   std::vector<LoadTargetUniquePtr> sample_buffer_;
 
   std::vector<LoadTargetUniquePtr> empty_tensors_;
@@ -409,14 +399,6 @@ class Loader {
   const int initial_empty_size_;
   const int tensor_init_bytes_;
   bool initial_buffer_filled_ = false;
-
-  // when enabled, the loader creates a checkpoint at the start of every epoch.
-  bool checkpointing_;
-  std::vector<LoaderStateSnapshot> state_queue_;
-  Index state_queue_front_;
-  Index state_queue_back_;
-  int checkpoint_epoch_;
-  std::mutex state_queue_mutex_;
 
   // rng
   std::default_random_engine e_;
@@ -468,11 +450,6 @@ class Loader {
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
   LoadTargetSharedPtr last_sample_ptr_tmp;
-
-  struct ShardBoundaries {
-    Index start;
-    Index end;
-  };
 
   std::deque<ShardBoundaries> shards_;
 };

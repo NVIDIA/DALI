@@ -38,15 +38,18 @@ struct ImageLabelWrapper {
   int label;
 };
 
-template<bool supports_checkpointing>
-class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapper,
-                                                     supports_checkpointing> {
+struct FileLabelLoaderCheckpoint {
+  vector<std::pair<string, int>> image_label_pairs_;
+  Index current_index_;
+  int current_epoch_;
+};
+
+class DLL_PUBLIC FileLabelLoader : public Loader<CPUBackend, ImageLabelWrapper> {
  public:
-  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing>;
-  explicit inline FileLabelLoaderBase(
+  explicit inline FileLabelLoader(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
-    : Base(spec),
+    : Loader<CPUBackend, ImageLabelWrapper>(spec),
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
@@ -108,7 +111,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
      * DALI instances will do shuffling after each epoch
      */
     DALI_ENFORCE(!(shuffle_after_epoch_  && stick_to_shard_),
-                  "shuffle_after_epoch and stick_to_shard cannot be both true");
+                  "shu/fileffle_after_epoch and stick_to_shard cannot be both true");
     DALI_ENFORCE(!(shuffle_after_epoch_ && shuffle_),
                   "shuffle_after_epoch and random_shuffle cannot be both true");
     /*
@@ -126,6 +129,15 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
 
   void PrepareEmpty(ImageLabelWrapper &tensor) override;
   void ReadSample(ImageLabelWrapper &tensor) override;
+
+  ImageLabelWrapper CopyTarget(const ImageLabelWrapper &target) override {
+    Tensor<CPUBackend> tensor;
+    tensor.Copy(target.image);
+    return ImageLabelWrapper {
+      std::move(tensor), 
+      target.label
+    };
+  }
 
  protected:
   Index SizeImpl() override;
@@ -186,18 +198,12 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
 
-    if (checkpointing_ && shuffle_after_epoch_) {
-      // save initial order
-      // moving to prevent one copy, as it is restored in the Reset()
-      backup_image_label_pairs_ = std::move(image_label_pairs_);
-    }
-
     Reset(true);
   }
 
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
@@ -205,38 +211,30 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
-      if (checkpointing_) {
-        // With checkpointing enabled, dataset order must be easy to restore.
-        // The shuffling is run with different seed every epoch, so this doesn't impact
-        // the random distribution.
-        image_label_pairs_ = backup_image_label_pairs_;
-      }
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
   }
 
-  void RestoreStateImpl(const LoaderStateSnapshot &state) override {
-    current_epoch_ = state.current_epoch;
+  std::any SaveStateImpl() override {
+    return FileLabelLoaderCheckpoint {
+      image_label_pairs_,
+      current_index_,
+      current_epoch_,
+    };
   }
 
-  using Base::shard_id_;
-  using Base::virtual_shard_id_;
-  using Base::num_shards_;
-  using Base::stick_to_shard_;
-  using Base::shuffle_;
-  using Base::dont_use_mmap_;
-  using Base::initial_buffer_fill_;
-  using Base::copy_read_data_;
-  using Base::read_ahead_;
-  using Base::checkpointing_;
-  using Base::PrepareEmptyTensor;
-  using Base::MoveToNextShard;
-  using Base::ShouldSkipImage;
+  void RestoreStateImpl(const std::any &opaque_state) override {
+    const auto &state = std::any_cast<FileLabelLoaderCheckpoint>(opaque_state);
+    image_label_pairs_ = state.image_label_pairs_;
+    current_index_ = state.current_index_;
+    current_epoch_ = state.current_epoch_;
+  }
+
+  using Loader<CPUBackend, ImageLabelWrapper>::shard_id_;
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;
-  vector<std::pair<string, int>> backup_image_label_pairs_;
   vector<string> filters_;
 
   bool has_files_arg_ = false;
@@ -250,8 +248,6 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   int current_epoch_;
   FileStream::MappingReserver mmap_reserver_;
 };
-
-using FileLabelLoader = FileLabelLoaderBase<true>;
 
 }  // namespace dali
 
