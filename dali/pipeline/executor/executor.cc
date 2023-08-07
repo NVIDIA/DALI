@@ -385,6 +385,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+  if (checkpointing_ && iteration_id % checkpointing_epoch_size_ == 0) {
+    auto &cpt = checkpoint_queue_[iteration_id % checkpoint_queue_.size()].GetOpCheckpoint(op_node.id);
+    op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
+  }
+
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
 
@@ -644,7 +649,53 @@ bool Executor<WorkspacePolicy, QueuePolicy>::HasConditionals() const {
   return has_conditionals_;
 }
 
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
+  if (!checkpointing_)
+    return;
 
+  if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
+    DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
+
+  // TODO(mstaniewski): verify
+  int queue_depth = stage_queue_depths_[OpType::CPU] + 1;
+  checkpoint_queue_.resize(queue_depth);
+  for (auto &cpt : checkpoint_queue_)
+    cpt.Build(*graph_);
+
+  checkpointing_epoch_size_ = -1;
+  for (const auto &node : graph_->GetOpNodes()) {
+    auto meta = node.op->GetReaderMeta();
+    if (meta.epoch_size_padded <= 0)
+      continue;
+
+    int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
+    if (checkpointing_epoch_size_ == -1)
+      checkpointing_epoch_size_ = local_epoch_size;
+    else if (checkpointing_epoch_size_ != local_epoch_size)
+      DALI_FAIL(make_string(
+        "When the checkpointing is enabled, all readers must have the same epoch size. ",
+        "The readers and have different epoch sizes ",
+        "(", checkpointing_epoch_size, " and ", local_epoch_size, " respectively). "));
+  }
+
+  /* If there is no operator with ReaderMeta, set the epoch size to 1. */
+  if (checkpointing_epoch_size_ == -1)
+    checkpointing_epoch_size_ = 1;
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+Checkpoint &
+Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint(size_t iteration_id) {
+  return checkpoint_queue_[iteration_id % checkpoint_queue_.size()];
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void
+Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+  for (int i = 0; i < graph_->NumOp(); ++i)
+    graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
+}
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 IterationData &
