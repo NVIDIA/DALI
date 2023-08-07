@@ -978,7 +978,8 @@ bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
 }
 
 void Pipeline::Shutdown() {
-  executor_->Shutdown();
+  if (executor_)
+    executor_->Shutdown();
 }
 
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(
