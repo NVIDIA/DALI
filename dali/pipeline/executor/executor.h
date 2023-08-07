@@ -39,6 +39,7 @@
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -106,7 +107,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2},
+                             bool checkpointing = false)
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
@@ -114,7 +116,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        enable_memory_stats_(false) {
+        enable_memory_stats_(false),
+        checkpointing_(checkpointing) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
@@ -141,6 +144,16 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
+
+  /**
+   * Returns the checkpoint for the given iteration ID.
+  */
+  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint(size_t iteration_id);
+
+  /**
+   * Restores states of operators.
+  */
+  DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt);
 
  protected:
   DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
@@ -359,6 +372,10 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // true iff the graph that is executed contains if statements, set by DetectConditionals()
   bool has_conditionals_ = false;
 
+  bool checkpointing_;
+  int checkpointing_epoch_size_;
+  std::vector<Checkpoint> checkpoint_queue_;
+
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
@@ -444,6 +461,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
+  void InitCheckpointing();
 
   /**
    * Returns the iteration data for given iteration ID and stage.
@@ -527,8 +545,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   AssignOperatorInstanceNames<OpType::CPU>();
   AssignOperatorInstanceNames<OpType::MIXED>();
   AssignOperatorInstanceNames<OpType::GPU>();
-}
 
+  InitCheckpointing();
+}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
