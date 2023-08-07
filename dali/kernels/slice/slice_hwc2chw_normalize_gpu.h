@@ -21,6 +21,7 @@
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/imgproc/roi.h"
@@ -32,19 +33,40 @@ namespace kernels {
 namespace slice_flip_normalize {
 
 /**
- * @brief Specialized version of SliceFlipNormalize for HWC->CHW conversion and normalization.
+ * @brief Specialized version of SliceFlipNormalize that reads a HWC u8 image (with 3 channels)
+ * and outputs a HWC or CHW normalized float image, that can be cropped in Y, X coordinates,
+ * mirrored in X coordinate, and the channels can be padded.
  *
- * Optionally allows for cropping the input in y, x (HW) coordinates, flipping in x (W) coordinate
- * and padding the channels to the multiple of 2.
+ * Cropping the input in y, x (HW) coordinates, flipping in x (W) coordinate
+ * and padding the channels (from 3 to 4 in HWC->HWC variant) are optional, optimized implementation
+ * will be selected when those features are not used across the batch.
  *
- * The input is assumed to be u8.
+ * Overview of the kernel:
+ * The image is processed in flattened coordinates. The Y, X stays the same between the interleaved
+ * input layout and planar output layout. Assuming 3-channel input, we can look at the input as
+ * a sequential stream of values, where we distribute them (sequentially) into 3 output planes.
+ * Use a thread block size, that is divisible both by channel number (for the output loop),
+ * and 4 (for input loop).
+ * The processing steps:
+ * 1. [Input loop] Load the linear chunk of input into shared memory, utilizing 4-byte aligned loads
+ *    and cast it to float.
+ *   a. Unaligned prologue loop - reads the first chunk till we get to address that is aligned with
+ *      32 * 4.
+ *   b. Main loop - do as many aligned 4byte reads as possible
+ *   c. Epilogue loop - read the remaining values that were not possible to read as one 4byte read.
+ * 2. Synchronize
+ * 3. [Output loop] Each thread corresponds to a (Y, X) sequential offset into a plane, computes
+ *    the values for all the channels and writes them.
+ *   a. Optionally, mirroring is performed by inverting the X-coordinate in the output offset.
+ *   b. Padding the output channels is performed by filling additional planes with fill values.
  *
- * @tparam Out output type
+ *
+ * @tparam Out output type - fp16 and fp32 allowed.
  *
  * @details see SliceFlipNormalizeGPU::Args
  */
 template <typename Out>
-class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
+class DLL_PUBLIC SliceHwc2HwcChwNormalizeGPU {
  public:
   static constexpr int spatial_dim = 2;
   static constexpr int channel_dim = 2;
@@ -60,13 +82,13 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
     bool flip_x;                        // wether to mirror in x-axis, EnableFlipX must be true.
   };
 
-  SliceHwc2ChwNormalizeGPU() = default;
+  SliceHwc2HwcChwNormalizeGPU() = default;
 
-  ~SliceHwc2ChwNormalizeGPU() = default;
+  ~SliceHwc2HwcChwNormalizeGPU() = default;
 
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &ctx, const TensorListShape<ndim> &input_shape,
-                                      span<const SampleArgs> args);
+                                      span<const SampleArgs> args, TensorLayout output_layout);
 
   void Run(KernelContext &ctx, const TensorListView<StorageGPU, Out, ndim> &out,
            const TensorListView<StorageGPU, const In, ndim> &in, span<const SampleArgs> args);
@@ -115,8 +137,9 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   int nchannels_ = -1;
   // number of channels in the output image (in case of padding)
   int out_nchannels_ = -1;
-  // HWC -> CHW permutation
-  static constexpr std::array<int, ndim> perm_ = {2, 0, 1};
+  // HWC -> {CHW, HWC} permutation
+  std::array<int, ndim> perm_;
+  TensorLayout output_layout_;
 };
 
 }  // namespace slice_flip_normalize
