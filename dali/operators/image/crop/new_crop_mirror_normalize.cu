@@ -88,7 +88,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     }
     // check for optimized version
     if (in_type == DALI_UINT8 && (out_type == DALI_FLOAT || out_type == DALI_FLOAT16) &&
-        in_layout == "HWC" && out_layout == "CHW" &&
+        in_layout == "HWC" && (out_layout == "CHW" || out_layout == "HWC") &&
         (oobp == OutOfBoundsPolicy::Error || oobp == OutOfBoundsPolicy::TrimToShape)) {
       // Only 3-channels supported in this version
       if (in_shape.num_samples() > 0 && in_shape.tensor_shape_span(0)[2] == 3)
@@ -141,7 +141,9 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     // const auto &req = k.Setup(ctx, sh, cargs);
     // // k.test();
     auto cargs = make_cspan(args);
-    auto &req = kmgr_.Setup<Kernel>(0, ctx, sh, cargs);
+    auto &req = kmgr_.Setup<Kernel>(
+        0, ctx, sh, cargs,
+        output_layout_ == "HWC" ? std::array<int, 3>{0, 1, 2} : std::array<int, 3>{2, 0, 1});
     output_desc[0].type = output_type_;
     output_desc[0].shape = req.output_shapes[0];
     return true;

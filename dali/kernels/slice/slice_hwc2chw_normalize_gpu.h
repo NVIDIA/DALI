@@ -66,7 +66,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
 
 
   DLL_PUBLIC KernelRequirements Setup(KernelContext &ctx, const TensorListShape<ndim> &input_shape,
-                                      span<const SampleArgs> args);
+                                      span<const SampleArgs> args, std::array<int, ndim> perm);
 
   void Run(KernelContext &ctx, const TensorListView<StorageGPU, Out, ndim> &out,
            const TensorListView<StorageGPU, const In, ndim> &in, span<const SampleArgs> args);
@@ -116,7 +116,7 @@ class DLL_PUBLIC SliceHwc2ChwNormalizeGPU {
   // number of channels in the output image (in case of padding)
   int out_nchannels_ = -1;
   // HWC -> CHW permutation
-  static constexpr std::array<int, ndim> perm_ = {2, 0, 1};
+  std::array<int, ndim> perm_ = {2, 0, 1};
 };
 
 }  // namespace slice_flip_normalize

@@ -684,10 +684,11 @@ dtypes = [types.FLOAT, types.FLOAT16]
 pads = [False, True]
 mirrors = [False, True]
 crops = [(1.0, 0.25), (0.25, 0.25), (0.25, 1.0), (0.5, 0.75), (None, None)]
+layouts = ["HWC", "CHW"]
 
 
-@params(*itertools.product(batch_sizes, shapes, dtypes, pads, mirrors, crops))
-def test_cmn_optimized_vs_cpu(batch_size, shape, dtype, pad, mirror, crops):
+@params(*itertools.product(batch_sizes, shapes, dtypes, pads, mirrors, crops, layouts))
+def test_cmn_optimized_vs_cpu(batch_size, shape, dtype, pad, mirror, crops, layout):
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
     def pipe(device):
@@ -706,7 +707,8 @@ def test_cmn_optimized_vs_cpu(batch_size, shape, dtype, pad, mirror, crops):
         return fn.crop_mirror_normalize(data, device=device, dtype=dtype, pad_output=pad,
                                         mirror=mirror, crop_h=crop_h_int, crop_w=crop_w_int,
                                         mean=[0.1, 0.2, 0.3],
-                                        fill_values=[0.0, 0.0, 0.0, 42.0] if pad else None)
+                                        fill_values=[0.0, 0.0, 0.0, 42.0] if pad else None,
+                                        output_layout=layout)
 
     pipe_baseline = pipe("cpu")
     pipe_opt = pipe("gpu")
