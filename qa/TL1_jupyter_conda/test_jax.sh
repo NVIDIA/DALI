@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy jax'
+pip_packages='jupyter numpy jax flax'
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda
@@ -11,6 +11,7 @@ epilog=(disable_conda)
 test_body() {
     test_files=(
         "frameworks/jax/jax-basic_example.ipynb"
+        "frameworks/jax/flax-basic_example.ipynb"
     )
     for f in ${test_files[@]}; do
         jupyter nbconvert --to notebook --inplace --execute \
