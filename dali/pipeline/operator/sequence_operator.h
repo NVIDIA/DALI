@@ -78,7 +78,7 @@ class SampleBroadcasting {
  * By default, with `allow_non_positional_arg_ref=false,  only positional input can be used as such
  * a reference.
  */
-template <typename Backend, template<typename> typename BaseOp = Operator, 
+template <typename Backend, template<typename> typename BaseOp = Operator,
           bool allow_non_positional_arg_ref = false>
 class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Backend> {
  public:

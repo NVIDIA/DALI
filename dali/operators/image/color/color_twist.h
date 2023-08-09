@@ -108,7 +108,8 @@ class ColorTwistBase : public SequenceOperator<Backend, StatelessOperator> {
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.
   bool ShouldExpand(const Workspace &ws) override {
-    return SequenceOperator<Backend, StatelessOperator>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
+    return SequenceOperator<Backend, StatelessOperator>::ShouldExpand(ws)
+        && this->HasPerFrameArgInputs(ws);
   }
 
   void AcquireArguments(const Workspace &ws) {
