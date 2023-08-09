@@ -113,7 +113,7 @@ def test_equalize_stateless():
     check_single_input(fn.experimental.equalize)
 
 
-def test_cast_like_cpu():
+def test_cast_like_stateless():
     def pipeline_factory():
         pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
         out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
