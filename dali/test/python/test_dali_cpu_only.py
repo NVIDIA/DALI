@@ -235,7 +235,7 @@ def test_cast_like_cpu():
     pipe.set_outputs(out)
     pipe.build()
     for _ in range(3):
-        pipe.run()
+        print(pipe.run()[0].as_array())
 
 
 def test_resize_cpu():
