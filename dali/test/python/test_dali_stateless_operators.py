@@ -20,7 +20,7 @@ from collections.abc import Iterable
 from test_utils import compare_pipelines
 from nose_utils import assert_raises
 
-# Test configurationu
+# Test configuration
 batch_size = 8
 test_data_shape = [25, 15, 3]
 test_data_layout = "HWC"
