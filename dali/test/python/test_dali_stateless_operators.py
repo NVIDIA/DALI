@@ -45,7 +45,7 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
 class RandomBatch:
     def __init__(self):
         rng = np.random.default_rng(1234)
-        self.batch = [rng.integers(0, 255, size=test_data_shape, dtype=np.uint8)
+        self.batch = [rng.integers(255, size=test_data_shape, dtype=np.uint8)
                       for _ in range(batch_size)]
 
     def __call__(self):
@@ -59,6 +59,20 @@ def check_single_input(op, batch=True, exec_async=True, exec_pipelined=True, **k
         with pipe:
             data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=batch)
             processed = op(data, **kwargs)
+            if isinstance(processed, Iterable):
+                pipe.set_outputs(*processed)
+            else:
+                pipe.set_outputs(processed)
+        pipe.build()
+        return pipe
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+def check_no_input(op, **kwargs):
+    def pipeline_factory():
+        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
+        with pipe:
+            processed = op(**kwargs)
             if isinstance(processed, Iterable):
                 pipe.set_outputs(*processed)
             else:
@@ -111,6 +125,26 @@ def test_reductions_sum_stateless():
 
 def test_equalize_stateless():
     check_single_input(fn.experimental.equalize)
+
+
+def test_transforms_crop_stateless():
+    check_no_input(fn.transforms.crop)
+
+
+def test_transforms_rotation_stateless():
+    check_no_input(fn.transforms.rotation, angle=35)
+
+
+def test_transforms_shear_stateless():
+    check_no_input(fn.transforms.shear, shear=(2, 2))
+
+
+def test_transforms_scale_stateless():
+    check_no_input(fn.transforms.scale, scale=(3, 2))
+
+
+def test_transforms_translation_stateless():
+    check_no_input(fn.transforms.translation, offset=(4, 3))
 
 
 def test_cast_like_stateless():
