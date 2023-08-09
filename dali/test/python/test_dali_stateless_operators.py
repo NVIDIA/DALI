@@ -68,6 +68,7 @@ def check_single_input(op, batch=True, exec_async=True, exec_pipelined=True, **k
 
     check_is_pipeline_stateless(pipeline_factory)
 
+
 def check_no_input(op, **kwargs):
     def pipeline_factory():
         pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
