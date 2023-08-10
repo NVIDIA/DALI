@@ -1588,6 +1588,15 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
 
+struct PyPipeline: public Pipeline {
+  using Pipeline::Pipeline;
+
+  ~PyPipeline() override {
+    py::gil_scoped_release interpreter_unlock{};
+    Shutdown();
+  }
+};
+
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
@@ -1766,14 +1775,14 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class
-  py::class_<Pipeline>(m, "Pipeline")
+  py::class_<Pipeline, PyPipeline>(m, "Pipeline")
     .def(py::init(
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1,
                 int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                       batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
                       max_num_stream, default_cuda_stream_priority);
@@ -1798,7 +1807,7 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false, int max_num_stream = -1,
              int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                                serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
@@ -1831,7 +1840,7 @@ PYBIND11_MODULE(backend_impl, m) {
              }
              p->Build(build_args);
          })
-    .def("Build", [](Pipeline *p) { p->Build(); } )
+    .def("Build", [](Pipeline *p) { p->Build(); })
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
@@ -1862,12 +1871,14 @@ PYBIND11_MODULE(backend_impl, m) {
           p->SetOutputDescs(out_desc);
         })
     .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
-    .def("RunGPU", &Pipeline::RunGPU)
+    .def("RunGPU", &Pipeline::RunGPU, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->Outputs(&ws);
-
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->Outputs(&ws);
+          }
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
@@ -1881,7 +1892,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("ShareOutputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->ShareOutputs(&ws);
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->ShareOutputs(&ws);
+          }
 
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
@@ -1893,10 +1907,7 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           return outs;
         }, py::return_value_policy::take_ownership)
-    .def("ReleaseOutputs",
-        [](Pipeline *p) {
-          p->ReleaseOutputs();
-        })
+    .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
