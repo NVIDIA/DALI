@@ -15,7 +15,7 @@
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import pipeline_def
 from collections.abc import Iterable
 from test_utils import compare_pipelines
 from nose_utils import assert_raises
@@ -34,11 +34,21 @@ def tensor_list_to_array(tensor_list):
 
 # Check whether a given pipeline is stateless
 def check_is_pipeline_stateless(pipeline_factory, iterations=10):
-    pipe = pipeline_factory()
+    args = {
+        'batch_size': batch_size,
+        'num_threads': 4,
+        'device_id': None,
+        'exec_async': True,
+        'exec_pipelined': True,
+    }
+
+    pipe = pipeline_factory(**args)
+    pipe.build()
     for _ in range(iterations):
         pipe.run()
+
     # Compare a pipeline that was already used with a fresh one
-    compare_pipelines(pipe, pipeline_factory(), batch_size, iterations)
+    compare_pipelines(pipe, pipeline_factory(**args), batch_size, iterations)
 
 
 # Provides the same random batch each time
@@ -52,40 +62,29 @@ class RandomBatch:
         return self.batch
 
 
-def check_single_input(op, batch=True, exec_async=True, exec_pipelined=True, **kwargs):
+def check_single_input(op, **kwargs):
+    @pipeline_def
     def pipeline_factory():
-        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, exec_async=exec_async,
-                        exec_pipelined=exec_pipelined)
-        with pipe:
-            data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=batch)
-            processed = op(data, **kwargs)
-            if isinstance(processed, Iterable):
-                pipe.set_outputs(*processed)
-            else:
-                pipe.set_outputs(processed)
-        pipe.build()
-        return pipe
+        data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
+        return op(data, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
 
 
 def check_no_input(op, **kwargs):
+    @pipeline_def
     def pipeline_factory():
-        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-        with pipe:
-            processed = op(**kwargs)
-            if isinstance(processed, Iterable):
-                pipe.set_outputs(*processed)
-            else:
-                pipe.set_outputs(processed)
-        pipe.build()
-        return pipe
+        return op(**kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
 
 
 def test_stateful():
-    assert_raises(AssertionError, check_single_input, fn.random.coin_flip)
+    assert_raises(
+        AssertionError, check_single_input, fn.random.coin_flip,
+        glob='Mean error: *, Min error: *, Max error: *'
+             'Total error count: *, Tensor size: *'
+             'Index in batch: 0')
 
 
 def test_rotate_stateless():
@@ -149,11 +148,8 @@ def test_transforms_translation_stateless():
 
 
 def test_cast_like_stateless():
+    @pipeline_def
     def pipeline_factory():
-        pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
-        out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
-        pipe.set_outputs(out)
-        pipe.build()
-        return pipe
+        return fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
 
     check_is_pipeline_stateless(pipeline_factory)
