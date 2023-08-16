@@ -33,6 +33,15 @@ class HostDecoderRandomCrop : public HostDecoder, public RandomCropAttr {
   inline ~HostDecoderRandomCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    cpt.MutableCheckpointState() = RNGSnapshot();
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
+    RestoreRNGState(rngs);
+  }
+
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
     return RandomCropAttr::GetCropWindowGenerator(data_idx);

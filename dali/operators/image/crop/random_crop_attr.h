@@ -28,6 +28,22 @@
 
 namespace dali {
 
+class RandomCropGeneratorWrap {
+ public:
+  template<typename... Args>
+  RandomCropGeneratorWrap(Args&& ...args) : random_crop_generator_(std::forward<Args>(args)...) {}
+
+  inline CropWindow operator()(const TensorShape<>& shape, const TensorLayout& shape_layout) {
+    return random_crop_generator_->GenerateCropWindow(shape);
+  }
+
+  inline std::mt19937 GetRNG() const { return random_crop_generator_->GetRNG(); }
+  inline void SetRNG(std::mt19937 rng) { random_crop_generator_->SetRNG(rng); }
+
+ private:
+  std::shared_ptr<RandomCropGenerator> random_crop_generator_;
+};
+
 /**
  * @brief Crop parameter and input size handling.
  *
@@ -53,15 +69,12 @@ class RandomCropAttr {
     std::vector<int> seeds(max_batch_size);
     seq.generate(seeds.begin(), seeds.end());
 
-    crop_window_generators_.resize(max_batch_size);
+    crop_window_generators_.reserve(max_batch_size);
 
     for (int i = 0; i < max_batch_size; i++) {
-      std::shared_ptr<RandomCropGenerator> random_crop_generator(
+      crop_window_generators_.emplace_back(
         new RandomCropGenerator(
           {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
-      crop_window_generators_[i] = std::bind(
-        &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
-        std::placeholders::_1);
     }
   }
 
@@ -69,8 +82,22 @@ class RandomCropAttr {
     return crop_window_generators_[data_idx];
   }
 
+  std::vector<std::mt19937> RNGSnapshot() {
+    std::vector<std::mt19937> rngs;
+    for (const auto &gen : crop_window_generators_)
+      rngs.push_back(gen.GetRNG());
+    return rngs;
+  }
+
+  void RestoreRNGState(std::vector<std::mt19937> rngs) {
+    DALI_ENFORCE(rngs.size() == crop_window_generators_.size(),
+                 "Snapshot size does not match the number of generators. ");
+    for (size_t i = 0; i < rngs.size(); i++)
+      crop_window_generators_[i].SetRNG(rngs[i]);
+  }
+
  private:
-  std::vector<CropWindowGenerator> crop_window_generators_;
+  std::vector<RandomCropGeneratorWrap> crop_window_generators_;
 };
 
 }  // namespace dali

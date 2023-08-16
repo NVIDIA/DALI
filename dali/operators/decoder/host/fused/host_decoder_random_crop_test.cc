@@ -14,6 +14,7 @@
 
 #include "dali/operators/decoder/decoder_test.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
+#include "dali/test/dali_test_checkpointing.h"
 
 namespace dali {
 
@@ -62,6 +63,27 @@ TYPED_TEST(ImageDecoderRandomCropTest_CPU, TiffDecode) {
 
 TYPED_TEST(ImageDecoderRandomCropTest_CPU, Jpeg2kDecode) {
   this->Run(t_jpeg2kImgType);
+}
+
+class ImageRandomCropCheckpointingTest : public CheckpointingTest {};
+
+TEST_F(ImageRandomCropCheckpointingTest, SimpleTest) {
+  PipelineWrapper pipe(8, {{"decoded", "cpu"}});
+
+  auto filepath = testing::dali_extra_path() + "/db/single/jpeg/134/site-1534685_1280.jpg";
+  pipe.AddOperator(
+    OpSpec("FileReader")
+      .AddOutput("file", "cpu")
+      .AddOutput("label", "cpu")
+      .AddArg("files", std::vector{filepath}));
+    
+  pipe.AddOperator(
+    OpSpec("decoders__ImageRandomCrop")
+      .AddInput("file", "cpu")
+      .AddOutput("decoded", "cpu")
+      .AddArg("checkpointing", true));
+
+  //this->RunTest<uint8_t>(std::move(pipe), 10);
 }
 
 }  // namespace dali
