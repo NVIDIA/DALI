@@ -26,7 +26,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 

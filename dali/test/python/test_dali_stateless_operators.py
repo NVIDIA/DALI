@@ -16,7 +16,6 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
-from collections.abc import Iterable
 from test_utils import compare_pipelines
 from nose_utils import assert_raises
 
@@ -151,5 +150,28 @@ def test_cast_like_stateless():
     @pipeline_def
     def pipeline_factory():
         return fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def test_arithm_ops_stateless():
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(), layout="HWC")
+        return (data * 2,
+                data + 2,
+                data - 2,
+                data / 2,
+                data // 2,
+                data ** 2,
+                data == 2,
+                data != 2,
+                data < 2,
+                data <= 2,
+                data > 2,
+                data >= 2,
+                data & 2,
+                data | 2,
+                data ^ 2)
 
     check_is_pipeline_stateless(pipeline_factory)

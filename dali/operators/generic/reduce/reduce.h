@@ -25,7 +25,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/operators/generic/reduce/layout_util.h"
 #include "dali/operators/util/axes_utils.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
