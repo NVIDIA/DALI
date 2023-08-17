@@ -12,7 +12,8 @@ test_py_with_framework() {
                             test_functional_api.py \
                             test_backend_impl.py \
                             test_dali_variable_batch_size.py \
-                            test_external_source_impl_utils.py); do
+                            test_external_source_impl_utils.py \
+                            test_dali_stateless_operators.py); do
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
 }
