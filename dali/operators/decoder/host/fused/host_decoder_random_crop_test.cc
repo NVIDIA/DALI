@@ -65,9 +65,9 @@ TYPED_TEST(ImageDecoderRandomCropTest_CPU, Jpeg2kDecode) {
   this->Run(t_jpeg2kImgType);
 }
 
-class ImageRandomCropCheckpointingTest : public CheckpointingTest {};
+class ImageRandomCropCheckpointingTest_CPU : public CheckpointingTest {};
 
-TEST_F(ImageRandomCropCheckpointingTest, SimpleTest) {
+TEST_F(ImageRandomCropCheckpointingTest_CPU, Simple) {
   PipelineWrapper pipe(8, {{"decoded", "cpu"}});
 
   auto filepath = testing::dali_extra_path() + "/db/single/jpeg/134/site-1534685_1280.jpg";
@@ -84,7 +84,7 @@ TEST_F(ImageRandomCropCheckpointingTest, SimpleTest) {
       .AddArg("checkpointing", true));
 
   pipe.Build();
-  this->RunTest<uint8_t>(std::move(pipe));
+  this->RunTest<uint8_t>(std::move(pipe), 2);
 }
 
 }  // namespace dali

@@ -76,18 +76,26 @@ class PipelineWrapper {
     return clone;
   }
 
-  template<class OutputType>
+  template<typename OutputType>
   std::vector<OutputType> RunIteration() {
     pipe_->RunCPU();
     pipe_->RunGPU();
     pipe_->Outputs(&ws_);
 
-    // read a single value from each sample
-    std::vector<OutputType> result;
-    for (int i = 0; i < ws_.Output<CPUBackend>(0).num_samples(); i++)
-      result.push_back(ws_.Output<CPUBackend>(0).tensor<OutputType>(i)[0]);
+    auto collect_value_from_each_sample = [](const TensorList<CPUBackend> &data) {
+      std::vector<OutputType> result;
+      for (int i = 0; i < data.num_samples(); i++)
+        result.push_back(data.tensor<OutputType>(i)[0]);
+      return result;
+    };
 
-    return result;
+    if (ws_.OutputIsType<CPUBackend>(0)) {
+      return collect_value_from_each_sample(ws_.Output<CPUBackend>(0));
+    } else {
+      TensorList<CPUBackend> cpu;
+      cpu.Copy(ws_.Output<GPUBackend>(0));
+      return collect_value_from_each_sample(cpu);
+    }
   }
 
  protected:

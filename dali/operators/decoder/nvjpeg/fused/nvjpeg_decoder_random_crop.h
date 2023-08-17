@@ -15,6 +15,8 @@
 #ifndef DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_RANDOM_CROP_H_
 #define DALI_OPERATORS_DECODER_NVJPEG_FUSED_NVJPEG_DECODER_RANDOM_CROP_H_
 
+#include <vector>
+
 #include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 
@@ -28,6 +30,15 @@ class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
   {}
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
+
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    cpt.MutableCheckpointState() = RNGSnapshot();
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
+    RestoreRNGState(rngs);
+  }
 
  protected:
   CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
