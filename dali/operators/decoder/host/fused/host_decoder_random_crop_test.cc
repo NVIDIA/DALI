@@ -83,7 +83,8 @@ TEST_F(ImageRandomCropCheckpointingTest, SimpleTest) {
       .AddOutput("decoded", "cpu")
       .AddArg("checkpointing", true));
 
-  //this->RunTest<uint8_t>(std::move(pipe), 10);
+  pipe.Build();
+  this->RunTest<uint8_t>(std::move(pipe));
 }
 
 }  // namespace dali

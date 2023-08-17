@@ -33,7 +33,7 @@ class RandomCropGeneratorWrap {
   template<typename... Args>
   RandomCropGeneratorWrap(Args&& ...args) : random_crop_generator_(std::forward<Args>(args)...) {}
 
-  inline CropWindow operator()(const TensorShape<>& shape, const TensorLayout& shape_layout) {
+  inline CropWindow operator()(const TensorShape<>& shape, const TensorLayout& shape_layout) const {
     return random_crop_generator_->GenerateCropWindow(shape);
   }
 
@@ -78,7 +78,7 @@ class RandomCropAttr {
     }
   }
 
-  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
+  const RandomCropGeneratorWrap& GetCropWindowGenerator(std::size_t data_idx) const {
     return crop_window_generators_[data_idx];
   }
 

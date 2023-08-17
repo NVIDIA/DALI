@@ -71,9 +71,8 @@ class PipelineWrapper {
 
     // read a single value from each sample
     std::vector<OutputType> result;
-    const auto batch_size = ws_.Output<CPUBackend>(0).AsTensor().shape()[0];
-    for (int i = 0; i < batch_size; i++)
-      result.push_back(ws_.Output<CPUBackend>(0).tensor<OutputType>(0)[i]);
+    for (int i = 0; i < ws_.Output<CPUBackend>(0).num_samples(); i++)
+      result.push_back(ws_.Output<CPUBackend>(0).tensor<OutputType>(i)[0]);
 
     return result;
   }
@@ -95,7 +94,7 @@ class PipelineWrapper {
 class CheckpointingTest : public DALITest {
  public:
   template<typename OutputType>
-  void RunTest(PipelineWrapper original_pipeline, int iterations) {
+  void RunTest(PipelineWrapper original_pipeline, int iterations=10) {
     for (int i = 0; i < iterations; i++)
       original_pipeline.RunIteration<OutputType>();
 
