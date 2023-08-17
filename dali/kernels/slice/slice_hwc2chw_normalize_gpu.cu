@@ -494,8 +494,8 @@ __global__ void Hwc2HwcNormalize(const Hwc2HwcChwSampleDesc<Out, In> *samples,
   int sample_idx = FindSampleIdx(first_blocks, num_samples);
   const auto sample = samples[sample_idx];
 
-  __shared__ Out tile[kBlockSize + 32 * 4];
-  Out *loaded_tile = load_linear_tile<kBlockSize, kStaticChannels>(tile, sample);
+  __shared__ float tile[kBlockSize + 32 * 4];
+  float *loaded_tile = load_linear_tile<kBlockSize, kStaticChannels>(tile, sample);
 
   __syncthreads();
 
@@ -515,8 +515,8 @@ __global__ void SliceHwc2HwcNormalize(const Hwc2HwcChwSampleDesc<Out, In> *sampl
   int sample_idx = FindSampleIdx(first_blocks, num_samples);
   const auto sample = samples[sample_idx];
 
-  __shared__ Out tile[kBlockSize + 32 * 4];
-  Out *loaded_tile = slice_load_linear_tile<kBlockSize, kStaticChannels>(tile, sample);
+  __shared__ float tile[kBlockSize + 32 * 4];
+  float *loaded_tile = slice_load_linear_tile<kBlockSize, kStaticChannels>(tile, sample);
 
   __syncthreads();
 
