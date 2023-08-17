@@ -31,7 +31,8 @@ namespace dali {
 class RandomCropGeneratorWrap {
  public:
   template<typename... Args>
-  RandomCropGeneratorWrap(Args&& ...args) : random_crop_generator_(std::forward<Args>(args)...) {}
+  explicit RandomCropGeneratorWrap(Args&& ...args)
+    : random_crop_generator_(std::forward<Args>(args)...) {}
 
   inline CropWindow operator()(const TensorShape<>& shape, const TensorLayout& shape_layout) const {
     return random_crop_generator_->GenerateCropWindow(shape);

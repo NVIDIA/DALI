@@ -76,7 +76,7 @@ TEST_F(ImageRandomCropCheckpointingTest, SimpleTest) {
       .AddOutput("file", "cpu")
       .AddOutput("label", "cpu")
       .AddArg("files", std::vector{filepath}));
-    
+
   pipe.AddOperator(
     OpSpec("decoders__ImageRandomCrop")
       .AddInput("file", "cpu")

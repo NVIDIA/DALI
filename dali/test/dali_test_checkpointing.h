@@ -12,14 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#ifndef DALI_TEST_DALI_TEST_CHECKPOINTING_H_
+#define DALI_TEST_DALI_TEST_CHECKPOINTING_H_
 
 #include <gtest/gtest.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+#include <memory>
+
 #include "dali/test/dali_test.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 namespace dali {
 
+/**
+ * @brief Pipeline wrapper that allows deep copying in checkpointing tests.
+*/
 class PipelineWrapper {
  public:
   using OutputsType = std::vector<std::pair<std::string, std::string>>;
@@ -43,6 +53,9 @@ class PipelineWrapper {
     pipe_->Build(outputs_);
   }
 
+  /**
+   * @brief Make a deep copy of a pipeline, transferring state by checkpointing.
+   */
   inline PipelineWrapper CopyByCheckpointing() {
     PipelineWrapper clone(batch_size_, outputs_);
     for (const auto &[spec, id] : ops_)
@@ -94,7 +107,7 @@ class PipelineWrapper {
 class CheckpointingTest : public DALITest {
  public:
   template<typename OutputType>
-  void RunTest(PipelineWrapper original_pipeline, int iterations=10) {
+  void RunTest(PipelineWrapper original_pipeline, int iterations = 10) {
     for (int i = 0; i < iterations; i++)
       original_pipeline.RunIteration<OutputType>();
 
@@ -107,3 +120,5 @@ class CheckpointingTest : public DALITest {
 };
 
 }  // namespace dali
+
+#endif  // DALI_TEST_DALI_TEST_CHECKPOINTING_H_
