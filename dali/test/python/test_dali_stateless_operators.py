@@ -36,7 +36,7 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
     args = {
         'batch_size': batch_size,
         'num_threads': 4,
-        'device_id': None,
+        'device_id': 0,
         'exec_async': True,
         'exec_pipelined': True,
     }
@@ -61,7 +61,7 @@ class RandomBatch:
         return self.batch
 
 
-def check_single_input(op, **kwargs):
+def check_single_input_cpu(op, **kwargs):
     @pipeline_def
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
@@ -70,7 +70,16 @@ def check_single_input(op, **kwargs):
     check_is_pipeline_stateless(pipeline_factory)
 
 
-def check_no_input(op, **kwargs):
+def check_single_input_gpu(op, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
+        return op(data.gpu(), device='gpu', **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_no_input(op,  **kwargs):
     @pipeline_def
     def pipeline_factory():
         return op(**kwargs)
@@ -78,52 +87,100 @@ def check_no_input(op, **kwargs):
     check_is_pipeline_stateless(pipeline_factory)
 
 
-def test_stateful():
+def test_stateful_cpu():
     assert_raises(
-        AssertionError, check_single_input, fn.random.coin_flip,
+        AssertionError, check_single_input_cpu, fn.random.coin_flip,
         glob='Mean error: *, Min error: *, Max error: *'
              'Total error count: *, Tensor size: *'
              'Index in batch: 0')
 
 
-def test_rotate_stateless():
-    check_single_input(fn.rotate, angle=40)
+def test_stateful_gpu():
+    assert_raises(
+        AssertionError, check_single_input_gpu, fn.random.coin_flip,
+        glob='Mean error: *, Min error: *, Max error: *'
+             'Total error count: *, Tensor size: *'
+             'Index in batch: 0')
 
 
-def test_resize_stateless():
-    check_single_input(fn.resize, resize_x=50, resize_y=50)
+def test_rotate_stateless_cpu():
+    check_single_input_cpu(fn.rotate, angle=40)
 
 
-def test_flip_stateless():
-    check_single_input(fn.flip)
+def test_rotate_stateless_gpu():
+    check_single_input_gpu(fn.rotate, angle=40)
 
 
-def test_crop_mirror_normalize_stateless():
-    check_single_input(fn.crop_mirror_normalize)
+def test_resize_stateless_cpu():
+    check_single_input_cpu(fn.resize, resize_x=50, resize_y=50)
 
 
-def test_warp_affine_stateless():
-    check_single_input(fn.warp_affine, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
+def test_resize_stateless_gpu():
+    check_single_input_gpu(fn.resize, resize_x=50, resize_y=50)
 
 
-def test_saturation_stateless():
-    check_single_input(fn.saturation)
+def test_flip_stateless_cpu():
+    check_single_input_cpu(fn.flip)
 
 
-def test_reductions_min_stateless():
-    check_single_input(fn.reductions.min)
+def test_flip_stateless_gpu():
+    check_single_input_gpu(fn.flip)
 
 
-def test_reductions_max_stateless():
-    check_single_input(fn.reductions.max)
+def test_crop_mirror_normalize_stateless_cpu():
+    check_single_input_cpu(fn.crop_mirror_normalize)
 
 
-def test_reductions_sum_stateless():
-    check_single_input(fn.reductions.sum)
+def test_crop_mirror_normalize_stateless_gpu():
+    check_single_input_gpu(fn.crop_mirror_normalize)
 
 
-def test_equalize_stateless():
-    check_single_input(fn.experimental.equalize)
+def test_warp_affine_stateless_cpu():
+    check_single_input_cpu(fn.warp_affine, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
+
+
+def test_warp_affine_stateless_gpu():
+    check_single_input_gpu(fn.warp_affine, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
+
+
+def test_saturation_stateless_cpu():
+    check_single_input_cpu(fn.saturation)
+
+
+def test_saturation_stateless_gpu():
+    check_single_input_gpu(fn.saturation)
+
+
+def test_reductions_min_stateless_cpu():
+    check_single_input_cpu(fn.reductions.min)
+
+
+def test_reductions_min_stateless_gpu():
+    check_single_input_gpu(fn.reductions.min)
+
+
+def test_reductions_max_stateless_cpu():
+    check_single_input_cpu(fn.reductions.max)
+
+
+def test_reductions_max_stateless_gpu():
+    check_single_input_gpu(fn.reductions.max)
+
+
+def test_reductions_sum_stateless_cpu():
+    check_single_input_cpu(fn.reductions.sum)
+
+
+def test_reductions_sum_stateless_gpu():
+    check_single_input_gpu(fn.reductions.sum)
+
+
+def test_equalize_stateless_cpu():
+    check_single_input_cpu(fn.experimental.equalize)
+
+
+def test_equalize_stateless_gpu():
+    check_single_input_gpu(fn.experimental.equalize)
 
 
 def test_transforms_crop_stateless():
@@ -146,32 +203,59 @@ def test_transforms_translation_stateless():
     check_no_input(fn.transforms.translation, offset=(4, 3))
 
 
-def test_cast_like_stateless():
+def test_cast_like_stateless_cpu():
     @pipeline_def
     def pipeline_factory():
-        return fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
+        return fn.cast_like(
+            np.array([1, 2, 3], dtype=np.int32),
+            np.array([1.0], dtype=np.float32),
+            device='cpu')
 
     check_is_pipeline_stateless(pipeline_factory)
 
 
-def test_arithm_ops_stateless():
+def test_cast_like_stateless_gpu():
+    @pipeline_def
+    def pipeline_factory():
+        return fn.cast_like(
+            np.array([1, 2, 3], dtype=np.int32),
+            np.array([1.0], dtype=np.float32),
+            device='gpu')
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def arithm_ops_outputs(data):
+    return (data * 2,
+            data + 2,
+            data - 2,
+            data / 2,
+            data // 2,
+            data ** 2,
+            data == 2,
+            data != 2,
+            data < 2,
+            data <= 2,
+            data > 2,
+            data >= 2,
+            data & 2,
+            data | 2,
+            data ^ 2)
+
+
+def test_arithm_ops_stateless_cpu():
     @pipeline_def
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
-        return (data * 2,
-                data + 2,
-                data - 2,
-                data / 2,
-                data // 2,
-                data ** 2,
-                data == 2,
-                data != 2,
-                data < 2,
-                data <= 2,
-                data > 2,
-                data >= 2,
-                data & 2,
-                data | 2,
-                data ^ 2)
+        return arithm_ops_outputs(data)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def test_arithm_ops_stateless_gpu():
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(), layout="HWC")
+        return arithm_ops_outputs(data.gpu())
 
     check_is_pipeline_stateless(pipeline_factory)
