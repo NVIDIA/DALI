@@ -52,7 +52,7 @@ def _test_indexing(
         x = inp.at(i)
         ref = (ref_index_func or dali_index_func)(x)
         assert np.array_equal(ref, cpu.at(i))
-        # assert np.array_equal(ref, gpu.as_cpu().at(i))
+        assert np.array_equal(ref, gpu.as_cpu().at(i))
         assert cpu.layout() == output_layout
         assert gpu.layout() == output_layout
 
@@ -150,6 +150,7 @@ def test_runtime_stride_dim1():
             assert np.array_equal(ref, cpu.at(i))
             assert np.array_equal(ref, gpu.as_cpu().at(i))
             j = (j + 1) % len(strides)
+
 
 def test_runtime_stride_dim2():
     def data_gen():
@@ -273,4 +274,4 @@ def test_ellipsis_not_implemented():
     data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data)
     with assert_raises(NotImplementedError):
-        src[..., :1]
+        _ = src[..., :1]
