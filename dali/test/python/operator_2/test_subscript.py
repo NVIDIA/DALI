@@ -82,6 +82,9 @@ def test_constant_ranges():
     yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:-2:2, :], None
     yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, 2::-2], None
     yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, :1:-1], None
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::2, ::2], None
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-1, ::-1], None
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-2, ::-2], None
 
 
 def test_swapped_ends():
