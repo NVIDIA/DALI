@@ -219,6 +219,7 @@ class TensorSubscript : public Operator<Backend> {
         // clang-format on
         start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
+        step_.tensor_shape_span(i)[d] = 1;
       }
     }
     if (s.IsRange()) {
