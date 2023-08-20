@@ -225,25 +225,32 @@ class TensorSubscript : public Operator<Backend> {
     if (s.IsRange()) {
       for (int i = 0; i < nsamples; i++) {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
-        int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
+        int64_t step = s.step.IsDefined() ? s.step.values[i] : 1_i64;
+        step_.tensor_shape_span(i)[d] = step;
 
-        // Default lo and hi depends on the sign of the step
-        const int64_t default_lo = step > 0 ? 0 : -1;
-        const int64_t default_hi = step > 0 ? in_extent : 0;
-
-        int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : default_lo;
-        int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : default_hi;
+        int64_t lo{0}, hi{0};
+        // hi and low are swapped if step is negative
+        if (step > 0) {
+          lo = s.lo.IsDefined() ? s.lo.values[i] : 0_i64;
+          hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
+        } else {
+          lo = s.lo.IsDefined() ? s.lo.values[i] : -1_i64;
+          hi = s.hi.IsDefined() ? s.hi.values[i] : 0_i64;
+        }
 
         if (lo < 0)
           lo += in_extent;
         if (hi < 0)
           hi += in_extent;
-        lo = clamp(lo, 0_i64, in_extent);
+        lo = clamp(lo, 0_i64, in_extent - 1);
         hi = clamp(hi, 0_i64, in_extent);
         start_.tensor_shape_span(i)[d] = lo;
-        step_.tensor_shape_span(i)[d] = step;
 
-        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi + 1, -step);
+        if (step < 0 && !s.hi.IsDefined()) {
+          hi = -1_i64;
+        }
+        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
+
         if (out_extent < 0)
           out_extent = 0;
         shape_.tensor_shape_span(i)[d] = out_extent;
