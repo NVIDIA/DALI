@@ -31,7 +31,7 @@
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
 #define CMN_OUT_TYPES (float, float16, uint8_t, int8_t)
@@ -93,10 +93,10 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
 }  // namespace detail
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend> {
+class CropMirrorNormalize : public StatelessOperator<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         crop_attr_(spec),
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),

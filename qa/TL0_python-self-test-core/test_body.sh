@@ -35,10 +35,15 @@ test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
 }
 
+test_checkpointing() {
+    ${python_new_invoke_test} test_dali_stateless_operators
+}
+
 test_no_fw() {
     test_py_with_framework
     test_py
     test_autograph
+    test_checkpointing
 }
 
 run_all() {

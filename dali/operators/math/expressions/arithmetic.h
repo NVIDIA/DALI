@@ -31,7 +31,7 @@
 #include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 namespace expr {
@@ -327,9 +327,9 @@ inline void CheckAllowedOperations(ExprNode &expr) {
  * the number of CUDA calls.
  */
 template <typename Backend>
-class ArithmeticGenericOp : public Operator<Backend> {
+class ArithmeticGenericOp : public StatelessOperator<Backend> {
  public:
-  inline explicit ArithmeticGenericOp(const OpSpec &spec) : Operator<Backend>(spec) {
+  inline explicit ArithmeticGenericOp(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     expr_ = ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
   }
 

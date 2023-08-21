@@ -25,7 +25,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/operators/generic/reduce/layout_util.h"
 #include "dali/operators/util/axes_utils.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
@@ -35,10 +35,10 @@ template <
   template <typename T, typename R> class ReductionType,
   typename Backend,
   template <template <typename X, typename Y> class RType, typename BType> class ImplType>
-class Reduce : public Operator<Backend>, AxesHelper {
+class Reduce : public StatelessOperator<Backend>, AxesHelper {
  public:
   explicit inline Reduce(const OpSpec &spec) :
-      Operator<Backend>(spec),
+      StatelessOperator<Backend>(spec),
       AxesHelper(spec),
       keep_dims_(spec.GetArgument<bool>("keep_dims")) {
     spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
