@@ -133,12 +133,29 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
  * @brief General algorithm that allows for padding in any dimension
  * @remarks `in` refers to the beginning of the input (not the slice anchor)
  */
-template <int Dims, typename OutputType, typename InputType>
+template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
                           const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
                           const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
                           const int64_t *step, const OutputType *__restrict__ fill_values,
                           int channel_dim, uint64_t offset, uint64_t block_end) {
+  if (Dims > 1 && step[Dims - 1] == 1 && step[Dims - 2] == 1 && anchor[Dims - 1] == 0 &&
+      in_shape[Dims - 1] == out_shape[Dims - 1] && channel_dim != Dims - 1) {
+    const int NextDims = Dims > 1 ? Dims - 1 : 1;
+    SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, out_shape,
+                                                      in_shape, anchor, step, fill_values,
+                                                      channel_dim, offset, block_end);
+    return;
+  }
+
+  constexpr int LastDim = Dims - 1;
+  int64_t inner_in_anchor = anchor[LastDim];
+  int64_t inner_in_extent = in_shape[LastDim];
+  if (!AllDims) {
+    inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
+    inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
+  }
+
   for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
@@ -157,14 +174,22 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
       uint64_t in_idx = 0;
 
 #pragma unroll
-      for (int d = 0; d < Dims; d++) {
-        i_d = anchor[d] + div_mod(idx, idx, out_strides[d]) * step[d];
+      for (int d = 0; d < Dims - 1; d++) {
+        i_d = div_mod(idx, idx, out_strides[d]);
         if (d == channel_dim)
           i_c = i_d;
+        i_d = anchor[d] + i_d * step[d];
         out_of_bounds |= is_out_of_bounds(i_d, in_shape[d]);
         in_idx += i_d * in_strides[d];
       }
-      in_idx += idx * step[Dims - 1];  // in_strides[d] is 1
+
+      constexpr int d = LastDim;
+      i_d = idx;
+      if (AllDims && d == channel_dim)
+        i_c = i_d;
+      i_d = inner_in_anchor + i_d * step[d];
+      out_of_bounds |= is_out_of_bounds(i_d, inner_in_extent);
+      in_idx += i_d;
 
       // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
       OutputType value = __ldg(&fill_values[i_c]);
