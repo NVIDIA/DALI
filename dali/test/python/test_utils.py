@@ -131,7 +131,7 @@ def get_gpu_num():
 
 def _get_absdiff(left, right):
 
-    def make_signed(dtype):
+    def make_unsigned(dtype):
         if not np.issubdtype(dtype, np.signedinteger):
             return dtype
         return {
@@ -144,11 +144,15 @@ def _get_absdiff(left, right):
     # np.abs of diff doesn't handle overflow for unsigned types
     absdiff = np.maximum(left, right) - np.minimum(left, right)
     # max - min can overflow for signed types, wrap them up
-    absdiff = absdiff.astype(make_signed(absdiff.dtype))
+    absdiff = absdiff.astype(make_unsigned(absdiff.dtype))
     return absdiff
 
 
 def _check_absdiff():
+    """
+    In principle, overflow on signed int is UB (that we relied on so far anyway).
+    The following one-time check aims to verify the overflow wraps as expected.
+    """
     for i in range(-128, 127):
         for j in range(-128, 127):
             left = np.array([i, i], dtype=np.int8)
