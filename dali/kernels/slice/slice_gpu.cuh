@@ -106,6 +106,14 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
                                const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
                                const int64_t *anchor, const int64_t *step, uint64_t offset,
                                uint64_t block_end) {
+  if (Dims > 1 && step[Dims - 1] == 1 && step[Dims - 2] == 1 && anchor[Dims - 1] == 0 &&
+      out_strides[Dims - 1] == static_cast<uint32_t>(in_strides[Dims - 1])) {
+    const int NextDims = Dims > 1 ? Dims - 1 : 1;
+    SliceFuncNoPad<NextDims, OutputType, InputType>(out, in, out_strides, in_strides, anchor, step,
+                                                    offset, block_end);
+    return;
+  }
+
   for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
