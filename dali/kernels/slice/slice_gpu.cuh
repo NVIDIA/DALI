@@ -100,6 +100,7 @@ union PackedBuffer {
 
 /**
  * @brief Simplified algorithm when no padding is necessary
+ * @remark "in" should have "anchor" pre-applied and "stride" should have "step" pre-applied
  */
 template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
@@ -128,7 +129,7 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
 #pragma unroll
       for (int d = 0; d < Dims; d++) {
         int i_d = div_mod(idx, idx, out_strides[d]);
-        in_idx += (anchor[d] + i_d * step[d]) * in_strides[d];
+        in_idx += i_d * in_strides[d];
       }
       in_idx += idx * step[Dims - 1];
       result.values[i] = clamp<OutputType>(in[in_idx]);
@@ -361,13 +362,25 @@ class SliceGPU {
       sample_desc.step = slice_args[i].step;
 
       sample_desc.out = out.tensor_data(i);
-      sample_desc.in = in.tensor_data(i);
       sample_sizes[i] = volume(out_shape);
 
       // fill values points to gpu memory
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
       sample_desc.need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
+
+      // pre-anchor and step if there is no padding
+      if (!sample_desc.need_pad) {
+        const InputType *in_data = in.tensor_data(i);
+        for (int d = 0; d < Dims; ++d) {
+          in_data += sample_desc.anchor[d] * sample_desc.in_strides[d];
+          sample_desc.in_strides[d] *= sample_desc.step[d];
+        }
+        sample_desc.in = in_data;
+      } else {
+        sample_desc.in = in.tensor_data(i);
+      }
+
       any_padded_sample |= sample_desc.need_pad;
     }
 
