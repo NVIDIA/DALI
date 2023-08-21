@@ -159,7 +159,7 @@ cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-obj
 
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
-option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build conifguration" OFF)
+option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build configuration" OFF)
 
 cmake_dependent_option(DALI_CLANG_ONLY "Compile DALI using only Clang. Suitable only for developement."
     OFF "CMAKE_CXX_COMPILER_ID STREQUAL Clang" OFF)
