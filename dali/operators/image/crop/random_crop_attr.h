@@ -38,7 +38,8 @@ class RandomCropGeneratorWrap {
     return random_crop_generator_->GenerateCropWindow(shape);
   }
 
-  inline std::mt19937 GetRNG() const { return random_crop_generator_->GetRNG(); }
+  inline const std::mt19937 &GetRNG() const { return random_crop_generator_->GetRNG(); }
+  inline std::mt19937 &GetRNG() { return random_crop_generator_->GetRNG(); }
   inline void SetRNG(std::mt19937 rng) { random_crop_generator_->SetRNG(rng); }
 
  private:
@@ -90,7 +91,7 @@ class RandomCropAttr {
     return rngs;
   }
 
-  void RestoreRNGState(std::vector<std::mt19937> rngs) {
+  void RestoreRNGState(const std::vector<std::mt19937> &rngs) {
     DALI_ENFORCE(rngs.size() == crop_window_generators_.size(),
                  "Snapshot size does not match the number of generators. ");
     for (size_t i = 0; i < rngs.size(); i++)

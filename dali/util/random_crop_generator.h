@@ -34,8 +34,9 @@ class DLL_PUBLIC RandomCropGenerator {
     int64_t seed = time(0),
     int num_attempts_ = 10);
 
-  DLL_PUBLIC inline std::mt19937 GetRNG() const { return rand_gen_; }
-  DLL_PUBLIC inline void SetRNG(std::mt19937 rng) { rand_gen_ = rng; }
+  DLL_PUBLIC inline const std::mt19937 &GetRNG() const { return rand_gen_; }
+  DLL_PUBLIC inline std::mt19937 &GetRNG() { return rand_gen_; }
+  DLL_PUBLIC inline void SetRNG(std::mt19937 rng) { rand_gen_ = std::move(rng); }
   DLL_PUBLIC CropWindow GenerateCropWindow(const TensorShape<>& shape);
   DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(const TensorShape<>& shape,
                                                          std::size_t N);
