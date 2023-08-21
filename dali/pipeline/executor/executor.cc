@@ -448,9 +448,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   // would indicate it in most cases (unless someone mixes partial batches and conditionals).
   // In such case reset the outputs before adjusting their size so we free the reserved memory
   // and allocated only batch of currently needed size.
-  if (HasConditionals() && AnyBatchPartial(ws, spec, max_batch_size_)) {
-    ClearOutputs(ws, spec);
-  }
+  // if (HasConditionals() && AnyBatchPartial(ws, spec, max_batch_size_)) {
+  //   ClearOutputs(ws, spec);
+  // }
+
+  // Test clearing all outputs
+  ClearOutputs(ws, spec);
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     bool had_empty_layout = false;
