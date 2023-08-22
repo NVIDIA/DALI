@@ -120,6 +120,7 @@ def contrast(data, parameter):
     It follows PIL implementation of Contrast enhancement which uses a channel-weighted
     mean as a contrast center.
     """
+    # assumes FHWC or HWC layout
     mean = fn.reductions.mean(data, axis_names="HW", keep_dims=True)
     rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
     center = fn.reductions.sum(mean * rgb_weights, axis_names="C", keep_dims=True)
@@ -217,6 +218,7 @@ def equalize(data, _):
 
 @augmentation
 def auto_contrast(data, _):
+    # assumes FHWC or HWC layout
     lo = fn.reductions.min(data, axis_names="HW", keep_dims=True)
     hi = fn.reductions.max(data, axis_names="HW", keep_dims=True)
     diff = hi - lo
