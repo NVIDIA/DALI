@@ -63,11 +63,6 @@ class PipelineWrapper {
     clone.Build();
 
     for (const auto &[spec, id] : ops_) {
-      // Only save/restore state for operators with checkpointing enabled.
-      bool checkpointing;
-      if (!spec.TryGetArgument(checkpointing, "checkpointing") || !checkpointing)
-        continue;
-
       OpCheckpoint cpt(spec);
       GetOperator(id)->SaveState(cpt, std::nullopt);
       clone.GetOperator(id)->RestoreState(cpt);

@@ -75,6 +75,8 @@ TEST_F(ImageRandomCropCheckpointingTest_GPU, Simple) {
     OpSpec("FileReader")
       .AddOutput("file", "cpu")
       .AddOutput("label", "cpu")
+      .AddArg("checkpointing", true)
+      .AddArg("pad_last_batch", true)
       .AddArg("files", std::vector{filepath}));
 
   pipe.AddOperator(
