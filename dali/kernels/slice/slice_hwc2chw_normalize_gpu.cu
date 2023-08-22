@@ -731,21 +731,6 @@ __global__ void Hwc2HwcNormalizePadFp16(const Hwc2HwcChwSampleDesc<Out, In> *sam
   int sample_idx = FindSampleIdx(first_blocks, num_samples);
   const auto sample = samples[sample_idx];
 
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
-  int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
-
-  float norm_mul[kOutChannels], norm_add[kOutChannels];
-
-  #pragma unroll kStaticChannels
-  for (int c = 0; c < kStaticChannels; c++) {
-    norm_mul[c] = sample.norm_mul[c];
-    norm_add[c] = sample.norm_add[c];
-  }
-
-  // put the fill value so it will be produced as a result of FMA
-  norm_mul[3] = 0;
-  norm_add[3] = sample.fill_values[3];
-
   __shared__ float tile[kStaticChannels][kBlockSize / kStaticChannels];
   load_planar_tile<kBlockSize, kStaticChannels>(tile, sample);
 
