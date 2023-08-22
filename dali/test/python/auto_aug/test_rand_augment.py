@@ -14,7 +14,9 @@
 
 import itertools
 import os
+import random
 
+import unittest
 import numpy as np
 from scipy.stats import chisquare
 from nose2.tools import params
@@ -29,6 +31,9 @@ from nose_utils import assert_raises
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+vid_dir = os.path.join(data_root, "db", "video", "sintel", "video_files")
+vid_files = ["sintel_trailer-720p_3.mp4"]
+vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
 
 
 def debug_discrepancy_helper(*batch_pairs):
@@ -132,6 +137,76 @@ def test_run_rand_aug(i, args):
             raise AssertionError(
                 f"The outputs do not match, the differences between encoded, decoded, "
                 f"resized and augmented batches are respectively: {repr(iter_diff)}") from e
+
+
+class VideoTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        num_frames = 31
+        roi_start = (90, 0)
+        roi_end = (630, 1280)
+        size_1 = (223, 367)
+        size_2 = (400, 100)
+
+        @pipeline_def(batch_size=6, device_id=0, num_threads=4, seed=42)
+        def pipeline(size):
+            video = fn.readers.video_resize(
+                filenames=vid_filenames,
+                sequence_length=num_frames,
+                roi_start=roi_start,
+                roi_end=roi_end,
+                resize_x=size[1],
+                resize_y=size[0],
+                file_list_include_preceding_frame=True,
+                device='gpu',
+            )
+            return video
+
+        cls.vid_files = []
+        for size in (size_1, size_2):
+            p = pipeline(size=size)
+            p.build()
+            out, = p.run()
+            cls.vid_files.extend(np.array(sample) for sample in out.as_cpu())
+
+    @params(*tuple(
+        enumerate((
+            ("cpu", 4, False, 2, 8, True),
+            ("cpu", 2, True, 2, 10, False),
+            ("gpu", 7, False, 3, 5, True),
+            ("gpu", 1, True, 1, 7, True),
+        ))))
+    def test_uniform(self, i, args):
+        device, batch_size, use_shape, n, m, monotonic_mag = args
+        num_iterations = 3
+
+        assert device in ("gpu", "cpu")
+
+        @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=42,
+                      enable_conditionals=True)
+        def pipeline():
+            rng = random.Random(42 + i)
+            video = fn.external_source(
+                source=lambda: list(rng.choices(self.vid_files, k=batch_size)), batch=True,
+                layout="FHWC")
+            extra = {} if not use_shape else {"shape": fn.shapes(video)[1:]}
+            extra["monotonic_mag"] = monotonic_mag
+            if device == "gpu":
+                video = video.gpu()
+            video = rand_augment.rand_augment(video, n=n, m=m, **extra)
+            return video
+
+        # run the pipeline twice to make sure instantiation preserves determinism
+        p1 = pipeline()
+        p1.build()
+        p2 = pipeline()
+        p2.build()
+
+        for _ in range(num_iterations):
+            out1, = p1.run()
+            out2, = p2.run()
+            check_batch(out1, out2)
 
 
 @params(*tuple(enumerate(itertools.product(
