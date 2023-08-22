@@ -71,7 +71,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
  protected:
   enum class CmnImplKind {
     SliceFlipNormalizeGpuGeneric,
-    SliceHwc2ChwNormalize,
+    SliceHwc2HwcChwNormalize,
     FallbackGeneric
   };
 
@@ -88,24 +88,24 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     }
     // check for optimized version
     if (in_type == DALI_UINT8 && (out_type == DALI_FLOAT || out_type == DALI_FLOAT16) &&
-        in_layout == "HWC" && out_layout == "CHW" &&
+        in_layout == "HWC" && (out_layout == "CHW" || out_layout == "HWC") &&
         (oobp == OutOfBoundsPolicy::Error || oobp == OutOfBoundsPolicy::TrimToShape)) {
-      // Only 3-channels supported in this version
       if (in_shape.num_samples() > 0 && in_shape.tensor_shape_span(0)[2] == 3)
-        return CmnImplKind::SliceHwc2ChwNormalize;
+        return CmnImplKind::SliceHwc2HwcChwNormalize;
     }
     return CmnImplKind::SliceFlipNormalizeGpuGeneric;
   }
 
-  bool SetupSliceHwc2ChwNormalize(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+  bool SetupSliceHwc2HwcChwNormalize(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
     TYPE_SWITCH(output_type_, type2id, OutputType, (float, float16), (
-      return SetupSliceHwc2ChwNormalizeTyped<OutputType>(output_desc, ws);
+      return SetupSliceHwc2HwcChwNormalizeTyped<OutputType>(output_desc, ws);
     ), DALI_FAIL(make_string("Unsupported output type:", output_type_)););  // NOLINT
   }
 
   template <typename Out>
-  bool SetupSliceHwc2ChwNormalizeTyped(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
-    using Kernel = kernels::slice_flip_normalize::SliceHwc2ChwNormalizeGPU<Out>;
+  bool SetupSliceHwc2HwcChwNormalizeTyped(std::vector<OutputDesc> &output_desc,
+                                          const Workspace &ws) {
+    using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<Out>;
     if (!kernel_args_.has_value())
       kernel_args_ = std::vector<typename Kernel::SampleArgs>{};
     auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
@@ -141,7 +141,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     // const auto &req = k.Setup(ctx, sh, cargs);
     // // k.test();
     auto cargs = make_cspan(args);
-    auto &req = kmgr_.Setup<Kernel>(0, ctx, sh, cargs);
+    auto &req = kmgr_.Setup<Kernel>(0, ctx, sh, cargs, output_layout_);
     output_desc[0].type = output_type_;
     output_desc[0].shape = req.output_shapes[0];
     return true;
@@ -259,19 +259,19 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
       return SetupSfnGpuGeneric(output_desc, ws);
     }
 
-    return SetupSliceHwc2ChwNormalize(output_desc, ws);
+    return SetupSliceHwc2HwcChwNormalize(output_desc, ws);
   }
 
-  void RunSliceHwc2ChwNormalize(Workspace &ws) {
+  void RunSliceHwc2HwcChwNormalize(Workspace &ws) {
     if (output_type_ == DALI_FLOAT) {
-      using Kernel = kernels::slice_flip_normalize::SliceHwc2ChwNormalizeGPU<float>;
+      using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<float>;
 
       auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
       auto cargs = make_cspan(args);
       RunSfnKernel<Kernel, float, uint8_t, 3>(ws, cargs);
       return;
     } else if (output_type_ == DALI_FLOAT16) {
-      using Kernel = kernels::slice_flip_normalize::SliceHwc2ChwNormalizeGPU<float16>;
+      using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<float16>;
 
       auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
       auto cargs = make_cspan(args);
@@ -322,7 +322,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
       return;
     }
 
-    RunSliceHwc2ChwNormalize(ws);
+    RunSliceHwc2HwcChwNormalize(ws);
   }
 
   bool CanInferOutputs() const override {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -284,8 +284,8 @@ void SeparableResamplingSetup<spatial_ndim>::SetupSample(
   ROI roi = ComputeScaleAndROI(desc, params);
 
   ivec<spatial_ndim> filter_support;
-  for (int i = 0, d = spatial_ndim - 1; i < spatial_ndim; i++, d--) {
-    int support = desc.filter[d].support();
+  for (int i = 0; i < spatial_ndim; i++) {
+    int support = desc.filter[i].support();
     // NN filter has support -1, so we need the max() below
     filter_support[i] = std::max(1, support);
   }

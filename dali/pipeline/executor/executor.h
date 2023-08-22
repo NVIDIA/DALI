@@ -696,8 +696,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
   // The inputs of mixed ops are potentially used for H2D copies...
   for (int i = 0; i < graph.NumOp(OpType::MIXED); i++) {
     auto &node = graph.Node(OpType::MIXED, i);
-    if (node.spec.name().find("decoders__") == 0)
-      continue;  // don't pin inputs to decoders
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
