@@ -32,7 +32,7 @@ template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  TensorShape<Dims> step;
+  TensorShape<Dims> step = UnitCubeShape<Dims>();
   SmallVector<T, 8> fill_values = {
       0,
   };
