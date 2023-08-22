@@ -32,12 +32,16 @@ except ImportError:
         "Please install numpy to use the examples.")
 
 
-def auto_augment(data: _DataNode, policy_name: str = 'image_net',
-                 shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
-                 fill_value: Optional[int] = 128,
-                 interp_type: Optional[types.DALIInterpType] = None,
-                 max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
-                 seed: Optional[int] = None) -> _DataNode:
+def auto_augment(
+    data: _DataNode,
+    policy_name: str = 'image_net',
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> _DataNode:
     """
     Applies one of the predefined policies from the AutoAugment
     paper (https://arxiv.org/abs/1805.09501) to the provided batch of samples.
@@ -119,13 +123,15 @@ def auto_augment(data: _DataNode, policy_name: str = 'image_net',
     return apply_auto_augment(policy, data, seed, **aug_kwargs)
 
 
-def auto_augment_image_net(data: _DataNode,
-                           shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
-                           fill_value: Optional[int] = 128,
-                           interp_type: Optional[types.DALIInterpType] = None,
-                           max_translate_abs: Optional[int] = None,
-                           max_translate_rel: Optional[float] = None,
-                           seed: Optional[int] = None) -> _DataNode:
+def auto_augment_image_net(
+    data: _DataNode,
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> _DataNode:
     """
     Applies `image_net_policy` in AutoAugment (https://arxiv.org/abs/1805.09501)
     fashion to the provided batch of samples.
