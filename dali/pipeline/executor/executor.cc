@@ -386,7 +386,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   SmallVector<int, 16> empty_layout_in_idxs;
 
   if (checkpointing_ && iteration_id % checkpointing_epoch_size_ == 0) {
-    auto &cpt = checkpoint_queue_[iteration_id % checkpoint_queue_.size()].GetOpCheckpoint(op_node.id);
+    auto &cpt = GetCurrentCheckpoint(iteration_id).GetOpCheckpoint(op_node.id);
     op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
   }
 
@@ -628,6 +628,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
     id.operator_traces = std::make_shared<operator_trace_map_t>();
+    if (checkpointing_)
+      id.checkpoint.Build(*graph_);
   }
 }
 
@@ -657,12 +659,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
   if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
     DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
 
-  // TODO(mstaniewski): verify
-  int queue_depth = stage_queue_depths_[OpType::CPU] + 1;
-  checkpoint_queue_.resize(queue_depth);
-  for (auto &cpt : checkpoint_queue_)
-    cpt.Build(*graph_);
-
   checkpointing_epoch_size_ = -1;
   for (const auto &node : graph_->GetOpNodes()) {
     auto meta = node.op->GetReaderMeta();
@@ -676,7 +672,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
       DALI_FAIL(make_string(
         "When the checkpointing is enabled, all readers must have the same epoch size. ",
         "The readers and have different epoch sizes ",
-        "(", checkpointing_epoch_size, " and ", local_epoch_size, " respectively). "));
+        "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
   }
 
   /* If there is no operator with ReaderMeta, set the epoch size to 1. */
@@ -687,7 +683,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
 template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &
 Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint(size_t iteration_id) {
-  return checkpoint_queue_[iteration_id % checkpoint_queue_.size()];
+  return GetCurrentIterationData(iteration_id).checkpoint;
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>

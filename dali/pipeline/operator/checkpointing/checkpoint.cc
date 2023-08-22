@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 namespace dali {
 

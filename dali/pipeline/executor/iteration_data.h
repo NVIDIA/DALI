@@ -19,6 +19,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
+
 namespace dali {
 
 /**
@@ -46,6 +48,7 @@ using operator_trace_map_t = std::unordered_map<
  */
 struct IterationData {
   std::shared_ptr<operator_trace_map_t> operator_traces;
+  Checkpoint checkpoint;
 };
 
 }  // namespace dali
