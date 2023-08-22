@@ -28,19 +28,11 @@ namespace kernels {
 
 static constexpr int kSliceMinBlockSize = 16 << 10;
 
-template <int Dims>
-constexpr TensorShape<Dims> UnitCubeShape() {
-  TensorShape<Dims> shape;
-  for (auto &extent : shape)
-    extent = 1;
-  return shape;
-}
-
 template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  TensorShape<Dims> step = UnitCubeShape<Dims>();
+  TensorShape<Dims> step = TensorShape<Dims>::filled_shape(Dims, 1);
   SmallVector<T, 8> fill_values = {
       0,
   };
