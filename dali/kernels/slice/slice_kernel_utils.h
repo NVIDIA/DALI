@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,14 @@ namespace dali {
 namespace kernels {
 
 static constexpr int kSliceMinBlockSize = 16 << 10;
+
+template <int Dims>
+constexpr TensorShape<Dims> UnitCubeShape() {
+  TensorShape<Dims> shape;
+  for (auto &extent : shape)
+    extent = 1;
+  return shape;
+}
 
 template <typename T, int Dims>
 struct SliceArgs {
