@@ -374,7 +374,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   bool checkpointing_;
   int checkpointing_epoch_size_;
-  std::vector<Checkpoint> checkpoint_queue_;
 
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);

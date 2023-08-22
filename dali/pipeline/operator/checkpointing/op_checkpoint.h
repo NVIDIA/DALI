@@ -20,26 +20,25 @@
 #include <string>
 #include <vector>
 
-#include "dali/pipeline/operator/op_spec.h"
 #include "dali/core/access_order.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 
 namespace dali {
+
+class OpSpec;
 
 /**
  * @brief Representation of a checkpoint for a single operator.
  */
 class OpCheckpoint {
  public:
-  explicit OpCheckpoint(const OpSpec &spec)
-      : operator_name_(spec.name())
-      , order_(AccessOrder::host()) {}
+  DLL_PUBLIC explicit OpCheckpoint(const OpSpec &spec);
 
   /**
    * @brief Returns name of the corresponding operator. Can be used for validation.
    */
-  const std::string &OperatorName() const {
-    return operator_name_;
-  }
+  DLL_PUBLIC const std::string &OperatorName() const;
 
   template<class T> const T &CheckpointState() const {
     try {
@@ -52,20 +51,14 @@ class OpCheckpoint {
     }
   }
 
-  std::any &MutableCheckpointState() {
-    return state_;
-  }
+  DLL_PUBLIC std::any &MutableCheckpointState();
 
   /**
    * @brief Sets the access order of the checkpoint data, synchronizing if necessary.
    *
    * GPU operators saving state asynchronously must set the adequate access order.
   */
-  void SetOrder(AccessOrder order) {
-    DALI_ENFORCE(order, "Resetting order to an empty one is not supported. ");
-    order.wait(order_);
-    order_ = order;
-  }
+  DLL_PUBLIC void SetOrder(AccessOrder order);
 
  private:
   const std::string operator_name_;

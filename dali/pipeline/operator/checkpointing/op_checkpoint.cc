@@ -12,37 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
-#define DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
-
-#include <vector>
-
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
-// #include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 
-class OpGraph;
+OpCheckpoint::OpCheckpoint(const OpSpec &spec)
+  : operator_name_(spec.name())
+  , order_(AccessOrder::host()) {}
 
-/**
- * @brief Aggregation of operator checkpoints for a whole pipeline.
- */
-class DLL_PUBLIC Checkpoint {
- public:
-  DLL_PUBLIC Checkpoint() {}
+const std::string &OpCheckpoint::OperatorName() const {
+  return operator_name_;
+}
 
-  DLL_PUBLIC void Build(const OpGraph &graph);
+std::any &OpCheckpoint::MutableCheckpointState() {
+  return state_;
+}
 
-  using OpNodeId = int64_t;
-
-  DLL_PUBLIC OpCheckpoint &GetOpCheckpoint(OpNodeId id);
-
-  DLL_PUBLIC const OpCheckpoint &GetOpCheckpoint(OpNodeId id) const;
-
- private:
-  std::vector<OpCheckpoint> cpts_;
-};
+void OpCheckpoint::SetOrder(AccessOrder order) {
+  DALI_ENFORCE(order, "Resetting order to an empty one is not supported. ");
+  order.wait(order_);
+  order_ = order;
+}
 
 }  // namespace dali
-
-#endif  // DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
