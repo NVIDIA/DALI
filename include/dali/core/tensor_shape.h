@@ -243,18 +243,18 @@ struct TensorShape<DynamicDimensions>
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim) {
-    return TensorShape<>::filled_shape(dim, 0);
+  static TensorShape empty_shape(int dim) {
+    assert(dim > 0);
+    return TensorShape::filled_shape(dim, 0);
   }
 
   /**
    * @brief Return shape of specified dimensionality filled with value
    */
-  static TensorShape<> filled_shape(int dim, int64_t value) {
-    assert(dim > 0);
-    TensorShape<> result;
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim >= 0);
+    TensorShape result;
     result.resize(dim);
-    // TODO: should use std::fill but lack .begin() and .end()
     for (auto &elem : result) {
       elem = value;
     }
@@ -325,18 +325,18 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim = ndim) {
-    return TensorShape<>::filled_shape(dim, 0);
+  static TensorShape<ndim> empty_shape(int dim = ndim) {
+    assert(dim > 0 && "0D always has exectly 1 element");
+    return TensorShape<ndim>::filled_shape(dim, 0);
   }
 
   /**
    * @brief Return shape of specified dimensionality filled with value
    */
-  static TensorShape<> filled_shape(int dim, int64_t value) {
+  static TensorShape<ndim> filled_shape(int dim, int64_t value) {
     assert(dim == ndim && "Not supported for count other than statically defined");
-    TensorShape<> result;
+    TensorShape<ndim> result;
     result.resize(dim);
-    // TODO: should use std::fill but lack .begin() and .end()
     for (auto &elem : result) {
       elem = value;
     }
