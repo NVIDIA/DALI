@@ -89,7 +89,7 @@ class DataReader : public Operator<Backend> {
     curr_batch.clear();
     curr_batch.reserve(max_batch_size_);
     for (int i = 0; i < max_batch_size_; ++i) {
-      curr_batch.push_back(loader_->ReadOne(i == 0));
+      curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
     }
   }
 

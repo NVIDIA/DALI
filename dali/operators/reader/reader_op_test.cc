@@ -80,7 +80,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   bool Prefetch() override {
     for (int i = 0; i < Operator::batch_size_; ++i) {
       printf("new tensor %d\n", i);
-      auto *t = loader_->ReadOne(false);
+      auto *t = loader_->ReadOne(false, false);
       prefetched_batch_.push_back(t);
     }
     return true;
@@ -537,10 +537,9 @@ class FileReaderTest : public DALITest {
                                                            bool stick_to_shard = false) {
     auto node = pipe.GetOperatorNode("file_reader");
     OpCheckpoint cpt(node->spec);
-    auto ret = RunEpoch(pipe, batch_size, num_shards, stick_to_shard);
     node->op->SaveState(cpt, std::nullopt);
     EXPECT_EQ(cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
-    return {ret, cpt};
+    return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
   }
 
   void RestoreCheckpointedState(Pipeline &pipe, const OpCheckpoint &cpt) {
