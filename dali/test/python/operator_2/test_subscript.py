@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -283,3 +283,16 @@ def test_ellipsis_not_implemented():
     src = fn.external_source(lambda: data)
     with assert_raises(NotImplementedError):
         _ = src[..., :1]
+
+
+def test_multiple_skipped_dims():
+    data = [np.arange(64, dtype=np.float32).reshape(4, 2, 2, 4),
+            np.arange(120, dtype=np.float32).reshape(4, 2, 3, 5)]
+    src = fn.external_source(lambda: data, layout="ABCD")
+    pipe = index_pipe(src, lambda x: x[1, :, :, 1])
+    pipe.build()
+    inp, cpu, gpu = pipe.run()
+    for i in range(len(inp)):
+        x = inp.at(i)
+        assert np.array_equal(x[1, :, :, 1], cpu.at(i))
+        assert np.array_equal(x[1, :, :, 1], gpu.as_cpu().at(i))
