@@ -42,10 +42,12 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
                                           size_t bytes_per_sample_hint, bool set_affinity = false,
                                           int max_num_stream = -1,
                                           int default_cuda_stream_priority = 0,
-                                          QueueSizes prefetch_queue_depth = {2, 2})
+                                          QueueSizes prefetch_queue_depth = {2, 2},
+                                          bool checkpointing = false)
       : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id,
                                                bytes_per_sample_hint, set_affinity, max_num_stream,
-                                               default_cuda_stream_priority, prefetch_queue_depth) {
+                                               default_cuda_stream_priority, prefetch_queue_depth,
+                                               checkpointing) {
   }
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;

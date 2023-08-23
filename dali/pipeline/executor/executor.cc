@@ -385,7 +385,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  if (checkpointing_ && iteration_id % checkpointing_epoch_size_ == 0) {
+  // If it is the first iteration, create initial checkpoint.
+  if (checkpointing_ && iteration_id == 0) {
     auto &cpt = GetCurrentCheckpoint(iteration_id).GetOpCheckpoint(op_node.id);
     op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
   }
@@ -528,6 +529,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
       auto &in = ws.UnsafeMutableInput<GPUBackend>(i);
       in.SetLayout({});
     }
+  }
+
+  // If it is the end of an epoch, create a checkpoint
+  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0) {
+    auto &cpt = GetCurrentCheckpoint(iteration_id + 1).GetOpCheckpoint(op_node.id);
+    op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
   }
 }
 

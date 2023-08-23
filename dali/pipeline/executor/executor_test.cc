@@ -76,6 +76,11 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     return {};
   }
 
+  bool IsSeparated() {
+    return std::is_same_v<ExecutorToTest, SeparatedPipelinedExecutor>
+        || std::is_same_v<ExecutorToTest, AsyncSeparatedPipelinedExecutor>;
+  }
+
   template<typename Factory>
   void RunCheckpointingTest(Factory executor_and_graph_factory,
                             int epoch_size, int epochs_cnt = 3) {
@@ -91,6 +96,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
       std::vector<std::vector<uint8_t>> results;
       for (int i = 0; i < epoch_size; i++) {
         exec->RunCPU();
+        exec->RunMixed();
         exec->RunGPU();
         exec->Outputs(&ws);
 
@@ -109,25 +115,18 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     };
 
     auto [exec1, graph1] = executor_and_graph_factory();
-    int iter = 0;
-    run_epoch(exec1, iter);
-
-    /*
     auto [exec2, graph2] = executor_and_graph_factory();
 
     int iter1 = 0;
     for (int i = 0; i < epochs_cnt; i++)
       run_epoch(exec1, iter1);
 
-    int iter2 = iter1;
-    auto [cur_expected, cpt] = run_epoch(exec1, iter1);
+    auto cpt = exec1->GetCurrentCheckpoint(iter1);
     exec2->RestoreStateFromCheckpoint(cpt);
 
-    for (int i = 0; i < epochs_cnt; i++) {
-      EXPECT_EQ(cur_expected, run_epoch(exec2, iter2).first);
-      cur_expected = run_epoch(exec1, iter1).first;
-    }
-    */
+    int iter2 = iter1;
+    for (int i = 0; i < epochs_cnt; i++)
+      EXPECT_EQ(run_epoch(exec1, iter1).first, run_epoch(exec2, iter2).first);
   }
 
   int batch_size_, num_threads_ = 1;
@@ -785,17 +784,19 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   EXPECT_TRUE(this->HasConditionals(*exe_with_cond));
 }
 
-class DummyCheckpointingOperator : public Operator<CPUBackend> {
+class DummyCheckpointableSource : public Operator<CPUBackend> {
  public:
-  explicit DummyCheckpointingOperator(const OpSpec &spec)
-      : Operator<CPUBackend>(spec), state_(0) {}
+  explicit DummyCheckpointableSource(const OpSpec &spec)
+      : Operator<CPUBackend>(spec),
+        epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
     cpt.MutableCheckpointState() = state_;
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    state_ = cpt.CheckpointState<uint32_t>();
+    EXPECT_GT(checkpoints_to_collect_--, 0);
+    state_ = cpt.CheckpointState<uint8_t>();
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -804,30 +805,86 @@ class DummyCheckpointingOperator : public Operator<CPUBackend> {
   void RunImpl(Workspace &ws) override {
     auto &output = ws.Output<CPUBackend>(0);
     int samples = output.num_samples();
-    output.Resize(uniform_list_shape(samples, {1}), DALI_UINT32);
-    for (int i = 0; i < samples; i++)
-      output.mutable_tensor<uint32_t>(i)[0] = state_++;
+    output.set_type(DALI_UINT8);
+    output.Resize(uniform_list_shape(samples, {1}));
+
+    /* Check if a new epoch starts at the start of the run, just like in Readers. */
+    if (state_ == epoch_size_) {
+      state_ = 0;
+      checkpoints_to_collect_++;  /* simulate putting a checkpoint into a queue */
+    }
+
+    /* Return increasing integers as the samples, padding the last batch */
+    for (int i = 0; i < samples; i++) {
+      state_ = (state_ < epoch_size_ ? state_ : epoch_size_ - 1);
+      output.mutable_tensor<uint8_t>(i)[0] = state_++;
+    }
   }
 
  private:
-  uint32_t state_;
+  uint8_t state_ = 0;
+  int checkpoints_to_collect_ = 1;
+  int epoch_size_;
 };
 
-DALI_REGISTER_OPERATOR(DummyCptingOp, DummyCheckpointingOperator, CPU);
-DALI_SCHEMA(DummyCptingOp)
+class DummyCheckpointableOperator : public Operator<CPUBackend> {
+ public:
+  explicit DummyCheckpointableOperator(const OpSpec &spec)
+      : Operator<CPUBackend>(spec) {}
+
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    cpt.MutableCheckpointState() = state_;
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    state_ = cpt.CheckpointState<uint8_t>();
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const Workspace &ws) override { return false; }
+
+  void RunImpl(Workspace &ws) override {
+    auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
+    int samples = input.num_samples();
+    output.set_type(DALI_UINT8);
+    output.Resize(uniform_list_shape(samples, {1}));
+
+    for (int i = 0; i < samples; i++)
+      output.mutable_tensor<uint8_t>(i)[0] = input.tensor<uint8_t>(i)[0] + state_++;
+  }
+
+ private:
+  uint8_t state_ = 0;
+};
+
+DALI_REGISTER_OPERATOR(DummyCptingSource, DummyCheckpointableSource, CPU);
+DALI_SCHEMA(DummyCptingSource)
   .DocStr("Dummy")
+  .AddArg("epoch_size", "Dummy epoch size", DALI_INT32)
   .NumInput(0)
   .NumOutput(1);
 
-TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
-  auto prepare_executor_and_graph = [&] {
-    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-    auto graph = std::make_unique<OpGraph>();
+DALI_REGISTER_OPERATOR(DummyCptingOp, DummyCheckpointableOperator, CPU);
+DALI_SCHEMA(DummyCptingOp)
+  .DocStr("Dummy")
+  .NumInput(1)
+  .NumOutput(1);
 
+TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    /* Turn on checkpointing in executor */
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1,
+                                 false, -1, 0, QueueSizes{2, 2}, true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingOp")
+        OpSpec("DummyCptingSource")
           .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
           .AddOutput("state", "cpu")),
       "dummy");
 
@@ -835,7 +892,49 @@ TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
     return std::pair{std::move(exe), std::move(graph)};
   };
 
-  this->RunCheckpointingTest(prepare_executor_and_graph, 1);
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
+}
+
+TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    /* Turn on checkpointing in executor */
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1,
+                                 false, -1, 0, QueueSizes{2, 2}, true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("DummyCptingSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("data", "cpu")),
+      "dummy_src");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("DummyCptingOp")
+          .AddArg("epoch_size", epoch_size)
+          .AddInput("data", "cpu")
+          .AddOutput("processed", "cpu")),
+      "dummy_op");
+
+    exe->Build(graph.get(), {"processed_cpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
 }
 
 }  // namespace dali
