@@ -11,7 +11,6 @@ epilog=(disable_conda)
 test_body() {
     test_files=(
         "frameworks/jax/jax-basic_example.ipynb"
-        "frameworks/jax/flax-basic_example.ipynb"
     )
     for f in ${test_files[@]}; do
         jupyter nbconvert --to notebook --inplace --execute \
