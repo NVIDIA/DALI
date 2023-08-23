@@ -120,6 +120,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
 
   bool generate_index_ = true;
   std::string GetSampleSource(const detail::wds::SampleDesc& sample);
+  bool case_insensitive_extensions_ = false;
 };
 
 }  // namespace dali

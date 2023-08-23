@@ -123,6 +123,14 @@ with a semicolon (';') and may contain dots.
 
 Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
+    .AddOptionalArg("case_insensitive_extensions",
+      R"code(Determines whether the extensions provided via the `ext` should be case insensitive.
+
+Allows mixing case sizes in the `ext` argument as well as in the webdataset container. For example
+when turned on: jpg, JPG, jPG should work.
+
+If the extension characters cannot be represented as ASCI the result of this option is undefined.
+)code", false)
     .AddOptionalArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
 

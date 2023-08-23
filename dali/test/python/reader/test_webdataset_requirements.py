@@ -274,6 +274,150 @@ def test_pax_format():
         )
 
 
+def test_case_sensitive_container_format():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
+                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    with assert_raises(AssertionError):
+        for shard_id in range(num_shards):
+            compare_pipelines(
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ["jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                webdataset_raw_pipeline(
+                    case_insensitive_tar_file_path,
+                    None,
+                    ext=["jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                test_batch_size,
+                math.ceil(num_samples / num_shards / test_batch_size) * 2,
+            )
+
+
+def test_case_sensitive_arg_format():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    with assert_raises(AssertionError):
+        for shard_id in range(num_shards):
+            compare_pipelines(
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ["jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ext=["Jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                test_batch_size,
+                math.ceil(num_samples / num_shards / test_batch_size) * 2,
+            )
+
+
+def test_case_insensitive_container_format():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
+                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            webdataset_raw_pipeline(
+                case_insensitive_tar_file_path,
+                None,
+                ext=["jpg", "cls"],
+                case_insensitive_extensions=True,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
+
+
+def test_case_insensitive_arg_format():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ext=["Jpg", "cls"],
+                case_insensitive_extensions=True,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
+
+
 def test_index_generation():
     global test_batch_size
     num_samples = 3000
