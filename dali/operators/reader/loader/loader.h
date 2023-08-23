@@ -206,7 +206,6 @@ class Loader {
       // the batch is_new_batch is set so it means that padding may be no longer needed
       return (returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
               pad_last_batch_;
-
   }
 
   // Get a random read sample
@@ -244,6 +243,8 @@ class Loader {
     if (shards_.front().start == shards_.front().end) {
       if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
+        if (checkpointing_ && !ShouldPadBatch(is_end_of_batch))
+          PushStateSnapshot();
         return last_sample_ptr_tmp;
       }
 
