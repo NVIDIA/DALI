@@ -33,9 +33,7 @@ struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
   TensorShape<Dims> step = TensorShape<Dims>::filled_shape(Dims, 1);
-  SmallVector<T, 8> fill_values = {
-      0,
-  };
+  SmallVector<T, 8> fill_values = { 0, };
   int channel_dim = -1;
 };
 
@@ -46,7 +44,8 @@ const T *GetPtr(const Container &c) {
 
 template <int Dims, typename Args>
 void CheckValidOutputShape(const TensorShape<Dims> &in_sample_shape,
-                           const TensorShape<Dims> &out_sample_shape, const Args &args) {
+                           const TensorShape<Dims> &out_sample_shape,
+                           const Args &args) {
   for (int d = 0; d < Dims; d++) {
     DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
                  "Output shape dimension " + std::to_string(d) + " is too small");
@@ -74,7 +73,9 @@ TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims> &in_shapes,
 }
 
 template <typename Anchor, typename InShape, typename OutShape>
-inline bool NeedPad(int ndim, const Anchor &anchor, const InShape &in_shape,
+inline bool NeedPad(int ndim,
+                    const Anchor &anchor,
+                    const InShape &in_shape,
                     const OutShape &out_shape) {
   bool need_pad = false;
   for (int d = 0; d < ndim && !need_pad; d++)
@@ -95,7 +96,8 @@ void PadFill(T *output, const T *fill_values, int64_t npixels, int64_t nchannels
     output[i] = output[i - nchannels];
 }
 
-inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor, int64_t in_extent,
+inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor,
+                                                                int64_t in_extent,
                                                                 int64_t out_extent) {
   int64_t pad_before = std::min(out_extent, std::max<int64_t>(0, -anchor));
   int64_t to_copy = std::max<int64_t>(
@@ -106,8 +108,10 @@ inline std::tuple<int64_t, int64_t, int64_t> CalcPadCopyExtents(int64_t anchor, 
 
 
 template <typename OutputType, typename InputType, int Dims>
-bool CanRunPlainCopy(const TensorShape<Dims> &out_strides, const TensorShape<Dims> &in_strides,
-                     const TensorShape<Dims> &out_shape, const TensorShape<Dims> &in_shape,
+bool CanRunPlainCopy(const TensorShape<Dims> &out_strides,
+                     const TensorShape<Dims> &in_strides,
+                     const TensorShape<Dims> &out_shape,
+                     const TensorShape<Dims> &in_shape,
                      const SliceArgs<OutputType, Dims> &args) {
   // if there's type conversion we can't run memcpy
   if (!std::is_same<OutputType, InputType>::value)

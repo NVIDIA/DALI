@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ union PackedBuffer {
     } else if (count == kCapacity && reinterpret_cast<uintptr_t>(mem) % sizeof(PackedType) == 0) {
       *reinterpret_cast<PackedType *>(mem) = raw;
     } else {
-#pragma unroll
+      #pragma unroll
       for (size_t i = 0; i < count; i++) {
         mem[i] = values[i];
       }
@@ -100,7 +100,7 @@ union PackedBuffer {
 
 /**
  * @brief Simplified algorithm when no padding is necessary
- * @remark "in" should have "anchor" pre-applied and "stride" should have "step" pre-applied
+ * @remarks `in` should have `anchor` pre-applied and `stride` should have `step` pre-applied
  */
 template <int Dims, typename OutputType, typename InputType>
 __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__restrict__ in,
@@ -118,15 +118,15 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
   for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
-    uint64_t i = 0;
-#pragma unroll
-    for (; i < PackedBuffer<OutputType>::kCapacity; i++) {
+    uint64_t i;
+    #pragma unroll
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end)
         break;
       uint64_t in_idx = 0;
 
-#pragma unroll
+      #pragma unroll
       for (int d = 0; d < Dims; d++) {
         int i_d = div_mod(idx, idx, out_strides[d]);
         in_idx += i_d * in_strides[d];
@@ -160,7 +160,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   constexpr int LastDim = Dims - 1;
   int64_t inner_in_anchor = anchor[LastDim];
   int64_t inner_in_extent = in_shape[LastDim];
-  if (!AllDims) {
+  if (!AllDims) {  // if we fused dimensions, adjust inner dimension's anchor and extent
     inner_in_anchor = anchor[LastDim] * in_strides[LastDim];
     inner_in_extent = Dims > 1 ? in_strides[LastDim - 1] : in_shape[LastDim] * in_strides[LastDim];
   }
@@ -168,21 +168,23 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
   for (; offset < block_end; offset += blockDim.x * PackedBuffer<OutputType>::kCapacity) {
     PackedBuffer<OutputType> result;
 
-    uint64_t i = 0;
+    uint64_t i;
 #ifndef __clang__
-#pragma unroll
+    #pragma unroll
 #endif
-    for (; i < PackedBuffer<OutputType>::kCapacity; i++) {
+    for (i = 0; i < PackedBuffer<OutputType>::kCapacity; i++) {
       uint64_t idx = offset + i;
       if (idx >= block_end)
         break;
 
+      // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
+      // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
       int i_c = 0;
       int i_d;
       bool out_of_bounds = false;
       uint64_t in_idx = 0;
 
-#pragma unroll
+      #pragma unroll
       for (int d = 0; d < Dims - 1; d++) {
         i_d = div_mod(idx, idx, out_strides[d]);
         if (d == channel_dim)
@@ -248,7 +250,8 @@ class SliceGPU {
   int blocks_per_sm_ = 0;
 
  public:
-  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType, Dims> &in,
+  KernelRequirements Setup(KernelContext &context,
+                           const InListGPU<InputType, Dims> &in,
                            const std::vector<SliceArgs<OutputType, Dims>> &slice_args) {
     KernelRequirements req;
     ScratchpadEstimator se;
@@ -270,7 +273,8 @@ class SliceGPU {
     } else if (nfill_values_ > 1) {
       for (const auto &args : slice_args) {
         if (args.channel_dim < 0 || args.channel_dim >= Dims)
-          throw std::invalid_argument("Channel dim must be valid for multi-channel fill values");
+          throw std::invalid_argument(
+              "Channel dim must be valid for multi-channel fill values");
         if (nfill_values_ != args.shape[args.channel_dim])
           throw std::invalid_argument(
               "The number of fill values should match the number of channels in the output slice");
@@ -300,10 +304,8 @@ class SliceGPU {
     uint64_t waves = div_ceil(total_volume + 1, kMaxBlockSize * max_active_blocks);
     unsigned block_align = 32 * slice_impl::PackedBuffer<OutputType>::kCapacity;
     block_size_ = align_up(div_ceil(total_volume, max_active_blocks * waves), block_align);
-    if (block_size_ < kMinBlockSize)
-      block_size_ = kMinBlockSize;
-    if (block_size_ > kMaxBlockSize)
-      block_size_ = kMaxBlockSize;
+    if (block_size_ < kMinBlockSize) block_size_ = kMinBlockSize;
+    if (block_size_ > kMaxBlockSize) block_size_ = kMaxBlockSize;
 
     block_count_ = 0;
     for (auto sample_size : sample_sizes) {
@@ -314,7 +316,7 @@ class SliceGPU {
     se.add<mm::memory_kind::device, slice_impl::SliceBlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
 
-    req.output_shapes = {GetOutputShapes<Dims>(in.shape, slice_args)};
+    req.output_shapes = { GetOutputShapes<Dims>(in.shape, slice_args) };
     return req;
   }
 
@@ -398,16 +400,17 @@ class SliceGPU {
 
     slice_impl::SliceSampleDesc<Dims> *sample_descs;
     slice_impl::SliceBlockDesc *block_descs;
-    std::tie(sample_descs, block_descs) = context.scratchpad->ToContiguousGPU(
-        context.gpu.stream, make_cspan(sample_descs_cpu, num_samples),
-        make_cspan(block_descs_cpu, block_count_));
+    std::tie(sample_descs, block_descs) =
+        context.scratchpad->ToContiguousGPU(context.gpu.stream,
+                                            make_cspan(sample_descs_cpu, num_samples),
+                                            make_cspan(block_descs_cpu, block_count_));
     CUDA_CALL(cudaGetLastError());
 
     const auto grid = block_count_;
-    BOOL_SWITCH(
-        any_padded_sample, NeedPad,
-        (slice_impl::SliceKernel<OutputType, InputType, Dims, NeedPad>
-         <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);));  // NOLINT
+    BOOL_SWITCH(any_padded_sample, NeedPad, (
+      slice_impl::SliceKernel<OutputType, InputType, Dims, NeedPad>
+        <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs, block_descs);
+    ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
   }
 

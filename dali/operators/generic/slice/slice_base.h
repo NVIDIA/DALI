@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,8 +32,9 @@
 #include "dali/pipeline/util/operator_impl_utils.h"
 #include "dali/util/crop_window.h"
 
-#define SLICE_TYPES \
-  (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, double)
+#define SLICE_TYPES (uint8_t, uint16_t, uint32_t, uint64_t, \
+                     int8_t,  int16_t,  int32_t,  int64_t, \
+                     float16, float, double)
 #define SLICE_DIMS (1, 2, 3, 4)
 
 namespace dali {
@@ -42,7 +43,8 @@ template <typename Backend>
 class SliceBase : public Operator<Backend> {
  public:
   explicit inline SliceBase(const OpSpec &spec)
-      : Operator<Backend>(spec), out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
+      : Operator<Backend>(spec),
+        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
     spec.TryGetArgument(output_type_, "dtype");
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");

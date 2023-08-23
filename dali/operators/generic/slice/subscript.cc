@@ -18,11 +18,11 @@
 
 namespace dali {
 
-#define INDEX_ARGS(idx)                                              \
-  AddOptionalArg<int>("at_" #idx, "Position index", nullptr, true)   \
-      .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr, true) \
-      .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr, true)   \
-      .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
+#define INDEX_ARGS(idx) \
+     AddOptionalArg<int>("at_" #idx, "Position index", nullptr, true) \
+    .AddOptionalArg<int>("lo_" #idx, "Range start", nullptr, true) \
+    .AddOptionalArg<int>("hi_" #idx, "Range end", nullptr, true) \
+    .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
 
 
 DALI_SCHEMA(TensorSubscript)
@@ -30,9 +30,8 @@ DALI_SCHEMA(TensorSubscript)
     .DocStr(R"(Applies NumPy-like indexing to a batch of tensors.)")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg<int>(
-        "num_subscripts",
-        "Number of subscripts supplied, including full-range - used for validation only.", nullptr)
+    .AddOptionalArg<int>("num_subscripts",
+      "Number of subscripts supplied, including full-range - used for validation only.", nullptr)
     .INDEX_ARGS(0)
     .INDEX_ARGS(1)
     .INDEX_ARGS(2)

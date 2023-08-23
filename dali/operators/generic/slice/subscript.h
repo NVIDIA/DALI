@@ -46,9 +46,11 @@ enum class ArgSource {
 struct SubscriptArg {
   void Init(const OpSpec &spec, const std::string &name) {
     this->name = name;
-    src = spec.HasTensorArgument(name) ? ArgSource::Input :
-          spec.HasArgument(name)       ? ArgSource::Value :
-                                         ArgSource::None;
+    src = spec.HasTensorArgument(name)
+              ? ArgSource::Input
+              : spec.HasArgument(name)
+                  ? ArgSource::Value
+                  : ArgSource::None;
     if (src == ArgSource::Value)
       scalar_value = spec.GetArgument<int64_t>(name);
   }
@@ -67,12 +69,12 @@ struct SubscriptArg {
       const auto &shape = inp.shape();
 
       int n = batch_size;
-      DALI_ENFORCE(shape.num_samples() == n,
-                   make_string("Unexpected number of samples in argument `", name,
-                               "`. Got: ", shape.num_samples(), ", expected ", n, "."));
+      DALI_ENFORCE(shape.num_samples() == n, make_string(
+         "Unexpected number of samples in argument `", name, "`. Got: ",
+          shape.num_samples(), ", expected ", n, "."));
 
-      DALI_ENFORCE(shape.sample_dim() == 0, make_string("Array indices must be scalar (0D). Got ",
-                                                        shape.sample_dim(), "D tensor."));
+      DALI_ENFORCE(shape.sample_dim() == 0,
+        make_string("Array indices must be scalar (0D). Got ", shape.sample_dim(), "D tensor."));
 
       values.resize(n);
       DALIDataType type_id = inp.type();
@@ -182,7 +184,7 @@ class TensorSubscript : public Operator<Backend> {
     int nsub = subscripts_.size();
     int ndim = in_shape.sample_dim();
     DALI_ENFORCE(ndim >= nsub_declared_,
-                 make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
+        make_string("Too many indices (", nsub_declared_, ") for a ", ndim, "D tensor."));
 
     int nsamples = in_shape.num_samples();
     start_.resize(nsamples, ndim);
@@ -209,14 +211,10 @@ class TensorSubscript : public Operator<Backend> {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
         int64_t at = s.at.values[i];
         int64_t idx = at < 0 ? in_extent + at : at;
-        // clang-format off
-        if (idx < 0 || idx >= in_extent) {
-          DALI_FAIL(make_string(
-            "Index ", at, " is out of range for axis ", d,
-            " of length ", in_extent, "\nDetected while processing "
-            " sample #", i, " of shape (", in_shape[i], ")"));
-        }
-        // clang-format on
+        if (idx < 0 || idx >= in_extent)
+          DALI_FAIL(make_string("Index ", at, " is out of range "
+            "for axis ", d, " of length ", in_extent, "\n"
+            "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
         start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
         step_.tensor_shape_span(i)[d] = 1;
@@ -228,7 +226,7 @@ class TensorSubscript : public Operator<Backend> {
         int64_t step = s.step.IsDefined() ? s.step.values[i] : 1_i64;
         step_.tensor_shape_span(i)[d] = step;
 
-        int64_t lo{0}, hi{0};
+        int64_t lo = 0, hi = 0;
         // hi and low are swapped if step is negative
         if (step > 0) {
           lo = s.lo.IsDefined() ? s.lo.values[i] : 0_i64;
@@ -285,7 +283,7 @@ class TensorSubscript : public Operator<Backend> {
     for (; d < nsub; d++) {
       if (subscripts_[d].IsDefined()) {
         if (d != group_start)
-          collapsed_dims_.push_back({group_start, d - group_start});
+          collapsed_dims_.push_back({ group_start, d - group_start });
         group_start = d + 1;
       }
 
@@ -298,7 +296,7 @@ class TensorSubscript : public Operator<Backend> {
     }
 
     if (in_dims != group_start)
-      collapsed_dims_.push_back({group_start, in_dims - group_start});
+      collapsed_dims_.push_back({ group_start, in_dims - group_start });
 
     collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
     collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
@@ -325,9 +323,7 @@ class TensorSubscript : public Operator<Backend> {
     return out_layout;
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
+  bool CanInferOutputs() const override { return true; }
 
   using Operator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override {
