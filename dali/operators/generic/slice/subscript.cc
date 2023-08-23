@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
     kernels::SliceArgs<T, ndim> args;
     args.anchor = simplified_anchor_[i].to_static<ndim>();
     args.shape = tv_out.shape;
-    args.step = step_[i];
+    args.step = simplified_step_[i];
     K.Schedule(ctx, tv_out, tv_in, args, tp);
   }
   tp.RunAll();

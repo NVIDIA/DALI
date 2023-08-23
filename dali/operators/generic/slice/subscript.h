@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -303,6 +303,7 @@ class TensorSubscript : public Operator<Backend> {
     collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
     collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
     collapse_dims(simplified_anchor_, start_, collapsed_dims_);
+    collapse_dims(simplified_step_, step_, collapsed_dims_);
 
     out_shape.resize(in_shape.num_samples(), out_dim_map_.size());
     for (int i = 0; i < out_shape.num_samples(); i++) {
@@ -360,8 +361,8 @@ class TensorSubscript : public Operator<Backend> {
   SmallVector<std::pair<int, int>, 6> collapsed_dims_;
   // Input shape where adjacent dimensions are collapsed where there's no indexing done
   TensorListShape<> simplified_in_shape_;
-  // Output anchor & shape simplified in the same way as input shape
-  TensorListShape<> simplified_anchor_, simplified_out_shape_;
+  // Output shape, anchor & step simplified in the same way as input shape
+  TensorListShape<> simplified_anchor_, simplified_out_shape_, simplified_step_;
 
   // Mapping from output to input indices
   SmallVector<int, 6> out_dim_map_;

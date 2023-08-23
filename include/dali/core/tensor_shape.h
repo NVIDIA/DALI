@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -325,17 +325,17 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<ndim> empty_shape(int dim = ndim) {
+  static TensorShape empty_shape(int dim = ndim) {
     assert(dim > 0 && "0D always has exectly 1 element");
-    return TensorShape<ndim>::filled_shape(dim, 0);
+    return filled_shape(dim, 0);
   }
 
   /**
    * @brief Return shape of specified dimensionality filled with value
    */
-  static TensorShape<ndim> filled_shape(int dim, int64_t value) {
-    assert(dim == ndim && "Not supported for count other than statically defined");
-    TensorShape<ndim> result;
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim == ndim && "Not supported for dimensionality other than statically defined");
+    TensorShape result;
     result.resize(dim);
     for (auto &elem : result) {
       elem = value;
