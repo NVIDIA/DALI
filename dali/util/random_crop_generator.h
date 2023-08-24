@@ -40,6 +40,7 @@ class DLL_PUBLIC RandomCropGenerator {
   DLL_PUBLIC CropWindow GenerateCropWindow(const TensorShape<>& shape);
   DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(const TensorShape<>& shape,
                                                          std::size_t N);
+
  private:
   CropWindow GenerateCropWindowImpl(const TensorShape<>& shape);
 
