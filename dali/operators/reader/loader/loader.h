@@ -285,7 +285,7 @@ class Loader {
     returned_sample_counter_++;
 
     // Create a checkpoint if we would move onto the next shard in the next iteration
-    if (checkpointing_ && shards_.front().start == shards_.front().end && 
+    if (checkpointing_ && shards_.front().start == shards_.front().end &&
         !ShouldPadBatch(is_end_of_batch)) {
       PushStateSnapshot();
     }
