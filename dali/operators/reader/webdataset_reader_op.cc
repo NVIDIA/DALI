@@ -127,9 +127,10 @@ Example: "left.png;right.jpg")code",
       R"code(Determines whether the extensions provided via the `ext` should be case sensitive.
 
 Allows mixing case sizes in the `ext` argument as well as in the webdataset container. For example
-when turned on: jpg, JPG, jPG should work.
+when turned off: jpg, JPG, jPG should work.
 
-If the extension characters cannot be represented as ASCI the result of this option is undefined.
+If the extension characters cannot be represented as ASCI the result of turing this option off
+is undefined.
 )code", true)
     .AddOptionalArg("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
