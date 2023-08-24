@@ -69,7 +69,7 @@ class EqualizeCPU : public Equalize<CPUBackend> {
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto out_sample = out_view[sample_idx];
       auto in_sample = in_view[sample_idx];
-      tp.AddWork([this, out_sample, in_sample](int) { RunSample(out_sample, in_sample); },
+      tp.AddTask([this, out_sample, in_sample](int) { RunSample(out_sample, in_sample); },
                  in_sample.shape.num_elements());
     }
     tp.RunAll();

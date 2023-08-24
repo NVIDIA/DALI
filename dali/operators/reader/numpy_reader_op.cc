@@ -302,7 +302,7 @@ void NumpyReaderCPU::Prefetch() {
         auto target_mem = static_cast<char*>(tmp_mem.get()) - target_data_offset + read_offset;
         // where to read from counting from the file start
         auto file_offset = read_offset + align_down(target->data_offset, o_direct_alignm_);
-        thread_pool_.AddWork([this, &target, file, read_size, target_mem, file_offset, read_tail]
+        thread_pool_.AddTask([this, &target, file, read_size, target_mem, file_offset, read_tail]
                              (int tid) {
           Index ret = file->ReadAt(target_mem, read_size, file_offset);
           DALI_ENFORCE(ret >= static_cast<Index>(read_tail) &&

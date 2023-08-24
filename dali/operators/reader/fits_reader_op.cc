@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ This operator can be used in the following modes:
 2. Read file names from a text file indicated in ``file_list`` argument.
 3. Read files listed in ``files`` argument.
 4. Number of outputs per sample corresponds to the length of ``hdu_indices`` argument. By default,
-first HDU with data is read from each file, so the number of outputs defaults to 1. 
+first HDU with data is read from each file, so the number of outputs defaults to 1.
 )")
     .NumInput(0)
     .OutputFn(detail::FitsReaderOutputFn)
@@ -78,7 +78,7 @@ If ``file_root`` is provided, the paths are treated as being relative to it.
 This argument is mutually exclusive with ``file_list``.)",
                                     nullptr)
     .AddOptionalArg("hdu_indices",
-                    R"(HDU indices to read. If not provided, the first HDU after the primary 
+                    R"(HDU indices to read. If not provided, the first HDU after the primary
 will be yielded. Since HDUs are indexed starting from 1, the default value is as follows: hdu_indices = [2].
 Size of the provided list hdu_indices defines number of outputs per sample.)",
                     std::vector<int>{2})
@@ -104,7 +104,7 @@ void FitsReaderCPU::RunImpl(Workspace &ws) {
                     sample.data[output_idx].nbytes());
       };
       if (threaded) {
-        ws.GetThreadPool().AddWork(std::move(copy_task), -file_idx);
+        ws.GetThreadPool().AddTask(std::move(copy_task), -file_idx);
       } else {
         copy_task(0);
       }

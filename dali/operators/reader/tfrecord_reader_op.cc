@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ void TFRecordReader::Prefetch() {
   auto idx_loader = dynamic_cast<IndexedFileLoader*>(loader_.get());
   while (idx_loader->AnyWorkLeft()) {
     auto work = idx_loader->GetReadWork();
-    thread_pool_.AddWork([work = std::move(work)] (int tid) {
+    thread_pool_.AddTask([work = std::move(work)] (int tid) {
                           work();
                         });
   }

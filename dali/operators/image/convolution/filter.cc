@@ -275,7 +275,7 @@ class FilterOpCpuImpl : public OpImplBase<CPUBackend> {
       ocv::with_border_handler(
           input_desc_.is_valid_mode, border_type_, sample_idx, fill_values, [&](auto ocv_handler) {
             for (auto&& views : planes_range) {
-              tp.AddWork(
+              tp.AddTask(
                   [this, views, sample_filter, sample_anchor, ocv_handler](int) {
                     auto& [sample_out, sample_in] = views;
                     RunSample(sample_out, sample_filter, sample_in, sample_anchor, ocv_handler);

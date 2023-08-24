@@ -333,7 +333,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
   int nblocks = split_shape(split_factor, out_shape, req_nblocks, min_blk_sz, skip_dim_mask);
 
   if (nblocks == 1) {
-    exec_engine.AddWork([=](int) {
+    exec_engine.AddTask([=](int) {
       SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape, args.anchor,
                   args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim);
     }, kSliceCost * volume(out_shape), false);  // do not start work immediately
