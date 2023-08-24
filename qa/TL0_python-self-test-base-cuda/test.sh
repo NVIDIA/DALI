@@ -11,7 +11,7 @@ version_eq "$DALI_CUDA_MAJOR_VERSION" "12" && \
   mv /usr/local/cuda /usr/local/cuda_bak && \
   ln -s cuda-12.0 /usr/local/cuda
 version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
-  pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` \
+  pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` && CUDA_WHEELS_REMOVED=1 \
   || true
 
 export DO_NOT_INSTALL_CUDA_WHEEL="TRUE"
@@ -33,10 +33,11 @@ bash -e ./test.sh
 popd
 
 # restore old CUDA symlink, reinstall the latest CUDA wheels
-version_eq "$DALI_CUDA_MAJOR_VERSION" "11" && \
-  rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda
 version_ge "$DALI_CUDA_MAJOR_VERSION" "11" && \
-  pip install nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
-              nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
-              nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
-  || true
+  rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda && \
+  if [ -n "$CUDA_WHEELS_REMOVED" ]; then
+    pip install nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
+                nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
+                nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} && \
+    unset CUDA_WHEELS_REMOVED;
+  fi || true
