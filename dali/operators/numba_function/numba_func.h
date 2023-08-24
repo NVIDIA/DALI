@@ -103,8 +103,8 @@ class NumbaFuncImpl : public Operator<Backend> {
   SmallVector<DALIDataType, 6> in_types_;
   SmallVector<int, 6> outs_ndim_;
   SmallVector<int, 6> ins_ndim_;
-  std::vector<uint64_t> output_shape_ptrs_;
-  std::vector<uint64_t> input_shape_ptrs_;
+  std::vector<uintptr_t> output_shape_ptrs_;
+  std::vector<uintptr_t> input_shape_ptrs_;
   vector<TensorListShape<-1>> in_shapes_;
   vector<TensorListShape<-1>> out_shapes_;
   vector<TensorShape<-1>> in_strides_;

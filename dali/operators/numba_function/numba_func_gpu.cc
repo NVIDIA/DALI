@@ -55,6 +55,13 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
       "`ins_ndim` at index ", i, " is negative."));
   }
 
+  if (!setup_fn_) {
+    DALI_ENFORCE(out_types_.size() == in_types_.size(), make_string(
+      "Size of `out_types` should match size of `in_types` if the custom `setup_fn` function ",
+      "is not provided. Provided ", in_types_.size(), " inputs and ", out_types_.size(),
+      " outputs."));
+  }
+
   blocks_ = spec.GetRepeatedArgument<int>("blocks");
   DALI_ENFORCE(blocks_.size() == 3, make_string(
     "`blocks` array should contain 3 numbers, while received: ", blocks_.size()));
@@ -73,6 +80,19 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
       "All dimensions should be positive. Value specified in "
       "`blocks` at index ", i, " is nonpositive: ", threads_per_block_[i]));
   }
+
+  int blocks_per_sm;
+  CUfunction cu_func = reinterpret_cast<CUfunction>(run_fn_);
+  int blockDim = volume(threads_per_block_);
+  CUDA_CALL(cuOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm, cu_func, blockDim, 0));
+  DALI_ENFORCE(blocks_per_sm, "Too many threads per block specified for the Numba provided GPU "
+                                "kernel");
+  auto number_of_blocks = GetSmCount() * blocks_per_sm;
+  if (number_of_blocks > volume(blocks_)) {
+    DALI_WARN(make_string("It is recommended that the grid volume: ", volume(blocks_),
+                          " for the Numba provided GPU kernel is at least: ",
+                          number_of_blocks));
+  }
 }
 
 
@@ -89,7 +109,7 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_d
   for (int in_id = 0; in_id < ninputs; in_id++) {
     for (int i = 0; i < nsamples; i++) {
       input_shape_ptrs_[nsamples * in_id + i] =
-        reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
+        reinterpret_cast<uintptr_t>(in_shapes_[in_id].tensor_shape_span(i).data());
     }
   }
 
@@ -97,7 +117,7 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_d
   for (int out_id = 0; out_id < noutputs; out_id++) {
     for (int i = 0; i < nsamples; i++) {
       output_shape_ptrs_[nsamples * out_id + i] =
-        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
+        reinterpret_cast<uintptr_t>(out_shapes_[out_id].tensor_shape_span(i).data());
     }
   }
 
@@ -111,9 +131,8 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_d
       auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
       for (int d = 0; d < outs_ndim_[out_id]; d++) {
         DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
-          "Shape of data should be non negative. ",
-          "After setup function shape for output number ",
-          out_id, " in sample ", i, " at dimension ", d, " is negative."));
+          "A shape of a tensor cannot contain negative extents. The setup function produced an "
+          "invalid shape of output ", out_id, " at sample ", i, ":\n", output_desc[out_id].shape));
       }
     }
   }
@@ -136,11 +155,7 @@ void NumbaFuncImpl<GPUBackend>::OutputsSetupFn(std::vector<OutputDesc> &output_d
 template <>
 void NumbaFuncImpl<GPUBackend>::OutputsSetupNoFn(std::vector<OutputDesc> &output_desc,
                                                  int noutputs, int ninputs, int nsamples) {
-  DALI_ENFORCE(noutputs == ninputs, make_string(
-      "Size of `out_types` should match size of `in_types` if the custom `setup_fn` function ",
-      "is not provided. Provided ", ninputs, " inputs and ", noutputs,
-      " outputs."));
-
+  assert(ninputs == noutputs);
   out_arrays_ = in_arrays_;
 
   for (int i = 0; i < noutputs; i++) {
@@ -225,26 +240,13 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(Workspace &ws) {
       auto &dev_array = in_arrays_[in_id * N + i];
       dev_array.PushArgs(args);
     }
-
-    int blocks_per_sm_;
-    CUfunction cuFunc = reinterpret_cast<CUfunction>(run_fn_);
-    int blockDim = volume(threads_per_block_);
-    CUDA_CALL(cuOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, cuFunc, blockDim, 0));
-    DALI_ENFORCE(blocks_per_sm_, "To many threads per block specified for the Numba provided GPU "
-                                 "kernel");
-    auto number_of_blocks = GetSmCount() * blocks_per_sm_;
-    if (number_of_blocks > volume(blocks_)) {
-      DALI_WARN(make_string("It is recommended that the grid volume: ", volume(blocks_),
-                            " for the Numba provided GPU kernel is at least: ",
-                            number_of_blocks));
-    }
-
-    CUDA_CALL(cuLaunchKernel(cuFunc,
+    CUfunction cu_func = reinterpret_cast<CUfunction>(run_fn_);
+    CUDA_CALL(cuLaunchKernel(cu_func,
                              blocks_[0], blocks_[1], blocks_[2],
                              threads_per_block_[0], threads_per_block_[1], threads_per_block_[2],
                              0,
                              ws.stream(),
-                             static_cast<void**>(args.data()),
+                             args.data(),
                              nullptr));
   }
 }
