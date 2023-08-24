@@ -223,7 +223,7 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))),
-      case_insensitive_extensions_(spec.GetArgument<bool>("case_insensitive_extensions")) {
+      case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
                make_string("The number of index files, if any, must match the number of archives ",
                "in the dataset"));
@@ -242,7 +242,7 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     std::string ext;
     ext_.emplace_back();
     while (std::getline(exts_stream, ext, detail::wds::kExtDelim)) {
-      if (case_insensitive_extensions_) {
+      if (!case_sensitive_extensions_) {
         ext = str_tolower(ext);
       }
       if (!ext_.back().count(ext)) {
@@ -422,7 +422,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
         component.outputs =
             detail::wds::VectorRange<size_t>(output_indicies_, output_indicies_.size());
         auto ext = component.ext;
-        if (case_insensitive_extensions_) {
+        if (!case_sensitive_extensions_) {
           ext = str_tolower(ext);
         }
         for (auto& output : ext_map[ext]) {
