@@ -860,7 +860,7 @@ class DummyCheckpointableOperatorCPU : public Operator<CPUBackend> {
 
 class DummyCheckpointableOperatorMixed : public Operator<MixedBackend> {
  public:
-  explicit DummyCheckpointableOperatorMixed (const OpSpec &spec)
+  explicit DummyCheckpointableOperatorMixed(const OpSpec &spec)
       : Operator<MixedBackend>(spec) {}
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
@@ -891,41 +891,6 @@ class DummyCheckpointableOperatorMixed : public Operator<MixedBackend> {
 
  private:
   uint8_t state_ = 0;
-};
-
-class DummyCheckpointableOperatorGPU : public Operator<GPUBackend> {
- public:
-  explicit DummyCheckpointableOperatorGPU (const OpSpec &spec)
-      : Operator<GPUBackend>(spec) {}
-
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = state_;
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    state_ = cpt.CheckpointState<uint8_t>();
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const Workspace &ws) override { return false; }
-
-  void Run(Workspace &ws) override {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    int samples = input.num_samples();
-    output.set_type(DALI_UINT8);
-    output.Resize(uniform_list_shape(samples, {1}));
-
-    std::vector<uint8_t> buffer(samples);
-    for (int i = 0; i < samples; i++) {
-      buffer[i] = input.tensor<uint8_t>(i)[0] + state_++;
-      cudaMemcpyAsync(output.mutable_tensor<uint8_t>(i), &buffer[i], sizeof(uint8_t),
-                      cudaMemcpyDeviceToDevice, ws.stream());
-    }
-  }
-
- private:
-  uint8_t state_;
 };
 
 DALI_REGISTER_OPERATOR(DummyCptingSource, DummyCheckpointableSource, CPU);
