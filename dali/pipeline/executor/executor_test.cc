@@ -784,128 +784,7 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   EXPECT_TRUE(this->HasConditionals(*exe_with_cond));
 }
 
-class DummyCheckpointableSource : public Operator<CPUBackend> {
- public:
-  explicit DummyCheckpointableSource(const OpSpec &spec)
-      : Operator<CPUBackend>(spec),
-        epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = state_;
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    EXPECT_GT(checkpoints_to_collect_--, 0);
-    state_ = cpt.CheckpointState<uint8_t>();
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const Workspace &ws) override { return false; }
-
-  void RunImpl(Workspace &ws) override {
-    auto &output = ws.Output<CPUBackend>(0);
-    int samples = output.num_samples();
-    output.set_type(DALI_UINT8);
-    output.Resize(uniform_list_shape(samples, {1}));
-
-    /* Check if a new epoch starts at the start of the run, just like in Readers. */
-    if (state_ == epoch_size_) {
-      state_ = 0;
-      checkpoints_to_collect_++;  /* simulate putting a checkpoint into a queue */
-    }
-
-    /* Return increasing integers as the samples, padding the last batch */
-    for (int i = 0; i < samples; i++) {
-      state_ = (state_ < epoch_size_ ? state_ : epoch_size_ - 1);
-      output.mutable_tensor<uint8_t>(i)[0] = state_++;
-    }
-  }
-
- private:
-  uint8_t state_ = 0;
-  int checkpoints_to_collect_ = 1;
-  int epoch_size_;
-};
-
-class DummyCheckpointableOperatorCPU : public Operator<CPUBackend> {
- public:
-  explicit DummyCheckpointableOperatorCPU(const OpSpec &spec)
-      : Operator<CPUBackend>(spec) {}
-
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = state_;
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    state_ = cpt.CheckpointState<uint8_t>();
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const Workspace &ws) override { return false; }
-
-  void RunImpl(Workspace &ws) override {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
-    int samples = input.num_samples();
-    output.set_type(DALI_UINT8);
-    output.Resize(uniform_list_shape(samples, {1}));
-
-    for (int i = 0; i < samples; i++)
-      output.mutable_tensor<uint8_t>(i)[0] = input.tensor<uint8_t>(i)[0] + state_++;
-  }
-
- private:
-  uint8_t state_ = 0;
-};
-
-class DummyCheckpointableOperatorMixed : public Operator<MixedBackend> {
- public:
-  explicit DummyCheckpointableOperatorMixed(const OpSpec &spec)
-      : Operator<MixedBackend>(spec) {}
-
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = state_;
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    state_ = cpt.CheckpointState<uint8_t>();
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const Workspace &ws) override { return false; }
-
-  void Run(Workspace &ws) override {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    int samples = input.num_samples();
-    output.set_type(DALI_UINT8);
-    output.Resize(uniform_list_shape(samples, {1}));
-
-    std::vector<uint8_t> buffer(samples);
-    for (int i = 0; i < samples; i++) {
-      buffer[i] = input.tensor<uint8_t>(i)[0] + state_++;
-      cudaMemcpyAsync(output.mutable_tensor<uint8_t>(i), &buffer[i], sizeof(uint8_t),
-                      cudaMemcpyHostToDevice, ws.stream());
-    }
-  }
-
- private:
-  uint8_t state_ = 0;
-};
-
-DALI_REGISTER_OPERATOR(DummyCptingSource, DummyCheckpointableSource, CPU);
-DALI_SCHEMA(DummyCptingSource)
-  .DocStr("Dummy")
-  .AddArg("epoch_size", "Dummy epoch size", DALI_INT32)
-  .NumInput(0)
-  .NumOutput(1);
-
-DALI_REGISTER_OPERATOR(DummyCptingOp, DummyCheckpointableOperatorCPU, CPU);
-DALI_REGISTER_OPERATOR(DummyCptingOp, DummyCheckpointableOperatorMixed, Mixed);
-DALI_SCHEMA(DummyCptingOp)
-  .DocStr("Dummy")
-  .NumInput(1)
-  .NumOutput(1);
 
 TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
   constexpr int epoch_size = 4;
@@ -918,7 +797,7 @@ TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
     auto graph = std::make_unique<OpGraph>();
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingSource")
+        OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
           .AddOutput("state", "cpu")),
@@ -947,7 +826,7 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
     auto graph = std::make_unique<OpGraph>();
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingSource")
+        OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
           .AddOutput("data", "cpu")),
@@ -955,7 +834,7 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
 
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingOp")
+        OpSpec("TestStatefulOp")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
           .AddOutput("processed", "cpu")),
@@ -984,19 +863,27 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
     auto graph = std::make_unique<OpGraph>();
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingSource")
+        OpSpec("TestStatefulSource")
           .AddArg("checkpointing", true)
           .AddArg("epoch_size", epoch_size)
-          .AddOutput("data", "cpu")),
+          .AddOutput("data1", "cpu")),
       "dummy_src");
 
     graph->AddOp(
       this->PrepareSpec(
-        OpSpec("DummyCptingOp")
+        OpSpec("TestStatefulOp")
           .AddArg("device", "mixed")
-          .AddInput("data", "cpu")
+          .AddInput("data1", "cpu")
+          .AddOutput("data2", "gpu")),
+      "dummy_op1");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "gpu")
+          .AddInput("data2", "gpu")
           .AddOutput("processed", "gpu")),
-      "dummy_op");
+      "dummy_op2");
 
     exe->Build(graph.get(), {"processed_gpu"});
     return std::pair{std::move(exe), std::move(graph)};
