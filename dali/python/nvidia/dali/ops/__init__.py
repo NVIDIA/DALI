@@ -25,15 +25,19 @@ from nvidia.dali import fn as _functional
 from nvidia.dali import internal as _internal
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali.types import \
-        _type_name_convert_to_string, _type_convert_value, _default_converter, \
-        _vector_element_type, _bool_types, _int_like_types, _float_types, \
-        DALIDataType, \
-        CUDAStream as _CUDAStream, \
-        ScalarConstant as _ScalarConstant, \
-        Constant as _Constant
+from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,
+                               _default_converter, _vector_element_type, _bool_types,
+                               _int_like_types, _float_types, DALIDataType, CUDAStream as
+                               _CUDAStream, ScalarConstant as _ScalarConstant, Constant as
+                               _Constant)
 from nvidia.dali import _conditionals
 
+from nvidia.dali.ops import (_registry, _names, _docs)
+
+# reexpose what was previously visible:
+from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,
+                                       register_gpu_op)
+from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
 
 cupy = None
 
@@ -42,286 +46,6 @@ def _setup_cupy():
     global cupy
     if cupy is None:
         import cupy as cupy
-
-
-_cpu_ops = set({})
-_gpu_ops = set({})
-_mixed_ops = set({})
-
-
-def _numpydoc_formatter(name, type, doc, optional=False):
-    indent = "\n" + " " * 4
-    if optional:
-        type += ", optional"
-    return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
-
-
-def _get_inputs_doc(schema):
-    # Inputs section
-    if schema.MaxNumInput() == 0:
-        return ""
-    ret = """
-Args
-----
-"""
-    if schema.HasInputDox():
-        for i in range(schema.MaxNumInput()):
-            optional = i >= schema.MinNumInput()
-            input_type_str = schema.GetInputType(i) + _supported_layouts_str(
-                schema.GetSupportedLayouts(i))
-            dox = schema.GetInputDox(i)
-            input_name = schema.GetInputName(i)
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
-    else:
-        for i in range(schema.MinNumInput()):
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
-            dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
-
-        extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
-        if extra_opt_args == 1:
-            i = schema.MinNumInput()
-            input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
-            dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
-        elif extra_opt_args > 1:
-            input_type_str = "TensorList"
-            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
-            dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
-            ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
-
-    ret += "\n"
-    return ret
-
-
-def _get_kwargs(schema):
-    """
-    Get the keywords arguments from the schema.
-
-    `schema`
-        the schema in which to lookup arguments
-    """
-    ret = ""
-    for arg in schema.GetArgumentNames():
-        skip_full_doc = False
-        type_name = ""
-        dtype = None
-        doc = ""
-        deprecation_warning = None
-        if schema.IsDeprecatedArg(arg):
-            meta = schema.DeprecatedArgMeta(arg)
-            msg = meta['msg']
-            assert msg is not None
-            deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")
-            renamed_arg = meta['renamed_to']
-            # Renamed and removed arguments won't show full documentation (only warning box)
-            skip_full_doc = renamed_arg or meta['removed']
-            # Renamed aliases are not fully registered to the schema, that's why we query for the
-            # info on the renamed_arg name.
-            if renamed_arg:
-                dtype = schema.GetArgumentType(renamed_arg)
-                type_name = _type_name_convert_to_string(
-                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg))
-        # Try to get dtype only if not set already
-        # (renamed args go through a different path, see above)
-        if not dtype:
-            dtype = schema.GetArgumentType(arg)
-            type_name = _type_name_convert_to_string(dtype,
-                                                     allow_tensors=schema.IsTensorArgument(arg))
-        # Add argument documentation if necessary
-        if not skip_full_doc:
-            if schema.IsArgumentOptional(arg):
-                type_name += ", optional"
-                if schema.HasArgumentDefaultValue(arg):
-                    default_value_string = schema.GetArgumentDefaultValueString(arg)
-                    default_value = ast.literal_eval(default_value_string)
-                    type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
-            doc += schema.GetArgumentDox(arg).rstrip("\n")
-            if schema.ArgSupportsPerFrameInput(arg):
-                doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
-            if deprecation_warning:
-                doc += "\n\n" + deprecation_warning
-        elif deprecation_warning:
-            doc += deprecation_warning
-        ret += _numpydoc_formatter(arg, type_name, doc)
-        ret += '\n'
-    return ret
-
-
-def _schema_name(cls):
-    return getattr(cls, 'schema_name', cls.__name__)
-
-
-def _docstring_generator_main(cls, api):
-    """
-        Generate docstring for the class obtaining it from schema based on cls.__name__
-        This lists all the Keyword args that can be used when creating operator
-    """
-    op_name = _schema_name(cls)
-    schema = _b.GetSchema(op_name)
-    ret = '\n'
-
-    if schema.IsDeprecated():
-        use_instead = _op_name(schema.DeprecatedInFavorOf(), api)
-        ret += ".. warning::\n\n   This operator is now deprecated"
-        if use_instead:
-            ret += ". Use :meth:`" + use_instead + "` instead."
-        explanation = schema.DeprecationMessage()
-        if explanation:
-            indent = "\n" + " " * 3
-            ret += indent
-            ret += indent
-            explanation = explanation.replace("\n", indent)
-            ret += explanation
-        ret += "\n\n"
-
-    ret += schema.Dox()
-    ret += '\n'
-
-    if schema.IsDocPartiallyHidden():
-        return ret
-
-    supported_statements = []
-    if schema.IsSequenceOperator():
-        supported_statements.append("expects sequence inputs")
-    elif schema.AllowsSequences():
-        supported_statements.append("allows sequence inputs")
-
-    if schema.SupportsVolumetric():
-        supported_statements.append("supports volumetric data")
-
-    if len(supported_statements) > 0:
-        ret += "\nThis operator "
-        ret += supported_statements[0]
-        if len(supported_statements) > 1:
-            ret += " and " + supported_statements[1]
-        ret += ".\n"
-
-    if schema.IsNoPrune():
-        ret += "\nThis operator will **not** be optimized out of the graph.\n"
-
-    op_dev = []
-    if op_name in _cpu_ops:
-        op_dev.append("'cpu'")
-    if op_name in _gpu_ops:
-        op_dev.append("'gpu'")
-    if op_name in _mixed_ops:
-        op_dev.append("'mixed'")
-    ret += """
-Supported backends
-"""
-    for dev in op_dev:
-        ret += " * " + dev + "\n"
-    ret += "\n"
-    return ret
-
-
-def _docstring_generator(cls):
-    op_name = _schema_name(cls)
-    schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls, "ops")
-    if schema.IsDocPartiallyHidden():
-        return ret
-    ret += """
-Keyword args
-------------
-"""
-    ret += _get_kwargs(schema)
-    return ret
-
-
-def _supported_layouts_str(supported_layouts):
-    if len(supported_layouts) == 0:
-        return ""
-    return " (" + ", ".join(["\'" + str(layout) + "\'" for layout in supported_layouts]) + ")"
-
-
-def _docstring_prefix_from_inputs(op_name):
-    """
-        Generate start of the docstring for `__call__` of Operator `op_name`
-        assuming the docstrings were provided for all inputs separatelly
-
-        Returns the signature of `__call__` and list of `Args` in appropriate section
-    """
-    schema = _b.GetSchema(op_name)
-    # Signature
-    ret = "__call__(" + schema.GetCallSignatureInputs() + ", **kwargs)\n"
-    # __call__ docstring
-    ret += "\nOperator call to be used in graph definition.\n"
-    # Args section
-    ret += _get_inputs_doc(schema)
-    return ret
-
-
-def _docstring_prefix_auto(op_name):
-    """
-        Generate start of the docstring for `__call__` of Operator `op_name`
-        with default values. Assumes there will be 0 or 1 inputs
-    """
-    schema = _b.GetSchema(op_name)
-    if schema.MaxNumInput() == 0:
-        return """__call__(**kwargs)
-
-Operator call to be used in graph definition. This operator doesn't have any inputs.
-"""
-    elif schema.MaxNumInput() == 1:
-        ret = """__call__(data, **kwargs)
-
-Operator call to be used in graph definition.
-
-Args
-----
-"""
-        dox = "Input to the operator.\n"
-        fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
-        ret += _numpydoc_formatter("data", fmt, dox, optional=False)
-        return ret
-    return ""
-
-
-def _docstring_generator_call(op_name):
-    """
-        Generate full docstring for `__call__` of Operator `op_name`.
-    """
-    schema = _b.GetSchema(op_name)
-    if schema.IsDocPartiallyHidden():
-        return ""
-    if schema.HasCallDox():
-        ret = schema.GetCallDox()
-    elif schema.HasInputDox():
-        ret = _docstring_prefix_from_inputs(op_name)
-    elif schema.CanUseAutoInputDox():
-        ret = _docstring_prefix_auto(op_name)
-    else:
-        op_full_name, _, _ = _process_op_name(op_name)
-        ret = "See :meth:`nvidia.dali.ops." + op_full_name + "` class for complete information.\n"
-    if schema.AppendKwargsSection():
-        # Kwargs section
-        tensor_kwargs = _get_kwargs(schema)
-        if tensor_kwargs:
-            ret += """
-Keyword Args
-------------
-"""
-            ret += tensor_kwargs
-    return ret
-
-
-def _docstring_generator_fn(cls):
-    op_name = _schema_name(cls)
-    schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls, "fn")
-    if schema.IsDocPartiallyHidden():
-        return ret
-    ret += _get_inputs_doc(schema)
-    ret += """
-Keyword args
-------------
-"""
-    ret += _get_kwargs(schema)
-    return ret
 
 
 class _OpCounter(object):
@@ -557,7 +281,7 @@ class _DaliOperatorMeta(type):
 
     @property
     def __doc__(self):
-        return _docstring_generator(self)
+        return _docs._docstring_generator(self)
 
 
 def _check_arg_input(schema, op_name, name):
@@ -755,46 +479,25 @@ def python_op_factory(name, schema_name=None):
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
-    Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
+    Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 
-
-def _process_op_name(op_schema_name, make_hidden=False):
-    # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
-    namespace_delim = "__"
-    op_full_name = op_schema_name.replace(namespace_delim, '.')
-    *submodule, op_name = op_full_name.split('.')
-    if make_hidden:
-        submodule = [*submodule, 'hidden']
-    return op_full_name, submodule, op_name
-
-
-def _op_name(op_schema_name, api="fn"):
-    full_name, submodule, op_name = _process_op_name(op_schema_name)
-    if api == "fn":
-        return ".".join([*submodule, _functional._to_snake_case(op_name)])
-    elif api == "ops":
-        return full_name
-    else:
-        raise ValueError(f'{api} is not a valid DALI api name, try one of {"fn", "ops"}')
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
     return _functional._wrap_op(op_class, submodule, parent_module,
-                                _docstring_generator_fn(op_class))
+                                _docs._docstring_generator_fn(op_class))
 
 
 def _load_ops():
-    global _cpu_ops
-    global _gpu_ops
-    global _mixed_ops
-    _cpu_ops = _cpu_ops.union(set(_b.RegisteredCPUOps()))
-    _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
-    _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
-    _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
+    _registry._discover_ops()
+    _all_ops = _registry._all_registered_ops()
     ops_module = sys.modules[__name__]
 
-    for op_reg_name in _cpu_gpu_ops:
+    for op_reg_name in _all_ops:
+        # TODO(klecki): Make this a function: _add_op(op_reg_name) and invoke it immediately
+        # with register_xxx_op(). Now it relies on those class being present in this module
+        # at the time of registration.
         schema = _b.TryGetSchema(op_reg_name)
         make_hidden = schema.IsDocHidden() if schema else False
         _, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
@@ -812,10 +515,6 @@ def _load_ops():
             if make_hidden:
                 parent_module = _internal.get_submodule(ops_module, submodule[:-1])
                 setattr(parent_module, op_name, op_class)
-
-
-def Reload():
-    _load_ops()
 
 
 class _TFRecordReaderImpl():
@@ -890,10 +589,10 @@ class _TFRecordReaderImpl():
 
 
 def _load_readers_tfrecord():
-    _TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
+    _TFRecordReaderImpl.__call__.__doc__ = _docs._docstring_generator_call("readers__TFRecord")
 
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({'readers__TFRecord', 'TFRecordReader'})
+    _registry.register_cpu_op('readers__TFRecord')
+    _registry.register_cpu_op('TFRecordReader')
 
     ops_module = sys.modules[__name__]
 
@@ -1002,10 +701,8 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     schema_name = "PythonFunction"
-    global _cpu_ops
-    global _gpu_ops
-    _cpu_ops = _cpu_ops.union({'PythonFunction'})
-    _gpu_ops = _gpu_ops.union({'PythonFunction'})
+    _registry.register_cpu_op('PythonFunction')
+    _registry.register_gpu_op('PythonFunction')
 
     @staticmethod
     def current_stream():
@@ -1121,10 +818,8 @@ class PythonFunction(PythonFunctionBase):
 
 class DLTensorPythonFunction(PythonFunctionBase):
     schema_name = "DLTensorPythonFunction"
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({'DLTensorPythonFunction'})
-    global _gpu_ops
-    _gpu_ops = _gpu_ops.union({'DLTensorPythonFunction'})
+    _registry.register_cpu_op('DLTensorPythonFunction')
+    _registry.register_gpu_op('DLTensorPythonFunction')
 
     @staticmethod
     def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
@@ -1350,28 +1045,6 @@ def _arithm_op(name, *inputs):
     return result
 
 
-def cpu_ops():
-    return _cpu_ops
-
-
-def gpu_ops():
-    return _gpu_ops
-
-
-def mixed_ops():
-    return _mixed_ops
-
-
-def register_cpu_op(name):
-    global _cpu_ops
-    _cpu_ops = _cpu_ops.union({name})
-
-
-def register_gpu_op(name):
-    global _gpu_ops
-    _gpu_ops = _gpu_ops.union({name})
-
-
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
 from nvidia.dali.external_source import ExternalSource  # noqa: E402
@@ -1437,8 +1110,9 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
 
 
-_cpu_ops = _cpu_ops.union({"Compose"})
-_gpu_ops = _gpu_ops.union({"Compose"})
+_registry.register_cpu_op('Compose')
+_registry.register_gpu_op('Compose')
+
 
 _load_ops()
 
