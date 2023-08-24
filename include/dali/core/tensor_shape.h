@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -243,12 +243,20 @@ struct TensorShape<DynamicDimensions>
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim) {
+  static TensorShape empty_shape(int dim) {
     assert(dim > 0);
-    TensorShape<> result;
+    return TensorShape::filled_shape(dim, 0);
+  }
+
+  /**
+   * @brief Return shape of specified dimensionality filled with value
+   */
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim >= 0);
+    TensorShape result;
     result.resize(dim);
     for (auto &elem : result) {
-      elem = 0;
+      elem = value;
     }
     return result;
   }
@@ -317,12 +325,20 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim = ndim) {
-    assert(dim == ndim && "Not supported for count other than statically defined");
-    TensorShape<> result;
+  static TensorShape empty_shape(int dim = ndim) {
+    assert(dim > 0 && "0D always has exectly 1 element");
+    return filled_shape(dim, 0);
+  }
+
+  /**
+   * @brief Return shape of specified dimensionality filled with value
+   */
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim == ndim && "Not supported for dimensionality other than statically defined");
+    TensorShape result;
     result.resize(dim);
     for (auto &elem : result) {
-      elem = 0;
+      elem = value;
     }
     return result;
   }
