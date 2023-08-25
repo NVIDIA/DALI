@@ -25,7 +25,7 @@ const std::string &OpCheckpoint::OperatorName() const {
   return operator_name_;
 }
 
-std::any &OpCheckpoint::MutableCheckpointState() {
+CheckpointingData &OpCheckpoint::MutableCheckpointState() {
   return state_;
 }
 

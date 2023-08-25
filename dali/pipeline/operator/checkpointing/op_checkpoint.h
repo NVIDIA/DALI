@@ -23,6 +23,7 @@
 #include "dali/core/access_order.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
+#include "dali/pipeline/operator/checkpointing/checkpointing_data.h"
 
 namespace dali {
 
@@ -42,8 +43,8 @@ class OpCheckpoint {
 
   template<class T> const T &CheckpointState() const {
     try {
-      return std::any_cast<const T &>(state_);
-    } catch (const std::bad_any_cast &e) {
+      return std::get<T>(state_);
+    } catch (const std::bad_variant_access &e) {
       DALI_FAIL(make_string("Specified type of requested checkpoint data (`",
                 typeid(T).name(),
                 "`) doesn't match the data type saved in checkpoint. ",
@@ -51,7 +52,7 @@ class OpCheckpoint {
     }
   }
 
-  DLL_PUBLIC std::any &MutableCheckpointState();
+  DLL_PUBLIC CheckpointingData &MutableCheckpointState();
 
   /**
    * @brief Sets the access order of the checkpoint data, synchronizing if necessary.
@@ -62,7 +63,7 @@ class OpCheckpoint {
 
  private:
   const std::string operator_name_;
-  std::any state_;
+  CheckpointingData state_;
   AccessOrder order_;
 };
 

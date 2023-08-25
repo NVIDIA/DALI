@@ -22,11 +22,11 @@ TestStatefulOpMixed::TestStatefulOpMixed(const OpSpec &spec)
     : Operator<MixedBackend>(spec) {}
 
 void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
-  cpt.MutableCheckpointState() = state_;
+  cpt.MutableCheckpointState() = DummySnapshot{{state_}};
 }
 
 void TestStatefulOpMixed::RestoreState(const OpCheckpoint &cpt) {
-  state_ = cpt.CheckpointState<uint8_t>();
+  state_ = cpt.CheckpointState<DummySnapshot>().dummy_state[0];
 }
 
 bool TestStatefulOpMixed::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
@@ -62,18 +62,18 @@ TestStatefulOpGPU::~TestStatefulOpGPU() {
 void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
   DALI_ENFORCE(stream, "Cuda stream was not provided for GPU operator checkpointing. ");
 
-  std::any &cpt_state = cpt.MutableCheckpointState();
-  if (!cpt_state.has_value())
-    cpt_state = std::vector<uint8_t>(max_batch_size_);
+  CheckpointingData &cpt_state = cpt.MutableCheckpointState();
+  if (!std::holds_alternative<DummySnapshot>(cpt_state))
+    cpt_state = DummySnapshot{std::vector<uint8_t>(max_batch_size_)};
 
   cpt.SetOrder(AccessOrder(*stream));
-  CUDA_CALL(cudaMemcpyAsync(std::any_cast<std::vector<uint8_t>>(cpt_state).data(),
+  CUDA_CALL(cudaMemcpyAsync(std::get<DummySnapshot>(cpt_state).dummy_state.data(),
                             state_, sizeof(uint8_t) * max_batch_size_,
                             cudaMemcpyDeviceToHost, *stream));
 }
 
 void TestStatefulOpGPU::RestoreState(const OpCheckpoint &cpt) {
-  CUDA_CALL(cudaMemcpy(state_, cpt.CheckpointState<std::vector<uint8_t>>().data(),
+  CUDA_CALL(cudaMemcpy(state_, cpt.CheckpointState<DummySnapshot>().dummy_state.data(),
                        sizeof(uint8_t) * max_batch_size_, cudaMemcpyHostToDevice));
 }
 

@@ -34,7 +34,7 @@ class RNGBase : public Operator<Backend> {
  public:
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      cpt.MutableCheckpointState() = rng_;
+      cpt.MutableCheckpointState() = RNGSnapshotCPU64{rng_.ToVector()};
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
       DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
@@ -43,7 +43,7 @@ class RNGBase : public Operator<Backend> {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      rng_ = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+      rng_ = BatchRNG<std::mt19937_64>::FromVector(cpt.CheckpointState<RNGSnapshotCPU64>().rng);
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
       DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
