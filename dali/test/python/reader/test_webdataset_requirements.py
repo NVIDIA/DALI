@@ -26,7 +26,6 @@ from webdataset_base import test_batch_size  # noqa:F401, this is a parameter us
 
 
 def test_return_empty():
-    global test_batch_size
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar")
     index_file = generate_temp_index_file(tar_file_path)
@@ -54,7 +53,6 @@ def test_return_empty():
 
 
 def test_skip_sample():
-    global test_batch_size
     num_samples = 500
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar")
     index_file = generate_temp_index_file(tar_file_path)
@@ -96,7 +94,6 @@ def test_skip_sample():
 
 
 def test_raise_error_on_missing():
-    global test_batch_size
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/missing.tar")
     index_file = generate_temp_index_file(tar_file_path)
     wds_pipeline = webdataset_raw_pipeline(
@@ -112,7 +109,6 @@ def test_raise_error_on_missing():
 
 
 def test_different_components():
-    global test_batch_size
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/scrambled.tar")
     index_file = generate_temp_index_file(tar_file_path)
@@ -139,7 +135,6 @@ def test_different_components():
 
 
 def test_dtypes():
-    global test_batch_size
     num_samples = 100
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/dtypes.tar")
     index_file = generate_temp_index_file(tar_file_path)
@@ -163,7 +158,6 @@ def test_dtypes():
 
 
 def test_wds_sharding():
-    global test_batch_size
     num_samples = 3000
     tar_file_paths = [
         os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
@@ -203,7 +197,6 @@ def test_wds_sharding():
 
 
 def test_sharding():
-    global test_batch_size
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     index_file = generate_temp_index_file(tar_file_path)
@@ -240,7 +233,6 @@ def test_sharding():
 
 
 def test_pax_format():
-    global test_batch_size
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     pax_tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/pax/devel-0.tar")
@@ -274,8 +266,149 @@ def test_pax_format():
         )
 
 
+def test_case_sensitive_container_format():
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
+                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    with assert_raises(RuntimeError, glob="Underful sample detected at"):
+        for shard_id in range(num_shards):
+            compare_pipelines(
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ["jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                webdataset_raw_pipeline(
+                    case_insensitive_tar_file_path,
+                    None,
+                    ext=["jpg", "cls"],
+                    missing_component_behavior="error",
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                test_batch_size,
+                math.ceil(num_samples / num_shards / test_batch_size) * 2,
+            )
+
+
+def test_case_sensitive_arg_format():
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    with assert_raises(RuntimeError, glob="Underful sample detected at"):
+        for shard_id in range(num_shards):
+            compare_pipelines(
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ["jpg", "cls"],
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                webdataset_raw_pipeline(
+                    tar_file_path,
+                    index_file.name,
+                    ext=["Jpg", "cls"],
+                    missing_component_behavior="error",
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    batch_size=test_batch_size,
+                    device_id=0,
+                    num_threads=1,
+                ),
+                test_batch_size,
+                math.ceil(num_samples / num_shards / test_batch_size) * 2,
+            )
+
+
+def test_case_insensitive_container_format():
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
+                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            webdataset_raw_pipeline(
+                case_insensitive_tar_file_path,
+                None,
+                ext=["jpg", "cls"],
+                case_sensitive_extensions=False,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
+
+
+def test_case_insensitive_arg_format():
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ext=["Jpg", "cls"],
+                case_sensitive_extensions=False,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
+
+
 def test_index_generation():
-    global test_batch_size
     num_samples = 3000
     tar_file_paths = [
         os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
