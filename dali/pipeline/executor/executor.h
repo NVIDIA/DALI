@@ -146,9 +146,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
   /**
-   * Returns the checkpoint for the given iteration ID.
+   * Returns the current checkpoint.
   */
-  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint(size_t iteration_id);
+  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint();
 
   /**
    * Restores states of operators.

@@ -387,7 +387,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   // If it is the first iteration, create initial checkpoint.
   if (checkpointing_ && iteration_id == 0) {
-    auto &cpt = GetCurrentCheckpoint(iteration_id).GetOpCheckpoint(op_node.id);
+    auto &cpt = GetCurrentIterationData(iteration_id).checkpoint.GetOpCheckpoint(op_node.id);
     op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
   }
 
@@ -512,7 +512,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   /* TODO(michalz): Find a way to make this valid in presence of passthrough between stages
   // Set the output order to the stage's stream
-  for (int i = 0; i < ws.NumOutput(); i++) {
+  for (int i = 0; i < ws.NumOutput(); i.++) {
     if (ws.OutputIsType<CPUBackend>(i)) {
       ws.Output<CPUBackend>(i).set_order(ws_order);
     } else {
@@ -533,7 +533,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   // If it is the end of an epoch, create a checkpoint
   if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0) {
-    auto &cpt = GetCurrentCheckpoint(iteration_id + 1).GetOpCheckpoint(op_node.id);
+    auto &cpt = GetCurrentIterationData(iteration_id + 1).checkpoint.GetOpCheckpoint(op_node.id);
     op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
   }
 }
@@ -667,19 +667,23 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
 
   checkpointing_epoch_size_ = -1;
+  const std::string *reader_name = nullptr;
   for (const auto &node : graph_->GetOpNodes()) {
     auto meta = node.op->GetReaderMeta();
     if (meta.epoch_size_padded <= 0)
       continue;
 
     int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
-    if (checkpointing_epoch_size_ == -1)
+    if (checkpointing_epoch_size_ == -1) {
       checkpointing_epoch_size_ = local_epoch_size;
-    else if (checkpointing_epoch_size_ != local_epoch_size)
+      reader_name = &node.spec.name();
+    }
+    else if (checkpointing_epoch_size_ != local_epoch_size) {
       DALI_FAIL(make_string(
         "When the checkpointing is enabled, all readers must have the same epoch size. ",
-        "The readers and have different epoch sizes ",
+        "The readers ", *reader_name, " and ", node.spec.name(), " have different epoch sizes ",
         "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
+    }
   }
 
   /* If there is no operator with ReaderMeta, set the epoch size to 1. */
@@ -689,8 +693,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &
-Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint(size_t iteration_id) {
-  return GetCurrentIterationData(iteration_id).checkpoint;
+Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
+  return GetCurrentIterationData(output_iteration_id_).checkpoint;
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
