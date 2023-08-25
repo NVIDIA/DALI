@@ -512,7 +512,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   /* TODO(michalz): Find a way to make this valid in presence of passthrough between stages
   // Set the output order to the stage's stream
-  for (int i = 0; i < ws.NumOutput(); i.++) {
+  for (int i = 0; i < ws.NumOutput(); i++) {
     if (ws.OutputIsType<CPUBackend>(i)) {
       ws.Output<CPUBackend>(i).set_order(ws_order);
     } else {
