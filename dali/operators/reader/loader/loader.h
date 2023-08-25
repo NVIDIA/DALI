@@ -32,6 +32,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/operator/checkpointing/checkpointing_data.h"
 #include "dali/operators/decoder/cache/image_cache_factory.h"
 
 namespace dali {
@@ -42,14 +43,6 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 
 DLL_PUBLIC Index num_samples(const size_t shard_num,
                              const size_t size);
-
-/**
- * @brief Structure describing Loader base state, at the begining of an epoch.
-*/
-struct LoaderStateSnapshot {
-  std::default_random_engine rng;
-  int current_epoch;
-};
 
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind

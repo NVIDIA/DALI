@@ -26,11 +26,11 @@ void TestStatefulSource::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t
   DALI_ENFORCE(checkpoints_to_collect_ > 0,
                "Attempting to collect a checkpoint from an empty queue. ");
   checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
-  cpt.MutableCheckpointState() = state_;
+  cpt.MutableCheckpointState() = DummySnapshot{{state_}};
 }
 
 void TestStatefulSource::RestoreState(const OpCheckpoint &cpt) {
-  state_ = cpt.CheckpointState<uint8_t>();
+  state_ = cpt.CheckpointState<DummySnapshot>().dummy_state[0];
 }
 
 bool TestStatefulSource::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
@@ -60,11 +60,11 @@ TestStatefulOpCPU::TestStatefulOpCPU(const OpSpec &spec)
     : Operator<CPUBackend>(spec) {}
 
 void TestStatefulOpCPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
-  cpt.MutableCheckpointState() = state_;
+  cpt.MutableCheckpointState() = DummySnapshot{{state_}};
 }
 
 void TestStatefulOpCPU::RestoreState(const OpCheckpoint &cpt) {
-  state_ = cpt.CheckpointState<uint8_t>();
+  state_ = cpt.CheckpointState<DummySnapshot>().dummy_state[0];
 }
 
 bool TestStatefulOpCPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {

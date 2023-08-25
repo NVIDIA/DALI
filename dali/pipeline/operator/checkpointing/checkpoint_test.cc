@@ -33,32 +33,32 @@ class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
  public:
   explicit DummyOperatorWithState(const OpSpec &spec)
       : Operator<CPUBackend>(spec)
-      , state_(spec.GetArgument<uint32_t>("dummy_state")) {}
+      , state_(spec.GetArgument<uint8_t>("dummy_state")) {}
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = state_;
+    cpt.MutableCheckpointState() = DummySnapshot{{state_}};
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    state_ = cpt.CheckpointState<uint32_t>();
+    state_ = cpt.CheckpointState<DummySnapshot>().dummy_state[0];
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const Workspace &ws) override { return false; }
 
-  uint32_t GetState() const { return state_; }
+  uint8_t GetState() const { return state_; }
 
  private:
-  uint32_t state_;
+  uint8_t state_;
 };
 
 struct DummyGPUData {
-  uint32_t *ptr;
+  uint8_t *ptr;
   AccessOrder order;
 
-  inline DummyGPUData(cudaStream_t stream, uint32_t value) : order(stream) {
-    CUDA_CALL(cudaMalloc(&ptr, sizeof(uint32_t)));
-    CUDA_CALL(cudaMemcpyAsync(ptr, &value, sizeof(uint32_t),
+  inline DummyGPUData(cudaStream_t stream, uint8_t value) : order(stream) {
+    CUDA_CALL(cudaMalloc(&ptr, sizeof(uint8_t)));
+    CUDA_CALL(cudaMemcpyAsync(ptr, &value, sizeof(uint8_t),
                               cudaMemcpyHostToDevice, stream));
   }
 
@@ -73,24 +73,24 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
   explicit DummyOperatorWithState(const OpSpec &spec)
       : Operator<GPUBackend>(spec)
       , state_(spec.GetArgument<cudaStream_t>("cuda_stream"),
-               spec.GetArgument<uint32_t>("dummy_state")) {}
+               spec.GetArgument<uint8_t>("dummy_state")) {}
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
     if (!stream)
       FAIL() << "Cuda stream was not provided for GPU operator checkpointing.";
 
-    std::any &cpt_state = cpt.MutableCheckpointState();
-    if (!cpt_state.has_value())
-      cpt_state = static_cast<uint32_t>(0);
+    CheckpointingData &cpt_state = cpt.MutableCheckpointState();
+    if (!std::holds_alternative<DummySnapshot>(cpt_state))
+      cpt_state = DummySnapshot{{0}};
 
     cpt.SetOrder(AccessOrder(*stream));
-    CUDA_CALL(cudaMemcpyAsync(&std::any_cast<uint32_t &>(cpt_state), state_.ptr,
-                              sizeof(uint32_t), cudaMemcpyDeviceToHost, *stream));
+    CUDA_CALL(cudaMemcpyAsync(std::get<DummySnapshot>(cpt_state).dummy_state.data(),
+                              state_.ptr, sizeof(uint8_t), cudaMemcpyDeviceToHost, *stream));
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    CUDA_CALL(cudaMemcpy(state_.ptr, &cpt.CheckpointState<uint32_t>(),
-                         sizeof(uint32_t), cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMemcpy(state_.ptr, cpt.CheckpointState<DummySnapshot>().dummy_state.data(),
+                         sizeof(uint8_t), cudaMemcpyHostToDevice));
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -98,10 +98,10 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
 
   void RunImpl(Workspace &ws) override {}
 
-  uint32_t GetState() const {
-    uint32_t ret;
+  uint8_t GetState() const {
+    uint8_t ret;
     state_.order.wait(AccessOrder::host());
-    CUDA_CALL(cudaMemcpy(&ret, state_.ptr, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaMemcpy(&ret, state_.ptr, sizeof(uint8_t), cudaMemcpyDeviceToHost));
     return ret;
   }
 
@@ -151,7 +151,7 @@ class CheckpointTest : public DALITest {
     return spec;
   }
 
-  uint32_t GetDummyState(const OperatorBase &dummy_op) {
+  uint8_t GetDummyState(const OperatorBase &dummy_op) {
     try {
       return GetDummyStateTyped<CPUBackend>(dummy_op);
     } catch(const std::bad_cast &) {
@@ -200,7 +200,7 @@ class CheckpointTest : public DALITest {
                 this->GetDummyState(*new_graph.Node(i).op));
   }
 
-  uint32_t NextState(OperatorStatesPolicy policy) {
+  uint8_t NextState(OperatorStatesPolicy policy) {
     switch (policy) {
       case UNIQUE_STATES:
         return this->counter_++;
@@ -214,11 +214,11 @@ class CheckpointTest : public DALITest {
 
  private:
   template<class Backend>
-  uint32_t GetDummyStateTyped(const OperatorBase &dummy_op) {
+  uint8_t GetDummyStateTyped(const OperatorBase &dummy_op) {
     return dynamic_cast<const DummyOperatorWithState<Backend> &>(dummy_op).GetState();
   }
 
-  uint32_t counter_ = 0;
+  uint8_t counter_ = 0;
   CUDAStreamLease stream_;
 };
 
