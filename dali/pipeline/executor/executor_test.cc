@@ -92,7 +92,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     };
 
     Workspace ws;
-    auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec, int &iteration_id) {
+    auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec) {
       std::vector<std::vector<uint8_t>> results;
       for (int i = 0; i < epoch_size; i++) {
         exec->RunCPU();
@@ -109,24 +109,20 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
         }
       }
 
-      auto cpt = exec->GetCurrentCheckpoint(iteration_id);
-      iteration_id += epoch_size;
-      return std::pair{results, cpt};
+      return results;
     };
 
     auto [exec1, graph1] = executor_and_graph_factory();
     auto [exec2, graph2] = executor_and_graph_factory();
 
-    int iter1 = 0;
     for (int i = 0; i < epochs_cnt; i++)
-      run_epoch(exec1, iter1);
+      run_epoch(exec1);
 
-    auto cpt = exec1->GetCurrentCheckpoint(iter1);
+    auto cpt = exec1->GetCurrentCheckpoint();
     exec2->RestoreStateFromCheckpoint(cpt);
 
-    int iter2 = iter1;
     for (int i = 0; i < epochs_cnt; i++)
-      EXPECT_EQ(run_epoch(exec1, iter1).first, run_epoch(exec2, iter2).first);
+      EXPECT_EQ(run_epoch(exec1), run_epoch(exec2));
   }
 
   int batch_size_, num_threads_ = 1;
