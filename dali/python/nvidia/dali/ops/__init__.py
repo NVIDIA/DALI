@@ -13,7 +13,6 @@
 # limitations under the License.
 
 # pylint: disable=no-member
-import ast
 import sys
 import threading
 import warnings
@@ -25,18 +24,18 @@ from nvidia.dali import fn as _functional
 from nvidia.dali import internal as _internal
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,
-                               _default_converter, _vector_element_type, _bool_types,
+from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,  # noqa: F401
+                               _default_converter, _vector_element_type, _bool_types,  # noqa: F401
                                _int_like_types, _float_types, DALIDataType, CUDAStream as
                                _CUDAStream, ScalarConstant as _ScalarConstant, Constant as
-                               _Constant)
+                               _Constant)  # noqa: F401
 from nvidia.dali import _conditionals
 
-from nvidia.dali.ops import (_registry, _names, _docs)
+from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
 
 # reexpose what was previously visible:
-from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,
-                                       register_gpu_op)
+from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
+                                       register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
 
 cupy = None
@@ -481,7 +480,6 @@ def python_op_factory(name, schema_name=None):
     Operator.schema_name = schema_name or Operator.__name__
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
-
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
