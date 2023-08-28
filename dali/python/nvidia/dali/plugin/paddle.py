@@ -18,11 +18,18 @@ import math
 
 import numpy as np
 import paddle
+from distutils.version import LooseVersion
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+
+
+assert LooseVersion(paddle.__version__) == LooseVersion('0.0.0') or \
+    LooseVersion(paddle.__version__) >= LooseVersion('2.0.0'), \
+    "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
+
 
 dtype_map = {
     types.DALIDataType.BOOL:    paddle.framework.core.VarDesc.VarType.BOOL,
