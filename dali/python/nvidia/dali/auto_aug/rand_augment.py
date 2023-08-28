@@ -14,7 +14,7 @@
 
 import warnings
 
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 from nvidia.dali import fn
 from nvidia.dali import types
@@ -28,12 +28,20 @@ from nvidia.dali.auto_aug.core._utils import \
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
-def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
-                 shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
-                 interp_type: Optional[types.DALIInterpType] = None,
-                 max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
-                 seed: Optional[int] = None, monotonic_mag: bool = True,
-                 excluded: Optional[List[str]] = None) -> _DataNode:
+def rand_augment(
+    data: _DataNode,
+    n: int,
+    m: int,
+    num_magnitude_bins: int = 31,
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+    monotonic_mag: bool = True,
+    excluded: Optional[List[str]] = None,
+) -> _DataNode:
     """
     Applies RandAugment (https://arxiv.org/abs/1909.13719) augmentation scheme to the
     provided batch of samples.
@@ -41,8 +49,8 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
     Args
     ----
     data : DataNode
-        A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type.
+        A batch of samples to be processed. The supported samples are images
+        of `HWC` layout and videos of `FHWC` layout, the supported data type is `uint8`.
     n: int
         The number of randomly sampled operations to be applied to a sample.
     m: int
@@ -50,13 +58,14 @@ def rand_augment(data: _DataNode, n: int, m: int, num_magnitude_bins: int = 31,
         within ``[0, num_magnitude_bins - 1]``.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
-    shape: DataNode, optional
-        A batch of shapes of the samples. If specified, the magnitude of `translation`
-        operations depends on the image shape and spans from 0 to ``max_translate_rel * shape``.
-        Otherwise, the magnitude range is ``[0, max_translate_abs]`` for any sample.
+    shape: DataNode or Tuple[int, int], optional
+        The size (height and width) of the image or frames in the video sequence
+        passed as the `data`. If specified, the magnitude of `translation` operations
+        depends on the image/frame shape and spans from 0 to `max_translate_rel * shape`.
+        Otherwise, the magnitude range is `[0, max_translate_abs]` for any sample.
     fill_value: int, optional
-        A value to be used as a padding for images transformed with warp_affine ops
-        (translation, shear and rotate). If `None` is specified, the images are padded
+        A value to be used as a padding for images/frames transformed with warp_affine ops
+        (translation, shear and rotate). If `None` is specified, the images/frames are padded
         with the border value repeated (clamped).
     interp_type: types.DALIInterpType, optional
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
@@ -197,16 +206,16 @@ def get_rand_augment_suite(use_shape: bool = False, max_translate_abs: Optional[
     Args
     ----
     use_shape : bool
-        If true, the translation offset is computed as a percentage of the image. Useful if the
-        images processed with the auto augment have different shapes. If false, the offsets range
-        is bounded by a constant (`max_translate_abs`).
+        If true, the translation offset is computed as a percentage of the image/frame shape.
+        Useful if the samples processed with the auto augment have different shapes.
+        If false, the offsets range is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
         augmentations. If a tuple is specified, the first component limits height, the second the
         width. Defaults 100.
     max_translate_rel: float or (float, float), optional
-        Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If a tuple is specified, the first component limits
+        Only valid with use_shape=True, specifies the maximal shift as a fraction of image/frame
+        shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to around `0.45` (100/224).
     """
     default_translate_abs, default_translate_rel = 100, 100 / 224
