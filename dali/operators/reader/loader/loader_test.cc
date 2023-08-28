@@ -59,7 +59,7 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
     // grab an entry from the reader
     // tensor should be returned automatically when
     // shared_ptr to sample is destroyed
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
   }
 }
 #endif
@@ -75,7 +75,7 @@ TYPED_TEST(DataLoadStoreTest, FileLabelLoaderMmmap) {
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
     reader->PrepareMetadata();
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
     EXPECT_EQ(sample->image.shares_data(), !dont_use_mmap);
   }
 }
@@ -94,7 +94,7 @@ TYPED_TEST(DataLoadStoreTest, RecordIOLoaderMmmap) {
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
     reader->PrepareMetadata();
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
     EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
   }
 }
@@ -113,7 +113,7 @@ TYPED_TEST(DataLoadStoreTest, TFRecordLoaderMmmap) {
             .AddArg("dont_use_mmap", dont_use_mmap)));
 
     reader->PrepareMetadata();
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
     EXPECT_EQ(sample->shares_data(), !dont_use_mmap);
   }
 }
@@ -130,7 +130,7 @@ TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
                       .AddArg("dont_use_mmap", dont_use_mmap);
     shared_ptr<dali::CocoLoader> reader(new CocoLoader(coco_spec));
     reader->PrepareMetadata();
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
     EXPECT_EQ(sample->image.shares_data(), !dont_use_mmap);
   }
 }
@@ -149,7 +149,7 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
     // grab an entry from the reader
     // tensor should be returned automatically when
     // shared_ptr to sample is destroyed
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
   }
 }
 
@@ -173,7 +173,7 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 
   for (int i = 0; i < 10500; ++i) {
     // grab an entry from the reader
-    auto sample = reader->ReadOne(false);
+    auto sample = reader->ReadOne(false, false);
   }
 
   return;
