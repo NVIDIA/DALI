@@ -74,3 +74,34 @@ message PipelineDef {
   optional int32 device_id = 8 [default = 0];
   optional int64 seed = 9 [default = -1];
 }
+
+message Checkpoint {
+  message OpCheckpoint {
+    message RNGSnapshotCPU {
+      repeated string rng = 1;
+    }
+
+    message RNGSnapshotCPU64 {
+      repeated string rng = 1;
+    }
+
+    message LoaderStateSnapshot {
+      optional string rng = 1;
+      optional int32 current_epoch = 2;
+    }
+
+    message DummySnapshot {
+      repeated uint32 dummy_state = 1;
+    }
+
+    optional string operator_name = 1;
+    oneof data {
+      RNGSnapshotCPU rng_cpu = 2;
+      RNGSnapshotCPU64 rng_cpu64 = 3;
+      LoaderStateSnapshot loader = 4;
+      DummySnapshot dummy = 5;
+    }
+  }
+
+  repeated OpCheckpoint cpts = 1;
+}

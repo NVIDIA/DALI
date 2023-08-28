@@ -35,6 +35,7 @@ class OpSpec;
 class OpCheckpoint {
  public:
   DLL_PUBLIC explicit OpCheckpoint(const OpSpec &spec);
+  DLL_PUBLIC explicit OpCheckpoint(const std::string &operator_name);
 
   /**
    * @brief Returns name of the corresponding operator. Can be used for validation.
@@ -53,6 +54,8 @@ class OpCheckpoint {
   }
 
   DLL_PUBLIC CheckpointingData &MutableCheckpointState();
+
+  DLL_PUBLIC const CheckpointingData &GetCheckpointingData() const;
 
   /**
    * @brief Sets the access order of the checkpoint data, synchronizing if necessary.

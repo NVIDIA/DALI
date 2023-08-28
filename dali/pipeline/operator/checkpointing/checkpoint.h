@@ -42,6 +42,10 @@ class DLL_PUBLIC Checkpoint {
 
   DLL_PUBLIC size_t GetIterationId() const;
 
+  DLL_PUBLIC void SerializeToFile(const std::string &path) const;
+
+  DLL_PUBLIC void DeserializeFromFile(const std::string &path);
+
  private:
   std::vector<OpCheckpoint> cpts_;
   size_t iteration_id_ = 0;

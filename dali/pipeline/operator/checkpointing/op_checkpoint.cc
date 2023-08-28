@@ -21,11 +21,19 @@ OpCheckpoint::OpCheckpoint(const OpSpec &spec)
   : operator_name_(spec.name())
   , order_(AccessOrder::host()) {}
 
+OpCheckpoint::OpCheckpoint(const std::string &operator_name)
+  : operator_name_(operator_name)
+  , order_(AccessOrder::host()) {}
+
 const std::string &OpCheckpoint::OperatorName() const {
   return operator_name_;
 }
 
 CheckpointingData &OpCheckpoint::MutableCheckpointState() {
+  return state_;
+}
+
+const CheckpointingData &OpCheckpoint::GetCheckpointingData() const {
   return state_;
 }
 

@@ -336,4 +336,28 @@ TEST_F(CheckpointTest, Mixed) {
   });
 }
 
+TEST_F(CheckpointTest, Serialize) {
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummySource")
+          .AddArg("device", "cpu")
+          .AddArg("dummy_state", 0)
+          .AddOutput("data_node_1", "cpu")
+          .AddOutput("data_node_2", "cpu")), "");
+  graph.InstantiateOperators();
+
+  {
+    Checkpoint cpt;
+    cpt.Build(graph);
+    cpt.GetOpCheckpoint(0).MutableCheckpointState() = DummySnapshot{{0}};
+    cpt.SerializeToFile("/tmp/dali.checkpoint");
+  }
+
+  Checkpoint cpt;
+  cpt.DeserializeFromFile("/tmp/");
+  EXPECT_EQ(
+    cpt.GetOpCheckpoint(0).CheckpointState<DummySnapshot>().dummy_state,
+    std::vector<uint8_t>{0});
+}
+
 }  // namespace dali
