@@ -677,8 +677,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     if (checkpointing_epoch_size_ == -1) {
       checkpointing_epoch_size_ = local_epoch_size;
       reader_name = &node.spec.name();
-    }
-    else if (checkpointing_epoch_size_ != local_epoch_size) {
+    } else if (checkpointing_epoch_size_ != local_epoch_size) {
       DALI_FAIL(make_string(
         "When the checkpointing is enabled, all readers must have the same epoch size. ",
         "The readers ", *reader_name, " and ", node.spec.name(), " have different epoch sizes ",
