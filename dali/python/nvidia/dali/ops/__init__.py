@@ -25,10 +25,9 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,  # noqa: F401
-                               _default_converter, _vector_element_type, _bool_types,  # noqa: F401
-                               _int_like_types, _float_types, DALIDataType, CUDAStream as
-                               _CUDAStream, ScalarConstant as _ScalarConstant, Constant as
-                               _Constant)  # noqa: F401
+                               _default_converter, _vector_element_type,  # noqa: F401
+                               CUDAStream as _CUDAStream, ScalarConstant as _ScalarConstant,
+                               Constant as _Constant)
 from nvidia.dali import _conditionals
 
 from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
@@ -37,6 +36,7 @@ from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
 from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
                                        register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
+from nvidia.dali.ops._math import (_arithm_op, _group_inputs, _generate_input_desc)  # noqa: F401
 
 cupy = None
 
@@ -901,150 +901,6 @@ Attempt to convert it to a constant node failed.""") from ex
 
         inputs[idx] = inp
     return inputs
-
-
-def _is_boolean_like(input):
-    if type(input) is bool:
-        return True
-    if isinstance(input, _ScalarConstant):
-        if input.dtype in _bool_types:
-            return True
-    return False
-
-
-# Boolean and integer types are considered integer-like
-
-
-def _is_integer_like(input):
-    if _is_boolean_like(input):
-        return True
-    if type(input) is int:
-        return True
-    if isinstance(input, _ScalarConstant):
-        if input.dtype in _int_like_types:
-            return True
-    return False
-
-
-def _is_real_like(input):
-    if type(input) is float:
-        return True
-    if isinstance(input, _ScalarConstant):
-        if input.dtype in _float_types:
-            return True
-    return False
-
-
-def _to_type_desc(input):
-    """ <type> description required by ArithmeticGenericOp """
-    if type(input) is bool:
-        return "bool"
-    if type(input) is int:
-        return "int32"
-    if type(input) is float:
-        return "float32"  # TODO(klecki): current DALI limitation
-    if isinstance(input, _ScalarConstant):
-        dtype_to_desc = {
-            DALIDataType.BOOL:    "bool",
-            DALIDataType.INT8:    "int8",
-            DALIDataType.INT16:   "int16",
-            DALIDataType.INT32:   "int32",
-            DALIDataType.INT64:   "int64",
-            DALIDataType.UINT8:   "uint8",
-            DALIDataType.UINT16:  "uint16",
-            DALIDataType.UINT32:  "uint32",
-            DALIDataType.UINT64:  "uint64",
-            DALIDataType.FLOAT16: "float16",
-            DALIDataType.FLOAT:   "float32",
-            DALIDataType.FLOAT64: "float64",
-        }
-        return dtype_to_desc[input.dtype]
-
-    raise TypeError(
-        f"Constant argument to arithmetic operation not supported. "
-        f"Got {str(type(input))}, expected "
-        f"a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
-
-
-# Group inputs into categories_idxs, edges of type ``edge_type``,
-# integer constants and real constants.
-# The categories_idxs is a list that for an input `i` contains a tuple:
-# (category of ith input, index of ith input in appropriate category)
-def _group_inputs(inputs, edge_type=_DataNode):
-    categories_idxs = []
-    edges = []
-    integers = []
-    reals = []
-    for input in inputs:
-        if not isinstance(input, (edge_type, _ScalarConstant, int, float)):
-            input = nvidia.dali.types.Constant(input)
-        if isinstance(input, edge_type):
-            categories_idxs.append(("edge", len(edges)))
-            edges.append(input)
-        elif _is_integer_like(input):
-            categories_idxs.append(("integer", len(integers)))
-            integers.append(input)
-        elif _is_real_like(input):
-            categories_idxs.append(("real", len(reals)))
-            reals.append(input)
-        else:
-            raise TypeError(
-                f"Argument to arithmetic operation not supported."
-                f"Got {str(type(input))}, expected a return value from other"
-                f"DALI Operator  or a constant value of type 'bool', 'int', "
-                f"'float' or 'nvidia.dali.types.Constant'.")
-
-    if len(integers) == 0:
-        integers = None
-    if len(reals) == 0:
-        reals = None
-    return (categories_idxs, edges, integers, reals)
-
-
-def _generate_input_desc(categories_idx, integers, reals):
-    """
-    Generate the list of <input> subexpression as specified
-    by grammar for ArithmeticGenericOp
-    """
-    input_desc = ""
-    for i, (category, idx) in enumerate(categories_idx):
-        if category == "edge":
-            input_desc += "&{}".format(idx)
-        elif category == "integer":
-            input_desc += "${}:{}".format(idx, _to_type_desc(integers[idx]))
-        elif category == "real":
-            input_desc += "${}:{}".format(idx, _to_type_desc(reals[idx]))
-        if i < len(categories_idx) - 1:
-            input_desc += " "
-    return input_desc
-
-
-def _arithm_op(name, *inputs):
-    """
-    Create arguments for ArithmeticGenericOp and call it with supplied inputs.
-    Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
-    """
-    categories_idxs, edges, integers, reals = _group_inputs(inputs)
-    input_desc = _generate_input_desc(categories_idxs, integers, reals)
-    expression_desc = "{}({})".format(name, input_desc)
-    dev = _choose_device(edges)
-    # Create "instance" of operator
-    op = ArithmeticGenericOp(       # noqa: F821
-        device=dev,
-        expression_desc=expression_desc,
-        integer_constants=integers,
-        real_constants=reals)
-    # If we are on gpu, we must mark all inputs as gpu
-    if dev == "gpu":
-        dev_inputs = list(edge.gpu() for edge in edges)
-    else:
-        dev_inputs = edges
-
-    # Call it immediately
-    result = op(*dev_inputs)
-    if _conditionals.conditionals_enabled():
-        _conditionals.register_data_nodes(result, dev_inputs)
-    return result
 
 
 # This must go at the end - the purpose of these imports is to expose the operators in
