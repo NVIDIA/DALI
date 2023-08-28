@@ -515,6 +515,10 @@ def _load_ops():
                 setattr(parent_module, op_name, op_class)
 
 
+def Reload():
+    _load_ops()
+
+
 class _TFRecordReaderImpl():
     """ custom wrappers around ops """
 
