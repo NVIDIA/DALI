@@ -36,7 +36,8 @@ from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
 from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
                                        register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
-from nvidia.dali.ops._math import (_arithm_op, _group_inputs, _generate_input_desc)  # noqa: F401
+from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: F401
+                                             _generate_input_desc)  # noqa: F401
 
 cupy = None
 
