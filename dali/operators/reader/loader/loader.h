@@ -244,7 +244,7 @@ class Loader {
       if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
         // Create a checkpoint, if it is the last sample of the epoch.
-        // If in the next iteration we shouldn't pad the batch, it must already be new epoch.
+        // If in the next iteration we shouldn't pad the batch, it must already be a new epoch.
         // Note: is_end_of_batch == next iterations's is_new_batch
         if (checkpointing_ && !ShouldPadBatch(is_end_of_batch))
           PushStateSnapshot();
@@ -288,8 +288,8 @@ class Loader {
     returned_sample_counter_++;
 
     // Create a checkpoint, if it is the last sample of the epoch.
-    // If in the next iteration the shard is empty and  we shouldn't pad the batch,
-    // it must already be new epoch.
+    // If in the next iteration the shard is empty and we shouldn't pad the batch,
+    // it must already be a new epoch.
     // Note: is_end_of_batch == next iterations's is_new_batch
     if (checkpointing_ && shards_.front().start == shards_.front().end &&
         !ShouldPadBatch(is_end_of_batch)) {
