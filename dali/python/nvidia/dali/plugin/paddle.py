@@ -18,23 +18,29 @@ import math
 
 import numpy as np
 import paddle
+from distutils.version import LooseVersion
 
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-from paddle import fluid
+
+
+assert LooseVersion(paddle.__version__) == LooseVersion('0.0.0') or \
+    LooseVersion(paddle.__version__) >= LooseVersion('2.0.0'), \
+    "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
+
 
 dtype_map = {
-    types.DALIDataType.BOOL:    fluid.core.VarDesc.VarType.BOOL,
-    types.DALIDataType.FLOAT:   fluid.core.VarDesc.VarType.FP32,
-    types.DALIDataType.FLOAT64: fluid.core.VarDesc.VarType.FP64,
-    types.DALIDataType.FLOAT16: fluid.core.VarDesc.VarType.FP16,
-    types.DALIDataType.UINT8:   fluid.core.VarDesc.VarType.UINT8,
-    types.DALIDataType.INT8:    fluid.core.VarDesc.VarType.INT8,
-    types.DALIDataType.INT16:   fluid.core.VarDesc.VarType.INT16,
-    types.DALIDataType.INT32:   fluid.core.VarDesc.VarType.INT32,
-    types.DALIDataType.INT64:   fluid.core.VarDesc.VarType.INT64
+    types.DALIDataType.BOOL:    paddle.framework.core.VarDesc.VarType.BOOL,
+    types.DALIDataType.FLOAT:   paddle.framework.core.VarDesc.VarType.FP32,
+    types.DALIDataType.FLOAT64: paddle.framework.core.VarDesc.VarType.FP64,
+    types.DALIDataType.FLOAT16: paddle.framework.core.VarDesc.VarType.FP16,
+    types.DALIDataType.UINT8:   paddle.framework.core.VarDesc.VarType.UINT8,
+    types.DALIDataType.INT8:    paddle.framework.core.VarDesc.VarType.INT8,
+    types.DALIDataType.INT16:   paddle.framework.core.VarDesc.VarType.INT16,
+    types.DALIDataType.INT32:   paddle.framework.core.VarDesc.VarType.INT32,
+    types.DALIDataType.INT64:   paddle.framework.core.VarDesc.VarType.INT64
 }
 
 
@@ -45,7 +51,7 @@ def to_paddle_type(tensor):
     Args:
         tensor: tensor or tensor list
 
-    Returns: fluid.core.VarDesc.VarType
+    Returns: paddle.framework.core.VarDesc.VarType
     """
     return dtype_map[tensor.dtype]
 
@@ -107,11 +113,11 @@ def recursive_length(tensor, lod_level):
 
 
 def lod_tensor_clip(lod_tensor, size):
-    output = fluid.core.LoDTensor()
+    output = paddle.framework.core.LoDTensor()
     ndarray = np.array(lod_tensor)
     seq_len = lod_tensor.recursive_sequence_lengths()
     if not seq_len:
-        output.set(ndarray[0:size], fluid.CPUPlace())
+        output.set(ndarray[0:size], paddle.CPUPlace())
     else:
         last_len = size
         out_seq_len = []
@@ -119,7 +125,7 @@ def lod_tensor_clip(lod_tensor, size):
             lengths = lengths[0:last_len]
             out_seq_len.append(lengths)
             last_len = sum(lengths)
-        output.set(ndarray[0:sum(out_seq_len[-1])], fluid.CPUPlace())
+        output.set(ndarray[0:sum(out_seq_len[-1])], paddle.CPUPlace())
         output.set_recursive_sequence_lengths(out_seq_len)
     return output
 
@@ -283,8 +289,8 @@ class DALIGenericIterator(_DaliBaseIterator):
             for j, out in enumerate(outputs[i]):
                 category_outputs[self.output_map[j]] = out
 
-            pd_gpu_place = fluid.CUDAPlace(dev_id)
-            pd_cpu_place = fluid.CPUPlace()
+            pd_gpu_place = paddle.CUDAPlace(dev_id)
+            pd_cpu_place = paddle.CPUPlace()
 
             category_pd_type = dict()
             category_place = dict()
@@ -319,7 +325,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
             pd_tensors = {}
             for cat, tensor in category_tensors.items():
-                lod_tensor = fluid.core.LoDTensor()
+                lod_tensor = paddle.framework.core.LoDTensor()
                 pd_tensors[cat] = lod_tensor
                 lod_tensor._set_dims(category_shapes[cat])
                 seq_len = category_lengths[cat]

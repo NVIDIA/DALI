@@ -989,7 +989,7 @@ def test_mxnet_iterator_feed_ndarray_types():
 
 def test_paddle_iterator_feed_ndarray():
     from nvidia.dali.plugin.paddle import feed_ndarray as feed_ndarray
-    from paddle import fluid
+    import paddle
 
     num_gpus = 1
     batch_size = 100
@@ -1004,23 +1004,23 @@ def test_paddle_iterator_feed_ndarray():
         outs = pipe.run()
         out_data = outs[0].as_tensor()
 
-        lod_tensor = fluid.core.LoDTensor()
+        lod_tensor = paddle.framework.core.LoDTensor()
         lod_tensor._set_dims(out_data.shape())
-        gpu_place = fluid.CUDAPlace(gpu_id)
+        gpu_place = paddle.CUDAPlace(gpu_id)
 
         ptr = lod_tensor._mutable_data(
-            gpu_place, fluid.core.VarDesc.VarType.FP32)
+            gpu_place, paddle.framework.core.VarDesc.VarType.FP32)
         np.array(lod_tensor)
         # Using DALI's internal stream
         feed_ndarray(out_data, ptr, cuda_stream=None)
         np.testing.assert_equal(np.array(lod_tensor),
                                 outs[0].as_cpu().as_array())
 
-        lod_tensor2 = fluid.core.LoDTensor()
+        lod_tensor2 = paddle.framework.core.LoDTensor()
         lod_tensor2._set_dims(out_data.shape())
 
         ptr2 = lod_tensor2._mutable_data(
-            gpu_place, fluid.core.VarDesc.VarType.FP32)
+            gpu_place, paddle.framework.core.VarDesc.VarType.FP32)
         np.array(lod_tensor2)
         feed_ndarray(out_data, ptr2, cuda_stream=0)  # Using default stream
         np.testing.assert_equal(np.array(lod_tensor2),
@@ -1029,17 +1029,17 @@ def test_paddle_iterator_feed_ndarray():
 
 def check_paddle_iterator_feed_ndarray_types(data_type):
     from nvidia.dali.plugin.paddle import feed_ndarray as feed_ndarray
-    from paddle import fluid
+    import paddle
     dtype_map = {
-        np.bool_:   fluid.core.VarDesc.VarType.BOOL,
-        np.float32: fluid.core.VarDesc.VarType.FP32,
-        np.float64: fluid.core.VarDesc.VarType.FP64,
-        np.float16: fluid.core.VarDesc.VarType.FP16,
-        np.uint8:   fluid.core.VarDesc.VarType.UINT8,
-        np.int8:    fluid.core.VarDesc.VarType.INT8,
-        np.int16:   fluid.core.VarDesc.VarType.INT16,
-        np.int32:   fluid.core.VarDesc.VarType.INT32,
-        np.int64:   fluid.core.VarDesc.VarType.INT64
+        np.bool_:   paddle.framework.core.VarDesc.VarType.BOOL,
+        np.float32: paddle.framework.core.VarDesc.VarType.FP32,
+        np.float64: paddle.framework.core.VarDesc.VarType.FP64,
+        np.float16: paddle.framework.core.VarDesc.VarType.FP16,
+        np.uint8:   paddle.framework.core.VarDesc.VarType.UINT8,
+        np.int8:    paddle.framework.core.VarDesc.VarType.INT8,
+        np.int16:   paddle.framework.core.VarDesc.VarType.INT16,
+        np.int32:   paddle.framework.core.VarDesc.VarType.INT32,
+        np.int64:   paddle.framework.core.VarDesc.VarType.INT64
     }
 
     shape = [3, 9]
@@ -1051,9 +1051,9 @@ def check_paddle_iterator_feed_ndarray_types(data_type):
     else:
         arr = np.random.randn(*shape).astype(data_type)
     tensor = TensorCPU(arr, "NHWC")
-    pddt = fluid.core.LoDTensor()
+    pddt = paddle.framework.core.LoDTensor()
     pddt._set_dims(shape)
-    ptr = pddt._mutable_data(fluid.CPUPlace(), dtype_map[data_type])
+    ptr = pddt._mutable_data(paddle.CPUPlace(), dtype_map[data_type])
     feed_ndarray(tensor, ptr)
     assert np.all(np.array(pddt) == arr)
 
