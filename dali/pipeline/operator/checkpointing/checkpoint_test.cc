@@ -352,7 +352,8 @@ TEST_F(CheckpointTest, Serialize) {
           .AddOutput("data3", "cpu")), "");
   graph.InstantiateOperators();
 
-  std::string serialized_data = [&] {
+  std::string serialized_data;
+  {
     Checkpoint cpt;
     cpt.Build(graph);
 
@@ -362,8 +363,8 @@ TEST_F(CheckpointTest, Serialize) {
 
     cpt.GetOpCheckpoint(0).MutableCheckpointState() = DummySnapshot{{0}};
     cpt.GetOpCheckpoint(1).MutableCheckpointState() = DummySnapshot{{1}};
-    return cpt.SerializeToProtobuf();
-  }();
+    serialized_data = cpt.SerializeToProtobuf();
+  }
 
   Checkpoint cpt;
   cpt.DeserializeFromProtobuf(serialized_data);

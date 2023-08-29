@@ -64,7 +64,7 @@ struct CheckpointDataToProto {
       snapshot->add_dummy_state(x);
   }
 
-  private:
+ private:
   dali_proto::Checkpoint_OpCheckpoint *proto_;
 };
 
