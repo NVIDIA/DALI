@@ -301,7 +301,7 @@ class CudaPackage(BasePackage):
 
     def get_all_versions(self, cuda_version):
         cuda_version = self.max_cuda_version(cuda_version)
-        return self.filter_versions(self.versions[cuda_version])
+        return self.filter_versions(self.versions.get(cuda_version, []))
 
     def max_cuda_version(self, cuda_version):
         """Gets a compatible, available cuda version to one asked for.
