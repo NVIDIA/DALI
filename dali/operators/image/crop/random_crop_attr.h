@@ -55,9 +55,10 @@ class RandomCropAttr {
 
     random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
-      random_crop_generators_.emplace_back(
-        new RandomCropGenerator(
-          {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
+      random_crop_generators_.push_back(
+        std::make_shared<RandomCropGenerator>(
+          AspectRatioRange{aspect_ratio[0], aspect_ratio[1]},
+          AreaRange{area[0], area[1]}, seeds[i], num_attempts));
     }
   }
 
