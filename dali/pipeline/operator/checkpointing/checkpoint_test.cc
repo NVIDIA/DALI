@@ -342,22 +342,43 @@ TEST_F(CheckpointTest, Serialize) {
           OpSpec("DummySource")
           .AddArg("device", "cpu")
           .AddArg("dummy_state", 0)
-          .AddOutput("data_node_1", "cpu")
-          .AddOutput("data_node_2", "cpu")), "");
+          .AddOutput("data1", "cpu")
+          .AddOutput("data2", "cpu")), "");
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyInnerLayer")
+          .AddArg("device", "cpu")
+          .AddArg("dummy_state", 1)
+          .AddInput("data1", "cpu")
+          .AddOutput("data3", "cpu")), "");
   graph.InstantiateOperators();
 
-  {
+  std::string serialized_data = [&] {
     Checkpoint cpt;
     cpt.Build(graph);
+
+    ASSERT_EQ(cpt.NumOp(), 2);
+    ASSERT_EQ(cpt.GetOpCheckpoint(0).OperatorName(), "DummySource");
+    ASSERT_EQ(cpt.GetOpCheckpoint(1).OperatorName(), "DummyInnerLayer");
+
     cpt.GetOpCheckpoint(0).MutableCheckpointState() = DummySnapshot{{0}};
-    cpt.SerializeToFile("/tmp/dali.checkpoint");
-  }
+    cpt.GetOpCheckpoint(1).MutableCheckpointState() = DummySnapshot{{1}};
+    return cpt.SerializeToProtobuf();
+  }();
 
   Checkpoint cpt;
-  cpt.DeserializeFromFile("/tmp/");
+  cpt.DeserializeFromProtobuf(serialized_data);
+
+  ASSERT_EQ(cpt.NumOp(), 2);
+  ASSERT_EQ(cpt.GetOpCheckpoint(0).OperatorName(), "DummySource");
+  ASSERT_EQ(cpt.GetOpCheckpoint(1).OperatorName(), "DummyInnerLayer");
+  ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(0).GetCheckpointingData()));
+  ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(1).GetCheckpointingData()));
   EXPECT_EQ(
     cpt.GetOpCheckpoint(0).CheckpointState<DummySnapshot>().dummy_state,
     std::vector<uint8_t>{0});
+  EXPECT_EQ(
+    cpt.GetOpCheckpoint(1).CheckpointState<DummySnapshot>().dummy_state,
+    std::vector<uint8_t>{1});
 }
 
 }  // namespace dali

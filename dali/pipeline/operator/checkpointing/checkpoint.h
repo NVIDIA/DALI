@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_CHECKPOINTING_CHECKPOINT_H_
 
 #include <vector>
+#include <string>
 
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
@@ -30,6 +31,9 @@ class DLL_PUBLIC Checkpoint {
  public:
   DLL_PUBLIC Checkpoint() {}
 
+  /**
+   * @brief Builds a checkpoint that can be used to store state of operators in a given graph.
+  */
   DLL_PUBLIC void Build(const OpGraph &graph);
 
   using OpNodeId = int64_t;
@@ -42,9 +46,24 @@ class DLL_PUBLIC Checkpoint {
 
   DLL_PUBLIC size_t GetIterationId() const;
 
-  DLL_PUBLIC void SerializeToFile(const std::string &path) const;
+  /**
+   * @brief Returns the number of OpCheckpoints kept.
+   *
+   * It's equivalent to the number of operators in the related pipeline.
+  */
+  DLL_PUBLIC Index NumOp() const;
 
-  DLL_PUBLIC void DeserializeFromFile(const std::string &path);
+  /**
+   * @brief Serializes this entire object, and writes the output to the given file.
+  */
+  DLL_PUBLIC std::string SerializeToProtobuf() const;
+
+  /**
+   * @brief Reads data from file, and deserializes, filling in this object.
+   *
+   * Deserialized Checkpoint mustn't be built again.
+  */
+  DLL_PUBLIC void DeserializeFromProtobuf(const std::string &serialized_data);
 
  private:
   std::vector<OpCheckpoint> cpts_;
