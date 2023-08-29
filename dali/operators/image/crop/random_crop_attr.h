@@ -28,24 +28,6 @@
 
 namespace dali {
 
-class RandomCropGeneratorWrap {
- public:
-  template<typename... Args>
-  explicit RandomCropGeneratorWrap(Args&& ...args)
-    : random_crop_generator_(std::forward<Args>(args)...) {}
-
-  inline CropWindow operator()(const TensorShape<>& shape, const TensorLayout& shape_layout) const {
-    return random_crop_generator_->GenerateCropWindow(shape);
-  }
-
-  inline const std::mt19937 &GetRNG() const { return random_crop_generator_->GetRNG(); }
-  inline std::mt19937 &GetRNG() { return random_crop_generator_->GetRNG(); }
-  inline void SetRNG(std::mt19937 rng) { random_crop_generator_->SetRNG(rng); }
-
- private:
-  std::shared_ptr<RandomCropGenerator> random_crop_generator_;
-};
-
 /**
  * @brief Crop parameter and input size handling.
  *
@@ -71,35 +53,36 @@ class RandomCropAttr {
     std::vector<int> seeds(max_batch_size);
     seq.generate(seeds.begin(), seeds.end());
 
-    crop_window_generators_.reserve(max_batch_size);
-
+    random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
-      crop_window_generators_.emplace_back(
+      random_crop_generators_.emplace_back(
         new RandomCropGenerator(
           {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
     }
   }
 
-  const RandomCropGeneratorWrap& GetCropWindowGenerator(std::size_t data_idx) const {
-    return crop_window_generators_[data_idx];
+  CropWindowGenerator GetCropWindowGenerator(std::size_t idx) const {
+    return [idx, this](const TensorShape<>& shape, const TensorLayout&) {
+      return random_crop_generators_[idx]->GenerateCropWindow(shape);
+    };
   }
 
   std::vector<std::mt19937> RNGSnapshot() {
     std::vector<std::mt19937> rngs;
-    for (const auto &gen : crop_window_generators_)
-      rngs.push_back(gen.GetRNG());
+    for (const auto &gen : random_crop_generators_)
+      rngs.push_back(gen->GetRNG());
     return rngs;
   }
 
   void RestoreRNGState(const std::vector<std::mt19937> &rngs) {
-    DALI_ENFORCE(rngs.size() == crop_window_generators_.size(),
+    DALI_ENFORCE(rngs.size() == random_crop_generators_.size(),
                  "Snapshot size does not match the number of generators. ");
     for (size_t i = 0; i < rngs.size(); i++)
-      crop_window_generators_[i].SetRNG(rngs[i]);
+      random_crop_generators_[i]->SetRNG(rngs[i]);
   }
 
  private:
-  std::vector<RandomCropGeneratorWrap> crop_window_generators_;
+  std::vector<std::shared_ptr<RandomCropGenerator>> random_crop_generators_;
 };
 
 }  // namespace dali
