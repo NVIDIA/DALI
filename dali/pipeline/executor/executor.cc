@@ -385,11 +385,18 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+  // Create a checkpoint for the given iteration.
+  auto create_checkpoint = [&](int iter) {
+    auto &cpt = GetCurrentIterationData(iter).checkpoint;
+    auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+    cpt.SetIterationId(iter);
+    op_node.op->SaveState(op_cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
+  };
+
   // If it is the first iteration, create initial checkpoint.
-  if (checkpointing_ && iteration_id == 0) {
-    auto &cpt = GetCurrentIterationData(iteration_id).checkpoint.GetOpCheckpoint(op_node.id);
-    op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
-  }
+  // This way, we make sure there is always a checkpoint that can be accessed.
+  if (checkpointing_ && iteration_id == 0)
+    create_checkpoint(iteration_id);
 
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
@@ -531,11 +538,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     }
   }
 
-  // If it is the end of an epoch, create a checkpoint
-  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0) {
-    auto &cpt = GetCurrentIterationData(iteration_id + 1).checkpoint.GetOpCheckpoint(op_node.id);
-    op_node.op->SaveState(cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
-  }
+  // If it is the end of an epoch, create a checkpoint.
+  // The checkpoint corresponds to the state between the iteration `iteration_id`
+  // and `iteration_id + 1`.
+  // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
+  // return the created checkpoint.
+  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
+    create_checkpoint(iteration_id + 1);
 }
 
 
@@ -691,14 +700,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
-Checkpoint &
-Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
-  return GetCurrentIterationData(output_iteration_id_).checkpoint;
+Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
+  auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
+  // Sanity check
+  DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
+               "Requested checkpoint does not correspond to the matching iteration. ");
+  return cpt;
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
-void
-Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+  DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
   for (int i = 0; i < graph_->NumOp(); ++i)
     graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
 }

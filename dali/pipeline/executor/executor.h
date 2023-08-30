@@ -148,12 +148,17 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
   /**
-   * Returns the current checkpoint.
+   * Returns the checkpoint corresponding to the pipeline state at the end of last epoch.
+   *
+   * Should only be used after the last output of this epoch was consumed, and before consuming
+   * outputs from the next epoch.
   */
   DLL_PUBLIC Checkpoint& GetCurrentCheckpoint();
 
   /**
    * Restores states of operators.
+   *
+   * Can only be used when the executor is not running.
   */
   DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt);
 

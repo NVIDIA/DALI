@@ -33,4 +33,12 @@ const OpCheckpoint &Checkpoint::GetOpCheckpoint(OpNodeId id) const {
   return cpts_[id];
 }
 
+void Checkpoint::SetIterationId(size_t iteration_id) {
+  iteration_id_ = iteration_id;
+}
+
+size_t Checkpoint::GetIterationId() const {
+  return iteration_id_;
+}
+
 }  // namespace dali

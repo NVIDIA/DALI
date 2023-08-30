@@ -38,8 +38,13 @@ class DLL_PUBLIC Checkpoint {
 
   DLL_PUBLIC const OpCheckpoint &GetOpCheckpoint(OpNodeId id) const;
 
+  DLL_PUBLIC void SetIterationId(size_t iteration_id);
+
+  DLL_PUBLIC size_t GetIterationId() const;
+
  private:
   std::vector<OpCheckpoint> cpts_;
+  size_t iteration_id_ = 0;
 };
 
 }  // namespace dali

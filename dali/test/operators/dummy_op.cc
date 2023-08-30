@@ -23,7 +23,8 @@ TestStatefulSource::TestStatefulSource(const OpSpec &spec)
       epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
 void TestStatefulSource::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
-  DALI_ENFORCE(checkpoints_to_collect_ > 0, "Attempting to collect a checkpoint from an empty queue. ");
+  DALI_ENFORCE(checkpoints_to_collect_ > 0,
+               "Attempting to collect a checkpoint from an empty queue. ");
   checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
   cpt.MutableCheckpointState() = state_;
 }
@@ -38,7 +39,7 @@ bool TestStatefulSource::SetupImpl(std::vector<OutputDesc> &output_desc, const W
 
 void TestStatefulSource::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
-  int samples = output.num_samples();
+  int samples = ws.GetRequestedBatchSize(0);
   output.set_type(DALI_UINT8);
   output.Resize(uniform_list_shape(samples, {1}));
 
