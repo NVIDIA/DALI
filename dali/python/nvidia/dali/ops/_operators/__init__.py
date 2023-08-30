@@ -11,3 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+Module dedicated for keeping internal implementation of Python wrappers and extensions
+over the automatically generated operator bindings.
+
+Some operators provided additional functionality, for example dictionary output in case of
+TFRecord reader.
+
+Typically, each such operator should be:
+1. implemented in this module,
+2. name should be  registered using one of the nvidia.dali.ops._registry.register_xxx_op(),
+3. operator class should be reimported into the nvidia.dali.ops module,
+4. the class should be reexposed in fn API via _wrap_op call.
+"""

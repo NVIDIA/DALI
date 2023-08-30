@@ -26,8 +26,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,  # noqa: F401
                                _default_converter, _vector_element_type,  # noqa: F401
-                               CUDAStream as _CUDAStream, ScalarConstant as _ScalarConstant,
-                               Constant as _Constant)
+                               ScalarConstant as _ScalarConstant, Constant as _Constant)
 from nvidia.dali import _conditionals
 
 from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
@@ -36,17 +35,6 @@ from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
 from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
                                        register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
-from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: F401
-                                             _generate_input_desc)  # noqa: F401
-
-cupy = None
-
-
-def _setup_cupy():
-    global cupy
-    if cupy is None:
-        import cupy as cupy
-
 
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
@@ -520,344 +508,31 @@ def Reload():
     _load_ops()
 
 
-class _TFRecordReaderImpl():
-    """ custom wrappers around ops """
-
-    def __init__(self, path, index_path, features, **kwargs):
-        if isinstance(path, list):
-            self._path = path
-        else:
-            self._path = [path]
-        if isinstance(index_path, list):
-            self._index_path = index_path
-        else:
-            self._index_path = [index_path]
-        self._schema = _b.GetSchema(self._internal_schema_name)
-        self._spec = _b.OpSpec(self._internal_schema_name)
-        self._device = "cpu"
-
-        self._spec.AddArg("path", self._path)
-        self._spec.AddArg("index_path", self._index_path)
-
-        kwargs, self._call_args = _separate_kwargs(kwargs)
-
-        for key, value in kwargs.items():
-            self._spec.AddArg(key, value)
-
-        self._features = features
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @property
-    def schema(self):
-        return self._schema
-
-    @property
-    def device(self):
-        return self._device
-
-    def __call__(self, *inputs, **kwargs):
-        # We do not handle multiple input sets for Reader as they do not have inputs
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
-
-        op_instance = _OperatorInstance(inputs, self, **kwargs)
-        outputs = {}
-        feature_names = []
-        features = []
-        for i, (feature_name, feature) in enumerate(self._features.items()):
-            t_name = op_instance._name
-            if len(self._features.items()) > 1:
-                t_name += "[{}]".format(i)
-
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            outputs[feature_name] = t
-            feature_names.append(feature_name)
-            features.append(feature)
-
-        # We know this reader doesn't have any inputs
-        if _conditionals.conditionals_enabled():
-            _conditionals.register_data_nodes(list(outputs.values()))
-
-        op_instance.spec.AddArg("feature_names", feature_names)
-        op_instance.spec.AddArg("features", features)
-        return outputs
-
-
 def _load_readers_tfrecord():
-    _TFRecordReaderImpl.__call__.__doc__ = _docs._docstring_generator_call("readers__TFRecord")
+    """After backend ops are loaded, load the TFRecord readers (if they are available).
+    """
+    from nvidia.dali.ops._operators import tfrecord
+
+    if not tfrecord.tfrecord_enabled():
+        return
+
+    tfrecord._TFRecordReaderImpl.__call__.__doc__ = _docs._docstring_generator_call(
+        "readers__TFRecord")
 
     _registry.register_cpu_op('readers__TFRecord')
     _registry.register_cpu_op('TFRecordReader')
 
     ops_module = sys.modules[__name__]
 
-    class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta):
-        pass
-
-    class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta):
-        pass
-
-    for op_reg_name, internal_schema, op_class in [
-        ('readers__TFRecord', 'readers___TFRecord', TFRecord),
-        ('TFRecordReader', '_TFRecordReader', TFRecordReader)
-    ]:
+    for op_reg_name, op_class in [('readers__TFRecord', tfrecord.TFRecord),
+                                  ('TFRecordReader', tfrecord.TFRecordReader)]:
         op_class.schema_name = op_reg_name
-        op_class._internal_schema_name = internal_schema
-        op_full_name, submodule, op_name = _process_op_name(op_reg_name)
+        _, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
             op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)
             _wrap_op(op_class, submodule)
-
-
-class PythonFunctionBase(metaclass=_DaliOperatorMeta):
-
-    def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
-        self._schema = _b.GetSchema(impl_name)
-        self._spec = _b.OpSpec(impl_name)
-        self._device = device
-        self._impl_name = impl_name
-
-        kwargs, self._call_args = _separate_kwargs(kwargs)
-
-        for key, value in kwargs.items():
-            self._spec.AddArg(key, value)
-
-        self.function = function
-        self.num_outputs = num_outputs
-        self._preserve = True
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @property
-    def schema(self):
-        return self._schema
-
-    @property
-    def device(self):
-        return self._device
-
-    @property
-    def preserve(self):
-        return self._preserve
-
-    def __call__(self, *inputs, **kwargs):
-        inputs = _preprocess_inputs(inputs, self._impl_name, self._device, None)
-        pipeline = _Pipeline.current()
-        if pipeline is None:
-            _Pipeline._raise_pipeline_required("PythonFunction operator")
-
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
-        for inp in inputs:
-            if not isinstance(inp, _DataNode):
-                raise TypeError(f"Expected inputs of type `DataNode`. "
-                                f"Received input of type '{type(inp).__name__}'. "
-                                f"Python Operators do not support Multiple Input Sets.")
-        op_instance = _OperatorInstance(inputs, self, **kwargs)
-        op_instance.spec.AddArg("function_id", id(self.function))
-        op_instance.spec.AddArg("num_outputs", self.num_outputs)
-        op_instance.spec.AddArg("device", self.device)
-        if self.num_outputs == 0:
-            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = _DataNode(t_name, self._device, op_instance)
-            pipeline.add_sink(t)
-            return
-        outputs = []
-
-        for i in range(self.num_outputs):
-            t_name = op_instance._name
-            if self.num_outputs > 1:
-                t_name += "[{}]".format(i)
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            pipeline.add_sink(t)
-            outputs.append(t)
-
-        if _conditionals.conditionals_enabled():
-            _conditionals.register_data_nodes(outputs, inputs, kwargs)
-        return outputs[0] if len(outputs) == 1 else outputs
-
-
-def _dlpack_to_array(dlpack):
-    return nvidia.dali.python_function_plugin.DLTensorToArray(dlpack)
-
-
-def _dlpack_from_array(array):
-    return nvidia.dali.python_function_plugin.ArrayToDLTensor(array)
-
-
-class PythonFunction(PythonFunctionBase):
-    schema_name = "PythonFunction"
-    _registry.register_cpu_op('PythonFunction')
-    _registry.register_gpu_op('PythonFunction')
-
-    @staticmethod
-    def current_stream():
-        """Gets DALI's current CUDA stream."""
-        return _CUDAStream(nvidia.dali.python_function_plugin.current_dali_stream())
-
-    @staticmethod
-    def check_outputs(outputs, num_outputs):
-        if num_outputs > 1:
-            if not isinstance(outputs, tuple):
-                raise TypeError(
-                    "The output from a multi-output Python"
-                    "function operator must be a tuple, got: ", type(outputs))
-            if len(outputs) != num_outputs:
-                raise ValueError(f"Unexpected number of outputs from Python"
-                                 f"function operator - got {len(outputs)}, expected {num_outputs}")
-
-    @staticmethod
-    def function_wrapper_per_sample(function, num_outputs, from_dlpack, to_dlpack, *dlpack_inputs):
-        arrays = [from_dlpack(dlpack) for dlpack in dlpack_inputs]
-        arr_out = function(*arrays)
-        if arr_out is None:
-            return
-        PythonFunction.check_outputs(arr_out, num_outputs)
-        if isinstance(arr_out, tuple):
-            return tuple(map(lambda t: to_dlpack(t), arr_out))
-        else:
-            return to_dlpack(arr_out)
-
-    @staticmethod
-    def function_wrapper_batch(function, num_outputs, from_dlpack, to_dlpack, *dlpack_inputs):
-        arrays = [[from_dlpack(dlpack) for dlpack in dl_input] for dl_input in dlpack_inputs]
-        arr_outs = function(*arrays)
-        if arr_outs is None:
-            return
-
-        def convert_batch(batch):
-            if isinstance(batch, list):
-                return [to_dlpack(x) for x in batch]
-            else:
-                return to_dlpack(batch)
-
-        PythonFunction.check_outputs(arr_outs, num_outputs)
-        if isinstance(arr_outs, tuple):
-            return tuple(convert_batch(x) for x in arr_outs)
-        else:
-            return convert_batch(arr_outs)
-
-    @staticmethod
-    def _function_wrapper_cpu(batch_processing, function, num_outputs, *dlpack_inputs):
-        if batch_processing:
-            return PythonFunction.function_wrapper_batch(
-                function,
-                num_outputs,
-                _dlpack_to_array,
-                _dlpack_from_array,
-                *dlpack_inputs)
-        else:
-            return PythonFunction.function_wrapper_per_sample(
-                function,
-                num_outputs,
-                _dlpack_to_array,
-                _dlpack_from_array,
-                *dlpack_inputs)
-
-    @staticmethod
-    def _cupy_stream_wrapper(function, *inputs):
-        stream = cupy.cuda.Stream(null=True)
-        stream.ptr = PythonFunction.current_stream().ptr
-        with stream:
-            out = function(*inputs)
-        stream.ptr = 0
-        return out
-
-    @staticmethod
-    def _function_wrapper_gpu(batch_processing, function, num_outputs, *dlpack_inputs):
-
-        def wrapped_func(*inputs):
-            return PythonFunction._cupy_stream_wrapper(function, *inputs)
-
-        if batch_processing:
-            return PythonFunction.function_wrapper_batch(wrapped_func, num_outputs, cupy.fromDlpack,
-                                                         lambda t: t.toDlpack(), *dlpack_inputs)
-        else:
-            return PythonFunction.function_wrapper_per_sample(wrapped_func, num_outputs,
-                                                              cupy.fromDlpack,
-                                                              lambda t: t.toDlpack(),
-                                                              *dlpack_inputs)
-
-    def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
-        if device == 'gpu':
-            _setup_cupy()
-
-        if device == 'cpu':
-            def func(*ts):
-                return PythonFunction._function_wrapper_cpu(
-                    batch_processing, function, num_outputs, *ts)
-        else:
-            def func(*ts):
-                return PythonFunction._function_wrapper_gpu(
-                    batch_processing, function, num_outputs, *ts)
-
-        super(PythonFunction,
-              self).__init__(
-                impl_name="DLTensorPythonFunctionImpl",
-                function=func,
-                num_outputs=num_outputs,
-                device=device,
-                synchronize_stream=False,
-                batch_processing=batch_processing,
-                **kwargs)
-
-
-class DLTensorPythonFunction(PythonFunctionBase):
-    schema_name = "DLTensorPythonFunction"
-    _registry.register_cpu_op('DLTensorPythonFunction')
-    _registry.register_gpu_op('DLTensorPythonFunction')
-
-    @staticmethod
-    def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
-        if batch_processing:
-            return PythonFunction.function_wrapper_batch(function,
-                                                         num_outputs,
-                                                         lambda x: x,
-                                                         lambda x: x,
-                                                         *dlpack_inputs)
-        else:
-            return PythonFunction.function_wrapper_per_sample(function,
-                                                              num_outputs,
-                                                              lambda x: x,
-                                                              lambda x: x,
-                                                              *dlpack_inputs)
-
-    def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
-                 batch_processing=True, **kwargs):
-
-        def func(*ts):
-            return DLTensorPythonFunction._function_wrapper_dlpack(
-                batch_processing, function, num_outputs, *ts)
-
-        super(DLTensorPythonFunction,
-              self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                             function=func,
-                             num_outputs=num_outputs,
-                             device=device,
-                             synchronize_stream=synchronize_stream,
-                             batch_processing=batch_processing,
-                             **kwargs)
-
-
-_wrap_op(PythonFunction)
-_wrap_op(DLTensorPythonFunction)
 
 
 def _choose_device(inputs):
@@ -906,77 +581,34 @@ Attempt to convert it to a constant node failed.""") from ex
 
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
+
+# Expose just the ExternalSource class, the fn.external_source is exposed by hand in
+# appropriate module.
 from nvidia.dali.external_source import ExternalSource  # noqa: E402
 
 ExternalSource.__module__ = __name__
 
+# Expose the PythonFunction family of classes and generate the fn bindings for them
+from nvidia.dali.ops._operators.python_function import (PythonFunctionBase, PythonFunction,
+                                                        DLTensorPythonFunction, _dlpack_to_array,
+                                                        _dlpack_from_array)  # noqa: F401
 
-class _CompoundOp:
+_wrap_op(PythonFunction)
+_wrap_op(DLTensorPythonFunction)
 
-    def __init__(self, op_list):
-        self._ops = []
-        for op in op_list:
-            if isinstance(op, _CompoundOp):
-                self._ops += op._ops
-            else:
-                self._ops.append(op)
-
-    def __call__(self, *inputs, **kwargs):
-        inputs = list(inputs)
-        for op in self._ops:
-            for i in range(len(inputs)):
-                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(
-                        i) != "cpu":
-                    inputs[i] = inputs[i].gpu()
-            inputs = op(*inputs, **kwargs)
-            kwargs = {}
-            if isinstance(inputs, tuple):
-                inputs = list(inputs)
-            if isinstance(inputs, _DataNode):
-                inputs = [inputs]
-
-        return inputs[0] if len(inputs) == 1 else inputs
-
-
-def Compose(op_list):
-    """Returns a meta-operator that chains the operations in op_list.
-
-The return value is a callable object which, when called, performs::
-
-    op_list[n-1](op_list([n-2](...  op_list[0](args))))
-
-Operators can be composed only when all outputs of the previous operator can be processed directly
-by the next operator in the list.
-
-The example below chains an image decoder and a Resize operation with random square size.
-The  ``decode_and_resize`` object can be called as if it was an operator::
-
-    decode_and_resize = ops.Compose([
-        ops.decoders.Image(device="cpu"),
-        ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
-    ])
-
-    files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
-    pipe.set_ouputs(decode_and_resize(files), labels)
-
-If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
-example, ``Compose`` automatically arranges copying the data to GPU memory.
-
-
-.. note::
-    This is an experimental feature, subject to change without notice.
-"""
-    return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
-
+# Compose is only exposed for ops API, no fn bindings are generated
+from nvidia.dali.ops._operators.compose import Compose
 
 _registry.register_cpu_op('Compose')
 _registry.register_gpu_op('Compose')
 
 
+from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: F401
+                                             _generate_input_desc)  # noqa: F401
+
+
+# Discover and generate bindings for all regular operators.
 _load_ops()
 
-try:
-    _load_readers_tfrecord()
-except RuntimeError:
-    # TFRecord can be disabled (custom build). No need to fail
-    pass
+# Load the TFRecord after the backend ops are processed, to wrap it conditionally, if it exists.
+_load_readers_tfrecord()

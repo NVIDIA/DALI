@@ -15,8 +15,8 @@
 from nvidia.dali import _conditionals
 
 from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali.types import (DALIDataType, Constant as _Constant, ScalarConstant as
-                               _ScalarConstant, _bool_types, _int_like_types, _float_types)
+from nvidia.dali.types import (DALIDataType as _DALIDataType, Constant as _Constant, ScalarConstant
+                               as _ScalarConstant, _bool_types, _int_like_types, _float_types)
 
 
 def _is_boolean_like(input):
@@ -86,18 +86,18 @@ def _to_type_desc(input):
         return "float32"  # TODO(klecki): current DALI limitation
     if isinstance(input, _ScalarConstant):
         dtype_to_desc = {
-            DALIDataType.BOOL: "bool",
-            DALIDataType.INT8: "int8",
-            DALIDataType.INT16: "int16",
-            DALIDataType.INT32: "int32",
-            DALIDataType.INT64: "int64",
-            DALIDataType.UINT8: "uint8",
-            DALIDataType.UINT16: "uint16",
-            DALIDataType.UINT32: "uint32",
-            DALIDataType.UINT64: "uint64",
-            DALIDataType.FLOAT16: "float16",
-            DALIDataType.FLOAT: "float32",
-            DALIDataType.FLOAT64: "float64",
+            _DALIDataType.BOOL: "bool",
+            _DALIDataType.INT8: "int8",
+            _DALIDataType.INT16: "int16",
+            _DALIDataType.INT32: "int32",
+            _DALIDataType.INT64: "int64",
+            _DALIDataType.UINT8: "uint8",
+            _DALIDataType.UINT16: "uint16",
+            _DALIDataType.UINT32: "uint32",
+            _DALIDataType.UINT64: "uint64",
+            _DALIDataType.FLOAT16: "float16",
+            _DALIDataType.FLOAT: "float32",
+            _DALIDataType.FLOAT64: "float64",
         }
         return dtype_to_desc[input.dtype]
 
