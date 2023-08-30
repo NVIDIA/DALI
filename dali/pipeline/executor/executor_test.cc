@@ -781,7 +781,6 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
 }
 
 
-
 TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
