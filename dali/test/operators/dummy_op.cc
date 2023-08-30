@@ -23,11 +23,12 @@ TestStatefulSource::TestStatefulSource(const OpSpec &spec)
       epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
 void TestStatefulSource::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+  DALI_ENFORCE(checkpoints_to_collect_ > 0, "Attempting to collect a checkpoint from an empty queue. ");
+  checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
   cpt.MutableCheckpointState() = state_;
 }
 
 void TestStatefulSource::RestoreState(const OpCheckpoint &cpt) {
-  DALI_ENFORCE(checkpoints_to_collect_ --> 0);
   state_ = cpt.CheckpointState<uint8_t>();
 }
 
@@ -41,16 +42,16 @@ void TestStatefulSource::RunImpl(Workspace &ws) {
   output.set_type(DALI_UINT8);
   output.Resize(uniform_list_shape(samples, {1}));
 
-  /* Check if a new epoch starts at the start of the run, just like in Readers. */
-  if (state_ == epoch_size_) {
-    state_ = 0;
-    checkpoints_to_collect_++;  /* simulate putting a checkpoint into a queue */
-  }
-
   /* Return increasing integers as the samples, padding the last batch */
   for (int i = 0; i < samples; i++) {
     state_ = (state_ < epoch_size_ ? state_ : epoch_size_ - 1);
     output.mutable_tensor<uint8_t>(i)[0] = state_++;
+  }
+
+  /* Check if a new epoch starts in the next iteration, just like in Readers. */
+  if (state_ == epoch_size_) {
+    state_ = 0;
+    checkpoints_to_collect_++;  /* simulate putting a checkpoint into a queue */
   }
 }
 

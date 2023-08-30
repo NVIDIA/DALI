@@ -667,7 +667,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
 
   checkpointing_epoch_size_ = -1;
-  const std::string *reader_name = nullptr;
+  std::string reader_name;
   for (const auto &node : graph_->GetOpNodes()) {
     auto meta = node.op->GetReaderMeta();
     if (meta.epoch_size_padded <= 0)
@@ -676,11 +676,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
     if (checkpointing_epoch_size_ == -1) {
       checkpointing_epoch_size_ = local_epoch_size;
-      reader_name = &node.spec.name();
+      reader_name = node.spec.name();
     } else if (checkpointing_epoch_size_ != local_epoch_size) {
       DALI_FAIL(make_string(
         "When the checkpointing is enabled, all readers must have the same epoch size. ",
-        "The readers ", *reader_name, " and ", node.spec.name(), " have different epoch sizes ",
+        "The readers ", reader_name, " and ", node.spec.name(), " have different epoch sizes ",
         "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
     }
   }

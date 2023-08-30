@@ -43,8 +43,8 @@ void TestStatefulOpMixed::Run(Workspace &ws) {
   std::vector<uint8_t> buffer(samples);
   for (int i = 0; i < samples; i++) {
     buffer[i] = input.tensor<uint8_t>(i)[0] + state_++;
-    cudaMemcpyAsync(output.mutable_tensor<uint8_t>(i), &buffer[i], sizeof(uint8_t),
-                    cudaMemcpyHostToDevice, ws.stream());
+    CUDA_CALL(cudaMemcpyAsync(output.mutable_tensor<uint8_t>(i), &buffer[i], sizeof(uint8_t),
+                              cudaMemcpyHostToDevice, ws.stream()));
   }
 }
 

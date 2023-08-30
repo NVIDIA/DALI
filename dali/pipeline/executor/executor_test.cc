@@ -785,9 +785,8 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
 TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
-    /* Turn on checkpointing in executor */
-    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1,
-                                 false, -1, 0, QueueSizes{2, 2}, true);
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
     exe->Init();
 
     auto graph = std::make_unique<OpGraph>();
@@ -814,9 +813,8 @@ TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
 TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
-    /* Turn on checkpointing in executor */
-    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1,
-                                 false, -1, 0, QueueSizes{2, 2}, true);
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
     exe->Init();
 
     auto graph = std::make_unique<OpGraph>();
@@ -851,9 +849,8 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
 TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
-    /* Turn on checkpointing in executor */
-    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1,
-                                 false, -1, 0, QueueSizes{2, 2}, true);
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
     exe->Init();
 
     auto graph = std::make_unique<OpGraph>();

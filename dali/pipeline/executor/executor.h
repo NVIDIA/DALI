@@ -78,6 +78,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
+  DLL_PUBLIC virtual void EnableCheckpointing(bool checkpointing = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
 
@@ -107,8 +108,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
                              int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2},
-                             bool checkpointing = false)
+                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
@@ -116,8 +116,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        enable_memory_stats_(false),
-        checkpointing_(checkpointing) {
+        enable_memory_stats_(false), checkpointing_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
@@ -127,6 +126,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
     enable_memory_stats_ = enable_memory_stats;
+  }
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = false) override {
+    checkpointing_ = checkpointing;
   }
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
   DLL_PUBLIC void Init() override {}
