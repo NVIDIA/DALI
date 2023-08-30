@@ -53,24 +53,37 @@ class RandomCropAttr {
     std::vector<int> seeds(max_batch_size);
     seq.generate(seeds.begin(), seeds.end());
 
-    crop_window_generators_.resize(max_batch_size);
-
+    random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
-      std::shared_ptr<RandomCropGenerator> random_crop_generator(
-        new RandomCropGenerator(
-          {aspect_ratio[0], aspect_ratio[1]}, {area[0], area[1]}, seeds[i], num_attempts));
-      crop_window_generators_[i] = std::bind(
-        &RandomCropGenerator::GenerateCropWindow, random_crop_generator,
-        std::placeholders::_1);
+      random_crop_generators_.push_back(
+        std::make_shared<RandomCropGenerator>(
+          AspectRatioRange{aspect_ratio[0], aspect_ratio[1]},
+          AreaRange{area[0], area[1]}, seeds[i], num_attempts));
     }
   }
 
-  const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const {
-    return crop_window_generators_[data_idx];
+  CropWindowGenerator GetCropWindowGenerator(std::size_t idx) const {
+    return [idx, this](const TensorShape<>& shape, const TensorLayout&) {
+      return random_crop_generators_[idx]->GenerateCropWindow(shape);
+    };
+  }
+
+  std::vector<std::mt19937> RNGSnapshot() {
+    std::vector<std::mt19937> rngs;
+    for (const auto &gen : random_crop_generators_)
+      rngs.push_back(gen->GetRNG());
+    return rngs;
+  }
+
+  void RestoreRNGState(const std::vector<std::mt19937> &rngs) {
+    DALI_ENFORCE(rngs.size() == random_crop_generators_.size(),
+                 "Snapshot size does not match the number of generators. ");
+    for (size_t i = 0; i < rngs.size(); i++)
+      random_crop_generators_[i]->SetRNG(rngs[i]);
   }
 
  private:
-  std::vector<CropWindowGenerator> crop_window_generators_;
+  std::vector<std::shared_ptr<RandomCropGenerator>> random_crop_generators_;
 };
 
 }  // namespace dali
