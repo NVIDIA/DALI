@@ -36,6 +36,7 @@ from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu
                                        register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
 
+
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
@@ -589,21 +590,22 @@ from nvidia.dali.external_source import ExternalSource  # noqa: E402
 ExternalSource.__module__ = __name__
 
 # Expose the PythonFunction family of classes and generate the fn bindings for them
-from nvidia.dali.ops._operators.python_function import (PythonFunctionBase, PythonFunction,
-                                                        DLTensorPythonFunction, _dlpack_to_array,
-                                                        _dlpack_from_array)  # noqa: F401
+from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
+    PythonFunctionBase,  # noqa: F401
+    PythonFunction, DLTensorPythonFunction, _dlpack_to_array,  # noqa: F401
+    _dlpack_from_array)  # noqa: F401
 
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
 # Compose is only exposed for ops API, no fn bindings are generated
-from nvidia.dali.ops._operators.compose import Compose
+from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
 
 _registry.register_cpu_op('Compose')
 _registry.register_gpu_op('Compose')
 
 
-from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: F401
+from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: E402, F401
                                              _generate_input_desc)  # noqa: F401
 
 

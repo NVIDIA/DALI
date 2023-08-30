@@ -19,6 +19,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 
 _internal_schemas = ['_TFRecordReader', 'readers___TFRecord']
 
+
 def tfrecord_enabled():
     """Check if the TFRecord Reader op is enabled by looking up if the internal implementation
     was registered in the backend.
@@ -28,6 +29,7 @@ def tfrecord_enabled():
         if _b.TryGetSchema(internal_schema) is not None:
             return True
     return False
+
 
 class _TFRecordReaderImpl():
     """ custom wrappers around ops """
