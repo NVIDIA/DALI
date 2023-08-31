@@ -227,7 +227,7 @@ def test_numba_func_gpu():
 
     device = "gpu"
     blocks = [32, 32, 1]
-    threads_per_block = [32, 32, 1]
+    threads_per_block = [32, 16, 1]
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, \
             setup_fn, batch_processing, expected_out in args:
         yield _testimpl_numba_func, \
@@ -345,7 +345,7 @@ def test_numba_func_image_gpu():
     ]
     device = "gpu"
     blocks = [32, 32, 1]
-    threads_per_block = [16, 1, 1]
+    threads_per_block = [32, 8, 1]
     for run_fn, out_types, in_types, outs_ndim, ins_ndim, \
             setup_fn, batch_processing, transform in args:
         yield _testimpl_numba_func_image, \
@@ -421,7 +421,7 @@ def test_split_images_col():
 
 def test_split_images_col_gpu():
     blocks = [32, 32, 1]
-    threads_per_block = [16, 1, 1]
+    threads_per_block = [32, 8, 1]
     pipe = numba_func_split_image_pipe(
         batch_size=8, num_threads=1, device_id=0,
         run_fn=split_images_col_sample_gpu, setup_fn=setup_split_images_col,
@@ -504,7 +504,7 @@ def test_multiple_ins():
 
 def test_multiple_ins_gpu():
     blocks = [32, 32, 1]
-    threads_per_block = [16, 1, 1]
+    threads_per_block = [32, 8, 1]
     pipe = numba_multiple_ins_pipe(
         shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0,
         run_fn=multiple_ins_run_gpu,
