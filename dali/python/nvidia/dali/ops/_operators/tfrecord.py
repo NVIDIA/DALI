@@ -103,8 +103,8 @@ class _TFRecordReaderImpl():
 
 
 class TFRecordReader(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _internal_schema_name = 'readers___TFRecord'
+    _internal_schema_name = '_TFRecordReader'
 
 
 class TFRecord(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _internal_schema_name = '_TFRecordReader'
+    _internal_schema_name = 'readers___TFRecord'
