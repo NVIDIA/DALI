@@ -76,6 +76,55 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     return {};
   }
 
+  bool IsSeparated() {
+    return std::is_same_v<ExecutorToTest, SeparatedPipelinedExecutor>
+        || std::is_same_v<ExecutorToTest, AsyncSeparatedPipelinedExecutor>;
+  }
+
+  template<typename Factory>
+  void RunCheckpointingTest(Factory executor_and_graph_factory,
+                            int epoch_size, int epochs_cnt = 3) {
+    auto collect_result = [&](const TensorList<CPUBackend> &data) {
+      std::vector<uint8_t> result;
+      for (int i = 0; i < data.num_samples(); i++)
+        result.push_back(data.tensor<uint8_t>(i)[0]);
+      return result;
+    };
+
+    Workspace ws;
+    auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec) {
+      std::vector<std::vector<uint8_t>> results;
+      for (int i = 0; i < epoch_size; i++) {
+        exec->RunCPU();
+        exec->RunMixed();
+        exec->RunGPU();
+        exec->Outputs(&ws);
+
+        if (ws.OutputIsType<CPUBackend>(0)) {
+          results.push_back(collect_result(ws.Output<CPUBackend>(0)));
+        } else {
+          TensorList<CPUBackend> cpu;
+          cpu.Copy(ws.Output<GPUBackend>(0));
+          results.push_back(collect_result(cpu));
+        }
+      }
+
+      return results;
+    };
+
+    auto [exec1, graph1] = executor_and_graph_factory();
+    auto [exec2, graph2] = executor_and_graph_factory();
+
+    for (int i = 0; i < epochs_cnt; i++)
+      run_epoch(exec1);
+
+    auto cpt = exec1->GetCurrentCheckpoint();
+    exec2->RestoreStateFromCheckpoint(cpt);
+
+    for (int i = 0; i < epochs_cnt; i++)
+      EXPECT_EQ(run_epoch(exec1), run_epoch(exec2));
+  }
+
   int batch_size_, num_threads_ = 1;
 };
 
@@ -729,6 +778,115 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
 
   EXPECT_FALSE(this->HasConditionals(*exe_no_cond));
   EXPECT_TRUE(this->HasConditionals(*exe_with_cond));
+}
+
+
+TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("state", "cpu")),
+      "dummy");
+
+    exe->Build(graph.get(), {"state_cpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
+}
+
+TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("data", "cpu")),
+      "dummy_src");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "cpu")
+          .AddInput("data", "cpu")
+          .AddOutput("processed", "cpu")),
+      "dummy_op");
+
+    exe->Build(graph.get(), {"processed_cpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
+}
+
+TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("data1", "cpu")),
+      "dummy_src");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "mixed")
+          .AddInput("data1", "cpu")
+          .AddOutput("data2", "gpu")),
+      "dummy_op1");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "gpu")
+          .AddInput("data2", "gpu")
+          .AddOutput("processed", "gpu")),
+      "dummy_op2");
+
+    exe->Build(graph.get(), {"processed_gpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
 }
 
 }  // namespace dali

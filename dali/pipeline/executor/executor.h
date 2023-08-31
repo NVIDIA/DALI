@@ -39,6 +39,7 @@
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -77,6 +78,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
+  DLL_PUBLIC virtual void EnableCheckpointing(bool checkpointing = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
 
@@ -114,7 +116,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        enable_memory_stats_(false) {
+        enable_memory_stats_(false), checkpointing_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
@@ -124,6 +126,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
     enable_memory_stats_ = enable_memory_stats;
+  }
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = false) override {
+    checkpointing_ = checkpointing;
   }
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
   DLL_PUBLIC void Init() override {}
@@ -141,6 +146,21 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   }
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
+
+  /**
+   * Returns the checkpoint corresponding to the pipeline state at the end of last epoch.
+   *
+   * Should only be used after the last output of this epoch was consumed, and before consuming
+   * outputs from the next epoch.
+  */
+  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint();
+
+  /**
+   * Restores states of operators.
+   *
+   * Can only be used when the executor is not running.
+  */
+  DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt);
 
  protected:
   DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
@@ -359,6 +379,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // true iff the graph that is executed contains if statements, set by DetectConditionals()
   bool has_conditionals_ = false;
 
+  bool checkpointing_;
+  int checkpointing_epoch_size_;
+
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
@@ -444,6 +467,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
+  void InitCheckpointing();
 
   /**
    * Returns the iteration data for given iteration ID and stage.
@@ -527,8 +551,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   AssignOperatorInstanceNames<OpType::CPU>();
   AssignOperatorInstanceNames<OpType::MIXED>();
   AssignOperatorInstanceNames<OpType::GPU>();
-}
 
+  InitCheckpointing();
+}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {

@@ -385,6 +385,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+  // Create a checkpoint for the given iteration.
+  auto create_checkpoint = [&](int iter) {
+    auto &cpt = GetCurrentIterationData(iter).checkpoint;
+    auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+    cpt.SetIterationId(iter);
+    op_node.op->SaveState(op_cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
+  };
+
+  // If it is the first iteration, create initial checkpoint.
+  // This way, we make sure there is always a checkpoint that can be accessed.
+  if (checkpointing_ && iteration_id == 0)
+    create_checkpoint(iteration_id);
+
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
 
@@ -524,6 +537,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
       in.SetLayout({});
     }
   }
+
+  // If it is the end of an epoch, create a checkpoint.
+  // The checkpoint corresponds to the state between the iteration `iteration_id`
+  // and `iteration_id + 1`.
+  // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
+  // return the created checkpoint.
+  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
+    create_checkpoint(iteration_id + 1);
 }
 
 
@@ -623,6 +644,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
     id.operator_traces = std::make_shared<operator_trace_map_t>();
+    if (checkpointing_)
+      id.checkpoint.Build(*graph_);
   }
 }
 
@@ -644,7 +667,53 @@ bool Executor<WorkspacePolicy, QueuePolicy>::HasConditionals() const {
   return has_conditionals_;
 }
 
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
+  if (!checkpointing_)
+    return;
 
+  if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
+    DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
+
+  checkpointing_epoch_size_ = -1;
+  std::string reader_name;
+  for (const auto &node : graph_->GetOpNodes()) {
+    auto meta = node.op->GetReaderMeta();
+    if (meta.epoch_size_padded <= 0)
+      continue;
+
+    int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
+    if (checkpointing_epoch_size_ == -1) {
+      checkpointing_epoch_size_ = local_epoch_size;
+      reader_name = node.spec.name();
+    } else if (checkpointing_epoch_size_ != local_epoch_size) {
+      DALI_FAIL(make_string(
+        "When the checkpointing is enabled, all readers must have the same epoch size. ",
+        "The readers ", reader_name, " and ", node.spec.name(), " have different epoch sizes ",
+        "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
+    }
+  }
+
+  /* If there is no operator with ReaderMeta, set the epoch size to 1. */
+  if (checkpointing_epoch_size_ == -1)
+    checkpointing_epoch_size_ = 1;
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
+  auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
+  // Sanity check
+  DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
+               "Requested checkpoint does not correspond to the matching iteration. ");
+  return cpt;
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
+  DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
+  for (int i = 0; i < graph_->NumOp(); ++i)
+    graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
+}
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 IterationData &

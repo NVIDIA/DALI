@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/graph/op_graph.h"
 
 namespace dali {
 
@@ -30,6 +31,14 @@ OpCheckpoint &Checkpoint::GetOpCheckpoint(OpNodeId id) {
 const OpCheckpoint &Checkpoint::GetOpCheckpoint(OpNodeId id) const {
   DALI_ENFORCE_VALID_INDEX(id, cpts_.size());
   return cpts_[id];
+}
+
+void Checkpoint::SetIterationId(size_t iteration_id) {
+  iteration_id_ = iteration_id;
+}
+
+size_t Checkpoint::GetIterationId() const {
+  return iteration_id_;
 }
 
 }  // namespace dali
