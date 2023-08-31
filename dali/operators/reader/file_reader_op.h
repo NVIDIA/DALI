@@ -55,11 +55,11 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
   }
 
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = loader_->PopStateSnapshot();
+    cpt.MutableCheckpointState() = ReaderStateSnapshot{loader_->PopStateSnapshot()};
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
-    loader_->RestoreStateFromSnapshot(cpt.CheckpointState<LoaderStateSnapshot>());
+    loader_->RestoreStateFromSnapshot(cpt.CheckpointState<ReaderStateSnapshot>().loader_state);
   }
 
  protected:

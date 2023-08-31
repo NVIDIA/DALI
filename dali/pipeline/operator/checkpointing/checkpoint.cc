@@ -40,6 +40,11 @@ template<class T> T DeserializeFromString(const std::string &str) {
 struct CheckpointDataToProto {
   explicit CheckpointDataToProto(dali_proto::Checkpoint_OpCheckpoint *proto) : proto_(proto) {}
 
+  void operator()(std::monostate) {
+    /* set the oneof field to stateless */
+    proto_->mutable_stateless();
+  }
+
   void operator()(const RNGSnapshotCPU &data) {
     auto snapshot = proto_->mutable_rng_cpu();
     for (const auto &rng : data.rng)
@@ -52,10 +57,10 @@ struct CheckpointDataToProto {
       snapshot->add_rng(SerializeToString(data.rng));
   }
 
-  void operator()(const LoaderStateSnapshot &data) {
-    auto snapshot = proto_->mutable_loader();
-    snapshot->set_rng(SerializeToString(data.rng));
-    snapshot->set_current_epoch(data.current_epoch);
+  void operator()(const ReaderStateSnapshot &data) {
+    auto snapshot = proto_->mutable_reader();
+    snapshot->mutable_loader_state()->set_rng(SerializeToString(data.loader_state.rng));
+    snapshot->mutable_loader_state()->set_current_epoch(data.loader_state.current_epoch);
   }
 
   void operator()(const DummySnapshot &data) {
@@ -89,14 +94,19 @@ RNGSnapshotCPU64 ToRngCpu64(const dali_proto::Checkpoint_OpCheckpoint &proto) {
   return snapshot;
 }
 
-LoaderStateSnapshot ToLoader(const dali_proto::Checkpoint_OpCheckpoint &proto) {
-  auto &data = proto.loader();
-  DALI_ENFORCE(data.has_rng(), "Serialized checkpoint is missing `rng` field. ");
-  DALI_ENFORCE(data.has_current_epoch(),
-               "Serialized checkpoint is missing `current_epoch` field. ");
-  return LoaderStateSnapshot {
-    DeserializeFromString<std::default_random_engine>(data.rng()),
-    data.current_epoch(),
+ReaderStateSnapshot ToReader(const dali_proto::Checkpoint_OpCheckpoint &proto) {
+  auto &data = proto.reader();
+  DALI_ENFORCE(data.has_loader_state(),
+               "Serialized operator state is missing the `loader_state` field. ");
+  DALI_ENFORCE(data.loader_state().has_rng(),
+              "Serialized operator state is missing the `rng` field. ");
+  DALI_ENFORCE(data.loader_state().has_current_epoch(),
+              "Serialized operator state is missing the `current_epoch` field. ");
+  return ReaderStateSnapshot {
+    LoaderStateSnapshot {
+      DeserializeFromString<std::default_random_engine>(data.loader_state().rng()),
+      data.loader_state().current_epoch(),
+    }
   };
 }
 
@@ -111,6 +121,10 @@ DummySnapshot ToDummy(const dali_proto::Checkpoint_OpCheckpoint &proto) {
 OpCheckpoint FromProto(const dali_proto::Checkpoint_OpCheckpoint &proto) {
   OpCheckpoint cpt(proto.operator_name());
   switch (proto.data_case()) {
+    case dali_proto::Checkpoint_OpCheckpoint::kStateless:
+      /* leave the default empty checkpoint */
+      break;
+
     case dali_proto::Checkpoint_OpCheckpoint::kRngCpu:
       cpt.MutableCheckpointState() = ToRngCpu(proto);
       break;
@@ -119,8 +133,8 @@ OpCheckpoint FromProto(const dali_proto::Checkpoint_OpCheckpoint &proto) {
       cpt.MutableCheckpointState() = ToRngCpu64(proto);
       break;
 
-    case dali_proto::Checkpoint_OpCheckpoint::kLoader:
-      cpt.MutableCheckpointState() = ToLoader(proto);
+    case dali_proto::Checkpoint_OpCheckpoint::kReader:
+      cpt.MutableCheckpointState() = ToReader(proto);
       break;
 
     case dali_proto::Checkpoint_OpCheckpoint::kDummy:

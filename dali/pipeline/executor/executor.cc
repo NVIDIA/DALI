@@ -711,6 +711,9 @@ Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
 template<typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Checkpoint &cpt) {
   DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
+  DALI_ENFORCE(graph_->NumOp() == cpt.NumOp(),
+               "Provided checkpoint stores state of different number of operators "
+               "than there are in the pipeline. ");
   for (int i = 0; i < graph_->NumOp(); ++i)
     graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
 }

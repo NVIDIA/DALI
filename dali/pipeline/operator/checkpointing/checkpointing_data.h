@@ -40,13 +40,20 @@ struct RNGSnapshotCPU64 {
 };
 
 /**
- * @brief Structure describing Loader base state, at the begining of an epoch.
- *
- * Used by DataReader operators.
+ * @brief Structure describing Loader base class state, at the begining of an epoch.
 */
 struct LoaderStateSnapshot {
   std::default_random_engine rng;
   int current_epoch;
+};
+
+/**
+ * @brief DataReader state.
+ *
+ * Keeps loader state. Made into a separate entity to allow extension.
+*/
+struct ReaderStateSnapshot {
+  LoaderStateSnapshot loader_state;
 };
 
 /**
@@ -60,9 +67,10 @@ struct DummySnapshot {
  * @brief Universal checkpoint data storage type
 */
 using CheckpointingData = std::variant<
+  std::monostate,
   RNGSnapshotCPU,
   RNGSnapshotCPU64,
-  LoaderStateSnapshot,
+  ReaderStateSnapshot,
   DummySnapshot
 >;
 

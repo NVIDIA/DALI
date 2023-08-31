@@ -43,7 +43,9 @@ class RNGBase : public Operator<Backend> {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      rng_ = BatchRNG<std::mt19937_64>::FromVector(cpt.CheckpointState<RNGSnapshotCPU64>().rng);
+      auto snapshot = cpt.CheckpointState<RNGSnapshotCPU64>();
+      DALI_ENFORCE(static_cast<int>(snapshot.rng.size()) == max_batch_size_);
+      rng_ = BatchRNG<std::mt19937_64>::FromVector(snapshot.rng);
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
       DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
