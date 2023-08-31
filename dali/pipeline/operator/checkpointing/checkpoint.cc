@@ -37,6 +37,9 @@ template<class T> T DeserializeFromString(const std::string &str) {
   return obj;
 }
 
+/**
+ * @brief Helper object to be used with std::visit for CheckpointingData serialization
+*/
 struct CheckpointDataToProto {
   explicit CheckpointDataToProto(dali_proto::Checkpoint_OpCheckpoint *proto) : proto_(proto) {}
 

@@ -20,7 +20,7 @@
 
 #include "dali/test/dali_test.h"
 #include "dali/core/cuda_stream_pool.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/graph/op_graph.h"
 
 namespace dali {
@@ -109,6 +109,16 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
   DummyGPUData state_;
 };
 
+template<typename Backend>
+class DummyStatelessOperator : public StatelessOperator<Backend> {
+ public:
+  explicit DummyStatelessOperator(const OpSpec &spec)
+      : StatelessOperator<CPUBackend>(spec) {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const Workspace &ws) override { return false; }
+};
+
 DALI_REGISTER_OPERATOR(DummySource, DummyOperatorWithState<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(DummySource, DummyOperatorWithState<GPUBackend>, Mixed);
 DALI_REGISTER_OPERATOR(DummySource, DummyOperatorWithState<GPUBackend>, GPU);
@@ -138,6 +148,13 @@ DALI_SCHEMA(DummyOutput)
   .NumInput(2)
   .NumOutput(1)
   .AddArg("dummy_state", "internal dummy state", DALI_UINT32);
+
+DALI_REGISTER_OPERATOR(DummyStatelessOp, DummyStatelessOperator<CPUBackend>, CPU);
+
+DALI_SCHEMA(DummyStatelessOp)
+  .DocStr("Dummy")
+  .NumInput(1)
+  .NumOutput(1);
 
 class CheckpointTest : public DALITest {
  public:
@@ -350,6 +367,11 @@ TEST_F(CheckpointTest, Serialize) {
           .AddArg("dummy_state", 1)
           .AddInput("data1", "cpu")
           .AddOutput("data3", "cpu")), "");
+  graph.AddOp(this->PrepareSpec(
+          OpSpec("DummyStatelessOp")
+          .AddArg("device", "cpu")
+          .AddInput("data3", "cpu")
+          .AddOutput("data4", "cpu")), "");
   graph.InstantiateOperators();
 
   std::string serialized_data;
@@ -357,23 +379,27 @@ TEST_F(CheckpointTest, Serialize) {
     Checkpoint cpt;
     cpt.Build(graph);
 
-    ASSERT_EQ(cpt.NumOp(), 2);
+    ASSERT_EQ(cpt.NumOp(), 3);
     ASSERT_EQ(cpt.GetOpCheckpoint(0).OperatorName(), "DummySource");
     ASSERT_EQ(cpt.GetOpCheckpoint(1).OperatorName(), "DummyInnerLayer");
+    ASSERT_EQ(cpt.GetOpCheckpoint(2).OperatorName(), "DummyStatelessOp");
 
     cpt.GetOpCheckpoint(0).MutableCheckpointState() = DummySnapshot{{0}};
     cpt.GetOpCheckpoint(1).MutableCheckpointState() = DummySnapshot{{1}};
+    cpt.GetOpCheckpoint(2).MutableCheckpointState() = CheckpointingData{};
     serialized_data = cpt.SerializeToProtobuf();
   }
 
   Checkpoint cpt;
   cpt.DeserializeFromProtobuf(serialized_data);
 
-  ASSERT_EQ(cpt.NumOp(), 2);
+  ASSERT_EQ(cpt.NumOp(), 3);
   ASSERT_EQ(cpt.GetOpCheckpoint(0).OperatorName(), "DummySource");
   ASSERT_EQ(cpt.GetOpCheckpoint(1).OperatorName(), "DummyInnerLayer");
+  ASSERT_EQ(cpt.GetOpCheckpoint(2).OperatorName(), "DummyStatelessOp");
   ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(0).GetCheckpointingData()));
   ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(1).GetCheckpointingData()));
+  ASSERT_TRUE(std::holds_alternative<std::monostate>(cpt.GetOpCheckpoint(2).GetCheckpointingData()));
   EXPECT_EQ(
     cpt.GetOpCheckpoint(0).CheckpointState<DummySnapshot>().dummy_state,
     std::vector<uint8_t>{0});

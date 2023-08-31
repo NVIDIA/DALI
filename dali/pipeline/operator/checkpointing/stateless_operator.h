@@ -29,7 +29,10 @@ class StatelessOperator : public Operator<Backend> {
 
   inline ~StatelessOperator() override {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {}
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+    /* Set the default std::monostate */
+    cpt.MutableCheckpointState() = CheckpointingData{};
+  }
 
   void RestoreState(const OpCheckpoint &cpt) override {}
 };
