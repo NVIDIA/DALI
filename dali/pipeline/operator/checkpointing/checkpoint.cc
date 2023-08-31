@@ -24,12 +24,22 @@ namespace dali {
 
 namespace {
 
+/**
+ * @brief Serialize object to string via stream operations
+ *
+ * Used for random engines, as there is no other interface to serialize them.
+*/
 template<class T> std::string SerializeToString(const T &obj) {
   std::stringstream stream;
   stream << obj;
   return stream.str();
 }
 
+/**
+ * @brief Deserialize object from string via stream operations.
+ *
+ * Used for random engines, as there is no other interface to serialize them.
+*/
 template<class T> T DeserializeFromString(const std::string &str) {
   std::stringstream stream(str);
   T obj;
