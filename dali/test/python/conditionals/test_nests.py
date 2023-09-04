@@ -18,21 +18,7 @@ import numpy as np
 from test_utils import check_batch
 from nose_utils import assert_raises
 
-from nvidia.dali._conditionals import check_nesting_support
 
-from unittest import SkipTest
-
-
-def disable_for_incompatible_env(test_func):
-    def test_skipped():
-        raise SkipTest(f"{test_func.__name__} skipped due to lack of dm-tree for Python 3.6")
-
-    if not check_nesting_support():
-        return test_skipped
-    return test_func
-
-
-@disable_for_incompatible_env
 def test_select_impls():
     # Test recursive select that returns tuple of outputs (due to the ops having 2 outputs).
     # Without supporting nested structures it encountered a ((DataNode, DataNode),) branch output
@@ -93,7 +79,6 @@ def test_select_impls():
     pipe_forwarding.run()
 
 
-@disable_for_incompatible_env
 def test_dicts():
 
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
@@ -126,7 +111,6 @@ def test_dicts():
     check_batch(out, [41 if i % 2 else 43 for i in range(8)])
 
 
-@disable_for_incompatible_env
 def test_tuples():
 
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
@@ -148,7 +132,6 @@ def test_tuples():
     check_batch(c, [62 if i % 2 else 84 for i in range(8)])
 
 
-@disable_for_incompatible_env
 def test_nesting_error():
 
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
