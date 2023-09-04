@@ -40,7 +40,7 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
   explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
                         bool shuffle_after_epoch = false)
-      : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
+      : FileLoader<GPUBackend, Target, CUFileStream>(spec, shuffle_after_epoch) {
   }
 
   ~CUFileLoader() {
