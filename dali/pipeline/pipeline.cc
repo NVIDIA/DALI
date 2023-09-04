@@ -947,17 +947,11 @@ bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
 
 void Pipeline::Shutdown() {
   DeviceGuard dg(device_id_);
-  for (auto &name : input_operators_names_) {
-    OpNodeId node_id = -1;
-    if (graph_.TensorExists(name + "_cpu")) {
-      node_id = graph_.TensorSourceID(name + "_cpu");
-    } else if (graph_.TensorExists(name + "_gpu")) {
-      node_id = graph_.TensorSourceID(name + "_gpu");
-    }
-    auto &node = graph_.Node(node_id);
-    OperatorBase *op_ptr = &node.InstantiateOperator();
-    auto op_type = graph_.NodeType(node_id);
-    switch (op_type) {
+  auto& op_nodes = graph_.GetOpNodes();
+  for (auto & node : op_nodes) {
+    if (!is_input_operator(node)) continue;
+    OperatorBase *op_ptr = &(const_cast<dali::OpNode*>(&node)->InstantiateOperator());
+    switch (node.op_type) {
       case OpType::CPU: {
         auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr);
         assert(cpu_op_ptr);
