@@ -3,7 +3,7 @@
 set -o pipefail
 if [ -n "$gather_pip_packages" ]
 then
-    # perl breaks the opulation of the outise variables from the inside of the sourced
+    # perl breaks the population of the outside variables from the inside of the sourced
     # script. Turn this off to the gather_pip_packages process
     source qa/test_template_impl.sh
 else

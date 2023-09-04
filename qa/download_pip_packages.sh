@@ -10,7 +10,7 @@ do
     # check all test files inside
     for test_file in $(ls -f *.sh);
     do
-        # don't parse files that don't source test_template.sh driectly as variables
+        # don't parse files that don't source test_template.sh directly as variables
         # are not set up properly
         if [ -z "$(grep 'test_template.sh' $test_file)" ]; then
             continue
