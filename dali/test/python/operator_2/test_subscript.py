@@ -273,6 +273,15 @@ def _test_too_many_indices(device):
         _ = pipe.run()
 
 
+def test_zero_stride_error():
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[::0])
+    with assert_raises(RuntimeError, glob="Step cannot be zero"):
+        pipe.build()
+        _ = pipe.run()
+
+
 def test_too_many_indices():
     for device in ["cpu", "gpu"]:
         yield _test_too_many_indices, device

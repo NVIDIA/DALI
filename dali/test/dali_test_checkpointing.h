@@ -39,12 +39,12 @@ class PipelineWrapper {
       pipe_(new Pipeline(batch_size, 1, 0)),
       outputs_(outputs) {}
 
-  inline void AddOperator(OpSpec spec) {
+  inline void AddOperator(const OpSpec &spec) {
     std::string identifier = std::to_string(next_identifier_++);
     AddOperator(spec, identifier);
   }
 
-  inline void AddOperator(OpSpec spec, std::string identifier) {
+  inline void AddOperator(const OpSpec &spec, const std::string &identifier) {
     pipe_->AddOperator(spec, identifier);
     ops_.emplace_back(spec, identifier);
   }
@@ -112,7 +112,7 @@ class PipelineWrapper {
 class CheckpointingTest : public DALITest {
  public:
   template<typename OutputType>
-  void RunTest(PipelineWrapper original_pipeline, int iterations = 10) {
+  void RunTest(PipelineWrapper &&original_pipeline, int iterations = 10) {
     for (int i = 0; i < iterations; i++)
       original_pipeline.RunIteration<OutputType>();
 

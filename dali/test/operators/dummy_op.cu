@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,9 +91,11 @@ void TestStatefulOpGPU::RunImpl(Workspace &ws) {
   int samples = input.num_samples();
   output.Resize(uniform_list_shape(samples, {1}), DALI_UINT8, BatchContiguity::Contiguous);
 
-  for (int i = 0; i < samples; i++)
+  for (int i = 0; i < samples; i++) {
     inc<<<1, 1, 0, ws.stream()>>>(
       state_ + i, output.mutable_tensor<uint8_t>(i), input.tensor<uint8_t>(i));
+    CUDA_CALL(cudaGetLastError());
+  }
 }
 
 DALI_REGISTER_OPERATOR(DummyOp, DummyOp<GPUBackend>, GPU);

@@ -116,6 +116,7 @@ class MedianBlur : public Operator<GPUBackend> {
   int NumImages(const TensorList<GPUBackend> &input) {
     const auto &shape = input.shape();
     int cdim = input.GetLayout().find('C');
+    assert(cdim >= 0);
     bool channel_last = cdim == shape.sample_dim() - 1;
     int fdim = input.GetLayout().find('F');
     int num_images = 0;
@@ -154,6 +155,7 @@ class MedianBlur : public Operator<GPUBackend> {
   }
 
   void ValidateChannels(const TensorList<GPUBackend> &input, int cdim) const {
+    assert(cdim >= 0);
     if (input.num_samples() == 0) return;
     auto channels = input.tensor_shape(0)[cdim];
     DALI_ENFORCE(channels == 1 || channels == 3 || channels == 4,
@@ -187,8 +189,8 @@ class MedianBlur : public Operator<GPUBackend> {
       buf.planes[0].rowStride = byte_strides[0];
       buf.planes[0].height = shape[0];
       buf.planes[0].width  = shape[1];
-      nvcv::ImageDataStridedCuda data(nvcv_format_, buf);
-      images.pushBack(nvcv::ImageWrapData(data));
+      nvcv::ImageDataStridedCuda img_data(nvcv_format_, buf);
+      images.pushBack(nvcv::ImageWrapData(img_data));
       if (batch_map) batch_map->push_back(sample_id);
     } else {
       int extent = shape[0];

@@ -94,7 +94,7 @@ __device__ __forceinline__ Tile *load_linear_tile(Tile *tile,
   static_assert(kStaticChannels == 3, "Only 3 input channels allowed now.");
   static_assert(kLoadAlign % 4 == 0, "The loading alignment should be divisible by 4.");
 
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   auto in_start = reinterpret_cast<std::uintptr_t>(sample.in + start_x);
@@ -170,7 +170,7 @@ __device__ __forceinline__ Tile *slice_load_linear_tile(
   static_assert(kStaticChannels == 3, "Only 3 input channels allowed now.");
   static_assert(kLoadAlign % 4 == 0, "The loading alignment should be divisible by 4.");
 
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   // Strides use the input number of channels without the padding
@@ -278,7 +278,7 @@ __device__ __forceinline__ void load_planar_tile(Tile tile[][kBlockSize / kStati
   static_assert(kStaticChannels == 3, "Only 3 input channels allowed now.");
   static_assert(kLoadAlign % 4 == 0, "The loading alignment should be divisible by 4.");
 
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   auto in_start = reinterpret_cast<std::uintptr_t>(sample.in + start_x);
@@ -382,7 +382,7 @@ calculate_offset_chw(int64_t planar_idx, const Hwc2HwcChwSampleDesc<Out, In> sam
 template <int kBlockSize, int kStaticChannels, bool enable_mirror, bool enable_pad,
           typename Compute = float, typename Tile, typename Out, typename In>
 __device__ __forceinline__ void store_chw(Tile *tile, const Hwc2HwcChwSampleDesc<Out, In> sample) {
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   const auto *__restrict__ fill_values = static_cast<const Out *>(sample.fill_values);
@@ -449,7 +449,7 @@ calculate_offset_hwc(int64_t flat_idx, int c, const Hwc2HwcChwSampleDesc<Out, In
 template <int kBlockSize, int kStaticChannels, bool enable_mirror, bool enable_pad,
           typename Compute, typename Tile, typename Out, typename In>
 __device__ __forceinline__ void store_hwc(Tile *tile, const Hwc2HwcChwSampleDesc<Out, In> sample) {
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   const auto *__restrict__ fill_values = static_cast<const Out *>(sample.fill_values);
@@ -518,7 +518,7 @@ __device__ __forceinline__ void store_planar_hwc_pad(
     const Hwc2HwcChwSampleDesc<float16, uint8_t> sample) {
   constexpr int kOutChannels = kStaticChannels + 1;
 
-  int64_t start_x = (blockIdx.x - sample.first_block) * kBlockSize;
+  int64_t start_x = static_cast<int64_t>(blockIdx.x - sample.first_block) * kBlockSize;
   int64_t end_x = ::min(start_x + kBlockSize, sample.sample_size);
 
   const auto *__restrict__ fill_values = static_cast<const float16 *>(sample.fill_values);

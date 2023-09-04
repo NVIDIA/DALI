@@ -231,9 +231,12 @@ class TensorSubscript : public Operator<Backend> {
         if (step > 0) {
           lo = s.lo.IsDefined() ? s.lo.values[i] : 0_i64;
           hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
-        } else {
+        } else if (step < 0) {
           lo = s.lo.IsDefined() ? s.lo.values[i] : -1_i64;
           hi = s.hi.IsDefined() ? s.hi.values[i] : 0_i64;
+        } else {
+          DALI_FAIL(make_string("Step cannot be zero. Detetected step == 0 at axis ", d,
+                                " while processing sample #", i));
         }
 
         if (lo < 0)
