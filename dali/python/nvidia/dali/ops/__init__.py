@@ -57,9 +57,11 @@ def _instantiate_constant_node(device, constant):
 
 
 def _separate_kwargs(kwargs, arg_input_type=_DataNode):
-    """Separates arguments into ones that should go to operator's __init__ and to __call__.
+    """Separates arguments into scalar arguments and argument inputs (data nodes or tensor lists),
+    that were historically specified in __init__ and __call__ of operator class.
 
-    Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
+    Returns a pair of dictionaries of kwargs - the first for arguments (__init__), the second for
+    argument inputs (__call__).
 
     Args:
         kwargs: Keyword arguments.
@@ -70,7 +72,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
 
-    def is_call_arg(name, value):
+    def is_arg_input(name, value):
         if name == "device":
             return False
         if name == "ndim":
@@ -89,7 +91,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     for name, value in kwargs.items():
         if value is None:
             continue
-        if is_call_arg(name, value):
+        if is_arg_input(name, value):
             call_args[name] = value
         else:
             init_args[name] = to_scalar(value)
@@ -281,6 +283,17 @@ def _check_arg_input(schema, op_name, name):
         raise TypeError(
             f"The argument `{name}` for operator `{op_name}` should not be a `DataNode` but a "
             f"{expected_type_name}")
+
+
+# Steps
+# Separate kwargs -> (arguments, argument inputs)
+# <In init: validate arguments, check argument inputs> - discard the OpSpec and proceed further.
+#   validation: deprecation check, OpSpec check -
+# <Group into arguments, argument inputs and inputs>
+# validate: deprecation check, op_spec check
+# Build op spec by adding everything
+# Add somewhere higher: handle constants
+# Handle conditionals
 
 
 def python_op_factory(name, schema_name=None):
