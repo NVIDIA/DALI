@@ -84,7 +84,7 @@ For more details please check the |release-doc|_.
           # Currently supported range of versions.
           'astunparse >= 1.6.0',
           'gast >= 0.3.3',
-          "dm-tree;python_version>='3.7'",
+          'dm-tree',
           ],
      )
 
