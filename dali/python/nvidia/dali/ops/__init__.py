@@ -38,6 +38,7 @@ from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
 from nvidia.dali.ops._operator_utils import (_build_input_sets, _repack_output_sets, )
 
+
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
@@ -58,27 +59,13 @@ def _instantiate_constant_node(constant: _ScalarConstant, device: str):
     return _Constant(device=device, value=constant.value, dtype=constant.dtype,
                      shape=constant.shape)
 
+
 def _promote_scalar_constant(value, input_device):
     """When ScalarConstant is encountered, promote it to a DataNode, otherwise do a pass-through.
     """
     if isinstance(value, _ScalarConstant):
         return _instantiate_constant_node(value, input_device)
     return value
-
-
-def _promote_constants_in_argument_inputs():
-    if isinstance(arg_inp, _ScalarConstant):
-        arg_inp = _instantiate_constant_node(arg_inp, "cpu")
-    if not isinstance(arg_inp, _DataNode):
-        try:
-            arg_inp = _Constant(arg_inp, device="cpu")
-        except Exception as e:
-            raise TypeError(
-                f"Expected inputs of type "
-                f"`DataNode` or convertible to constant nodes. Received "
-                f"input `{k}` of type '{type(arg_inp).__name__}'.") from e
-
-
 
 
 def _separate_kwargs(kwargs, arg_input_type=_DataNode):
@@ -167,25 +154,6 @@ def _handle_deprecations(schema, kwargs, op_name):
             warnings.simplefilter("default")
             warnings.warn(msg, DeprecationWarning, stacklevel=2)
     return kwargs
-
-
-
-
-
-# def _promote_constants(kwargs):
-#     return tree.map_structure(_promote_constant, kwargs)
-
-
-# def _process_arguments(schema, spec, kwargs):
-#     pass
-
-# def _process_argument_inputs(schema, spec, kwargs):
-#     pass
-
-# def _process_inputs(schema, spec, inputs):
-#     pass
-
-
 
 
 def _add_spec_args(schema, spec, kwargs):
@@ -365,17 +333,6 @@ def _check_arg_input(schema, op_name, name):
             f"{expected_type_name}")
 
 
-# Steps
-# Separate kwargs -> (arguments, argument inputs)
-# <In init: validate arguments, check argument inputs> - discard the OpSpec and proceed further.
-#   validation: deprecation check, OpSpec check -
-# <Group into arguments, argument inputs and inputs>
-# validate: deprecation check, op_spec check
-# Build op spec by adding everything
-# Add somewhere higher: handle constants
-# Handle conditionals
-
-
 def python_op_factory(name, schema_name=None):
 
     class Operator(metaclass=_DaliOperatorMeta):
@@ -388,7 +345,6 @@ def python_op_factory(name, schema_name=None):
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
             self._device = device
-            # TODO(klecki): What if we did this: kwargs["device"] = device
             self._spec.AddArg("device", self._device)
 
             kwargs, self._call_args = _separate_kwargs(kwargs)
@@ -467,7 +423,6 @@ def python_op_factory(name, schema_name=None):
                     f"Operator {type(self).__name__} expects "
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                     f"but received {len(inputs)}.")
-
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
