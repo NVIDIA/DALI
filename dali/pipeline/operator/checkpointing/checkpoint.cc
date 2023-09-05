@@ -61,13 +61,13 @@ struct CheckpointDataToProto {
   void operator()(const RNGSnapshotCPU &data) {
     auto snapshot = proto_->mutable_rng_cpu();
     for (const auto &rng : data.rng)
-      snapshot->add_rng(SerializeToString(data.rng));
+      snapshot->add_rng(SerializeToString(rng));
   }
 
   void operator()(const RNGSnapshotCPU64 &data) {
     auto snapshot = proto_->mutable_rng_cpu64();
     for (const auto &rng : data.rng)
-      snapshot->add_rng(SerializeToString(data.rng));
+      snapshot->add_rng(SerializeToString(rng));
   }
 
   void operator()(const ReaderStateSnapshot &data) {
