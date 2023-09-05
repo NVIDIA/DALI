@@ -60,14 +60,6 @@ def _instantiate_constant_node(constant: _ScalarConstant, device: str):
                      shape=constant.shape)
 
 
-def _promote_scalar_constant(value, input_device):
-    """When ScalarConstant is encountered, promote it to a DataNode, otherwise do a pass-through.
-    """
-    if isinstance(value, _ScalarConstant):
-        return _instantiate_constant_node(value, input_device)
-    return value
-
-
 # TODO(klecki): The curse of multiple input sets and optimization prohibits us from using this
 # code-path both for inputs and argument inputs.
 def _handle_constant(value, device, input_name, op_name):
@@ -98,14 +90,14 @@ def _handle_constant(value, device, input_name, op_name):
     if isinstance(value, _DataNode):
         return value
     if isinstance(value, _ScalarConstant):
-        return _instantiate_constant_node(arg_inp, device)
+        return _instantiate_constant_node(value, device)
     try:
-        arg_inp = _Constant(arg_inp, device=device)
+        value = _Constant(value, device=device)
     except Exception as e:
         raise TypeError(f"when calling operator {op_name}: "
                         f"expected inputs of type `DataNode` or convertible to "
                         f"constant nodes. Received input `{input_name}` of type "
-                        f"'{type(arg_inp).__name__}'.") from e
+                        f"'{type(value).__name__}'.") from e
     return value
 
 
@@ -568,16 +560,23 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
             input_device = default_input_device
         return input_device
 
+    def _promote_scalar_constant(value, input_device):
+        """When ScalarConstant is encountered, promote it to a DataNode, otherwise do
+        a pass-through.
+        """
+        if isinstance(value, _ScalarConstant):
+            return _instantiate_constant_node(value, input_device)
+        return value
+
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            if not isinstance(inp, nvidia.dali.types.ScalarConstant):
-                try:
-                    inp = _Constant(inp, device=get_input_device(schema, idx))
-                except Exception as ex:
-                    raise TypeError(f"when calling operator {op_name}: "
-                                    f"expected inputs of type `DataNode`, list of `DataNode` "
-                                    f"or convertible to constant nodes. Received "
-                                    f"input `{idx}` of type '{type(inp).__name__}'.") from ex
+            try:
+                inp = _Constant(inp, device=get_input_device(schema, idx))
+            except Exception as ex:
+                raise TypeError(f"when calling operator {op_name}: "
+                                f"expected inputs of type `DataNode`, list of `DataNode` "
+                                f"or convertible to constant nodes. Received "
+                                f"input `{idx}` of type '{type(inp).__name__}'.") from ex
 
         if not isinstance(inp, _DataNode):
             dev = get_input_device(schema, idx)
