@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class DLL_PUBLIC RandomCropGenerator {
 
   DLL_PUBLIC inline const std::mt19937 &GetRNG() const { return rand_gen_; }
   DLL_PUBLIC inline std::mt19937 &GetRNG() { return rand_gen_; }
-  DLL_PUBLIC inline void SetRNG(std::mt19937 rng) { rand_gen_ = std::move(rng); }
+  DLL_PUBLIC inline void SetRNG(const std::mt19937 &rng) { rand_gen_ = rng; }
   DLL_PUBLIC CropWindow GenerateCropWindow(const TensorShape<>& shape);
   DLL_PUBLIC std::vector<CropWindow> GenerateCropWindows(const TensorShape<>& shape,
                                                          std::size_t N);
