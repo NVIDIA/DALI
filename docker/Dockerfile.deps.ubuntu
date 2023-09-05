@@ -1,0 +1,80 @@
+
+ARG FROM_IMAGE_NAME=ubuntu:22.04
+ARG BUILDER_EXTRA_DEPS=scratch
+FROM ${BUILDER_EXTRA_DEPS} as extra_deps
+FROM ${FROM_IMAGE_NAME}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install -y --no-install-recommends \
+                            python3 \
+                            python3-distutils \
+                            python3-dev \
+                            python3-pip \
+                            gcc \
+                            g++ \
+                            make \
+                            cmake \
+                            git \
+                            git-lfs \
+                            wget \
+                            autoconf \
+                            automake \
+                            libtool \
+                            libtool-bin \
+                            patchelf \
+                            nasm \
+                            python-is-python3 \
+                            patch \
+                            zlib1g-dev \
+                            libxml2-dev \
+                            dkms dpkg-dev \
+                            libudev-dev \
+                            liburcu-dev \
+                            libmount-dev \
+                            libnuma-dev \
+                            libssl-dev \
+                            libjsoncpp-dev \
+                            libasan6 \
+                            libunwind-dev \
+                            curl \
+                            libncurses5-dev \
+                            lsb-core \
+                            wget \
+                            unzip \
+                            llvm && \
+  git lfs install && \
+  # crete generic symblinks to libasan.so and libstdc++.so
+  ln /usr/lib/x86_64-linux-gnu/libasan.so.6 /usr/lib/x86_64-linux-gnu/libasan.so && \
+  ln /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so && \
+  pip install --upgrade pip && \
+  pip install --upgrade \
+              future \
+              setuptools \
+              wheel \
+              flake8 \
+              clang && \
+  pip install libclang && \
+  rm -rf /var/lib/apt/lists/* && \
+  rm -rf /root/.cache/pip/
+
+COPY DALI_DEPS_VERSION /tmp
+
+ARG DALI_DEPS_REPO
+ENV DALI_DEPS_REPO=${DALI_DEPS_REPO:-https://github.com/NVIDIA/DALI_deps}
+
+ARG DALI_DEPS_VERSION_SHA
+ENV DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA}
+
+# run in /bin/bash to have more advanced features supported like list
+RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI_DEPS_VERSION)}    && \
+    git clone ${DALI_DEPS_REPO} /tmp/dali_deps                                                     && \
+    cd /tmp/dali_deps                                                                              && \
+    git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
+    git submodule init                                                                             && \
+    git submodule update --depth 1 --init --recursive                                              && \
+    export CC_COMP=${CC}                                                                           && \
+    export CXX_COMP=${CXX}                                                                         && \
+    /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
+
+# extra deps
+COPY --from=extra_deps / /

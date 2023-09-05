@@ -1,0 +1,70 @@
+ARG DEPS_IMAGE_NAME
+# clean builder without source code inside
+FROM ${DEPS_IMAGE_NAME} as builder
+
+# make sure that linker discovers cuda libs
+RUN echo "/usr/local/cuda/targets/x86_64-linux/lib" > /etc/ld.so.conf.d/999_cuda.conf && \
+    echo "/usr/local/cuda-11.8/targets/x86_64-linux/lib" >> /etc/ld.so.conf.d/999_cuda.conf && \
+    ldconfig && \
+    pip install --upgrade \
+                astunparse \
+                gast \
+                dm-tree && \
+    rm -rf /root/.cache/pip/ && \
+    # Install dependencies: opencv-python from 3.3.0.10 onwards uses QT which requires
+    # X11 and other libraries that are not present in clean docker images or bundled there
+    # 4.3.0.38 uses libGL.so as well so install libgl1-mesa-dev
+    apt-get update && \
+    apt-get install -y --no-install-recommends libsm6 \
+                                               libice6 \
+                                               libxrender1 \
+                                               libxext6 \
+                                               libx11-6 \
+                                               glib-2.0 \
+                                               libgl1-mesa-dev && \
+    # for simple audio python wheel
+    apt-get install -y --no-install-recommends libasound2-dev && \
+    apt-get update && \
+    apt-get install wget software-properties-common -y && \
+    CUDNN_VERSION=8.8.1.3-1 && \
+    CUBLASS_VERSION_11=11.11.3.6-1 && \
+    CUBLASS_VERSION_12=12.0.2.224-1 && \
+    NCCL_VERSION=2.16.5-1 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
+    add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" && \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && \
+    mv cuda-*.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+                    libcudnn8=${CUDNN_VERSION}+cuda12.0 \
+                    libcudnn8-dev=${CUDNN_VERSION}+cuda12.0 \
+                    libnccl2=${NCCL_VERSION}+cuda12.0 \
+                    libcublas-11-8=${CUBLASS_VERSION_11} \
+                    libcublas-12-0=${CUBLASS_VERSION_12} \
+                    libcufft-11-8 \
+                    libcusparse-11-8 \
+                    cuda-nvrtc-11-8 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=bind,source=qa/,target=/opt/dali/qa/ \
+    export INSTALL=YES && \
+    export CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/') && \
+    cd /opt/dali/qa/ && ./download_pip_packages.sh
+
+RUN --mount=type=bind,source=./DALI_EXTRA_VERSION,target=/opt/dali/DALI_EXTRA_VERSION,type=bind,source=qa/,target=/opt/dali/qa/ \
+    /bin/bash -c 'pushd /opt/dali/qa/ && \
+    source ./setup_dali_extra.sh && \
+    popd'
+
+ENV WITH_DYNAMIC_CUDA_TOOLKIT=ON \
+    WITH_DYNAMIC_NVJPEG=ON \
+    WITH_DYNAMIC_CUFFT=ON \
+    WITH_DYNAMIC_NPP=ON \
+    BUILD_CUFILE=ON \
+    NVIDIA_BUILD_ID=0 \
+    # to be adjusted later, first it to run from the build dir, the second is for nose test
+    # so the user can `python3 -m nose_wrapper --verbose`
+    PYTHONPATH=/opt/dali/test_comp/dali/python/:/opt/dali/qa \
+    DALI_EXTRA_PATH=/opt/dali_extra
+
+WORKDIR /opt/dali
