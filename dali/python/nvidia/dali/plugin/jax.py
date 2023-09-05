@@ -184,7 +184,8 @@ class DALIGenericIterator(_DaliBaseIterator):
                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
                        "greater than the shard size."
 
-    def __next__(self):
+
+    def next_impl(self):
         self._ever_consumed = True
         if self._first_batch is not None:
             batch = self._first_batch
@@ -212,6 +213,10 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._advance_and_check_drop_last()
 
         return next_output
+
+
+    def __next__(self):
+        return self.next_impl()
 
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
         category_outputs = []
@@ -256,3 +261,67 @@ class DALIGenericIterator(_DaliBaseIterator):
         for shard in category_outputs:
             assert shard.shape == category_outputs[0].shape, \
                 "Shards shapes have to be the same."
+
+
+from clu.data.dataset_iterator import ArraySpec, Element, ElementSpec
+from clu import asynclib
+
+import threading
+import concurrent
+
+
+class DALIGenericPeekableIterator(DALIGenericIterator):
+    """DALI iterator for JAX with peek functionality. Compatible with Google CLU PeekableIterator.
+
+    """
+    
+    def __init__(
+            self,
+            pipelines,
+            output_map,
+            size=-1,
+            reader_name=None,
+            auto_reset=False,
+            last_batch_padded=False,
+            last_batch_policy=LastBatchPolicy.FILL,
+            prepare_first_batch=True,
+            sharding=None):
+        self._mutex = threading.Lock()
+        self._peek: Element | None = None
+        self._pool = None
+        self._peek_future = None
+        super().__init__(
+            pipelines,
+            output_map,
+            size,
+            reader_name,
+            auto_reset,
+            last_batch_padded,
+            last_batch_policy,
+            prepare_first_batch,
+            sharding)
+
+
+    def __next__(self):
+        with self._mutex:
+            if self._peek is None:
+                return self.next_impl()
+        peek = self._peek
+        self._peek = None
+        return peek
+
+
+    def peek(self):
+        if self._peek is None:
+            self._peek = next(self)
+        return self._peek
+
+
+    def peek_async(self):
+        with self._mutex:
+            if self._peek_future is None:
+                if self._pool is None:
+                    self._pool = asynclib.Pool(max_workers=1)
+                self._peek_future = self._pool(self.peek)()
+        return self._peek_future
+
