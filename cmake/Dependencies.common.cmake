@@ -263,6 +263,8 @@ endif()
 if (BUILD_CVCUDA)
   set(DALI_BUILD_PYTHON ${BUILD_PYTHON})
   set(BUILD_PYTHON OFF)
+  # for now we use only median blur from CV-CUDA
+  set(CV_CUDA_SRC_PATERN medianblur median_blur)
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
   list(APPEND DALI_LIBS cvcuda nvcv_types)
   set(BUILD_PYTHON ${DALI_BUILD_PYTHON})

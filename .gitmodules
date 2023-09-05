@@ -28,4 +28,4 @@
 	url = https://github.com/cocodataset/cocoapi
 [submodule "third_party/cvcuda"]
 	path = third_party/cvcuda
-	url = https://github.com/JanuszL/CV-CUDA.git
+        url = https://github.com/CVCUDA/CV-CUDA.git
