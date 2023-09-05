@@ -68,6 +68,47 @@ def _promote_scalar_constant(value, input_device):
     return value
 
 
+# TODO(klecki): The curse of multiple input sets and optimization prohibits us from using this
+# code-path both for inputs and argument inputs.
+def _handle_constant(value, device, input_name, op_name):
+    """Handle promotion of possible constant value passed as (argument) input to an operator-backed
+    DataNode. Pass-through if the value is a DataNode.
+
+    Parameters
+    ----------
+    value : DataNode, ScalarConstant or value convertible to a constant op
+        The value to be processed.
+    device : str
+        Target placement of constant node.
+    input_name : int or str
+        Position or name of the input, for error reporting purposes.
+    op_name : str
+        Name of the invoked operator, for error reporting purposes.
+
+    Returns
+    -------
+    DataNode
+        Either the same node as input or newly created DataNode representing the constant.
+
+    Raises
+    ------
+    TypeError
+        Error in case a constant was passed that is not possible to be converted by DALI.
+    """
+    if isinstance(value, _DataNode):
+        return value
+    if isinstance(value, _ScalarConstant):
+        return _instantiate_constant_node(arg_inp, device)
+    try:
+        arg_inp = _Constant(arg_inp, device=device)
+    except Exception as e:
+        raise TypeError(f"when calling operator {op_name}: "
+                        f"expected inputs of type `DataNode` or convertible to "
+                        f"constant nodes. Received input `{input_name}` of type "
+                        f"'{type(arg_inp).__name__}'.") from e
+    return value
+
+
 def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     """Separates arguments into scalar arguments and argument inputs (data nodes or tensor lists),
     that were historically specified in __init__ and __call__ of operator class.
@@ -217,16 +258,8 @@ class _OperatorInstance(object):
                 arg_inp = call_args[k]
                 if arg_inp is None:
                     continue
-                if isinstance(arg_inp, _ScalarConstant):
-                    arg_inp = _instantiate_constant_node(arg_inp, "cpu")
-                if not isinstance(arg_inp, _DataNode):
-                    try:
-                        arg_inp = _Constant(arg_inp, device="cpu")
-                    except Exception as e:
-                        raise TypeError(f"when calling operator {type(op).__name__}: "
-                                        f"expected inputs of type `DataNode` or convertible to "
-                                        f" constant nodes. Received input `{k}` of type "
-                                        f"'{type(arg_inp).__name__}'.") from e
+                # Argument input constants are always placed on CPU
+                arg_inp = _handle_constant(arg_inp, "cpu", k, type(op).__name__)
 
                 _check_arg_input(op._schema, type(self._op).__name__, k)
 
