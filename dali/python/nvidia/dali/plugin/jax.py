@@ -324,4 +324,22 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                     self._pool = asynclib.Pool(max_workers=1)
                 self._peek_future = self._pool(self.peek)()
         return self._peek_future
+    
+    
+    @property
+    def element_spec(self) -> ElementSpec:
+        # Do we want this implementation?
+        # Or maybe is should be configurable? Like in Rosetta where they pass ModalityConfig?
+        # Should we pass this to DALI pipeline output_dtape and output_shape and validate?
+        peeked_output = self.peek()
+        
+        def jax_array_to_array_spec(jax_array):
+            return ArraySpec(
+                shape=jax_array.shape,
+                dtype=jax_array.dtype)
+        
+        return {
+            output_name: jax_array_to_array_spec(peeked_output[output_name])
+            for output_name in self._output_categories
+        }
 
