@@ -78,6 +78,15 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         if "device" not in init_args:
             init_args["device"] = default_dev
 
+        # TODO(klecki): It is now possible to handle creation of _OperatorInstance directly
+
+        # inputs = _preprocess_inputs(inputs, op_class.__name__, device, schema)
+        # input_sets = _build_input_sets(inputs, op_class.__name__)
+        # inst = [nvidia.dali.ops._OperatorInstance(inputs, init_args, call_args, <op>)
+        #         for inputs in input_sets]
+        # # join `inst` instances by the relation id
+        # # repack the outputs
+
         return op_class(**init_args)(*inputs, **call_args)
 
     def fn_wrapper(*inputs, **kwargs):

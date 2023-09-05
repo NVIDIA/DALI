@@ -800,7 +800,6 @@ Keyword Args
                 op_instance._layout = this_layout
                 op_instance._batch = batch
                 group.append(op_instance)
-                op_instance.generate_outputs()
                 outputs.append(op_instance.unwrapped_outputs)
 
             return outputs
@@ -822,7 +821,6 @@ Keyword Args
                                                       **group_common_kwargs)
             op_instance._layout = layout
             op_instance._batch = batch
-            op_instance.generate_outputs()
 
             return op_instance.unwrapped_outputs
 
