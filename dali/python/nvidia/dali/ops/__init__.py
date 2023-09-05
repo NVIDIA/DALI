@@ -117,7 +117,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
 
-    def is_arg_input(name, value):
+    def is_arg_input_or_name(name, value):
         if name == "device":
             return False
         if name == "ndim":
@@ -136,7 +136,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     for name, value in kwargs.items():
         if value is None:
             continue
-        if is_arg_input(name, value):
+        if is_arg_input_or_name(name, value):
             call_args[name] = value
         else:
             init_args[name] = to_scalar(value)
