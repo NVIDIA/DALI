@@ -399,7 +399,8 @@ TEST_F(CheckpointTest, Serialize) {
   ASSERT_EQ(cpt.GetOpCheckpoint(2).OperatorName(), "DummyStatelessOp");
   ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(0).GetCheckpointingData()));
   ASSERT_TRUE(std::holds_alternative<DummySnapshot>(cpt.GetOpCheckpoint(1).GetCheckpointingData()));
-  ASSERT_TRUE(std::holds_alternative<std::monostate>(cpt.GetOpCheckpoint(2).GetCheckpointingData()));
+  ASSERT_TRUE(std::holds_alternative<std::monostate>(cpt.GetOpCheckpoint(2)
+                                                        .GetCheckpointingData()));
   EXPECT_EQ(
     cpt.GetOpCheckpoint(0).CheckpointState<DummySnapshot>().dummy_state,
     std::vector<uint8_t>{0});
