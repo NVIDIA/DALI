@@ -90,7 +90,7 @@ requirements:
     - cfitsio
     - astunparse >=1.6.0
     - gast >=0.3.3
-    - dm-tree
+    - dm-tree >=0.1.8
   run:
     - python
     - future
@@ -111,4 +111,4 @@ requirements:
     - cfitsio
     - astunparse >=1.6.0
     - gast >=0.3.3
-    - dm-tree
+    - dm-tree >=0.1.8
