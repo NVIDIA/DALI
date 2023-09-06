@@ -247,14 +247,12 @@ bool IsAligned(const StridedCopyDesc &sample) {
 }
 
 template <int ElementSize, typename MismatchedNdimT>
-void CopyBatch(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_ndim,
-               cudaStream_t stream) {
+void CopyBatchTyped(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_ndim,
+                    cudaStream_t stream) {
   kernels::DynamicScratchpad scratchpad({}, stream);
   using T = ElementType<ElementSize>;
   constexpr unsigned int kMaxBlockSize = 1024u;
   static constexpr int kBlockSize = 128;
-  const StridedCopyDesc *sample_descs_gpu;
-  std::tie(sample_descs_gpu) = scratchpad.ToContiguousGPU(stream, sample_descs);
   int64_t max_vol = 0;
   bool has_aligned_output = true;
   for (auto &sample_desc : sample_descs) {
@@ -270,6 +268,8 @@ void CopyBatch(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_nd
     }
     max_vol = std::max(max_vol, tensor_vol);
   }
+  const StridedCopyDesc *sample_descs_gpu;
+  std::tie(sample_descs_gpu) = scratchpad.ToContiguousGPU(stream, sample_descs);
   unsigned int blocks_num = div_ceil(max_vol, T::vec_len * kBlockSize);
   blocks_num = std::min(blocks_num, kMaxBlockSize);
   unsigned int num_samples = sample_descs.size();
@@ -284,9 +284,9 @@ void CopyBatch(span<StridedCopyDesc> sample_descs, int max_mismatched_ndim, int 
                cudaStream_t stream) {
   VALUE_SWITCH(element_size, ElementSize, (1, 2, 4, 8), (
     VALUE_SWITCH(max_mismatched_ndim, NDim, (0, 1, 2, 3, 4, 5), (
-      CopyBatch<ElementSize>(sample_descs, MismatchedNdim<NDim>{}, stream);
+      CopyBatchTyped<ElementSize>(sample_descs, MismatchedNdim<NDim>{}, stream);
     ), ( // NOLINT
-      CopyBatch<ElementSize>(sample_descs, MismatchedNdim<-1>(max_mismatched_ndim), stream);
+      CopyBatchTyped<ElementSize>(sample_descs, MismatchedNdim<-1>(max_mismatched_ndim), stream);
     )); // NOLINT
   ), DALI_FAIL(make_string("Unsupported element size: ", element_size)););  // NOLINT
 }
