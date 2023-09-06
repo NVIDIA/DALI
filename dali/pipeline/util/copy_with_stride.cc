@@ -111,7 +111,8 @@ void CopyDlTensorCpu(void *out_data, DLMTensorPtr &dlm_tensor_ptr) {
     CopyWithStrideCpu(out_data, dl_tensor.data, strides.data(), dl_tensor.shape, dl_tensor.ndim,
                       item_size);
   } else {
-    CopyWithStrideCpu(out_data, dl_tensor.data, nullptr, dl_tensor.shape, dl_tensor.ndim, item_size);
+    CopyWithStrideCpu(out_data, dl_tensor.data, nullptr, dl_tensor.shape, dl_tensor.ndim,
+                      item_size);
   }
 }
 

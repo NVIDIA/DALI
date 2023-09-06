@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-
 #include <cuda_runtime.h>
 #include <dali/core/dev_array.h>
 #include <dali/core/geom/vec.h>
 #include <dali/core/util.h>
+#include <algorithm>
+#include <vector>
 #include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
@@ -29,14 +29,32 @@ constexpr int MAX_DIMS = 15;
 struct StridedCopyDesc {
   void *output;
   const void *input;
+  // input and output strides, both kept in the same order
+  // (the out_strides are decreasing)
   int64_t in_strides[MAX_DIMS];
   int64_t out_strides[MAX_DIMS];
+  // the size of the tensor in number of elements (not bytes)
   int64_t size;
+
+  // filled separately by FillSampleAlignmentInfo
+  // based on the above inforation and data type info
+  struct {
+    // the number of aligned elements, i.e.
+    // the total number of elements minus the skip_left and skip_right
+    int64_t size;
+    // the offset (as number of elements, not bytes) that
+    // need to be skipped from the start of the output
+    // tensor for the vectorized writes to be aligned
+    int skip_left;
+    // the number of elements that need to be skipped from the end
+    // of the sample for the vectorized write to fit in the sample
+    int skip_right;
+  } aligned;
 };
 
-template <typename T, size_t num_elements, size_t alignment>
-struct alignas(alignment) Vectorized {
-  T payload[num_elements];  // NOLINT(runtime/arrays)
+template <typename T, size_t NumElements, size_t Alignment>
+struct alignas(Alignment) Vectorized {
+  T payload[NumElements];  // NOLINT(runtime/arrays)
 
   DALI_DEVICE DALI_FORCEINLINE T &operator[](int idx) {
     return payload[idx];
@@ -74,6 +92,13 @@ struct ElementType {
 };
 
 
+/**
+ * @brief A helper wrapper to abstract away if the number of strides
+ * the copy kernel needs to use for mapping the output index into
+ * input index is known as a compile time constant or a runtime input.
+ *
+ * @tparam MaxNDim_ -1 for runtime ndim or the non-negative number of extents.
+ */
 template <int MaxNDim_>
 struct MismatchedNdim {
   DALI_DEVICE DALI_FORCEINLINE constexpr int operator()() {
@@ -83,7 +108,7 @@ struct MismatchedNdim {
 
 template <>
 struct MismatchedNdim<-1> {
-  MismatchedNdim(int max_ndim) : max_ndim_{max_ndim} {}
+  MismatchedNdim(int max_ndim) : max_ndim_{max_ndim} {}  // NOLINT(runtime/explicit)
   DALI_DEVICE DALI_FORCEINLINE int operator()() {
     return max_ndim_;
   }
@@ -113,8 +138,8 @@ DALI_DEVICE DALI_FORCEINLINE int64_t GetInputIdx(MismatchedNdimT mismatched_ndim
 }
 
 /**
- * @brief Copies element by element (in contrast to vector of elements) `num_padded_elements`
- * elements from the start and the `num_cropped_elements` elements from the end of the sample.
+ * @brief Copies element by element (in contrast to vectorized `AlignedCopy`) the unaligned
+ * ends of the sample.
  *
  * Assumes that there is very few padded and cropped elements
  * (less than the ElementTypeDesc's vector type elements, typically 4).
@@ -122,86 +147,51 @@ DALI_DEVICE DALI_FORCEINLINE int64_t GetInputIdx(MismatchedNdimT mismatched_ndim
  */
 template <typename ElementTypeDesc, typename MismatchedNdimT>
 DALI_DEVICE DALI_FORCEINLINE void UnalignedCopy(const StridedCopyDesc &sample,
-                                                MismatchedNdimT mismatched_ndim,
-                                                const int num_padded_elements,
-                                                const int num_cropped_elements) {
+                                                MismatchedNdimT mismatched_ndim) {
   using T = typename ElementTypeDesc::type;
   using VecT = typename ElementTypeDesc::vec_type;
   constexpr int vec_len = ElementTypeDesc::vec_len;
-  if (blockIdx.x == 0 && (num_padded_elements > 0 || num_cropped_elements > 0)) {
-    assert(2 * vec_len <= blockDim.x);
-    assert(num_padded_elements < vec_len);
-    assert(num_cropped_elements < vec_len);
+  int skip_left = sample.aligned.skip_left;
+  int skip_right = sample.aligned.skip_right;
+  assert(2 * vec_len <= blockDim.x);
+  assert(skip_left < vec_len && skip_right < vec_len);
+  if (blockIdx.x == 0) {
     const T *__restrict__ input = static_cast<const T *>(sample.input);
     T *__restrict__ output = static_cast<T *>(sample.output);
     int padded_idx = threadIdx.x;
     int cropped_idx = threadIdx.x - vec_len;
-    if (padded_idx < num_padded_elements) {
-      auto in_idx =
-          GetInputIdx(mismatched_ndim, threadIdx.x, sample.in_strides, sample.out_strides);
+    if (padded_idx < skip_left) {
+      auto in_idx = GetInputIdx(mismatched_ndim, padded_idx, sample.in_strides, sample.out_strides);
       output[threadIdx.x] = input[in_idx];
-    } else if (0 <= cropped_idx && cropped_idx < num_cropped_elements) {
-      int64_t idx = sample.size - num_cropped_elements + cropped_idx;
+    } else if (0 <= cropped_idx && cropped_idx < skip_right) {
+      int64_t idx = sample.size - skip_right + cropped_idx;
       auto in_idx = GetInputIdx(mismatched_ndim, idx, sample.in_strides, sample.out_strides);
       output[idx] = input[in_idx];
     }
   }
 }
 
-template <typename ElementTypeDesc>
-DALI_HOST_DEV DALI_FORCEINLINE void SampleAlignmentInfo(int &num_padded_elements,
-                                                        int &num_cropped_elements,
-                                                        int64_t &aligned_down_size,
-                                                        const StridedCopyDesc &sample) {
-  using T = typename ElementTypeDesc::type;
-  using VecT = typename ElementTypeDesc::vec_type;
-  auto output_base_addr = reinterpret_cast<std::uintptr_t>(sample.output);
-  auto aligned_output_addr = align_up(output_base_addr, alignof(VecT));
-  num_padded_elements = (aligned_output_addr - output_base_addr) / sizeof(T);
-  int64_t remaining_size = sample.size - num_padded_elements;
-  aligned_down_size = align_down(remaining_size, ElementTypeDesc::vec_len);
-  num_cropped_elements = remaining_size - aligned_down_size;
-}
-
-template <typename ElementTypeDesc>
-bool IsAligned(const StridedCopyDesc &sample) {
-  int num_padded_elements, num_cropped_elements;
-  int64_t aligned_down_size;
-  SampleAlignmentInfo<ElementTypeDesc>(num_padded_elements, num_cropped_elements, aligned_down_size,
-                                       sample);
-  return num_padded_elements == 0 && num_cropped_elements == 0;
-}
-
 /**
- * @brief Performs aligned copy.
+ * @brief Performs output-aligned copy.
  *
  * The input is read element-by-element but the output is stored in a vectorized type and
  * written into global memory with wider, vectorized writes.
- * This benefits performance by 1. vectorized writes and 2. utilization of
- * cache in the reads if the input happens to be mostly compact
- * (for example the strides are due to row-major image with padded rows).
- *
- * Note, the output address must be aligned to meet the vectorized writes requirements.
- * If it is not, the first `num_padded_elements` elements are skipped and the
- * (T*)(output) + num_padded_elements is assumed to be aligned.
  */
 template <typename ElementTypeDesc, typename MismatchedNdimT>
 DALI_DEVICE DALI_FORCEINLINE void AlignedCopy(const StridedCopyDesc &sample,
-                                              MismatchedNdimT mismatched_ndim,
-                                              const int num_padded_elements,
-                                              const int64_t aligned_down_size) {
+                                              MismatchedNdimT mismatched_ndim) {
   using T = typename ElementTypeDesc::type;
   using VecT = typename ElementTypeDesc::vec_type;
   constexpr int vec_len = ElementTypeDesc::vec_len;
   const T *__restrict__ input = static_cast<const T *>(sample.input);
   VecT *__restrict__ output =
-      reinterpret_cast<VecT *>(static_cast<T *>(sample.output) + num_padded_elements);
+      reinterpret_cast<VecT *>(static_cast<T *>(sample.output) + sample.aligned.skip_left);
   for (int64_t flat_idx = vec_len * (blockIdx.x * blockDim.x + threadIdx.x);
-       flat_idx < aligned_down_size; flat_idx += vec_len * blockDim.x * gridDim.x) {
+       flat_idx < sample.aligned.size; flat_idx += vec_len * blockDim.x * gridDim.x) {
     VecT out_vec;
 #pragma unroll
     for (int i = 0; i < vec_len; i++) {
-      auto in_idx = GetInputIdx(mismatched_ndim, flat_idx + num_padded_elements + i,
+      auto in_idx = GetInputIdx(mismatched_ndim, flat_idx + sample.aligned.skip_left + i,
                                 sample.in_strides, sample.out_strides);
       out_vec[i] = input[in_idx];
     }
@@ -227,23 +217,37 @@ __global__ void BatchedCopy(const StridedCopyDesc *sample_descs, MismatchedNdimT
   using VecT = typename ElementTypeDesc::vec_type;
   static_assert(sizeof(VecT) == sizeof(T) * ElementTypeDesc::vec_len);
   const auto sample = sample_descs[blockIdx.y];
-  int num_padded_elements, num_cropped_elements;
-  int64_t aligned_down_size;
   if constexpr (!IsOutputAligned) {
-    SampleAlignmentInfo<ElementTypeDesc>(num_padded_elements, num_cropped_elements,
-                                         aligned_down_size, sample);
-  } else {
-    num_padded_elements = 0;
-    num_cropped_elements = 0;
-    aligned_down_size = sample.size;
+    UnalignedCopy<ElementTypeDesc>(sample, mismatched_ndim);
   }
-  UnalignedCopy<ElementTypeDesc>(sample, mismatched_ndim, num_padded_elements,
-                                 num_cropped_elements);
-  AlignedCopy<ElementTypeDesc>(sample, mismatched_ndim, num_padded_elements, aligned_down_size);
+  AlignedCopy<ElementTypeDesc>(sample, mismatched_ndim);
+}
+
+template <typename ElementTypeDesc>
+void FillSampleAlignmentInfo(StridedCopyDesc &sample) {
+  using T = typename ElementTypeDesc::type;
+  using VecT = typename ElementTypeDesc::vec_type;
+  constexpr int vec_len = ElementTypeDesc::vec_len;
+  static_assert(vec_len >= alignof(VecT) / sizeof(T));
+  auto output_base_addr = reinterpret_cast<std::uintptr_t>(sample.output);
+  auto aligned_output_addr = align_up(output_base_addr, sizeof(T) * vec_len);
+  sample.aligned.skip_left = (aligned_output_addr - output_base_addr) / sizeof(T);
+  assert(0 <= sample.aligned.skip_left && sample.aligned.skip_left < ElementTypeDesc::vec_len);
+  sample.aligned.skip_left = std::min<int64_t>(sample.size, sample.aligned.skip_left);
+  int64_t remaining_size = sample.size - sample.aligned.skip_left;
+  assert(0 <= remaining_size && remaining_size < sample.size);
+  sample.aligned.size = align_down(remaining_size, ElementTypeDesc::vec_len);
+  sample.aligned.skip_right = remaining_size - sample.aligned.size;
+  assert(0 <= sample.aligned.skip_right && sample.aligned.skip_right < ElementTypeDesc::vec_len);
+  assert(sample.aligned.skip_left + sample.aligned.skip_right + sample.aligned.size == sample.size);
+}
+
+bool IsAligned(const StridedCopyDesc &sample) {
+  return sample.aligned.skip_left == 0 && sample.aligned.skip_right == 0;
 }
 
 template <int ElementSize, typename MismatchedNdimT>
-void CopyBatch(span<const StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_ndim,
+void CopyBatch(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatched_ndim,
                cudaStream_t stream) {
   kernels::DynamicScratchpad scratchpad({}, stream);
   using T = ElementType<ElementSize>;
@@ -254,8 +258,17 @@ void CopyBatch(span<const StridedCopyDesc> sample_descs, MismatchedNdimT mismatc
   int64_t max_vol = 0;
   bool has_aligned_output = true;
   for (auto &sample_desc : sample_descs) {
-    max_vol = std::max(max_vol, sample_desc.size);
-    has_aligned_output &= IsAligned<T>(sample_desc);
+    FillSampleAlignmentInfo<T>(sample_desc);
+    has_aligned_output &= IsAligned(sample_desc);
+    // if needed, the first block for given sample handles unaligned writes on top
+    // of the "aligned work". if the sample is small enough that there is nothing
+    // left after the alignement is considered, still make sure to launch a single
+    // block for the unaligned elements
+    int64_t tensor_vol = sample_desc.aligned.size;
+    if (!tensor_vol) {
+      tensor_vol = sample_desc.aligned.skip_left + sample_desc.aligned.skip_right;
+    }
+    max_vol = std::max(max_vol, tensor_vol);
   }
   unsigned int blocks_num = div_ceil(max_vol, T::vec_len * kBlockSize);
   blocks_num = std::min(blocks_num, kMaxBlockSize);
@@ -267,14 +280,14 @@ void CopyBatch(span<const StridedCopyDesc> sample_descs, MismatchedNdimT mismatc
 }
 
 
-void CopyBatch(span<const StridedCopyDesc> sample_descs, int max_mismatched_ndim, int element_size,
+void CopyBatch(span<StridedCopyDesc> sample_descs, int max_mismatched_ndim, int element_size,
                cudaStream_t stream) {
   VALUE_SWITCH(element_size, ElementSize, (1, 2, 4, 8), (
     VALUE_SWITCH(max_mismatched_ndim, NDim, (0, 1, 2, 3, 4, 5), (
       CopyBatch<ElementSize>(sample_descs, MismatchedNdim<NDim>{}, stream);
-    ), (
+    ), ( // NOLINT
       CopyBatch<ElementSize>(sample_descs, MismatchedNdim<-1>(max_mismatched_ndim), stream);
-    ));
+    )); // NOLINT
   ), DALI_FAIL(make_string("Unsupported element size: ", element_size)););  // NOLINT
 }
 
@@ -391,7 +404,7 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
     sample_descs.push_back(sample_desc);
   }
   if (sample_descs.size() > 0) {
-    strided_copy::CopyBatch(make_cspan(sample_descs), max_mismatched_ndim, element_size, stream);
+    strided_copy::CopyBatch(make_span(sample_descs), max_mismatched_ndim, element_size, stream);
   }
 }
 
