@@ -372,8 +372,15 @@ class _DaliBaseIterator(object):
 
     def _store_checkpoints(self):
         assert self._checkpointing, "Cannot store checkpoints with checkpointing disabled"
-        for i in len(self._pipes):
-            self._checkpoints[i] = self._pipes[i].checkpoint()
+        for i, p in enumerate(self._pipes):
+            self._checkpoints[i] = p.checkpoint()
+
+    def checkpoints(self):
+        """
+        Returns the last checkpoints made.
+        """
+        assert self._checkpointing, "Cannot access checkpoints with checkpointing disabled"
+        return self._checkpoints
 
     def reset(self):
         """
