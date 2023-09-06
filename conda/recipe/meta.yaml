@@ -89,7 +89,7 @@ requirements:
     - openjpeg
     - cfitsio
     - astunparse >=1.6.0
-    - gast >= 0.3.3
+    - gast >=0.3.3
     - dm-tree
   run:
     - python
@@ -110,5 +110,5 @@ requirements:
     - openjpeg
     - cfitsio
     - astunparse >=1.6.0
-    - gast >= 0.3.3
+    - gast >=0.3.3
     - dm-tree
