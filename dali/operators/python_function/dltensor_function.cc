@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &d
   auto out_shape = output.shape();
   for (int i = 0; i < batch_size; ++i) {
     thread_pool.AddWork([&, i](int) {
-      CopyDlTensor<CPUBackend>(output.raw_mutable_tensor(i), dl_tensors[i]);
+      CopyDlTensorCpu(output.raw_mutable_tensor(i), dl_tensors[i]);
     }, out_shape.tensor_size(i));
   }
   thread_pool.RunAll();
@@ -157,9 +157,7 @@ void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &d
 template <>
 void CopyOutputData(TensorList<GPUBackend>& output, std::vector<DLMTensorPtr> &dl_tensors,
                     int batch_size, Workspace &workspace) {
-  for (int i = 0; i < batch_size; ++i) {
-    CopyDlTensor<GPUBackend>(output.raw_mutable_tensor(i), dl_tensors[i], workspace.stream());
-  }
+  CopyDlTensorBatchGpu(output, dl_tensors, batch_size, workspace.stream());
 }
 
 }  // namespace detail

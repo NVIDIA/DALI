@@ -17,9 +17,9 @@
 #include <dali/util/pybind.h>
 #include <pybind11/embed.h>
 #include <pybind11/stl.h>
-#include <vector>
-#include <utility>
 #include <string>
+#include <utility>
+#include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
@@ -75,21 +75,6 @@ std::vector<DLMTensorPtr> CastToDLTensorList(py::list &list, Index exp_size, Ind
 }
 
 TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr> &dl_tensors);
-
-template <typename Backend>
-void CopyDlTensor(void *out_data, DLMTensorPtr &dlm_tensor_ptr, cudaStream_t stream = 0) {
-  auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  auto item_size = dl_tensor.dtype.bits / 8;
-  if (dl_tensor.strides) {
-    std::vector<Index> strides(dl_tensor.ndim);
-    for (Index i = 0; i < dl_tensor.ndim; ++i) strides[i] = dl_tensor.strides[i] * item_size;
-    CopyWithStride<Backend>(out_data, dl_tensor.data, strides.data(),
-                            dl_tensor.shape, dl_tensor.ndim, item_size, stream);
-  } else {
-    CopyWithStride<Backend>(out_data, dl_tensor.data, nullptr,
-                            dl_tensor.shape, dl_tensor.ndim, item_size, stream);
-  }
-}
 
 template <typename Backend>
 py::list PrepareDLTensorInputs(Workspace &ws);
