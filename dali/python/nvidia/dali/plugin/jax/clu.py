@@ -17,7 +17,7 @@ import threading
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 
-from clu.data.dataset_iterator import ArraySpec, Element, ElementSpec
+from clu.data.dataset_iterator import ArraySpec, ElementSpec
 from clu import asynclib
 
 
