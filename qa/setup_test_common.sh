@@ -48,6 +48,10 @@ enable_conda() {
     # functions are not exported by default to be made available in subshells
     eval "$(conda shell.bash hook)"
     conda activate conda_py${PYTHON_VERSION_SHORT}_env
+    # according to https://www.tensorflow.org/install/pip we need to make sure that
+    # TF will use conda lib, not system one to link. Otherwise it will use the system libstdc++.so.6
+    # and everything what is imported after it will use it as well
+    export LD_LIBRARY_PATH=$CONDA_PREFIX/lib/:$LD_LIBRARY_PATH
 }
 
 disable_conda() {
