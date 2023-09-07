@@ -84,7 +84,7 @@ py::list PrepareDLTensorInputsPerSample(Workspace &ws);
 
 template <typename Workspace, typename Output>
 void CopyOutputData(Output& output, std::vector<DLMTensorPtr> &dl_tensors,
-                    int batch_size, Workspace &workspace);
+                    Workspace &workspace);
 
 template <typename Backend>
 void PrepareOutputs(Workspace &ws, const py::object &output_o, int batch_size) {
@@ -95,7 +95,7 @@ void PrepareOutputs(Workspace &ws, const py::object &output_o, int batch_size) {
     if (dl_tensors.empty()) continue;
     auto &tlist = ws.Output<Backend>(idx);
     tlist.Resize(GetDLTensorListShape(dl_tensors), DLToDALIType(dl_tensors[0]->dl_tensor.dtype));
-    CopyOutputData(tlist, dl_tensors, batch_size, ws);
+    CopyOutputData(tlist, dl_tensors, ws);
   }
 }
 

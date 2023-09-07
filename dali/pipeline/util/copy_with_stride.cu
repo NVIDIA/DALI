@@ -345,7 +345,8 @@ void ValidateBatch(int &element_size, int &ndim, std::vector<DLMTensorPtr> &dl_t
  * @param stream
  */
 void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorPtr> &dl_tensors,
-                          int batch_size, cudaStream_t stream) {
+                          cudaStream_t stream) {
+  int batch_size = dl_tensors.size();
   if (batch_size <= 0) {
     return;
   }

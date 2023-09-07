@@ -28,7 +28,7 @@ namespace dali {
 DLL_PUBLIC void CopyDlTensorCpu(void *out_data, DLMTensorPtr &dlm_tensor_ptr);
 
 DLL_PUBLIC void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output,
-                                     std::vector<DLMTensorPtr> &dl_tensors, int batch_size,
+                                     std::vector<DLMTensorPtr> &dl_tensors,
                                      cudaStream_t stream);
 
 }  // namespace dali

@@ -143,10 +143,10 @@ TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tenso
 
 template <>
 void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &dl_tensors,
-                    int batch_size, Workspace &workspace) {
+                    Workspace &workspace) {
   auto &thread_pool = workspace.GetThreadPool();
   auto out_shape = output.shape();
-  for (int i = 0; i < batch_size; ++i) {
+  for (int i = 0; i < dl_tensors.size(); ++i) {
     thread_pool.AddWork([&, i](int) {
       CopyDlTensorCpu(output.raw_mutable_tensor(i), dl_tensors[i]);
     }, out_shape.tensor_size(i));
@@ -156,8 +156,8 @@ void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &d
 
 template <>
 void CopyOutputData(TensorList<GPUBackend>& output, std::vector<DLMTensorPtr> &dl_tensors,
-                    int batch_size, Workspace &workspace) {
-  CopyDlTensorBatchGpu(output, dl_tensors, batch_size, workspace.stream());
+                    Workspace &workspace) {
+  CopyDlTensorBatchGpu(output, dl_tensors, workspace.stream());
 }
 
 }  // namespace detail
