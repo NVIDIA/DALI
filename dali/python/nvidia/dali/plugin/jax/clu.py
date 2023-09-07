@@ -71,6 +71,11 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         peek = self._peek
         self._peek = None
         return peek
+    
+    def peek(self):
+        if self._peek is None:
+            self._peek = next(self)
+        return self._peek
 
     def peek_async(self):
         with self._mutex:
