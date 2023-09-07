@@ -56,7 +56,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         self._pool = None
         self._peek_future = None
         self._element_spec = None
-        
+
         # Set element spec
         peeked_output = self.peek()
         self._element_spec = {
@@ -71,7 +71,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         peek = self._peek
         self._peek = None
         return peek
-    
+
     def peek(self):
         if self._peek is None:
             self._peek = next(self)

@@ -216,7 +216,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def __next__(self):
         return self.next_impl()
-    
+
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
         category_outputs = []
 
