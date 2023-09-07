@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy jax'
+pip_packages='${python_test_runner_package} numpy jax clu'
 target_dir=./dali/test/python
 
 one_config_only=true
@@ -14,7 +14,7 @@ test_body() {
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*jax*' test_fw_iterators.py
 
     # More specific JAX tests
-    ${python_new_invoke_test} -s jax test_integration
+    ${python_new_invoke_test} -s jax test_integration test_peekable_iterator
 }
 
 pushd ../..
