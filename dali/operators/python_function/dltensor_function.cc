@@ -144,9 +144,10 @@ TensorListShape<> GetDLTensorListShape(const std::vector<DLMTensorPtr>& dl_tenso
 template <>
 void CopyOutputData(TensorList<CPUBackend> &output, std::vector<DLMTensorPtr> &dl_tensors,
                     Workspace &workspace) {
+  int batch_size = dl_tensors.size();
   auto &thread_pool = workspace.GetThreadPool();
   auto out_shape = output.shape();
-  for (int i = 0; i < dl_tensors.size(); ++i) {
+  for (int i = 0; i < batch_size; ++i) {
     thread_pool.AddWork([&, i](int) {
       CopyDlTensorCpu(output.raw_mutable_tensor(i), dl_tensors[i]);
     }, out_shape.tensor_size(i));
