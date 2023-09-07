@@ -12,22 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 
 from clu.data.dataset_iterator import ArraySpec, Element, ElementSpec
 from clu import asynclib
 
-from .iterator import DALIGenericIterator
 
-import threading
-import concurrent
+def jax_array_to_array_spec(jax_array):
+    return ArraySpec(
+        shape=jax_array.shape,
+        dtype=jax_array.dtype)
 
 
 class DALIGenericPeekableIterator(DALIGenericIterator):
     """DALI iterator for JAX with peek functionality. Compatible with Google CLU PeekableIterator.
 
     """
-    
     def __init__(
             self,
             pipelines,
@@ -39,10 +42,6 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             last_batch_policy=LastBatchPolicy.FILL,
             prepare_first_batch=True,
             sharding=None):
-        self._mutex = threading.Lock()
-        self._peek: Element | None = None
-        self._pool = None
-        self._peek_future = None
         super().__init__(
             pipelines,
             output_map,
@@ -53,7 +52,17 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             last_batch_policy,
             prepare_first_batch,
             sharding)
-
+        self._mutex = threading.Lock()
+        self._pool = None
+        self._peek_future = None
+        self._element_spec = None
+        
+        # Set element spec
+        peeked_output = self.peek()
+        self._element_spec = {
+            output_name: jax_array_to_array_spec(peeked_output[output_name])
+            for output_name in self._output_categories
+        }
 
     def __next__(self):
         with self._mutex:
@@ -63,13 +72,6 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         self._peek = None
         return peek
 
-
-    def peek(self):
-        if self._peek is None:
-            self._peek = next(self)
-        return self._peek
-
-
     def peek_async(self):
         with self._mutex:
             if self._peek_future is None:
@@ -77,22 +79,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                     self._pool = asynclib.Pool(max_workers=1)
                 self._peek_future = self._pool(self.peek)()
         return self._peek_future
-    
-    
+
     @property
     def element_spec(self) -> ElementSpec:
-        # Do we want this implementation?
-        # Or maybe is should be configurable? Like in Rosetta where they pass ModalityConfig?
-        # Should we pass this to DALI pipeline output_dtape and output_shape and validate?
-        peeked_output = self.peek()
-        
-        def jax_array_to_array_spec(jax_array):
-            return ArraySpec(
-                shape=jax_array.shape,
-                dtype=jax_array.dtype)
-        
-        return {
-            output_name: jax_array_to_array_spec(peeked_output[output_name])
-            for output_name in self._output_categories
-        }
-
+        return self._element_spec

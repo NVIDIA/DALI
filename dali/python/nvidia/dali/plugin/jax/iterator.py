@@ -173,6 +173,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             prepare_first_batch=prepare_first_batch)
 
         self._first_batch = None
+        self._peek = None
         if self._prepare_first_batch:
             try:
                 self._first_batch = DALIGenericIterator.__next__(self)
@@ -183,7 +184,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                 assert False, "It seems that there is no data in the pipeline. This may happen " \
                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
                        "greater than the shard size."
-
 
     def next_impl(self):
         self._ever_consumed = True
@@ -214,10 +214,14 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return next_output
 
-
     def __next__(self):
         return self.next_impl()
 
+    def peek(self):
+        if self._peek is None:
+            self._peek = next(self)
+        return self._peek
+    
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
         category_outputs = []
 
