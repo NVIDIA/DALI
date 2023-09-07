@@ -149,7 +149,6 @@ template <typename ElementTypeDesc, typename MismatchedNdimT>
 DALI_DEVICE DALI_FORCEINLINE void UnalignedCopy(const StridedCopyDesc &sample,
                                                 MismatchedNdimT mismatched_ndim) {
   using T = typename ElementTypeDesc::type;
-  using VecT = typename ElementTypeDesc::vec_type;
   constexpr int vec_len = ElementTypeDesc::vec_len;
   int skip_left = sample.aligned.skip_left;
   int skip_right = sample.aligned.skip_right;
@@ -232,13 +231,13 @@ void FillSampleAlignmentInfo(StridedCopyDesc &sample) {
   auto output_base_addr = reinterpret_cast<std::uintptr_t>(sample.output);
   auto aligned_output_addr = align_up(output_base_addr, sizeof(T) * vec_len);
   sample.aligned.skip_left = (aligned_output_addr - output_base_addr) / sizeof(T);
-  assert(0 <= sample.aligned.skip_left && sample.aligned.skip_left < ElementTypeDesc::vec_len);
+  assert(0 <= sample.aligned.skip_left && sample.aligned.skip_left < vec_len);
   sample.aligned.skip_left = std::min<int64_t>(sample.size, sample.aligned.skip_left);
   int64_t remaining_size = sample.size - sample.aligned.skip_left;
   assert(0 <= remaining_size && remaining_size < sample.size);
-  sample.aligned.size = align_down(remaining_size, ElementTypeDesc::vec_len);
+  sample.aligned.size = align_down(remaining_size, vec_len);
   sample.aligned.skip_right = remaining_size - sample.aligned.size;
-  assert(0 <= sample.aligned.skip_right && sample.aligned.skip_right < ElementTypeDesc::vec_len);
+  assert(0 <= sample.aligned.skip_right && sample.aligned.skip_right < vec_len);
   assert(sample.aligned.skip_left + sample.aligned.skip_right + sample.aligned.size == sample.size);
 }
 
