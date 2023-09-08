@@ -21,12 +21,12 @@ namespace dali {
  * @brief Supported wavelet names
  */
 enum DALIWaveletName {
-  DALI_HAAR       = 0,
-  DALI_GAUS       = 1,
-  DALI_MEXH       = 2,
-  DALI_MORL       = 3,
-  DALI_SHAN       = 4,
-  DALI_FBSP       = 5
+  DALI_HAAR = 0,
+  DALI_GAUS = 1,
+  DALI_MEXH = 2,
+  DALI_MORL = 3,
+  DALI_SHAN = 4,
+  DALI_FBSP = 5
 };
 
 }  // namespace dali

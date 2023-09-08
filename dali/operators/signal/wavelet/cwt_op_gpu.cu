@@ -18,30 +18,33 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/kernel_params.h"
-#include "dali/kernels/signal/wavelets/cwt_args.h"
-#include "dali/kernels/signal/wavelets/cwt_gpu.h"
-#include "dali/operators/signal/wavelets/cwt_op.h"
+#include "dali/kernels/signal/wavelet/cwt_args.h"
+#include "dali/kernels/signal/wavelet/cwt_gpu.h"
+#include "dali/operators/signal/wavelet/cwt_op.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/op_schema.h"
 
 namespace dali {
 
 DALI_SCHEMA(Cwt)
-  .DocStr(R"(Performs continuous wavelet transform on a 1D signal (for example, audio).
+    .DocStr(R"(Performs continuous wavelet transform on a 1D signal (for example, audio).
 
 Result values of transform are computed for all specified scales.
 Input data is expected to be one channel (shape being ``(nsamples,)``, ``(nsamples, 1)``
 ) of type float32.)")
-  .NumInput(1)
-  .NumOutput(1)
-  .AddArg("a", R"(List of scale coefficients of type float32.)", DALIDataType::DALI_FLOAT_VEC)
-  .AddArg("wavelet", R"(Name of mother wavelet. Currently supported wavelets' names are:
+    .NumInput(1)
+    .NumOutput(1)
+    .AddArg("a", R"(List of scale coefficients of type float32.)", DALIDataType::DALI_FLOAT_VEC)
+    .AddArg("wavelet", R"(Name of mother wavelet. Currently supported wavelets' names are:
 - HAAR - Haar wavelet
 - GAUS - Gaussian wavelet
 - MEXH - Mexican hat wavelet
 - MORL - Morlet wavelet
 - SHAN - Shannon wavleet
-- FBSP - Frequency B-spline wavelet)", DALIDataType::DALI_WAVELET_NAME)
-  .AddArg("wavelet_args", R"(Additional arguments for mother wavelet. They are passed
+- FBSP - Frequency B-spline wavelet)",
+            DALIDataType::DALI_WAVELET_NAME)
+    .AddArg("wavelet_args", R"(Additional arguments for mother wavelet. They are passed
 as list of float32 values.
 - HAAR - none
 - GAUS - n (order of derivative)
@@ -49,13 +52,15 @@ as list of float32 values.
 - MORL - none
 - SHAN - fb (bandwidth parameter > 0), fc (center frequency > 0)
 - FBSP - m (order parameter >= 1), fb (bandwidth parameter > 0), fc (center frequency > 0)
-)", DALIDataType::DALI_FLOAT_VEC);
+)",
+            DALIDataType::DALI_FLOAT_VEC);
 
 template <typename T>
 struct CwtImplGPU : public OpImplBase<GPUBackend> {
  public:
-  using CwtArgs = kernels::signal::wavelets::CwtArgs<T>;
-  using CwtKernel = kernels::signal::wavelets::CwtGpu<T>;
+  using CwtArgs = kernels::signal::CwtArgs<T>;
+  using CwtKernel = kernels::signal::CwtGpu<T>;
+  using WaveletKernel = kernels::signal::CwtGpu<T>;
 
   explicit CwtImplGPU(CwtArgs args) : args_(std::move(args)) {
     kmgr_cwt_.Resize<CwtKernel>(1);
