@@ -19,8 +19,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |googletest|_   | |googletestver|_    | |googletestlic|_    |
 +-----------------+---------------------+---------------------+
-| |libcudacxx|_   | |libcudacxxver|_    | |libcudacxxlic|_    |
-+-----------------+---------------------+---------------------+
 | |pybind11|_     | |pybind11ver|_      | |pybind11lic|_      |
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
@@ -28,8 +26,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.7.1
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.7.1
+.. |benchmarkver| replace:: 1.8.2
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.8.2
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
@@ -74,13 +72,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. _googletestver: https://github.com/google/googletest/releases/tag/v1.13.0
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
-
-.. |libcudacxx| replace:: libcu++
-.. _libcudacxx: https://github.com/mzient/libcudacxx.git
-.. |libcudacxxver| replace:: Custom fork (Aug 30, 2021)
-.. _libcudacxxver: https://github.com/mzient/libcudacxx/tree/863f11a16cced8b7aacfc639dacb419843a300e8
-.. |libcudacxxlic| replace:: Apache License v2.0 with LLVM Exceptions
-.. _libcudacxxlic: https://github.com/mzient/libcudacxx/blob/main/LICENSE.TXT
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11

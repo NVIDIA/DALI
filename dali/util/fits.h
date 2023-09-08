@@ -16,8 +16,12 @@
 #define DALI_UTIL_FITS_H_
 
 #include <fitsio.h>
+#include <fitsio2.h>
+
 #include <set>
 #include <string>
+#include <vector>
+
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/stream.h"
@@ -27,7 +31,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
-
 
 namespace dali {
 namespace fits {
@@ -53,6 +56,11 @@ class DLL_PUBLIC HeaderData {
   const TypeInfo *type_info = nullptr;
   bool compressed = false;
 
+  // data needed for gpu accelerated decompression
+  int64_t tiles, maxtilelen, zbitpix, bytepix, blocksize, rows;
+  double bscale, bzero;
+  std::vector<int64_t> tile_sizes;
+
   DALIDataType type() const;
 
   size_t size() const;
@@ -60,8 +68,13 @@ class DLL_PUBLIC HeaderData {
   size_t nbytes() const;
 };
 
+/** @brief Parse header of a given HDU and update HeaderData struct with its data.*/
 DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, fitsfile *src);
 
+/** @brief Read raw data of rice coded image HDU. */
+DLL_PUBLIC int ExtractUndecodedData(fitsfile *fptr, std::vector<uint8_t> &data,
+                                      std::vector<int64_t> &tile_offset,
+                                      std::vector<int64_t> &tile_size, int64 rows, int *status);
 
 class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
  public:
@@ -89,11 +102,6 @@ class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
                  make_string("Failed while executing fits_close_file! Status code: ", status));
   }
 };
-
-
-DLL_PUBLIC std::string GetFitsErrorMessage(int status);
-
-DLL_PUBLIC void HandleFitsError(int status);
 
 /** @brief Wrapper that automatically handles cfitsio error checking.*/
 DLL_PUBLIC void FITS_CALL(int status);

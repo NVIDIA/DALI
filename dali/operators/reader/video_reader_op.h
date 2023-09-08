@@ -148,6 +148,9 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   virtual void ProcessVideo(TensorList<GPUBackend> &video_output,
                             TensorList<GPUBackend> &video_batch, Workspace &ws) {
     video_output.Copy(video_batch, ws.stream());
+    for (int data_idx = 0; data_idx < video_batch.num_samples(); ++data_idx) {
+      video_output.SetSourceInfo(data_idx, video_batch.GetMeta(data_idx).GetSourceInfo());
+    }
     video_output.SetLayout("FHWC");
   }
 

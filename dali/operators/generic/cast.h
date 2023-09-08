@@ -19,7 +19,7 @@
 
 #include "dali/core/convert.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -28,10 +28,10 @@ namespace dali {
   double)
 
 template <typename Backend>
-class Cast : public Operator<Backend> {
+class Cast : public StatelessOperator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     if (spec.name() == "Cast") {
       dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
       if (dtype_arg_ == DALI_NO_TYPE) {

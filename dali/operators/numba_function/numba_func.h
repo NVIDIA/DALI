@@ -21,6 +21,46 @@
 
 namespace dali {
 
+// The structure of an array descriptor can be viewed here:
+// https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
+// https://github.com/numba/numba/blob/3b9dde799bc499188f9d7728ad590776899624e1/numba/_arraystruct.h#L9C1
+struct NumbaDevArray {
+  void *meminfo;
+  void *parent;
+  int64_t nitems;
+  int64_t itemsize;
+  void *data;
+  span<const int64_t> shape;
+  span<int64_t> strides;
+
+  NumbaDevArray(span<const int64_t> shape, span<int64_t> strides,
+                DALIDataType type):
+    meminfo(nullptr),
+    parent(nullptr),
+    data(nullptr),
+    shape(shape),
+    strides(strides) {
+    nitems = volume(shape);
+    itemsize = TypeTable::GetTypeInfo(type).size();
+  }
+
+  /// @brief Push array descriptor to a vector of func args as void pointers.
+  void PushArgs(vector<void*> &args) {
+    args.push_back(&meminfo);
+    args.push_back(&parent);
+    args.push_back(&nitems);
+    args.push_back(&itemsize);
+    args.push_back(&data);
+    for (int64_t i = 0; i < shape.size(); ++i) {
+      const void *ptr = &shape[i];
+      args.push_back(const_cast<void*>(ptr));
+    }
+    for (int64_t i = 0; i < strides.size(); ++i) {
+      args.push_back((&strides[i]));
+    }
+  }
+};
+
 template <typename Backend>
 class NumbaFuncImpl : public Operator<Backend> {
  public:
@@ -32,6 +72,18 @@ class NumbaFuncImpl : public Operator<Backend> {
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+
+  /**
+   * @brief Setup output descriptors calling the setup_fn to determine the output shapes
+   */
+  void OutputsSetupFn(std::vector<OutputDesc> &output_desc, int noutputs,
+                      int ninputs, int nsamples);
+
+  /**
+   * @brief Setup output descriptors copying shapes from inputs
+   */
+  void OutputsSetupNoFn(std::vector<OutputDesc> &output_desc, int noutputs,
+                        int ninputs, int nsamples);
 
   void RunImpl(Workspace &ws) override;
 
@@ -51,10 +103,14 @@ class NumbaFuncImpl : public Operator<Backend> {
   SmallVector<DALIDataType, 6> in_types_;
   SmallVector<int, 6> outs_ndim_;
   SmallVector<int, 6> ins_ndim_;
-  std::vector<uint64_t> output_shape_ptrs_;
-  std::vector<uint64_t> input_shape_ptrs_;
+  std::vector<uintptr_t> output_shape_ptrs_;
+  std::vector<uintptr_t> input_shape_ptrs_;
   vector<TensorListShape<-1>> in_shapes_;
   vector<TensorListShape<-1>> out_shapes_;
+  vector<TensorShape<-1>> in_strides_;
+  vector<TensorShape<-1>> out_strides_;
+  vector<NumbaDevArray> in_arrays_;
+  vector<NumbaDevArray> out_arrays_;
 };
 
 

@@ -30,6 +30,7 @@ from nvidia.dali.fn import _to_snake_case
 from nvidia.dali._utils.external_source_impl import (
     get_callback_from_source as _get_callback_from_source,
     accepted_arg_count as _accepted_arg_count)
+from nvidia.dali.ops._operator_utils import (_build_input_sets, _repack_output_sets)
 
 
 class DataNodeDebug(_DataNode):
@@ -539,7 +540,7 @@ class _OperatorManager:
                 inputs[i] = _transform_data_to_tensorlist(
                     input, len(input), device_id=self._device_id)
 
-        return self.op_helper._build_input_sets(inputs)
+        return _build_input_sets(inputs, self._op_name)
 
     def _update_classification(self, old_collection, position, new_classification):
         """Keeps the data classification up to date in case of running the conditional mode or
@@ -662,7 +663,7 @@ class _OperatorManager:
         if len(res) == 1:
             res = self._pack_to_data_node_debug(res[0])
         else:
-            res = self.op_helper._repack_output_sets(res)
+            res = _repack_output_sets(res)
             res = self._pack_to_data_node_debug(res)
 
         if _conditionals.conditionals_enabled():

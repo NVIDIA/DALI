@@ -106,7 +106,7 @@ class DLL_PUBLIC Pipeline {
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
 
-  DLL_PUBLIC ~Pipeline();
+  virtual DLL_PUBLIC ~Pipeline();
 
   /**
    * @brief Creates a placeholder for an External Source operator with the given name
@@ -494,6 +494,11 @@ class DLL_PUBLIC Pipeline {
    * @return True, if the pipeline is serializable. False otherwise.
    */
   static bool IsDeserializable(const std::string &serialized_pipeline);
+
+  /**
+   * @brief Shutdown the executor
+   */
+  DLL_PUBLIC void Shutdown();
 
   // For testing
   template <typename T>

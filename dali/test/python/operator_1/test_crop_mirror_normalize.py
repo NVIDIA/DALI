@@ -22,6 +22,7 @@ from functools import partial
 from nvidia.dali import pipeline_def
 from nvidia.dali.pipeline import Pipeline
 
+from nose2.tools import params
 from nose_utils import assert_raises
 from nose_utils import raises
 from test_slice import check_slice_output, abs_slice_start_and_end
@@ -29,6 +30,9 @@ from test_utils import RandomDataIterator
 from test_utils import as_array
 from test_utils import compare_pipelines, dali_type_to_np
 from test_utils import get_dali_extra_path
+
+
+import itertools
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -669,3 +673,43 @@ def test_crop_mirror_normalize_empty_layout():
     batch_size = 3
     for cmn_fn, device in fn_dev_pairs:
         yield check_crop_mirror_normalize_empty_layout, cmn_fn, device, batch_size, in_shape
+
+
+batch_sizes = [1, 4]
+shapes = [(1, 1, 3), (1, 10, 3), (1, 31, 3), (1, 32, 3), (1, 33, 3), (1, 127, 3), (1, 128, 3),
+          (1, 129, 3), (1, 24 * 128 - 1, 3), (1, 24 * 128, 3), (1, 24 * 128 + 1, 3),
+          (8, 24 * 128 - 1, 3), (8, 24 * 128, 3), (8, 24 * 128 + 1, 3), (1024, 1024, 3),
+          (999, 999, 3)]
+dtypes = [types.FLOAT, types.FLOAT16]
+pads = [False, True]
+mirrors = [False, True]
+crops = [(1.0, 0.25), (0.25, 0.25), (0.25, 1.0), (0.5, 0.75), (None, None)]
+layouts = ["HWC", "CHW"]
+
+
+@params(*itertools.product(batch_sizes, shapes, dtypes, pads, mirrors, crops, layouts))
+def test_cmn_optimized_vs_cpu(batch_size, shape, dtype, pad, mirror, crops, layout):
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def pipe(device):
+
+        def get_data():
+            out = [
+                np.arange(np.prod(shape), dtype=np.uint8).reshape(shape) for _ in range(batch_size)
+            ]
+            return out
+
+        data = fn.external_source(source=get_data)
+        crop_h, crop_w = crops
+        crop_h_int = int(crop_h * shape[0]) if crop_h else None
+        crop_w_int = int(crop_w * shape[1]) if crop_w else None
+        data = data.gpu() if device == "gpu" else data
+        return fn.crop_mirror_normalize(data, device=device, dtype=dtype, pad_output=pad,
+                                        mirror=mirror, crop_h=crop_h_int, crop_w=crop_w_int,
+                                        mean=[0.1, 0.2, 0.3],
+                                        fill_values=[0.0, 0.0, 0.0, 42.0] if pad else None,
+                                        output_layout=layout)
+
+    pipe_baseline = pipe("cpu")
+    pipe_opt = pipe("gpu")
+    compare_pipelines(pipe_baseline, pipe_opt, batch_size, 3)

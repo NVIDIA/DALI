@@ -78,13 +78,14 @@ class SampleBroadcasting {
  * By default, with `allow_non_positional_arg_ref=false,  only positional input can be used as such
  * a reference.
  */
-template <typename Backend, bool allow_non_positional_arg_ref = false>
-class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
+template <typename Backend, template<typename> typename BaseOp = Operator,
+          bool allow_non_positional_arg_ref = false>
+class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Backend> {
  public:
-  inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
+  inline explicit SequenceOperator(const OpSpec &spec) : BaseOp<Backend>{spec} {}
 
-  using Operator<Backend>::Setup;
-  using Operator<Backend>::Run;
+  using BaseOp<Backend>::Setup;
+  using BaseOp<Backend>::Run;
   using SampleBroadcasting<Backend>::BroadcastSamples;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -93,9 +94,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     is_expanding_ = ShouldExpand(ws);
     bool is_inferred;
     if (!IsExpanding()) {
-      is_inferred = Operator<Backend>::Setup(output_desc, ws);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, ws);
     } else {
-      Operator<Backend>::template EnforceUniformInputBatchSize<Backend>(ws);
+      BaseOp<Backend>::template EnforceUniformInputBatchSize<Backend>(ws);
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
@@ -106,7 +107,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       expanded_.SetBatchSizes(GetReferenceExpandDesc().NumExpanded());
       ExpandInputs(ws);
       ExpandArguments(ws);
-      is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, expanded_);
     }
     is_inferred = ProcessOutputDesc(output_desc, ws, is_inferred);
     DALI_ENFORCE(is_inferred, "SequenceOperator must infer the input shape");
@@ -115,10 +116,10 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   void Run(Workspace &ws) override {
     if (!IsExpanding()) {
-      Operator<Backend>::Run(ws);
+      BaseOp<Backend>::Run(ws);
     } else {
       ExpandOutputs(ws);
-      Operator<Backend>::Run(expanded_);
+      BaseOp<Backend>::Run(expanded_);
       PostprocessOutputs(ws);
     }
   }
@@ -416,7 +417,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   bool IsPerFrameArg(const std::string &arg_name, const TensorList<CPUBackend> &arg_input) {
-    const auto &schema = Operator<Backend>::GetSpec().GetSchema();
+    const auto &schema = BaseOp<Backend>::GetSpec().GetSchema();
     // Do not error out but simply ignore `F` layout of the argument input
     // if it is not marked as per-frame in schema to be consistent with operators
     // that do not support per-frame at all
@@ -437,7 +438,6 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
     for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
-      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(
             expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
@@ -454,6 +454,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                         ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
                         input_desc.NumChannels(sample_idx)));
       }
+      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
     }
   }
 

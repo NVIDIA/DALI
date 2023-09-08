@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 from nvidia.dali import fn
 from nvidia.dali import types
@@ -26,12 +26,17 @@ from nvidia.dali.auto_aug.core._utils import \
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
-def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
-                         shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
-                         interp_type: Optional[types.DALIInterpType] = None,
-                         max_translate_abs: Optional[int] = None,
-                         max_translate_rel: Optional[float] = None, seed: Optional[int] = None,
-                         excluded: Optional[List[str]] = None) -> _DataNode:
+def trivial_augment_wide(
+    data: _DataNode,
+    num_magnitude_bins: int = 31,
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+    excluded: Optional[List[str]] = None,
+) -> _DataNode:
     """
     Applies TrivialAugment Wide (https://arxiv.org/abs/2103.10158) augmentation scheme to the
     provided batch of samples.
@@ -39,13 +44,13 @@ def trivial_augment_wide(data: _DataNode, num_magnitude_bins: int = 31,
     Args
     ----
     data : DataNode
-        A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type.
+        A batch of samples to be processed. The supported samples are images
+        of `HWC` layout and videos of `FHWC` layout, the supported data type is `uint8`.
     num_magnitude_bins: int, optional
         The number of bins to divide the magnitude ranges into.
     fill_value: int, optional
-        A value to be used as a padding for images transformed with warp_affine ops
-        (translation, shear and rotate). If `None` is specified, the images are padded
+        A value to be used as a padding for images/frames transformed with warp_affine ops
+        (translation, shear and rotate). If `None` is specified, the images/frames are padded
         with the border value repeated (clamped).
     interp_type: types.DALIInterpType, optional
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
@@ -140,8 +145,8 @@ def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
     if use_signed_magnitudes:
         magnitude_bin = signed_bin(magnitude_bin, seed=seed)
     _forbid_unused_kwargs(augmentations, kwargs, 'apply_trivial_augment')
-    op_kwargs = dict(data=data, magnitude_bin=magnitude_bin,
-                     num_magnitude_bins=num_magnitude_bins, **kwargs)
+    op_kwargs = dict(data=data, magnitude_bin=magnitude_bin, num_magnitude_bins=num_magnitude_bins,
+                     **kwargs)
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
     return _pretty_select(augmentations, op_idx, op_kwargs, auto_aug_name='apply_trivial_augment',
                           ref_suite_name='get_trivial_augment_wide_suite')
@@ -157,16 +162,16 @@ def get_trivial_augment_wide_suite(
     Args
     ----
     use_shape : bool
-        If true, the translation offset is computed as a percentage of the image. Useful if the
-        images processed with the auto augment have different shapes. If false, the offsets range
-        is bounded by a constant (`max_translate_abs`).
+        If true, the translation offset is computed as a percentage of the image/frame shape.
+        Useful if the samples processed with the auto augment have different shapes.
+        If false, the offsets range is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
         augmentations. If a tuple is specified, the first component limits height, the second the
         width. Defaults to 32.
     max_translate_rel: float or (float, float), optional
-        Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If a tuple is specified, the first component limits
+        Only valid with use_shape=True, specifies the maximal shift as a fraction of image/frame
+        shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
     default_translate_abs, default_translate_rel = 32, 1.

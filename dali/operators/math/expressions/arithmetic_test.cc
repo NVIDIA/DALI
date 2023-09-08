@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,6 +122,29 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   EXPECT_EQ(expected_sh, result_shape);
 }
 
+TEST(ArithmeticOpsTest, TreePropagationLayoutBroadcasting) {
+  std::string expr_str = "div(sub(&0 &1) &2)";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  Workspace ws;
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorList<CPUBackend>>();
+  }
+  in[0]->SetLayout(TensorLayout());
+  in[0]->Resize({{1, 1, 1}, {1, 1, 1}}, DALI_INT32);
+  in[1]->SetLayout(TensorLayout("HW"));
+  in[1]->Resize({{1, 1}, {1, 1}}, DALI_INT32);
+  in[2]->SetLayout(TensorLayout("DHW"));
+  in[2]->Resize({{1, 1, 1}, {1, 1, 1}}, DALI_INT32);
+  ws.AddInput(in[0]);
+  ws.AddInput(in[1]);
+  ws.AddInput(in[2]);
+
+  auto layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
+  EXPECT_EQ("DHW", layout);
+}
+
 
 TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
@@ -134,7 +157,7 @@ TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
     ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[0]->SetLayout(TensorLayout());
-  in[1]->SetLayout(TensorLayout("HW"));
+  in[1]->SetLayout(TensorLayout("DH"));
   in[2]->SetLayout(TensorLayout("DHW"));
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);

@@ -446,11 +446,18 @@ if(Protobuf_INCLUDE_DIR)
         "${Protobuf_PROTOC_EXECUTABLE} reveals version ${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}")
   endif()
 
-  if(NOT "${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}" VERSION_EQUAL "${Protobuf_VERSION}")
-      message(WARNING "Protobuf compiler version ${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}"
-          " doesn't match library version ${Protobuf_VERSION}")
+  # starting from version 4 protoc doesn't report its major version
+  if (${_PROTOBUF_MAJOR_VERSION} VERSION_GREATER_EQUAL "4")
+    if(NOT "${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}" VERSION_EQUAL "${_PROTOBUF_MINOR_VERSION}.${_PROTOBUF_SUBMINOR_VERSION}")
+        message(WARNING "Protobuf compiler version ${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}"
+            " doesn't match library version ${Protobuf_VERSION}")
+    endif()
+  else()
+    if(NOT "${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}" VERSION_EQUAL "${Protobuf_VERSION}")
+        message(WARNING "Protobuf compiler version ${_PROTOBUF_PROTOC_EXECUTABLE_VERSION}"
+            " doesn't match library version ${Protobuf_VERSION}")
+    endif()
   endif()
-
   if(Protobuf_LIBRARY)
       if(NOT TARGET protobuf::libprotobuf)
           add_library(protobuf::libprotobuf UNKNOWN IMPORTED)

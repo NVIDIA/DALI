@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -243,11 +243,6 @@ list(APPEND DALI_LIBS cocoapi)
 list(APPEND DALI_EXCLUDES libcocoapi.a)
 
 ##################################################################
-# libcu++
-##################################################################
-include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include)
-
-##################################################################
 # cfitsio
 ##################################################################
 if(BUILD_CFITSIO)
@@ -260,4 +255,17 @@ if(BUILD_CFITSIO)
   endif()
   message(STATUS "Found cfitsio: ${cfitsio_LIBS}")
   list(APPEND DALI_LIBS ${cfitsio_LIBS})
+endif()
+
+##################################################################
+# CV-CUDA
+##################################################################
+if (BUILD_CVCUDA)
+  set(DALI_BUILD_PYTHON ${BUILD_PYTHON})
+  set(BUILD_PYTHON OFF)
+  # for now we use only median blur from CV-CUDA
+  set(CV_CUDA_SRC_PATERN medianblur median_blur)
+  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
+  list(APPEND DALI_LIBS cvcuda nvcv_types)
+  set(BUILD_PYTHON ${DALI_BUILD_PYTHON})
 endif()

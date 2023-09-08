@@ -14,6 +14,8 @@
 
 import itertools
 import os
+import unittest
+import random
 
 import numpy as np
 from scipy.stats import chisquare
@@ -24,11 +26,14 @@ from nvidia.dali import pipeline_def
 from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_batch
 from nose_utils import assert_raises, assert_warns
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+vid_dir = os.path.join(data_root, "db", "video", "sintel", "video_files")
+vid_files = ["sintel_trailer-720p_2.mp4"]
+vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
 
 
 def mag_to_param_with_op_id(op_id):
@@ -86,7 +91,7 @@ run_aug_no_translation_cases = itertools.product(
     enumerate(itertools.chain(run_aug_shape_supporting_cases, run_aug_no_translation_cases))))
 def test_run_auto_aug(i, args):
     policy_name, dev, uniformly_resized, use_shape, fill_value, specify_translation_bounds = args
-    batch_sizes = [1, 8, 7, 64, 13, 64, 128]
+    batch_sizes = [1, 8, 7, 64, 13, 41]
     batch_size = batch_sizes[i % len(batch_sizes)]
 
     @pipeline_def(enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0,
@@ -107,10 +112,88 @@ def test_run_auto_aug(i, args):
         image = auto_augment.auto_augment(image, policy_name, **extra)
         return image
 
-    p = pipeline()
-    p.build()
+    # run the pipeline twice to make sure instantiation preserves determinism
+    p1 = pipeline()
+    p1.build()
+    p2 = pipeline()
+    p2.build()
     for _ in range(3):
-        p.run()
+        out1, = p1.run()
+        out2, = p2.run()
+        check_batch(out1, out2)
+
+
+class VideoTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        num_frames = 31
+        roi_start = (90, 0)
+        roi_end = (630, 1280)
+        size_1 = (215, 128)
+        size_2 = (215, 220)
+
+        @pipeline_def(batch_size=6, device_id=0, num_threads=4, seed=42)
+        def pipeline(size):
+            video = fn.readers.video_resize(
+                filenames=vid_filenames,
+                sequence_length=num_frames,
+                roi_start=roi_start,
+                roi_end=roi_end,
+                resize_x=size[1],
+                resize_y=size[0],
+                file_list_include_preceding_frame=True,
+                device='gpu',
+            )
+            return video
+
+        cls.vid_files = []
+        for size in (size_1, size_2):
+            p = pipeline(size=size)
+            p.build()
+            out, = p.run()
+            cls.vid_files.extend(np.array(sample) for sample in out.as_cpu())
+
+    @params(*tuple(
+        enumerate((
+            ("cpu", "image_net", 1, True),
+            ("cpu", "reduced_cifar10", 4, False),
+            ("cpu", "svhn", 17, True),
+            ("cpu", "reduced_image_net", 3, False),
+            ("gpu", "image_net", 21, False),
+            ("gpu", "reduced_cifar10", 3, True),
+            ("gpu", "svhn", 1, False),
+            ("gpu", "reduced_image_net", 5, False),
+        ))))
+    def test_uniform(self, i, args):
+        device, policy_name, batch_size, use_shape = args
+        num_iterations = 3
+
+        assert device in ("gpu", "cpu")
+
+        @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=205,
+                      enable_conditionals=True)
+        def pipeline():
+            rng = random.Random(42 + i)
+            video = fn.external_source(
+                source=lambda: list(rng.choices(self.vid_files, k=batch_size)), batch=True,
+                layout="FHWC")
+            extra = {} if not use_shape else {"shape": fn.shapes(video)[1:]}
+            if device == "gpu":
+                video = video.gpu()
+            video = auto_augment.auto_augment(video, policy_name, **extra)
+            return video
+
+        # run the pipeline twice to make sure instantiation preserves determinism
+        p1 = pipeline()
+        p1.build()
+        p2 = pipeline()
+        p2.build()
+
+        for _ in range(num_iterations):
+            out1, = p1.run()
+            out2, = p2.run()
+            check_batch(out1, out2)
 
 
 @params(
@@ -417,6 +500,57 @@ def test_missing_shape_fail():
     msg = "`translate_y` * provide it as `shape` argument to `apply_auto_augment` call"
     with assert_raises(Exception, glob=msg):
         pipeline()
+
+
+def test_sub_policy_coalescing_matrix_correctness():
+
+    @augmentation(
+        mag_range=(0, 1),
+        randomly_negate=True,
+    )
+    def first(data, op_id_mag_id):
+        return op_id_mag_id
+
+    @augmentation(
+        mag_range=(1, 2),
+        randomly_negate=True,
+    )
+    def second(data, op_id_mag_id):
+        return op_id_mag_id
+
+    @augmentation(
+        mag_range=(2, 3), )
+    def third(data, op_id_mag_id):
+        return op_id_mag_id
+
+    def custom_policy():
+        return Policy("MyCustomPolicy", 14, [
+            [(third, 0.5, 1), (second, 1., 2), (first, 0.2, 3), (second, 0.25, 4)],
+            [(first, 0.6, 5)],
+            [(second, 0.1, 6), (third, 0.7, 7)],
+            [(second, 0.8, 8), (first, 0.9, 9), (second, 1., 10), (third, 0.2, 11),
+             (first, 0.5, 12), (first, 1., 13)],
+        ])
+
+    predefined_policies = [
+        auto_augment.get_image_net_policy, auto_augment.get_reduced_image_net_policy,
+        auto_augment.get_svhn_policy, auto_augment.get_reduced_cifar10_policy, custom_policy
+    ]
+    for policy_getter in predefined_policies:
+        policy = policy_getter()
+        matrix, augments = auto_augment._sub_policy_to_augmentation_matrix_map(policy)
+        max_sub_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
+        expected_shape = (len(policy.sub_policies), max_sub_policy_len)
+        assert matrix.shape == expected_shape, f"{matrix.shape} {expected_shape} {policy}"
+        for i, sub_policy in enumerate(policy.sub_policies):
+            for stage_idx in range(max_sub_policy_len):
+                mat_aug = augments[stage_idx][matrix[i, stage_idx]]
+                if stage_idx < len(sub_policy):
+                    sub_pol_aug, _, _ = sub_policy[stage_idx]
+                    assert mat_aug is sub_pol_aug, \
+                        f"{i} {stage_idx} {mat_aug} {sub_pol_aug} {policy}"
+                else:
+                    assert mat_aug is a.identity, f"{i} {stage_idx} {mat_aug} {policy}"
 
 
 def test_wrong_sub_policy_format_fail():

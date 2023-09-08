@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from nvidia.dali import fn
 from nvidia.dali import types
@@ -32,11 +32,16 @@ except ImportError:
         "Please install numpy to use the examples.")
 
 
-def auto_augment(data: _DataNode, policy_name: str = 'image_net',
-                 shape: Optional[_DataNode] = None, fill_value: Optional[int] = 128,
-                 interp_type: Optional[types.DALIInterpType] = None,
-                 max_translate_abs: Optional[int] = None, max_translate_rel: Optional[float] = None,
-                 seed: Optional[int] = None) -> _DataNode:
+def auto_augment(
+    data: _DataNode,
+    policy_name: str = 'image_net',
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> _DataNode:
     """
     Applies one of the predefined policies from the AutoAugment
     paper (https://arxiv.org/abs/1805.09501) to the provided batch of samples.
@@ -44,18 +49,19 @@ def auto_augment(data: _DataNode, policy_name: str = 'image_net',
     Args
     ----
     data : DataNode
-        A batch of samples to be processed. The samples should be images of `HWC` layout,
-        `uint8` type.
+        A batch of samples to be processed. The supported samples are images
+        of `HWC` layout and videos of `FHWC` layout, the supported data type is `uint8`.
     policy_name : str, optional
         The name of predefined policy. Acceptable values are: `image_net`,
         `reduced_image_net`, `svhn`, `reduced_cifar10`. Defaults to `image_net`.
-    shape: DataNode, optional
-        A batch of shapes of the `data`. If specified, the magnitude of `translation`
-        operations depends on the image shape and spans from 0 to `max_translate_rel * shape`.
+    shape: DataNode or Tuple[int, int], optional
+        The size (height and width) of the image or frames in the video sequence
+        passed as the `data`. If specified, the magnitude of `translation` operations
+        depends on the image/frame shape and spans from 0 to `max_translate_rel * shape`.
         Otherwise, the magnitude range is `[0, max_translate_abs]` for any sample.
     fill_value: int, optional
-        A value to be used as a padding for images transformed with warp_affine ops
-        (translation, shear and rotate). If `None` is specified, the images are padded
+        A value to be used as a padding for images/frames transformed with warp_affine ops
+        (translation, shear and rotate). If `None` is specified, the images/frames are padded
         with the border value repeated (clamped).
     interp_type: types.DALIInterpType, optional
         Interpolation method used by the warp_affine ops (translation, shear and rotate).
@@ -117,12 +123,15 @@ def auto_augment(data: _DataNode, policy_name: str = 'image_net',
     return apply_auto_augment(policy, data, seed, **aug_kwargs)
 
 
-def auto_augment_image_net(data: _DataNode, shape: Optional[_DataNode] = None,
-                           fill_value: Optional[int] = 128,
-                           interp_type: Optional[types.DALIInterpType] = None,
-                           max_translate_abs: Optional[int] = None,
-                           max_translate_rel: Optional[float] = None,
-                           seed: Optional[int] = None) -> _DataNode:
+def auto_augment_image_net(
+    data: _DataNode,
+    shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
+    fill_value: Optional[int] = 128,
+    interp_type: Optional[types.DALIInterpType] = None,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> _DataNode:
     """
     Applies `image_net_policy` in AutoAugment (https://arxiv.org/abs/1805.09501)
     fashion to the provided batch of samples.
@@ -164,7 +173,8 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
     if len(policy.sub_policies) == 0:
         raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
     max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
-    should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT)
+    should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT,
+                                   seed=seed)
     sub_policy_id = fn.random.uniform(values=list(range(len(policy.sub_policies))), seed=seed,
                                       dtype=types.INT32)
     run_probabilities = _sub_policy_to_probability_map(policy)[sub_policy_id]
@@ -195,16 +205,16 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
     Args
     ----
     use_shape : bool
-        If true, the translation offset is computed as a percentage of the image. Useful if the
-        images processed with the auto augment have different shapes. If false, the offsets range
-        is bounded by a constant (`max_translate_abs`).
+        If true, the translation offset is computed as a percentage of the image/frame shape.
+        Useful if the samples processed with the auto augment have different shapes.
+        If false, the offsets range is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
         augmentations. If a tuple is specified, the first component limits height, the second the
         width. Defaults to 250.
     max_translate_rel: float or (float, float), optional
-        Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If a tuple is specified, the first component limits
+        Only valid with use_shape=True, specifies the maximal shift as a fraction of image/frame
+        shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
     default_translate_abs, default_translate_rel = 250, 1.
@@ -261,16 +271,16 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
     Args
     ----
     use_shape : bool
-        If true, the translation offset is computed as a percentage of the image. Useful if the
-        images processed with the auto augment have different shapes. If false, the offsets range
-        is bounded by a constant (`max_translate_abs`).
+        If true, the translation offset is computed as a percentage of the image/frame shape.
+        Useful if the samples processed with the auto augment have different shapes.
+        If false, the offsets range is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
         augmentations. If a tuple is specified, the first component limits height, the second the
         width. Defaults to 250.
     max_translate_rel: float or (float, float), optional
-        Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If a tuple is specified, the first component limits
+        Only valid with use_shape=True, specifies the maximal shift as a fraction of image/frame
+        shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
     default_translate_abs, default_translate_rel = 250, 1.
@@ -329,16 +339,16 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
     Args
     ----
     use_shape : bool
-        If true, the translation offset is computed as a percentage of the image. Useful if the
-        images processed with the auto augment have different shapes. If false, the offsets range
-        is bounded by a constant (`max_translate_abs`).
+        If true, the translation offset is computed as a percentage of the image/frame shape.
+        Useful if the samples processed with the auto augment have different shapes.
+        If false, the offsets range is bounded by a constant (`max_translate_abs`).
     max_translate_abs: int or (int, int), optional
         Only valid with use_shape=False, specifies the maximal shift (in pixels) in the translation
         augmentations. If a tuple is specified, the first component limits height, the second the
         width. Defaults to 250.
     max_translate_rel: float or (float, float), optional
-        Only valid with use_shape=True, specifies the maximal shift as a fraction of image shape
-        in the translation augmentations. If a tuple is specified, the first component limits
+        Only valid with use_shape=True, specifies the maximal shift as a fraction of image/frame
+        shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
     default_translate_abs, default_translate_rel = 250, 1.
@@ -453,7 +463,8 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
     return types.Constant(magnitude_bin)
 
 
-def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+def _sub_policy_to_augmentation_matrix_map(
+        policy: Policy) -> Tuple[np.ndarray, List[List[_Augmentation]]]:
     """
     Creates a matrix of operators to be called for given sub policy at given stage.
     The output is a tuple `(m, augments)`, where `augments` is a list of augmentations per stage
@@ -468,12 +479,15 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
     augmentations = []  # list of augmentations in each stage
     for stage_idx in range(max_policy_len):
         stage_augments = set()
+        stage_augments_list = []
         for sub_policy in sub_policies:
             if stage_idx < len(sub_policy):
                 aug, _, _ = sub_policy[stage_idx]
-                stage_augments.add(aug)
-        augmentations.append(list(stage_augments) + [a.identity])
-    identity_id = [len(stage_augments) for stage_augments in augmentations]
+                if aug not in stage_augments:
+                    stage_augments.add(aug)
+                    stage_augments_list.append(aug)
+        augmentations.append(stage_augments_list + [a.identity])
+    identity_id = [len(stage_augments) - 1 for stage_augments in augmentations]
     augment_to_id = [{augmentation: i
                       for i, augmentation in enumerate(stage_augments)}
                      for stage_augments in augmentations]
@@ -482,4 +496,9 @@ def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[Lis
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
             augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]
-    return types.Constant(augments_by_id), augmentations
+    return augments_by_id, augmentations
+
+
+def _sub_policy_to_augmentation_map(policy: Policy) -> Tuple[_DataNode, List[List[_Augmentation]]]:
+    matrix, augments = _sub_policy_to_augmentation_matrix_map(policy)
+    return types.Constant(matrix), augments

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ def video_reader_pipeline_base(
     pipeline = dali.pipeline.Pipeline(batch_size=batch_size, **pipeline_params)
     with pipeline:
         outputs = video_reader(**video_reader_params, **resize_params)
-        if type(outputs) == list:
+        if type(outputs) is list:
             outputs = outputs[0]
         pipeline.set_outputs(outputs)
     pipeline.build()

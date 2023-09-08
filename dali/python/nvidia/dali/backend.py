@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,12 @@ if not initialized:
         deprecation_warning("DALI support for Python {0}.{1} is experimental and some "
                             "functionalities may not work."
                             "".format(sys.version_info[0], sys.version_info[1]))
+
+    # py36 warning
+    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+        deprecation_warning("DALI 1.27 is the last release to support Python 3.6. "
+                            "Please update your environment to use Python 3.7, 3.8, "
+                            "3.9, 3.10, or (experimentally) 3.11.")
 
     if int(str(__cuda_version__)[:2]) < 11:
         deprecation_warning("DALI 1.21 is the last official release that supports CUDA 10.2. "

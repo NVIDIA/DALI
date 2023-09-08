@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/kernels/imgproc/resample/resampling_windows.h"
 #include "dali/core/mm/memory.h"
 #include "dali/core/span.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 namespace kernels {
@@ -72,8 +73,7 @@ void InitFilters(ResamplingFilters &filters) {
   const int lanczos_size = (2*lanczos_a*lanczos_resolution + 1);
   const int total_size = triangular_size + gaussian_size + cubic_size + lanczos_size;
 
-  constexpr bool need_staging =
-    !cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value;
+  constexpr bool need_staging = !mm::is_host_accessible<MemoryKind>;
 
   using tmp_kind = std::conditional_t<need_staging, mm::memory_kind::host, MemoryKind>;
   filters.filter_data = mm::alloc_raw_unique<float, tmp_kind>(total_size);
@@ -104,10 +104,13 @@ void InitFilters(ResamplingFilters &filters) {
   filters[3].rescale(4);
 
   if (need_staging) {
-    auto filter_data_gpu = mm::alloc_raw_unique<float, mm::memory_kind::device>(total_size);
-    CUDA_CALL(cudaMemcpy(filter_data_gpu.get(), filters.filter_data.get(),
-                         total_size * sizeof(float), cudaMemcpyHostToDevice));
-    ptrdiff_t  diff = filter_data_gpu.get() - filters.filter_data.get();
+    auto cuda_stream = CUDAStreamPool::instance().Get();
+    auto filter_data_gpu = mm::alloc_raw_async_unique<float, mm::memory_kind::device>(
+        total_size, cuda_stream, mm::host_sync);
+    CUDA_CALL(cudaMemcpyAsync(filter_data_gpu.get(), filters.filter_data.get(),
+                              total_size * sizeof(float), cudaMemcpyHostToDevice, cuda_stream));
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    ptrdiff_t diff = filter_data_gpu.get() - filters.filter_data.get();
     filters.filter_data = std::move(filter_data_gpu);
     for (auto &f : filters.filters)
       f.coeffs += diff;

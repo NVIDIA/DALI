@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,14 +16,16 @@
 
 add_subdirectory(color)
 add_subdirectory(crop)
-
 add_subdirectory(convolution)
 add_subdirectory(distortion)
-add_subdirectory(resize)
-add_subdirectory(paste)
-add_subdirectory(remap)
-add_subdirectory(peek_shape)
+if (BUILD_CVCUDA)
+    add_subdirectory(filter)
+endif()
 add_subdirectory(mask)
+add_subdirectory(paste)
+add_subdirectory(peek_shape)
+add_subdirectory(remap)
+add_subdirectory(resize)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)

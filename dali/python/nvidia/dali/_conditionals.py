@@ -43,6 +43,8 @@ from contextlib import contextmanager
 
 from enum import Enum
 
+import tree
+
 
 def _data_node_repr(data_node):
     return f"DataNode(name={data_node.name}, device={data_node.device}, source={data_node.source})"
@@ -281,15 +283,15 @@ class _ConditionStack:
         # otherwise, we need to fill in the splits.
         return self._realize_split(data_node, stack_level)
 
-    def register_data_nodes(self, data_node, global_scope=False):
+    def register_data_nodes(self, data_nodes, global_scope=False):
         """Register the data nodes as produced in current scope, otherwise if `global_scope` is True
         put them in the outermost scope.
         """
         if not self._is_registration_allowed:
             return
-        logging.log(8, (f"{self._indent()}[IF/Register] {data_node} at {self.stack_depth() -1}"))
+        logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
         scope = self._stack[0] if global_scope else self.top()
-        scope.add_produced(data_node)
+        tree.map_structure(lambda node: scope.add_produced(node), data_nodes)
 
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
@@ -436,17 +438,19 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
     tuple of DataNode
     """
     from nvidia.dali.types import Constant
-    inputs_bkp = list(branch_outputs)
-    for i, input in enumerate(branch_outputs):
-        if isinstance(input, _DataNode):
-            inputs_bkp[i] = apply_conditional_split(input)
+
+    def apply_split(atom):
+        if isinstance(atom, _DataNode):
+            return apply_conditional_split(atom)
         elif promote_constants:
             # We assume that any return from the branch must be merged, so constants are promoted
             # to batches using constant op, and thus can be used in merge.
-            constant_node = Constant(input, device="cpu")
+            constant_node = Constant(atom, device="cpu")
             register_data_nodes(constant_node)
-            inputs_bkp[i] = apply_conditional_split(constant_node)
-    return tuple(inputs_bkp)
+            return apply_conditional_split(constant_node)
+        return atom
+
+    return tree.map_structure(apply_split, branch_outputs)
 
 
 def apply_conditional_split_to_args(inputs, kwargs):
@@ -496,6 +500,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 body()
 
                 body_state = get_state()
+
                 _verify_branch_outputs(body_state, symbol_names, "if")
                 body_outputs = body_state[:nouts]
                 body_outputs = apply_conditional_split_to_branch_outputs(body_outputs)
@@ -506,6 +511,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                 orelse()
 
                 orelse_state = get_state()
+
                 _verify_branch_outputs(orelse_state, symbol_names, "else")
                 orelse_outputs = orelse_state[:nouts]
                 orelse_outputs = apply_conditional_split_to_branch_outputs(orelse_outputs)
@@ -516,14 +522,34 @@ class DaliOperatorOverload(_autograph.OperatorBase):
             # We execute the merge _after_ both branches, and pretend for a moment, that it
             # can see those values produced in child scopes.
             with _cond_merge(split_predicate):
-                for new_body_val, new_orelse_val in zip(body_outputs, orelse_outputs):
+                err_msg = ("Divergent data found in different branches of `if/else` control flow"
+                           " statement. Variables in all code paths are merged into common output"
+                           " batches. The values assigned to a given variable need to have the same"
+                           " nesting structure in every code path (both `if` branches).\n"
+                           "For example, if we define a variable as a tuple in one branch, it must"
+                           " be defined as a tuple of the same length in the other branch - the"
+                           " contents of the tuples may be different. If we define a variable as"
+                           " a dictionary, the other branch must define it as a dictionary with the"
+                           " same set of keys, the values may be different.\n")
+
+                try:
+                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
+                except ValueError as e:
+                    # Suppress the original exception, add DALI explanation at the beginning,
+                    # raise the full error message.
+                    raise ValueError(err_msg + str(e)) from None
+                except TypeError as e:
+                    raise TypeError(err_msg + str(e)) from None
+
+                def merge_branches(new_body_val, new_orelse_val):
                     logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
                                     f" at {this_condition_stack().stack_depth() -1}:"
                                     f" merge({new_body_val}, {new_orelse_val}, predicate="
                                     f"{split_predicate}."))
-                    merged = fn._conditional.merge(new_body_val, new_orelse_val,
-                                                   predicate=split_predicate)
-                    output_values.append(merged)
+                    return fn._conditional.merge(new_body_val, new_orelse_val,
+                                                 predicate=split_predicate)
+
+                output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.
@@ -596,6 +622,5 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
 _OVERLOADS = DaliOperatorOverload()
 
-_autograph.initialize_autograph(_OVERLOADS,
-                                convert_modules=["nvidia.dali.auto_aug"],
+_autograph.initialize_autograph(_OVERLOADS, convert_modules=["nvidia.dali.auto_aug"],
                                 do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"])

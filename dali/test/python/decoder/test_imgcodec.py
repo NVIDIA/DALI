@@ -436,7 +436,7 @@ def test_peek_shape():
 
 
 def is_nvjpeg_lossless_supported(device_id):
-    return get_arch(device_id) >= 6.0
+    return get_arch(device_id) >= 6.0 and nvidia.dali.backend.GetNvjpegVersion() >= 12020
 
 
 @params(
