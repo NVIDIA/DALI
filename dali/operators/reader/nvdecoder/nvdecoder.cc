@@ -197,6 +197,9 @@ int NvDecoder::handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info) {
 int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   int ret = kNvcuvid_failure;
   try {
+    // utilize the NVDEC parser to determine if the video is full range
+    recv_queue_.front().full_range =
+        static_cast<bool>(format->video_signal_description.video_full_range_flag);
     ret = decoder_.initialize(format);
   } catch (...) {
     ERROR_LOG << "Unable to decode file " << recv_queue_.peek().filename << '\n';
