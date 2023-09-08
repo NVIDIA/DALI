@@ -370,6 +370,13 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
       continue;
     }
     strided_copy::StridedCopyDesc sample_desc;
+    sample_desc.output = output.raw_mutable_tensor(sample_idx);
+    sample_desc.input = dl_tensor.data;
+    sample_desc.size = volume(dl_tensor.shape, dl_tensor.shape + ndim);
+    // nothing to do for empty tensor
+    if (!sample_desc.size) {
+      continue;
+    }
     // compute input and the compact output strides first, if they match
     for (int d = 0; d < dl_tensor.ndim; d++) {
       sample_desc.in_strides[d] = dl_tensor.strides[d];
@@ -396,11 +403,8 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
       }
       max_mismatched_ndim = std::max(max_mismatched_ndim, mismatched_ndim);
     }
-    // otherwise, when the strides do not match, fill the rest of sample_desc
-    // and add it to the vector with samples for the kernel
-    sample_desc.output = output.raw_mutable_tensor(sample_idx);
-    sample_desc.input = dl_tensor.data;
-    sample_desc.size = volume(dl_tensor.shape, dl_tensor.shape + ndim);
+    // otherwise, when the strides do not match, add it
+    // to the vector with samples for the kernel
     sample_descs.push_back(sample_desc);
   }
   if (sample_descs.size() > 0) {
