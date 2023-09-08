@@ -18,7 +18,7 @@ do
         export pip_packages=""
         echo "Checking file: " ${test_file}
         source ${test_file}
-        echo "Packagess to install: " ${pip_packages}
+        echo "Packages to install: " ${pip_packages}
         if test -n "$pip_packages"
         then
             last_config_index=$(python ../setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
@@ -42,7 +42,11 @@ do
                 inst=$(python ../setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
                 if [ -n "$inst" ]
                 then
+                    # in some cases the predownload may fail because the packages are not supported
+                    # but in reality we will not use them in the test
+                    set +e
                     pip download $inst -d /pip-packages ${link_indices_string} ${extra_indices_string}
+                    set -e
                 fi
             done
         fi
