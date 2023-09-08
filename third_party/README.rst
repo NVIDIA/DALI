@@ -26,15 +26,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.8.2
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.8.2
+.. |benchmarkver| replace:: 1.8.3
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.8.3
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.82.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.82.0
+.. |preprocessorver| replace:: 1.83.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.83.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
