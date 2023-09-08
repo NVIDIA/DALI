@@ -150,9 +150,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
 }
 
 Pipeline::~Pipeline() {
-  DeviceGuard dg(device_id_);
-  if (executor_)
-    executor_->Shutdown();
+  Shutdown();
   graph_ = {};
 }
 
@@ -945,6 +943,37 @@ int Pipeline::GetNextInternalLogicalId() {
 bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
   dali_proto::PipelineDef def;
   return DeserializePipeline(serialized_pipeline, def);
+}
+
+void Pipeline::Shutdown() {
+  DeviceGuard dg(device_id_);
+  auto& op_nodes = graph_.GetOpNodes();
+  for (auto & node : op_nodes) {
+    if (!is_input_operator(node)) continue;
+    OperatorBase *op_ptr = &(const_cast<dali::OpNode*>(&node)->InstantiateOperator());
+    switch (node.op_type) {
+      case OpType::CPU: {
+        auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr);
+        assert(cpu_op_ptr);
+        cpu_op_ptr->BreakWaiting();
+      } break;
+      case OpType::MIXED: {
+        auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr);
+        assert(mixed_op_ptr);
+        mixed_op_ptr->BreakWaiting();
+      } break;
+      case OpType::GPU: {
+        auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr);
+        assert(gpu_op_ptr);
+        gpu_op_ptr->BreakWaiting();
+      } break;
+      default:
+        assert(false);  // This shouldn't happen.
+    }
+  }
+
+  if (executor_)
+    executor_->Shutdown();
 }
 
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(

@@ -91,6 +91,9 @@ set_target_properties(dali_core PROPERTIES
 set(lib_exports "libdali_core.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
 target_link_libraries(dali_core PRIVATE -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
+if (BUILD_NVML)
+  target_link_libraries(dali_core PRIVATE dynlink_nvml)
+endif(BUILD_NVML)
 
 if (BUILD_TEST)
   adjust_source_file_language_property("${DALI_CORE_TEST_SRCS}")

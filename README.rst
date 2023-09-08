@@ -95,7 +95,7 @@ Highlights
 ----------
 - Easy-to-use functional style Python API.
 - Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
-- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
+- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle, JAX.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
 - Flexible graphs let developers create custom pipelines.
@@ -175,7 +175,7 @@ directory.
 depending on your version.
 
 .. |dali_start| replace:: Getting Started
-.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting%20started.html
+.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting_started.html
 .. |dali_examples| replace:: Examples and Tutorials
 .. _dali_examples: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/index.html
 .. |release-doc| replace:: Latest Release Documentation

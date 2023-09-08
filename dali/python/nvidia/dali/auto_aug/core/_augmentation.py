@@ -28,14 +28,7 @@ except ImportError:
         "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
         "Please install numpy to use the examples.")
 
-try:
-    from numpy import typing as npt
-    _ArrayLike = npt.ArrayLike
-except ImportError:
-    # workaround for python3.6 where numpy 1.20+ is not available;
-    # we just don't provide meaningful type information in that case
-    from typing import Any
-    _ArrayLike = Any
+from numpy import typing as npt
 
 
 class _UndefinedParam:
@@ -140,7 +133,7 @@ class Augmentation:
         op: Callable[..., _DataNode],
         mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         randomly_negate: Optional[bool] = None,
-        mag_to_param: Optional[Callable[[float], _ArrayLike]] = None,
+        mag_to_param: Optional[Callable[[float], npt.ArrayLike]] = None,
         param_device: Optional[str] = None,
         name: Optional[str] = None,
     ):

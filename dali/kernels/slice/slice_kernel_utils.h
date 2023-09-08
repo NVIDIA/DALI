@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 #ifndef DALI_KERNELS_SLICE_SLICE_KERNEL_UTILS_H_
 #define DALI_KERNELS_SLICE_SLICE_KERNEL_UTILS_H_
 
-#include <vector>
 #include <tuple>
 #include <utility>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/kernels/kernel.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
@@ -32,7 +32,8 @@ template <typename T, int Dims>
 struct SliceArgs {
   TensorShape<Dims> anchor;
   TensorShape<Dims> shape;
-  SmallVector<T, 8> fill_values = {0, };
+  TensorShape<Dims> step = TensorShape<Dims>::filled_shape(Dims, 1);
+  SmallVector<T, 8> fill_values = { 0, };
   int channel_dim = -1;
 };
 
@@ -42,34 +43,33 @@ const T *GetPtr(const Container &c) {
 }
 
 template <int Dims, typename Args>
-void CheckValidOutputShape(const TensorShape<Dims>& in_sample_shape,
-                           const TensorShape<Dims>& out_sample_shape,
-                           const Args& args) {
+void CheckValidOutputShape(const TensorShape<Dims> &in_sample_shape,
+                           const TensorShape<Dims> &out_sample_shape,
+                           const Args &args) {
   for (int d = 0; d < Dims; d++) {
     DALI_ENFORCE(args.shape[d] <= out_sample_shape[d],
-      "Output shape dimension " + std::to_string(d) + " is too small");
+                 "Output shape dimension " + std::to_string(d) + " is too small");
   }
 }
 
 template <int Dims, typename Args>
-TensorShape<Dims> GetOutputShape(const TensorShape<Dims>& in_sample_shape,
-                                 const Args& args) {
+TensorShape<Dims> GetOutputShape(const TensorShape<Dims> &in_sample_shape, const Args &args) {
   TensorShape<Dims> out_sample_shape(args.shape);
   return out_sample_shape;
 }
 
 template <int Dims, typename Args>
-TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims>& in_shapes,
+TensorListShape<Dims> GetOutputShapes(const TensorListShape<Dims> &in_shapes,
                                       const std::vector<Args> &args) {
-    DALI_ENFORCE(args.size() == static_cast<size_t>(in_shapes.size()),
-      "Number of samples and size of slice arguments should match");
+  DALI_ENFORCE(args.size() == static_cast<size_t>(in_shapes.size()),
+               "Number of samples and size of slice arguments should match");
 
-    TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
-    for (int i = 0; i < in_shapes.size(); i++) {
-      auto out_sample_shape = GetOutputShape(in_shapes[i], args[i]);
-      output_shapes.set_tensor_shape(i, out_sample_shape);
-    }
-    return output_shapes;
+  TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
+  for (int i = 0; i < in_shapes.size(); i++) {
+    auto out_sample_shape = GetOutputShape(in_shapes[i], args[i]);
+    output_shapes.set_tensor_shape(i, out_sample_shape);
+  }
+  return output_shapes;
 }
 
 template <typename Anchor, typename InShape, typename OutShape>
@@ -123,9 +123,8 @@ bool CanRunPlainCopy(const TensorShape<Dims> &out_strides,
   // If the strides are not the default ones, or the window anchor and shape
   // are different than the bounds of the input, we can't run plain memcpy
   for (int d = 0; d < Dims; d++) {
-    if (args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
-        default_out_strides[d] != out_strides[d] ||
-        default_in_strides[d] != in_strides[d])
+    if (args.step[d] != 1 || args.anchor[d] != 0 || out_shape[d] != in_shape[d] ||
+        default_out_strides[d] != out_strides[d] || default_in_strides[d] != in_strides[d])
       return false;
   }
   return true;

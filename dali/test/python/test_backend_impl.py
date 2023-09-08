@@ -82,10 +82,10 @@ def test_tensorlist_getitem_cpu():
     tensorlist = TensorListCPU(arr, "NHWC")
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist.at(0)) == np.ndarray
-    assert type(tensorlist[0]) != np.ndarray
-    assert type(tensorlist[0]) == TensorCPU
-    assert type(tensorlist[-3]) == TensorCPU
+    assert type(tensorlist.at(0)) is np.ndarray
+    assert type(tensorlist[0]) is not np.ndarray
+    assert type(tensorlist[0]) is TensorCPU
+    assert type(tensorlist[-3]) is TensorCPU
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
@@ -345,3 +345,30 @@ def test_tensor_str_sample():
     t = TensorCPU(arr)
     params = [arr, 'DALIDataType.INT64', [16]]
     _test_str(t, params, _expected_tensor_str)
+
+
+def test_tensor_expose_dlpack_capsule():
+    # TODO(awolant): Numpy versions for Python 3.6 and 3.7 do not
+    # support from_dlpack. When we upgrade DLPack support for DALI
+    # this test needs to be changed.
+    if not hasattr(np, "from_dlpack"):
+        raise SkipTest("Test requires Numpy DLPack support.")
+
+    arr = np.arange(20)
+    tensor = TensorCPU(arr, "NHWC")
+
+    capsule = tensor._expose_dlpack_capsule()
+
+    # TODO(awolant): This adapter is required due to various implementations
+    # for DLPack interface. When we extend DLPack export support this should
+    # be removed.
+    class dlpack_interface_adapter:
+        def __init__(self, capsule):
+            self.capsule = capsule
+
+        def __dlpack__(self):
+            return self.capsule
+
+    arr_from_dlapck = np.from_dlpack(dlpack_interface_adapter(capsule))
+
+    assert np.array_equal(arr, arr_from_dlapck)

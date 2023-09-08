@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ void JpegCompressionDistortionGPU::RunImpl(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
 
   const auto layout = input.GetLayout();
+  output.SetLayout(layout);
   const int nsamples = input.num_samples();
 
   TensorListView<StorageGPU, const uint8_t, 3> in_view;

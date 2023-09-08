@@ -211,12 +211,19 @@ inline std::string SupportedTypesListGen() {
   return out_str.substr(0, out_str.size() - 2 * (detail::wds::kSupportedTypes.size() > 0));
 }
 
+std::string str_tolower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return s;
+}
+
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
       paths_(spec.GetRepeatedArgument<std::string>("paths")),
       index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
-          spec.GetArgument<std::string>("missing_component_behavior"))) {
+          spec.GetArgument<std::string>("missing_component_behavior"))),
+      case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
                make_string("The number of index files, if any, must match the number of archives ",
                "in the dataset"));
@@ -235,6 +242,9 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     std::string ext;
     ext_.emplace_back();
     while (std::getline(exts_stream, ext, detail::wds::kExtDelim)) {
+      if (!case_sensitive_extensions_) {
+        ext = str_tolower(ext);
+      }
       if (!ext_.back().count(ext)) {
         ext_.back().insert(ext);
       }
@@ -411,7 +421,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
       for (auto& component : sample.components) {
         component.outputs =
             detail::wds::VectorRange<size_t>(output_indicies_, output_indicies_.size());
-        for (auto& output : ext_map[component.ext]) {
+        auto ext = component.ext;
+        if (!case_sensitive_extensions_) {
+          ext = str_tolower(ext);
+        }
+        for (auto& output : ext_map[ext]) {
           if (!was_output_set[output]) {
             DALI_ENFORCE(component.size % dtype_sizes_[output] == 0,
                          make_string("Error in index file at ", GetSampleSource(new_sample),

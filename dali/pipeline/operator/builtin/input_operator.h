@@ -257,6 +257,18 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     }
   }
 
+  /**
+   * Break waiting for the next batch of data
+   */
+  void BreakWaiting() {
+    {
+      std::lock_guard<std::mutex> busy_lock(busy_m_);
+      running_ = false;
+    }
+    cv_.notify_all();
+  }
+
+
  protected:
   /**
    * Checks if there is more data in queue to be loaded.
@@ -317,16 +329,25 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
   int NextBatchSize() override {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = tl_data_, &running = running_] {
+                             return !running || data.CanProphetAdvance();
+                           });
+    }
     return tl_data_.PeekProphet()->num_samples();
   }
 
 
   void Advance() override {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = tl_data_, &running = running_] {
+                             return !running || data.CanProphetAdvance();
+                           });
+    }
     tl_data_.AdvanceProphet();
   }
-
 
   /**
    * "depleted" operator trace specifies whether the operator has sufficient resources to
@@ -345,6 +366,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   int device_id_;
   bool blocking_ = true;
   bool no_copy_ = false;
+  bool running_ = true;
 
 
  private:

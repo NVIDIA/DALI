@@ -377,6 +377,7 @@ class async_pool_resource : public async_memory_resource<Kind>,
         char *block_end = base + block_size;
         char *remainder = detail::align_ptr(aligned + bytes, remainder_alignment);
         bool split = supports_splitting && remainder + min_split_remainder < block_end;
+        size_t orig_alignment = f->alignment;
         size_t split_size = block_size;
         if (split) {
           // Adjust the pending free `f` so that it contains only what remains after
@@ -391,10 +392,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
         } else {
           remove_pending_free(from, f, false);
         }
-        if (split_size != bytes) {
+        if (split_size != bytes || alignment != orig_alignment) {
           padded_[aligned] = { split_size,
                                static_cast<int>(front_padding),
-                               static_cast<int>(alignment) };
+                               static_cast<int>(orig_alignment) };
         }
         return aligned;
       }

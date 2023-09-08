@@ -20,6 +20,8 @@ Prerequisites
 .. _tf link: https://www.tensorflow.org
 .. |pddl link| replace:: **PaddlePaddle**
 .. _pddl link: https://www.paddlepaddle.org.cn
+.. |jax link| replace:: **JAX**
+.. _jax link: https://jax.readthedocs.io/en/latest/index.html
 .. |compatibility link| replace:: enhanced CUDA compatibility guide
 .. _compatibility link : https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases
 
@@ -32,6 +34,7 @@ Prerequisites
   - |pytorch link|_
   - |tf link|_
   - |pddl link|_
+  - |jax link|_
 
 
 DALI in NGC Containers

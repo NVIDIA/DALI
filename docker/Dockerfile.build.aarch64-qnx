@@ -129,6 +129,7 @@ CMD cmake                \
   -DBUILD_NVCOMP=OFF     \
   -DBUILD_NVJPEG=OFF     \
   -DBUILD_NVJPEG2K=OFF   \
+  -DBUILD_CVCUDA=OFF     \
   -DBUILD_NVOF=OFF       \
   -DBUILD_NVDEC=OFF      \
   -DBUILD_NVML=OFF       \

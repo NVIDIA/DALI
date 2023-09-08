@@ -24,6 +24,7 @@
 
 namespace dali {
 namespace detail {
+
 inline int FitsReaderOutputFn(const OpSpec &spec) {
   // there is default value provided, so no checking if arg exists is needed
   return spec.GetRepeatedArgument<int>("hdu_indices").size();

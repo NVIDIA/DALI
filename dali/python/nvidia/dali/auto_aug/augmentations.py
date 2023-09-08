@@ -120,9 +120,10 @@ def contrast(data, parameter):
     It follows PIL implementation of Contrast enhancement which uses a channel-weighted
     mean as a contrast center.
     """
-    mean = fn.reductions.mean(data, axes=[0, 1])
+    # assumes FHWC or HWC layout
+    mean = fn.reductions.mean(data, axis_names="HW", keep_dims=True)
     rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
-    center = fn.reductions.sum(mean * rgb_weights)
+    center = fn.reductions.sum(mean * rgb_weights, axis_names="C", keep_dims=True)
     # it could be just `fn.contrast(data, contrast=parameter, contrast_center=center)`
     # but for GPU `data` the `center` is in GPU mem, and that cannot be passed
     # as named arg (i.e. `contrast_center`) to the operator
@@ -217,8 +218,9 @@ def equalize(data, _):
 
 @augmentation
 def auto_contrast(data, _):
-    # assumes HWC layout
-    lo, hi = fn.reductions.min(data, axes=[0, 1]), fn.reductions.max(data, axes=[0, 1])
+    # assumes FHWC or HWC layout
+    lo = fn.reductions.min(data, axis_names="HW", keep_dims=True)
+    hi = fn.reductions.max(data, axis_names="HW", keep_dims=True)
     diff = hi - lo
     mask_scale = diff > 0
     mask_id = mask_scale ^ True

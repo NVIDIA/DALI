@@ -22,6 +22,8 @@ import tempfile
 import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
+from nose2.tools import cartesian_params
+from nose import SkipTest
 
 
 def skip_second(src, dst):
@@ -70,6 +72,86 @@ def test_tfrecord():
         for a, b in zip(out, out_ref):
             assert np.array_equal(a.as_array(), b.as_array())
         _ = pipe_org.run()
+
+
+def test_tfrecord_odirect():
+    batch_size = 16
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def tfrecord_pipe(path, index_path, dont_use_mmap, use_o_direct):
+        input = fn.readers.tfrecord(
+            path=path,
+            index_path=index_path,
+            dont_use_mmap=dont_use_mmap,
+            use_o_direct=use_o_direct,
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)},
+            name="Reader")
+        return input["image/class/label"]
+
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    pipe = tfrecord_pipe(tfrecord, tfrecord_idx, True, True)
+    pipe_ref = tfrecord_pipe(tfrecord, tfrecord_idx, False, False)
+    pipe.build()
+    pipe_ref.build()
+    iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
+    for _ in range(iters):
+        out = pipe.run()
+        out_ref = pipe_ref.run()
+        for a, b in zip(out, out_ref):
+            assert np.array_equal(a.as_array(), b.as_array())
+
+
+@cartesian_params(((1, 2, 1), (3, 1, 2)),
+                  (True, False),
+                  (True, False))
+def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct):
+    if not dont_use_mmap and use_o_direct:
+        raise SkipTest("Cannot use O_DIRECT with mmap")
+    num_samples, batch_size, num_shards = batch_description
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def tfrecord_pipe(path, index_path, dont_use_mmap, use_o_direct):
+        input = fn.readers.tfrecord(
+            path=path,
+            index_path=index_path,
+            num_shards=num_shards,
+            dont_use_mmap=dont_use_mmap,
+            use_o_direct=use_o_direct,
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)},
+            name="Reader")
+        return input["image/class/label"]
+
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    idx_files_dir = tempfile.TemporaryDirectory()
+    recordio_idx = "rio_train.idx"
+    idx_file = os.path.join(idx_files_dir.name, recordio_idx)
+
+    def leave_only_N(src, dst, n):
+        with open(src, 'r') as tmp_f:
+            with open(dst, 'w') as f:
+                for i, x in enumerate(tmp_f):
+                    if i == n:
+                        break
+                    f.write(x)
+
+    leave_only_N(tfrecord_idx, idx_file, num_samples)
+
+    pipe = tfrecord_pipe(tfrecord, idx_file, dont_use_mmap, use_o_direct)
+    pipe_ref = tfrecord_pipe(tfrecord, idx_file, False, False)
+    pipe.build()
+    pipe_ref.build()
+    iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
+    for _ in range(iters):
+        out = pipe.run()
+        out_ref = pipe_ref.run()
+        for a, b in zip(out, out_ref):
+            assert np.array_equal(a.as_array(), b.as_array())
 
 
 def test_recordio():

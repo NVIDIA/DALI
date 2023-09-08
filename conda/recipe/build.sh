@@ -32,8 +32,8 @@ fi
 ln -s $CC $BUILD_PREFIX/bin/gcc
 ln -s $CXX $BUILD_PREFIX/bin/g++
 
-# Force -std=c++14 in CXXFLAGS
-export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
+# Force -std=c++17 in CXXFLAGS
+export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
 
 # For some reason `aligned_alloc` is present when we use compiler version 5.4.x
 # Adding NO_ALIGNED_ALLOC definition for cutt
@@ -87,6 +87,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}                      \
+      -DBUILD_CVCUDA=${BUILD_CVCUDA:-ON}                  \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
       -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}     \
@@ -117,6 +118,8 @@ DEPS_LIST=(
     "$PREFIX/lib/libavfilter.so.8"
     "$PREFIX/lib/libavutil.so.57"
     "$PREFIX/lib/libswscale.so.6"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
 )
 
 DEPS_SONAME=(
@@ -125,6 +128,8 @@ DEPS_SONAME=(
     "libavfilter.so.8"
     "libavutil.so.57"
     "libswscale.so.6"
+    "libcvcuda.so.0"
+    "libnvcv_types.so.0"
 )
 
 if [ "$BUILD_NVCOMP" = "ON" ]; then

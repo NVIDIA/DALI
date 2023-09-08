@@ -301,7 +301,7 @@ class CudaPackage(BasePackage):
 
     def get_all_versions(self, cuda_version):
         cuda_version = self.max_cuda_version(cuda_version)
-        return self.filter_versions(self.versions[cuda_version])
+        return self.filter_versions(self.versions.get(cuda_version, []))
 
     def max_cuda_version(self, cuda_version):
         """Gets a compatible, available cuda version to one asked for.
@@ -475,12 +475,12 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                             "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                             {"110": [
-                                PckgVer("2.11.1", python_min_ver="3.8", alias="tensorflow",
+                                PckgVer("2.12.1", python_min_ver="3.8", alias="tensorflow",
                                         dependencies=["protobuf<4", "numpy<1.24",
-                                                      "urllib3<2.0"]),
-                                PckgVer("2.12.0", python_min_ver="3.8", alias="tensorflow",
+                                                      "urllib3<2.0", "typing_extensions<4.6"]),
+                                PckgVer("2.13.0", python_min_ver="3.8", alias="tensorflow",
                                         dependencies=["protobuf<4", "numpy<1.24",
-                                                      "urllib3<2.0"])]}),
+                                                      "urllib3<2.0", "typing_extensions<4.6"])]}),
                 CudaPackageExtraIndex("torch",
                                       # use the older Torch just for python 3.6
                                       {"113": [PckgVer("1.10.0", python_max_ver="3.6",
@@ -500,6 +500,14 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                        dependencies=["protobuf<4", "numpy<1.24"])]},
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),
+                CudaPackageExtraIndex("jax",  # name used in our test script, see the mxnet case
+                                      {"113": [PckgVer("0.4.11",
+                                                       python_min_ver="3.8",
+                                                       dependencies=["jaxlib"])]},
+                                      # name used during installation
+                                      name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
+                                      links_index=("https://storage.googleapis.com/"
+                                                   "jax-releases/jax_cuda_releases.html")),
                 CudaPackage("numba",
                             {"110": [
                                 PckgVer("0.57.0", python_min_ver="3.8",

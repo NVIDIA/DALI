@@ -82,6 +82,9 @@ class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
       REDUCE_WITH_MEAN_INPUT_TYPES,
       (this->template RunTyped<float, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));))
+
+    auto& out = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(out, in, make_span(axes_), keep_dims_);
   }
 
   template <typename OutputType, typename InputType>

@@ -78,7 +78,7 @@ class monotonic_buffer_resource : public memory_resource<Kind> {
 
 template <typename Kind,
           typename Upstream = mm::memory_resource<Kind>,
-          bool host_impl = detail::is_host_accessible<Kind>>
+          bool host_impl = is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**
