@@ -111,15 +111,18 @@ def test_jax_peekable_iterator_peek_async():
     assert iterator.element_spec == { 'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
     
     for i in range(10):
-        print("iteration", i)
+        print("iteration", i, "===================")
         print("call peek_async")
         peeked_output = iterator.peek_async()
-        # peeked_output = peeked_output.result()
+        peeked_output_1 = iterator.peek_async()
+        peeked_output_1.result()
         
         print("call next")
         output = iterator.next()
         
         peeked_output = peeked_output.result()
+        
+        # peeked_output = peeked_output.result()
         
         # assert jnp.array_equal(
         #     output['data'], peeked_output.result()['data']), \
@@ -128,7 +131,51 @@ def test_jax_peekable_iterator_peek_async():
         assert jnp.array_equal(
             output['data'], peeked_output['data']), \
             f"output: {output['data']}, peeked_output: {peeked_output['data']}"
+            
+        print()
 
+
+import tensorflow as tf
+from clu.data.dataset_iterator import TfDatasetIterator
+
+
+def create_tf_iterator(start_index: int = 0, checkpoint: bool = False):
+    primes = tf.constant([2, 3, 5, 7, 11, 13, 17, 19, 23, 29])
+    ds = tf.data.Dataset.range(start_index, 10)
+
+    ds = ds.map(lambda i: {"_index": i, "prime": primes[i]})
+    # Remove index 1 and 3.
+    ds = ds.filter(lambda x: tf.logical_and(x["prime"] != 3, x["prime"] != 7))
+    ds = ds.batch(2, drop_remainder=True)
+    return TfDatasetIterator(ds, checkpoint=checkpoint)
+
+
+def test_jax_peekable_tf():
+    iterator = create_tf_iterator()
+
+    # then
+    # assert iterator.element_spec == { 'data': ArraySpec(dtype=jnp.int32, shape=3)}
+    
+    for i in range(10):
+        print("iteration", i, "===================")
+        print("call peek_async")
+        peeked_output = iterator.peek_async()
+        peeked_output = peeked_output.result()
+        
+        print("call next")
+        output = iterator.next()
+        
+        # peeked_output = peeked_output.result()
+        
+        # assert jnp.array_equal(
+        #     output['data'], peeked_output.result()['data']), \
+        #     f"output: {output['data']}, peeked_output: {peeked_output.result()['data']}"
+            
+        assert jnp.array_equal(
+            output['data'], peeked_output['data']), \
+            f"output: {output['data']}, peeked_output: {peeked_output['data']}"
+            
+        print()
     
 
 @raises(ValueError, glob="The shape or type of the output changed between iterations.")

@@ -18,7 +18,7 @@ from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 
 from clu.data.dataset_iterator import ArraySpec, ElementSpec
-from clu import asynclib
+import concurrent.futures
 
 
 def get_spec_for_array(jax_array):
@@ -136,7 +136,6 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             sharding)
         self._mutex = threading.Lock()
         self._pool = None
-        self._peek_future = None
         self._element_spec = None
         self._peek = None
 
@@ -166,26 +165,29 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         return output
 
     def __next__(self):
-        with self._mutex:
-            if self._peek is None:
-                return self.assert_output_shape_and_type(self.next_impl())
-            peek = self._peek
-            self._peek = None
-            return self.assert_output_shape_and_type(peek)
+        print("next")
+        if self._peek is None:
+            return self.assert_output_shape_and_type(self.next_impl())
+        print("next used peeked value")
+        peek = self._peek
+        self._peek = None
+        return self.assert_output_shape_and_type(peek)
 
     def peek(self):
+        print("peek")
         if self._peek is None:
+            print("peek called next")
             self._peek = next(self)
         return self._peek
 
     def peek_async(self):
-        with self._mutex:
-            if self._peek_future is None:
-                if self._pool is None:
-                    self._pool = asynclib.Pool(max_workers=1)
-                self._peek_future = self._pool(self.peek)()
-        return self._peek_future
+        print("peek_async")
+        if self._pool is None:
+            self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
+        future = self._pool.submit(self.peek)
+        return future
+            
     @property
     def element_spec(self) -> ElementSpec:
         return self._element_spec
