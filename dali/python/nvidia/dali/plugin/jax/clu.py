@@ -23,7 +23,7 @@ import concurrent.futures
 
 def get_spec_for_array(jax_array):
     '''Utility to get ArraySpec for given JAX array.'''
-    
+
     return ArraySpec(
         shape=jax_array.shape,
         dtype=jax_array.dtype)
@@ -31,13 +31,13 @@ def get_spec_for_array(jax_array):
 
 class DALIGenericPeekableIterator(DALIGenericIterator):
     """DALI iterator for JAX with peek functionality. Compatible with Google CLU PeekableIterator.
-    It supports peeking the next element in the iterator without advancing the iterator. 
+    It supports peeking the next element in the iterator without advancing the iterator.
 
     Note:
-        It is compatible with pipelines that return outputs with constant shape and type. It will 
-        throw an exception if the shape or type of the output changes between iterations. 
+        It is compatible with pipelines that return outputs with constant shape and type. It will
+        throw an exception if the shape or type of the output changes between iterations.
 
-    It provides ``element_spec`` property that returns a dictionary of ``ArraySpec`` objects 
+    It provides ``element_spec`` property that returns a dictionary of ``ArraySpec`` objects
     for each output category.
 
     Parameters
@@ -136,23 +136,21 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             sharding)
         self._mutex = threading.Lock()
         self._pool = None
-        self._element_spec = None
         self._peek = None
 
-        # Set element spec
+        # Set element spec based on the first element
+        self._element_spec = None
         peeked_output = self.peek()
-        
-        assert self._peek is not None
-        
+
         self._element_spec = {
             output_name: get_spec_for_array(peeked_output[output_name])
             for output_name in self._output_categories
         }
-        
-    def assert_output_shape_and_type(self, output):
+
+    def _assert_output_shape_and_type(self, output):
         if self._element_spec is None:
             return output
-        
+
         for key in output:
             if get_spec_for_array(output[key]) != self._element_spec[key]:
                 raise ValueError(
@@ -161,33 +159,58 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                     'Please make sure that the shape and type of the output is constant. '
                     f'Expected: {self._element_spec[key]}, got: {get_spec_for_array(output[key])} '
                     f'for output: {key}')
-            
+
         return output
 
-    def __next__(self):
-        print("next")
+    def _next_with_peek_impl(self):
+        """Returns the next element from the iterator and advances the iterator.
+        Is extracted as a separate method to be used by ``peek`` and ``next`` methods
+        under the same lock.
+        """
         if self._peek is None:
-            return self.assert_output_shape_and_type(self.next_impl())
-        print("next used peeked value")
+            return self._assert_output_shape_and_type(self._next_impl())
         peek = self._peek
         self._peek = None
-        return self.assert_output_shape_and_type(peek)
+        return self._assert_output_shape_and_type(peek)
+
+    def __next__(self):
+        with self._mutex:
+            return self._next_with_peek_impl()
 
     def peek(self):
-        print("peek")
-        if self._peek is None:
-            print("peek called next")
-            self._peek = next(self)
-        return self._peek
+        """Returns the next element from the iterator without advancing the iterator.
+
+        Returns:
+           dict : dictionary of jax.Array objects with the next element from the iterator.
+        """
+        with self._mutex:
+            if self._peek is None:
+                self._peek = self._next_with_peek_impl()
+            return self._peek
 
     def peek_async(self):
-        print("peek_async")
+        """Returns future that will return the next element from
+        the iterator without advancing the iterator.
+
+        Returns:
+           concurent.futures.Future: future that will return dictionary of jax.Array
+                                     objects with the next element from the iterator.
+        """
         if self._pool is None:
+            # Create pool only if needed (peek_async is ever called)
+            # to avoid thread creation overhead
             self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
         future = self._pool.submit(self.peek)
         return future
-            
+
     @property
     def element_spec(self) -> ElementSpec:
+        """Returns the element spec for the elements returned by the iterator.
+        ElementSpec contains ``ArraySpec`` for each output category which describes
+        shape and type of the output.
+
+        Returns:
+            ElementSpec: Element spec for the elements returned by the iterator.
+        """
         return self._element_spec
