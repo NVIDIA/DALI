@@ -87,6 +87,8 @@ def main(args):
     train_dataloader = None
     train_prog = None
     optimizer = None
+    train_fetchs = {}
+    lr_scheduler = None
     if args.run_scope in [RunScope.TRAIN_EVAL, RunScope.TRAIN_ONLY]:
         train_dataloader = build_dataloader(args, Mode.TRAIN)
         train_step_each_epoch = len(train_dataloader)
@@ -102,6 +104,7 @@ def main(args):
 
     eval_dataloader = None
     eval_prog = None
+    eval_fetchs = {}
     if args.run_scope in [RunScope.TRAIN_EVAL, RunScope.EVAL_ONLY]:
         eval_dataloader = build_dataloader(args, Mode.EVAL)
         eval_step_each_epoch = len(eval_dataloader)

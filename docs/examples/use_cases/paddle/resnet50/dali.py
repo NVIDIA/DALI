@@ -18,7 +18,6 @@ from dataclasses import dataclass
 import paddle
 import numpy as np
 from nvidia.dali.backend import TensorListCPU
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
@@ -53,7 +52,6 @@ def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, ops_meta,
                                          random_shuffle=is_training,
                                          pad_last_batch=True,
                                          name="Reader")
-        dali_device = 'cpu' if dali_cpu else 'gpu'
         decoder_device = 'cpu' if dali_cpu else 'mixed'
         # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and
         #  GPU to avoid reallocations in runtime

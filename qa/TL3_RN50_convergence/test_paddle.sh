@@ -48,15 +48,15 @@ fi
 
 MIN_TOP1=.45  # would be 75% if we run 90 epochs
 MIN_TOP5=.70  # would be 92% if we run 90 epochs
-MIN_PERF=5000
+MIN_PERF=7000
 
 function PRINT_THRESHOLD {
     FILENAME=$1
     QUALITY=$2
     THRESHOLD=$3
-    grep "train.$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
-$QUALITY = json.load(sys.stdin)[\"data\"][\"train.$QUALITY\"]
-print(f\"$FILENAME: train.$QUALITY: {$QUALITY}, expected $THRESHOLD\")
+    grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
+$QUALITY = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
+print(f\"$FILENAME: $QUALITY: {$QUALITY}, expected $THRESHOLD\")
 sys.exit(0)"
 }
 
@@ -64,8 +64,8 @@ function CHECK_THRESHOLD {
     FILENAME=$1
     QUALITY=$2
     THRESHOLD=$3
-    grep "train.$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
-$QUALITY = json.load(sys.stdin)[\"data\"][\"train.$QUALITY\"]
+    grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
+$QUALITY = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
 if $QUALITY < $THRESHOLD:
     print(f\"[FAIL] $FILENAME below threshold: {$QUALITY} < $THRESHOLD\")
     sys.exit(1)
@@ -74,11 +74,11 @@ else:
     sys.exit(0)"
 }
 
-PRINT_THRESHOLD "train.json" "ips" $MIN_PERF
-PRINT_THRESHOLD "train.json" "top1" $MIN_TOP1
-PRINT_THRESHOLD "train.json" "top5" $MIN_TOP5
-CHECK_THRESHOLD "train.json" "ips" $MIN_PERF
-CHECK_THRESHOLD "train.json" "top1" $MIN_TOP1
-CHECK_THRESHOLD "train.json" "top5" $MIN_TOP5
+PRINT_THRESHOLD "train.json" "train.ips" $MIN_PERF
+PRINT_THRESHOLD "train.json" "val.top1" $MIN_TOP1
+PRINT_THRESHOLD "train.json" "val.top5" $MIN_TOP5
+CHECK_THRESHOLD "train.json" "train.ips" $MIN_PERF
+CHECK_THRESHOLD "train.json" "val.top1" $MIN_TOP1
+CHECK_THRESHOLD "train.json" "val.top5" $MIN_TOP5
 
 CLEAN_AND_EXIT 0

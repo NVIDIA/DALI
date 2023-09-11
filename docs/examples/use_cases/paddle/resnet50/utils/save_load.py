@@ -122,6 +122,7 @@ def init_pretrained(path_to_pretrained, program):
         path_to_pretrained(str): The path to file of pretrained model.
         program(paddle.static.Program): The program to init model.
     """
+    pretrained_model = []
     if not isinstance(path_to_pretrained, list):
         pretrained_model = [path_to_pretrained]
     for pretrain in pretrained_model:
