@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 project(dali_core CUDA CXX C)
 
+add_subdirectory(exec)
 add_subdirectory(mm)
 add_subdirectory(os)
 

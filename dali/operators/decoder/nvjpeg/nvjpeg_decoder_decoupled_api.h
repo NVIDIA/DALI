@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -250,7 +250,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
 #if NVJPEG2K_ENABLED
     auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
-    nvjpeg2k_thread_.AddWork([this, device_memory_padding_jpeg2k, host_memory_padding_jpeg2k,
+    nvjpeg2k_thread_.AddTask([this, device_memory_padding_jpeg2k, host_memory_padding_jpeg2k,
                               nvjpeg2k_thread_id](int) {
       nvjpeg2k_handle_ = NvJPEG2KHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
 
@@ -580,7 +580,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *input_data = input.tensor<uint8_t>(i);
       const auto in_size = input.tensor_shape(i).num_elements();
       const auto &source_info = input.GetMeta(i).GetSourceInfo();
-      thread_pool_.AddWork([this, i, input_data, in_size, source_info](int tid) {
+      thread_pool_.AddTask([this, i, input_data, in_size, source_info](int tid) {
         SampleData &data = sample_data_[i];
         data.clear();
         data.sample_idx = i;
@@ -733,7 +733,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       const auto *in_data = input.tensor<uint8_t>(i);
       const auto in_size = input.tensor_shape(i).num_elements();
-      thread_pool_.AddWork(
+      thread_pool_.AddTask(
         [this, sample, in_data, in_size, output_data](int tid) {
           SampleWorker(sample->sample_idx, sample->file_name, in_size, tid,
             in_data, output_data, streams_[tid]);
@@ -815,7 +815,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (!nvjpeg2k_handle_) {
       return;
     }
-    nvjpeg2k_thread_.AddWork([this, &ws](int) {
+    nvjpeg2k_thread_.AddTask([this, &ws](int) {
       auto &output = ws.Output<GPUBackend>(0);
       const auto &input = ws.Input<CPUBackend>(0);
       const auto &input_shape = input.shape();
@@ -841,7 +841,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       auto in_size = input.tensor_shape(i).num_elements();
       auto *output_data = output.mutable_tensor<uint8_t>(i);
       ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
-      thread_pool_.AddWork(
+      thread_pool_.AddTask(
         [this, sample, input_data, in_size, output_data, shape](int tid) {
           HostFallback<StorageGPU>(input_data, in_size, output_image_type_, output_data,
                                    streams_[tid], sample->file_name, sample->roi, use_fast_idct_);

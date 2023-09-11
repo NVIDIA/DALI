@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ void SpectrogramImplCpu<time_major>::RunImpl(Workspace &ws) {
   output.SetLayout(layout_);
 
   for (int i = 0; i < nsamples; i++) {
-    thread_pool.AddWork(
+    thread_pool.AddTask(
       [this, &input, &output, view_window_fn, i](int thread_id) {
         kernels::KernelContext ctx;
 

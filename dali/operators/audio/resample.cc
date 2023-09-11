@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
     auto &tp = ws.GetThreadPool();
     in_fp32.resize(tp.NumThreads());
     for (int s = 0; s < N; s++) {
-      tp.AddWork([&, this, s](int thread_idx) {
+      tp.AddTask([&, this, s](int thread_idx) {
         InTensorCPU<float> in_view;
         TYPE_SWITCH(in.type(), type2id, T, (AUDIO_RESAMPLE_TYPES),
           (in_view = ConvertInput(in_fp32[thread_idx], view<const T>(in[s]));),

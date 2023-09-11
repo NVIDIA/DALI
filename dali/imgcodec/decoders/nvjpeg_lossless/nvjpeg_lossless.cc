@@ -114,7 +114,7 @@ void NvJpegLosslessDecoderInstance::Parse(DecodeResultsPromise &promise,
   DecodeResultsPromise parse_promise(nsamples);
   for (int i = 0; i < nsamples; i++) {
     int tid = 0;
-    ctx.tp->AddWork(
+    ctx.tp->AddTask(
         [&, i](int tid) {
           auto &jpeg_stream = per_thread_resources_[tid].jpeg_stream;
           auto *sample = in[i];

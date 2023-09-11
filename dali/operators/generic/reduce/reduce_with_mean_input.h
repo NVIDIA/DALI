@@ -106,7 +106,7 @@ class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
       int64_t priority = volume(in_view.shape.tensor_shape_span(sample));
-      thread_pool.AddWork(
+      thread_pool.AddTask(
         [&, sample](int thread_id) {
           auto in_sample_view = in_view[sample];
           auto mean_sample_view = mean_view[sample];

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ void WebdatasetReader::RunImpl(Workspace &ws) {
                     sample[output_idx].nbytes());
       };
       if (threaded) {
-        ws.GetThreadPool().AddWork(std::move(copy_task), -data_idx);
+        ws.GetThreadPool().AddTask(std::move(copy_task), -data_idx);
       } else {
         copy_task(0);
       }

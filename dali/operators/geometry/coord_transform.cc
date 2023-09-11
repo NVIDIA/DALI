@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ void CoordTransform<CPUBackend>::RunTyped(Workspace &ws) {
   auto T = GetTranslations<out_dim>();
 
   for (int idx = 0; idx < in_view.num_samples(); idx++) {
-    tp.AddWork([&, idx](int tid) {
+    tp.AddTask([&, idx](int tid) {
         kernels::KernelContext ctx;
         auto in_tensor = in_view[idx];
         auto out_tensor = out_view[idx];

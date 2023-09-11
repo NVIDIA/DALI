@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -293,7 +293,7 @@ void NumbaFuncImpl<CPUBackend>::RunImpl(Workspace &ws) {
   auto out_shape = out.shape();
   auto &tp = ws.GetThreadPool();
   for (int sample_id = 0; sample_id < N; sample_id++) {
-    tp.AddWork([&, sample_id](int thread_id) {
+    tp.AddTask([&, sample_id](int thread_id) {
       SmallVector<uint64_t, 6> out_ptrs_per_sample;
       SmallVector<uint64_t, 6> out_shapes_per_sample;
       auto& out_shapes_ptrs = setup_fn_ ? output_shape_ptrs_ : input_shape_ptrs_;

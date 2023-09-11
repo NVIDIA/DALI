@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
     auto sample = input[i];
     auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     size_t size = sample.shape().num_elements();
-    thread_pool.AddWork([this, i, data, size](int tid) {
+    thread_pool.AddTask([this, i, data, size](int tid) {
       frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, false);
     });
   }
@@ -44,7 +44,7 @@ void VideoDecoderCpu::RunImpl(Workspace &ws) {
   int batch_size = input.num_samples();
   auto &thread_pool = ws.GetThreadPool();
   for (int s = 0; s < batch_size; ++s) {
-    thread_pool.AddWork([this, s, &output](int tid) {
+    thread_pool.AddTask([this, s, &output](int tid) {
       DecodeSample(output[s], s);
     }, volume(input[s].shape()));
   }

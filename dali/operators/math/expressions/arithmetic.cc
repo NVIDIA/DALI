@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
 
   int batch_size = ws.GetInputBatchSize(0);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
-    pool.AddWork(
+    pool.AddTask(
         [=](int thread_idx) {
           auto range = tile_range_[task_idx];
           // Go over "tiles"

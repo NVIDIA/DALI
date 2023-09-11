@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     int nsamples = input.num_samples();
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       auto elem_volume = volume(input.tensor_shape(sample_idx));
-      thread_pool.AddWork(
+      thread_pool.AddTask(
           [this, &input, &output, sample_idx](int thread_id) {
             auto gaussian_windows = windows_[sample_idx].GetWindows();
             const auto &shape = input.tensor_shape(sample_idx);

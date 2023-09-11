@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(Workspace &ws) {
   int ndim = in_sh.sample_dim();
   auto& thread_pool = ws.GetThreadPool();
   for (int i = 0; i < nsamples; i++) {
-    thread_pool.AddWork(
+    thread_pool.AddTask(
       [&, i](int thread_id) {
         auto in_sample_sh = in_sh.tensor_shape_span(i);
         // flatten any leading dimensions together with the height

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
 
     TYPE_SWITCH(input_type, type2id, T, TRANSPOSE_ALLOWED_TYPES, (
       for (int i = 0; i < nsamples; i++) {
-        thread_pool.AddWork(
+        thread_pool.AddTask(
           [this, &input, &output, i](int thread_id) {
             TensorShape<> src_ts = input.shape()[i];
 

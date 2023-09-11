@@ -44,7 +44,7 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
   int n = tp.NumThreads();
   std::atomic_int pending{n};
   for (int i = 0; i < n; i++) {
-    tp.AddWork([&](int tid) {
+    tp.AddTask([&](int tid) {
       std::exception_ptr err{nullptr};
       try {
         func(tid);

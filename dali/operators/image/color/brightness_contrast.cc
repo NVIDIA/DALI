@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ void BrightnessContrastCpu::RunImplHelper(Workspace &ws) {
         sequence_utils::unfolded_views_range<ndim - 3>(out_view[sample_id], in_view[sample_id]);
     const auto &in_range = planes_range.template get<1>();
     for (auto &&views : planes_range) {
-      tp.AddWork([&, views, add, mul](int thread_id) {
+      tp.AddTask([&, views, add, mul](int thread_id) {
           kernels::KernelContext ctx;
           auto &[tvout, tvin] = views;
           kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, add, mul);

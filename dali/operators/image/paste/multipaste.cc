@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
         int from_sample = in_idx_[i].data[iter];
         int to_sample = i;
 
-        tp.AddWork(
+        tp.AddTask(
           [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {
             kernels::KernelContext ctx;
             auto tvin = in_view[from_sample];
@@ -108,7 +108,7 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
           out_shape.tensor_size(to_sample));
       }
     } else {
-      tp.AddWork(
+      tp.AddTask(
         [&, i, paste_count, in_view, out_view](int thread_id) {
           for (int iter = 0; iter < paste_count; iter++) {
             int from_sample = in_idx_[i].data[iter];

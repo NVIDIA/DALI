@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ static void ThreadPoolArgs(benchmark::internal::Benchmark *b) {
   b->Args({batch_size, work_size_min, work_size_max, nthreads});
 }
 
-BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(ThreadPoolBench, AddTask)(benchmark::State& st) {
   int batch_size = st.range(0);
   int work_size_min = st.range(1);
   int work_size_max = st.range(2);
@@ -40,7 +40,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
   while (st.KeepRunning()) {
     for (int i = 0; i < batch_size; i++) {
         auto size = this->RandInt(work_size_min, work_size_max);
-        thread_pool.AddWork(
+        thread_pool.AddTask(
           [&data, size, &total_count](int thread_id){
             std::vector<uint8_t> other_data;
             for (int i = 0; i < size; i++) {
@@ -59,13 +59,13 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWork)(benchmark::State& st) {
   std::cout << total_count << std::endl;
 }
 
-BENCHMARK_REGISTER_F(ThreadPoolBench, AddWork)->Iterations(1000)
+BENCHMARK_REGISTER_F(ThreadPoolBench, AddTask)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(ThreadPoolArgs);
 
 
-BENCHMARK_DEFINE_F(ThreadPoolBench, AddWorkDeferred)(benchmark::State& st) {
+BENCHMARK_DEFINE_F(ThreadPoolBench, AddTaskDeferred)(benchmark::State& st) {
   int batch_size = st.range(0);
   int work_size_min = st.range(1);
   int work_size_max = st.range(2);
@@ -78,7 +78,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWorkDeferred)(benchmark::State& st) {
   while (st.KeepRunning()) {
     for (int i = 0; i < batch_size; i++) {
         auto size = this->RandInt(work_size_min, work_size_max);
-        thread_pool.AddWork(
+        thread_pool.AddTask(
           [&data, size, &total_count](int thread_id){
             std::vector<uint8_t> other_data;
             for (int i = 0; i < size; i++) {
@@ -98,7 +98,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWorkDeferred)(benchmark::State& st) {
 }
 
 
-BENCHMARK_REGISTER_F(ThreadPoolBench, AddWorkDeferred)->Iterations(1000)
+BENCHMARK_REGISTER_F(ThreadPoolBench, AddTaskDeferred)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
 ->Apply(ThreadPoolArgs);

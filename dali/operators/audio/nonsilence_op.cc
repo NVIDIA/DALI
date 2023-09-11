@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
     auto &tp = ws.GetThreadPool();
     auto in_shape = input.shape();
     for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
-      tp.AddWork(
+      tp.AddTask(
               [&, sample_id](int thread_id) {
                   detail::Args<InputType> args;
                   args.input = view<const InputType, 1>(input[sample_id]);

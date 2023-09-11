@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -519,7 +519,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     sample_data_.resize(num_samples);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto &data = sample_data_[sample_idx];
-      tp.AddWork([&, sample_idx](int thread_id) {
+      tp.AddTask([&, sample_idx](int thread_id) {
         auto nboxes = in_boxes_view.tensor_shape_span(sample_idx)[0];
         data.in_bboxes.resize(nboxes);
         ReadBoxes(make_span(data.in_bboxes),

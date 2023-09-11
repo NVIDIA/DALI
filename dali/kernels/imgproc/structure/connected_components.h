@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -208,7 +208,7 @@ void LabelSlice(OutLabel *label_base,
   for (int64_t i = 0; i < n; i++) {
     auto out_slice = out.slice(i);
     auto in_slice = in.slice(i);
-    engine.AddWork([=, &seq_engn](int){
+    engine.AddTask([=, &seq_engn](int){
       LabelSlice(label_base, out_slice, in_slice, background, seq_engn);
     });
   }
@@ -220,7 +220,7 @@ void LabelSlice(OutLabel *label_base,
       auto in_slice = in.slice(i);
       auto prev_out = out.slice(i-1);
       auto prev_in = in.slice(i-1);
-      engine.AddWork([=](int){
+      engine.AddTask([=](int){
         MergeSlices(label_base, prev_out, out_slice, prev_in, in_slice);
       });
     }
@@ -313,7 +313,7 @@ int64_t CompactLabels(OutLabel *labels,
       int64_t chunk_start = volume * chunk / num_chunks;
       int64_t chunk_end = volume * (chunk + 1) / num_chunks;
 
-      engine.AddWork([=, &tmp_sets, &lock](int thread) {
+      engine.AddTask([=, &tmp_sets, &lock](int thread) {
         OutLabel prev = old_bg_label;
         OutLabel remapped = old_bg_label;
         for (int64_t i = chunk_start; i < chunk_end; i++) {
@@ -354,7 +354,7 @@ int64_t CompactLabels(OutLabel *labels,
   for (int chunk = 0; chunk < num_chunks; chunk++) {
     int64_t chunk_start = volume * chunk / num_chunks;
     int64_t chunk_end = volume * (chunk + 1) / num_chunks;
-    engine.AddWork([=, &label_map](int) {
+    engine.AddTask([=, &label_map](int) {
       RemapChunk(make_span(labels + chunk_start, chunk_end - chunk_start), label_map);
     });
   }

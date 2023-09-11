@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
         // NOTE: This does not account for cost of antialiasing!
         cost += std::pow(std::pow(out_size, spatial_ndim - i) * pow(in_size, i), root);
       }
-      tp.AddWork(work, std::llround(cost));
+      tp.AddTask(work, std::llround(cost));
     }
     tp.RunAll();
   }

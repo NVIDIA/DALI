@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     auto interp_types = param_provider_->InterpTypes();
 
     for (int i = 0; i < input_.num_samples(); i++) {
-      pool.AddWork([&, i](int tid) {
+      pool.AddTask([&, i](int tid) {
         DALIInterpType interp_type = interp_types.size() > 1 ? interp_types[i] : interp_types[0];
         auto context = GetContext(ws);
         kmgr_.Run<Kernel>(

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -304,7 +304,7 @@ class Operator<CPUBackend> : public OperatorBase {
     }
     auto &thread_pool = ws.GetThreadPool();
     for (int data_idx = 0; data_idx < curr_batch_size; ++data_idx) {
-      thread_pool.AddWork([this, &ws, data_idx](int tid) {
+      thread_pool.AddTask([this, &ws, data_idx](int tid) {
         SampleWorkspace sample;
         MakeSampleView(sample, ws, data_idx, tid);
         this->SetupSharedSampleParams(sample);

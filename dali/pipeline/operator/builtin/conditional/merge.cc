@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,7 +145,7 @@ void Merge<CPUBackend>::CopySampleToOutput(TensorList<CPUBackend> &output, int o
                                            const TensorList<CPUBackend> &input,
                                            int input_sample_idx, Workspace &ws) {
   auto &tp = ws.GetThreadPool();
-  tp.AddWork(
+  tp.AddTask(
       [&output, &input, output_sample_idx, input_sample_idx](int thread_idx) {
         output.ResizeSample(output_sample_idx, input.shape()[input_sample_idx]);
         output.CopySample(output_sample_idx, input, input_sample_idx, output.order());
