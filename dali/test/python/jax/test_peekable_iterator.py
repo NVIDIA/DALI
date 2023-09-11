@@ -81,7 +81,7 @@ def test_jax_peekable_iterator_peek_async_result_after_next():
 
     for i in range(5):
         peeked_output = iterator.peek_async()
-        time.sleep(0.1) # wait before calling next to give time for peek to start
+        time.sleep(0.1)  # wait before calling next to give time for peek to start
         output = iterator.next()
         peeked_output = peeked_output.result()
 
