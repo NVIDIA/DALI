@@ -173,7 +173,6 @@ class DALIGenericIterator(_DaliBaseIterator):
             prepare_first_batch=prepare_first_batch)
 
         self._first_batch = None
-        self._peek = None
         if self._prepare_first_batch:
             try:
                 self._first_batch = DALIGenericIterator.__next__(self)
