@@ -184,7 +184,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
                        "greater than the shard size."
 
-    def __next__(self):
+    def _next_impl(self):
         self._ever_consumed = True
         if self._first_batch is not None:
             batch = self._first_batch
@@ -212,6 +212,9 @@ class DALIGenericIterator(_DaliBaseIterator):
         self._advance_and_check_drop_last()
 
         return next_output
+
+    def __next__(self):
+        return self._next_impl()
 
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
         category_outputs = []

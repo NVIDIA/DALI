@@ -64,7 +64,7 @@ def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
         value=value, shape=shape, dtype=dtype)
 
     # when
-    jax_array = dax._to_jax_array(dali_tensor_gpu)
+    jax_array = dax.iterator._to_jax_array(dali_tensor_gpu)
 
     # then
     assert jax.numpy.array_equal(
@@ -111,7 +111,7 @@ def test_dali_sequential_tensors_to_jax_array():
         dali_tensor_gpu = pipe.run()[0].as_tensor()
 
         # when
-        jax_array = dax._to_jax_array(dali_tensor_gpu)
+        jax_array = dax.iterator._to_jax_array(dali_tensor_gpu)
 
         # then
         assert jax_array.device() == jax.devices()[0]
