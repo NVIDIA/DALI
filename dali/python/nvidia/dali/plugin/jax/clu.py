@@ -191,7 +191,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     def peek_async(self):
         """Returns future that will return the next element from
         the iterator without advancing the iterator.
-        
+
         Note:
             Calling ``peek_async`` without waiting for the future to complete is not
             guaranteed to be executed before the next call to ``peek`` or ``next``.

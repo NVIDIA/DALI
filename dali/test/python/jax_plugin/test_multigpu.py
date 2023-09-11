@@ -199,7 +199,8 @@ def run_sharding_test(sharding):
     dali_shard_0 = get_dali_tensor_gpu(0, (1), np.int32, 0)
     dali_shard_1 = get_dali_tensor_gpu(1, (1), np.int32, 1)
 
-    shards = [dax.integration._to_jax_array(dali_shard_0), dax.integration._to_jax_array(dali_shard_1)]
+    shards = [dax.integration._to_jax_array(dali_shard_0),
+              dax.integration._to_jax_array(dali_shard_1)]
 
     assert shards[0].device() == jax.devices()[0]
     assert shards[1].device() == jax.devices()[1]
