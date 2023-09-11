@@ -232,9 +232,13 @@ class DALIGenericIterator(_DaliBaseIterator):
 
 def data_iterator(pipeline_fn, batch_size):
     def wrapper(*args, **kwargs):
-        pipeline = pipeline_def(pipeline_fn, batch_size=batch_size, num_threads=4, device_id=0)
+        pipeline_def_fn = pipeline_def(
+            pipeline_fn,
+            batch_size=batch_size,
+            num_threads=4,
+            device_id=0)
         
         output_map = ['data']
-        return DALIGenericIterator([pipeline()], output_map, size=batch_size*100)
+        return DALIGenericIterator([pipeline_def_fn()], output_map, size=batch_size*100)
     
     return wrapper
