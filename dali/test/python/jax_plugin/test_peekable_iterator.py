@@ -14,7 +14,7 @@
 
 
 import jax.numpy as jnp
-from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIteraor
+from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
 from test_integration import sequential_pipeline
 from clu.data.dataset_iterator import ArraySpec
 
@@ -34,7 +34,7 @@ def test_jax_peekable_iterator_peek():
     pipe = sequential_pipeline(batch_size, shape)
 
     # when
-    iterator = DALIIteraor([pipe], ['data'], size=batch_size*100)
+    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -52,7 +52,7 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
     pipe = sequential_pipeline(batch_size, shape)
 
     # when
-    iterator = DALIIteraor([pipe], ['data'], size=batch_size*100)
+    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -73,7 +73,7 @@ def test_jax_peekable_iterator_peek_async_result_after_next():
     pipe = sequential_pipeline(batch_size, shape)
 
     # when
-    iterator = DALIIteraor([pipe], ['data'], size=batch_size*100)
+    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -95,7 +95,7 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
     batch_size = 1
     pipe = pipeline_with_variable_shape_output(batch_size)
 
-    iterator = DALIIteraor([pipe], ['data'], size=batch_size*100)
+    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
     iterator.next()
 
     # when
