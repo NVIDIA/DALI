@@ -191,6 +191,13 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     def peek_async(self):
         """Returns future that will return the next element from
         the iterator without advancing the iterator.
+        
+        Note:
+            Calling ``peek_async`` without waiting for the future to complete is not
+            guaranteed to be executed before the next call to ``peek`` or ``next``.
+            If you want to make sure that the next call to ``peek`` or ``next`` will
+            return the same element as the future, you need to wait for the future to
+            complete.
 
         Returns:
            concurent.futures.Future: future that will return dictionary of jax.Array
