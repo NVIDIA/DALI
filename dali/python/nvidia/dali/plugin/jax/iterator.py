@@ -11,49 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import jax
+import jax.dlpack
 import jax.numpy as jnp
 from jax.sharding import NamedSharding, PositionalSharding
-import jax.dlpack
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-from nvidia.dali.backend import TensorGPU
-from distutils.version import LooseVersion
 
-
-assert sys.version_info.major == 3 and sys.version_info.minor >= 8, \
-    "DALI JAX support requires Python 3.8 or above"
-
-
-assert LooseVersion(jax.__version__) >= LooseVersion('0.4.11'), \
-    "DALI JAX support requires JAX 0.4.11 or above"
-
-
-def _to_jax_array(dali_tensor: TensorGPU) -> jax.Array:
-    """Converts input DALI tensor to JAX array.
-
-    Args:
-        dali_tensor (TensorGPU): DALI GPU tensor to be converted to JAX array.
-
-    Note:
-        This function performs deep copy of the underlying data. That will change in
-        future releases.
-
-    Warning:
-        As private this API may change without notice.
-
-    Returns:
-        jax.Array: JAX array with the same values and backing device as
-        input DALI tensor.
-    """
-    jax_array = jax.dlpack.from_dlpack(dali_tensor._expose_dlpack_capsule())
-
-    # For now we need this copy to make sure that underlying memory is available.
-    # One solution is to implement full DLPack contract in DALI.
-    # TODO(awolant): Remove this copy.
-    return jax_array.copy()
+from .integration import _to_jax_array
 
 
 class DALIGenericIterator(_DaliBaseIterator):

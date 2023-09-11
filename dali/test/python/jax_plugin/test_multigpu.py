@@ -24,7 +24,7 @@ from nvidia.dali.plugin.jax import DALIGenericIterator
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
-from test_integration import get_dali_tensor_gpu
+from utils import get_dali_tensor_gpu
 import jax.numpy as jnp
 
 
