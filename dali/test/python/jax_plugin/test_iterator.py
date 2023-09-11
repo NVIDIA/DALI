@@ -53,7 +53,6 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
     batch_size = 4
     shape = (1, 5)
 
-    pipe = sequential_pipeline(batch_size, shape)
     iter = dax.iterator.data_iterator(sequential_pipeline_def, batch_size=batch_size)()
 
     for batch_id, data in enumerate(iter):
