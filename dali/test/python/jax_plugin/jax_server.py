@@ -44,7 +44,7 @@ def print_devices_details(devices_list, process_id):
 
 
 def test_lax_workflow(process_id):
-    array_from_dali = dax.iterator._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32))
+    array_from_dali = dax.integration._to_jax_array(get_dali_tensor_gpu(1, (1), np.int32))
 
     assert array_from_dali.device() == jax.local_devices()[0], \
         "Array should be backed by the device local to current process."
@@ -58,7 +58,7 @@ def test_lax_workflow(process_id):
 
 
 def run_distributed_sharing_test(sharding, process_id):
-    dali_local_shard = dax.iterator._to_jax_array(
+    dali_local_shard = dax.integration._to_jax_array(
         get_dali_tensor_gpu(process_id, (1), np.int32, 0))
 
     # Note: we pass only one local shard but the array virtually

@@ -77,7 +77,7 @@ def run_distributed_sharing_test(sharding, process_id):
 
     dali_local_shards = []
     for id, device in enumerate(jax.local_devices()):
-        current_shard = dax.iterator._to_jax_array(
+        current_shard = dax.integration._to_jax_array(
             get_dali_tensor_gpu(process_id, (1), np.int32, id))
 
         assert current_shard.device() == device
