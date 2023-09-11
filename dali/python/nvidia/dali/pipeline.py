@@ -647,7 +647,7 @@ Parameters
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
-                outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+                outputs[i] = nvidia.dali.ops._instantiate_constant_node(outputs[i], "cpu")
             elif contains_nested_datanode(outputs[i]):
                 raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
                                 "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")

@@ -776,3 +776,56 @@ def test_pad_last_sample(device, batch_description, dont_use_mmap, use_o_direct)
                     assert_array_equal(out_arr, ref_arr)
         finally:
             del pipe
+
+
+@cartesian_params(('global', 'local', 'none'),
+                  (True, False))
+def test_shuffling(shuffling, pad_last_batch):
+
+    if not is_gds_supported():
+        raise SkipTest("GDS is not supported in this platform")
+
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        # create files
+        num_samples = 10
+        batch_size = 3
+        filenames = []
+        for index in range(0, num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            filenames.append(filename)
+            create_numpy_file(filename, (3, 2, 1), np.int8, False)
+        random_shuffle = False
+        shuffle_after_epoch = False
+        stick_to_shard = False
+        if shuffling == 'global':
+            shuffle_after_epoch = True
+        elif shuffle_after_epoch == 'local':
+            random_shuffle = True
+            stick_to_shard = True
+
+        pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+        with pipe:
+            data_cpu = fn.readers.numpy(device='cpu',
+                                        files=filenames,
+                                        file_root=test_data_root,
+                                        shard_id=0,
+                                        num_shards=2,
+                                        pad_last_batch=pad_last_batch,
+                                        random_shuffle=random_shuffle,
+                                        shuffle_after_epoch=shuffle_after_epoch,
+                                        stick_to_shard=stick_to_shard)
+            data_gpu = fn.readers.numpy(device='gpu',
+                                        files=filenames,
+                                        file_root=test_data_root,
+                                        shard_id=0,
+                                        num_shards=2,
+                                        pad_last_batch=pad_last_batch,
+                                        random_shuffle=random_shuffle,
+                                        shuffle_after_epoch=shuffle_after_epoch,
+                                        stick_to_shard=stick_to_shard)
+            pipe.set_outputs(data_cpu, data_gpu)
+
+        pipe.build()
+        for _ in range(num_samples//batch_size * 2):
+            (cpu_arr, gpu_arr) = pipe.run()
+            assert_array_equal(to_array(cpu_arr), to_array(gpu_arr))

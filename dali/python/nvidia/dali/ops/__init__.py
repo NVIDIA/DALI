@@ -15,6 +15,7 @@
 # pylint: disable=no-member
 import sys
 import threading
+import tree
 import warnings
 from itertools import count
 
@@ -29,12 +30,13 @@ from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value
                                ScalarConstant as _ScalarConstant, Constant as _Constant)
 from nvidia.dali import _conditionals
 
-from nvidia.dali.ops import (_registry, _names, _docs)  # noqa: F401
+from nvidia.dali.ops import (_registry, _names, _docs, _operator_utils)  # noqa: F401
 
 # reexpose what was previously visible:
 from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
                                        register_gpu_op)  # noqa: F401
 from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
+from nvidia.dali.ops._operator_utils import (_build_input_sets, _repack_output_sets, )
 
 
 class _OpCounter(object):
@@ -51,15 +53,60 @@ class _OpCounter(object):
         return self._id
 
 
-def _instantiate_constant_node(device, constant):
+def _instantiate_constant_node(constant: _ScalarConstant, device: str):
+    """Generate a DataNode (creating a Constant operator) based on the provided ScalarConstant.
+    """
     return _Constant(device=device, value=constant.value, dtype=constant.dtype,
                      shape=constant.shape)
 
 
-def _separate_kwargs(kwargs, arg_input_type=_DataNode):
-    """Separates arguments into ones that should go to operator's __init__ and to __call__.
+# TODO(klecki): The curse of multiple input sets and optimization prohibits us from using this
+# code-path both for inputs and argument inputs.
+def _handle_constant(value, device, input_name, op_name):
+    """Handle promotion of possible constant value passed as (argument) input to an operator-backed
+    DataNode. Pass-through if the value is a DataNode.
 
-    Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
+    Parameters
+    ----------
+    value : DataNode, ScalarConstant or value convertible to a constant op
+        The value to be processed.
+    device : str
+        Target placement of constant node.
+    input_name : int or str
+        Position or name of the input, for error reporting purposes.
+    op_name : str
+        Name of the invoked operator, for error reporting purposes.
+
+    Returns
+    -------
+    DataNode
+        Either the same node as input or newly created DataNode representing the constant.
+
+    Raises
+    ------
+    TypeError
+        Error in case a constant was passed that is not possible to be converted by DALI.
+    """
+    if isinstance(value, _DataNode):
+        return value
+    if isinstance(value, _ScalarConstant):
+        return _instantiate_constant_node(value, device)
+    try:
+        value = _Constant(value, device=device)
+    except Exception as e:
+        raise TypeError(f"when calling operator {op_name}: "
+                        f"expected inputs of type `DataNode` or convertible to "
+                        f"constant nodes. Received input `{input_name}` of type "
+                        f"'{type(value).__name__}'.") from e
+    return value
+
+
+def _separate_kwargs(kwargs, arg_input_type=_DataNode):
+    """Separates arguments into scalar arguments and argument inputs (data nodes or tensor lists),
+    that were historically specified in __init__ and __call__ of operator class.
+
+    Returns a pair of dictionaries of kwargs - the first for arguments (__init__), the second for
+    argument inputs (__call__).
 
     Args:
         kwargs: Keyword arguments.
@@ -70,7 +117,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
 
-    def is_call_arg(name, value):
+    def is_arg_input_or_name(name, value):
         if name == "device":
             return False
         if name == "ndim":
@@ -89,12 +136,57 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     for name, value in kwargs.items():
         if value is None:
             continue
-        if is_call_arg(name, value):
+        if is_arg_input_or_name(name, value):
             call_args[name] = value
         else:
             init_args[name] = to_scalar(value)
 
     return init_args, call_args
+
+
+def _handle_deprecations(schema, kwargs, op_name):
+    """Handle deprecation of the named arguments (scalar arguments and argument inputs) specified
+    to the operator.
+
+    Based on the schema information the argument can be automatically renamed or dropped
+    with appropriate warnings being issued. Errors are raised if both the old and new name of
+    renamed argument are used.
+
+    Parameters
+    ----------
+    schema : OpSchema
+        Schema for the operator containing the deprecation information.
+    kwargs : Dict
+        Dictionary containing the arguments.
+    op_name : str
+        Name of the invoked operator, for error reporting purposes.
+
+    Returns
+    -------
+    Dict
+        Dictionary with arguments rearranged
+    """
+    arg_names = list(kwargs.keys())
+    for arg_name in arg_names:
+        if not schema.IsDeprecatedArg(arg_name):
+            continue
+        meta = schema.DeprecatedArgMeta(arg_name)
+        new_name = meta['renamed_to']
+        removed = meta['removed']
+        msg = meta['msg']
+        if new_name:
+            if new_name in kwargs:
+                raise TypeError(f"Operator {op_name} got an unexpected '{arg_name}' deprecated"
+                                f" argument when '{new_name}' was already provided")
+            kwargs[new_name] = kwargs[arg_name]
+            del kwargs[arg_name]
+        elif removed:
+            del kwargs[arg_name]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("default")
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
+    return kwargs
 
 
 def _add_spec_args(schema, spec, kwargs):
@@ -122,15 +214,6 @@ class _OperatorInstance(object):
         self._default_call_args = op._call_args
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
-
-        if inputs is not None:
-            default_input_device = "gpu" if op.device == "gpu" else "cpu"
-            inputs = list(inputs)
-            for i in range(len(inputs)):
-                inp = inputs[i]
-                if isinstance(inp, _ScalarConstant):
-                    inputs[i] = _instantiate_constant_node(default_input_device, inp)
-            inputs = tuple(inputs)
 
         if _conditionals.conditionals_enabled():
             inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
@@ -167,16 +250,8 @@ class _OperatorInstance(object):
                 arg_inp = call_args[k]
                 if arg_inp is None:
                     continue
-                if isinstance(arg_inp, _ScalarConstant):
-                    arg_inp = _instantiate_constant_node("cpu", arg_inp)
-                if not isinstance(arg_inp, _DataNode):
-                    try:
-                        arg_inp = _Constant(arg_inp, device="cpu")
-                    except Exception as e:
-                        raise TypeError(
-                            f"Expected inputs of type "
-                            f"`DataNode` or convertible to constant nodes. Received "
-                            f"input `{k}` of type '{type(arg_inp).__name__}'.") from e
+                # Argument input constants are always placed on CPU
+                arg_inp = _handle_constant(arg_inp, "cpu", k, type(op).__name__)
 
                 _check_arg_input(op._schema, type(self._op).__name__, k)
 
@@ -312,27 +387,8 @@ def python_op_factory(name, schema_name=None):
             self._preserve = self._preserve or self._schema.IsNoPrune()
 
             # Check for any deprecated arguments that should be replaced or removed
-            arg_names = list(kwargs.keys())
-            for arg_name in arg_names:
-                if not self._schema.IsDeprecatedArg(arg_name):
-                    continue
-                meta = self._schema.DeprecatedArgMeta(arg_name)
-                new_name = meta['renamed_to']
-                removed = meta['removed']
-                msg = meta['msg']
-                if new_name:
-                    if new_name in kwargs:
-                        raise TypeError(f"Operator {type(self).__name__} got an unexpected"
-                                        f"'{arg_name}' deprecated argument when '{new_name}'"
-                                        f"was already provided")
-                    kwargs[new_name] = kwargs[arg_name]
-                    del kwargs[arg_name]
-                elif removed:
-                    del kwargs[arg_name]
-
-                with warnings.catch_warnings():
-                    warnings.simplefilter("default")
-                    warnings.warn(msg, DeprecationWarning, stacklevel=2)
+            # TODO(klecki): Why can't we also handle deprecation of Argument Inputs?
+            kwargs = _handle_deprecations(self._schema, kwargs, type(self).__name__)
 
             # Store the specified arguments
             _add_spec_args(self._schema, self._spec, kwargs)
@@ -358,7 +414,7 @@ def python_op_factory(name, schema_name=None):
 
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
 
-            input_sets = self._build_input_sets(inputs)
+            input_sets = _build_input_sets(inputs, self.__class__.__name__)
 
             # Create OperatorInstance for every input set
             op_instances = []
@@ -378,7 +434,7 @@ def python_op_factory(name, schema_name=None):
                 outputs = []
                 for op in op_instances:
                     outputs.append(op.outputs)
-                result = self._repack_output_sets(outputs)
+                result = _repack_output_sets(outputs)
             if _conditionals.conditionals_enabled():
                 if len(op_instances) != 1:
                     raise ValueError("Multiple input sets are not supported with conditional"
@@ -386,85 +442,12 @@ def python_op_factory(name, schema_name=None):
                 _conditionals.register_data_nodes(result, input_sets[0], kwargs)
             return result
 
-        # Check if any of inputs is a list
-        def _detect_multiple_input_sets(self, inputs):
-            return any(isinstance(input, list) for input in inputs)
-
-        # Check if all list representing multiple input sets have the same length and return it
-        def _check_common_length(self, inputs):
-            arg_list_len = max(self._safe_len(input) for input in inputs)
-            for input in inputs:
-                if isinstance(input, list):
-                    if len(input) != arg_list_len:
-                        raise ValueError(f"All argument lists for Multiple Input Sets used "
-                                         f"with operator {type(self).__name__} must have "
-                                         f"the same length")
-            return arg_list_len
-
-        def _safe_len(self, input):
-            if isinstance(input, list):
-                return len(input)
-            else:
-                return 1
-
-        # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
-        # consistently with the ones already present
-        def _unify_lists(self, inputs, arg_list_len):
-            result = ()
-            for input in inputs:
-                if isinstance(input, list):
-                    result = result + (input, )
-                else:
-                    result = result + ([input] * arg_list_len, )
-            return result
-
-        # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
-        # to [(arg0, arg1, ...), (arg0', arg1', ...), (arg0'', arg1'', ...)]
-        def _repack_input_sets(self, inputs):
-            return self._repack_list(inputs, tuple)
-
-        # Unzip the list from [[out0, out1, out2], [out0', out1', out2'], ...]
-        # to [[out0, out0', ...], [out1, out1', ...], [out2, out2', ...]]
-        # Assume that all elements of input have the same length
-        # If the inputs were 1-elem lists, return just a list, that is:
-        # [[out0], [out0'], [out0''], ...] -> [out0, out0', out0'', ...]
-        def _repack_output_sets(self, outputs):
-            if len(outputs) > 1 and len(outputs[0]) == 1:
-                output = []
-                for elem in outputs:
-                    output.append(elem[0])
-                return output
-            return self._repack_list(outputs, list)
-
-        # Repack list from [[a, b, c], [a', b', c'], ....]
-        # to [fn(a, a', ...), fn(b, b', ...), fn(c, c', ...)]
-        # where fn can be `tuple` or `list`
-        # Assume that all elements of input have the same length
-        def _repack_list(self, sets, fn):
-            output_list = []
-            arg_list_len = len(sets[0])
-            for i in range(arg_list_len):
-                output_list.append(fn(input_set[i] for input_set in sets))
-            return output_list
-
         def _check_schema_num_inputs(self, inputs):
             if len(inputs) < self._schema.MinNumInput() or len(inputs) > self._schema.MaxNumInput():
                 raise ValueError(
                     f"Operator {type(self).__name__} expects "
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                     f"but received {len(inputs)}.")
-
-        def _build_input_sets(self, inputs):
-            # Build input sets, most of the time we only have one
-            input_sets = []
-            if self._detect_multiple_input_sets(inputs):
-                arg_list_len = self._check_common_length(inputs)
-                packed_inputs = self._unify_lists(inputs, arg_list_len)
-                input_sets = self._repack_input_sets(packed_inputs)
-            else:
-                input_sets = [inputs]
-
-            return input_sets
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
@@ -547,34 +530,59 @@ def _choose_device(inputs):
 
 
 def _preprocess_inputs(inputs, op_name, device, schema=None):
+    """Promote all scalar values in the inputs tuple into operator-backed DataNodes.
+
+    This operation needs to be performed first, so we can have less duplicated constant nodes
+    when dealing with multiple input sets.
+
+    Parameters
+    ----------
+    inputs : tuple
+        The inputs can contain one level nesting of Multiple Input Sets.
+    """
     if isinstance(inputs, tuple):
         inputs = list(inputs)
 
     def is_input(x):
         if isinstance(x, (_DataNode, nvidia.dali.types.ScalarConstant)):
             return True
+        # One level of nesting for Multiple Input Sets. It must be a List[DataNode/ScalarConstant]
+        # with at least one DataNode.
         return (isinstance(x, (list))
                 and any(isinstance(y, _DataNode) for y in x)
                 and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x))
 
-    default_input_device = "gpu" if device == "gpu" else "cpu"
+    def get_input_device(schema, input_idx):
+        default_input_device = "gpu" if device == "gpu" else "cpu"
+        if schema:
+            input_device = schema.GetInputDevice(input_idx) or default_input_device
+        else:
+            input_device = default_input_device
+        return input_device
+
+    def _promote_scalar_constant(value, input_device):
+        """When ScalarConstant is encountered, promote it to a DataNode, otherwise do
+        a pass-through.
+        """
+        if isinstance(value, _ScalarConstant):
+            return _instantiate_constant_node(value, input_device)
+        return value
 
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            if schema:
-                input_device = schema.GetInputDevice(idx) or default_input_device
-            else:
-                input_device = default_input_device
-            if not isinstance(inp, nvidia.dali.types.ScalarConstant):
-                try:
-                    inp = _Constant(inp, device=input_device)
-                except Exception as ex:
-                    raise TypeError(f"""when calling operator {op_name}:
-Input {idx} is neither a DALI `DataNode` nor a list of data nodes but `{type(inp).__name__}`.
-Attempt to convert it to a constant node failed.""") from ex
+            try:
+                inp = _Constant(inp, device=get_input_device(schema, idx))
+            except Exception as ex:
+                raise TypeError(f"when calling operator {op_name}: "
+                                f"expected inputs of type `DataNode`, list of `DataNode` "
+                                f"or convertible to constant nodes. Received "
+                                f"input `{idx}` of type '{type(inp).__name__}'.") from ex
 
-            if not isinstance(inp, _DataNode):
-                inp = nvidia.dali.ops._instantiate_constant_node(input_device, inp)
+        if not isinstance(inp, _DataNode):
+            dev = get_input_device(schema, idx)
+            # Process the single ScalarConstant or list possibly containing ScalarConstants
+            # and promote each of them into a DataNode
+            inp = tree.map_structure(lambda val: _promote_scalar_constant(val, dev), inp)
 
         inputs[idx] = inp
     return inputs
