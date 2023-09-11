@@ -19,7 +19,7 @@ import jax
 import jax.numpy
 import jax.dlpack
 
-from utils import sequential_pipeline
+from utils import sequential_pipeline, sequential_pipeline_def
 
 import nvidia.dali.plugin.jax as dax
 
@@ -30,6 +30,31 @@ def test_dali_sequential_iterator_to_jax_array():
 
     pipe = sequential_pipeline(batch_size, shape)
     iter = dax.DALIGenericIterator([pipe], ['data'], size=batch_size*100)
+
+    for batch_id, data in enumerate(iter):
+        # given
+        jax_array = data['data']
+
+        # then
+        assert jax_array.device() == jax.devices()[0]
+
+        for i in range(batch_size):
+            assert jax.numpy.array_equal(
+                jax_array[i],
+                jax.numpy.full(
+                    shape[1:],  # TODO(awolant): Explain shape consistency
+                    batch_id * batch_size + i,
+                    np.int32))
+
+    assert batch_id == 99
+
+
+def test_dali_sequential_iterator_from_decorator_to_jax_array():
+    batch_size = 4
+    shape = (1, 5)
+
+    pipe = sequential_pipeline(batch_size, shape)
+    iter = dax.iterator.data_iterator(sequential_pipeline_def, batch_size=batch_size)()
 
     for batch_id, data in enumerate(iter):
         # given

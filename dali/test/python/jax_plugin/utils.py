@@ -97,3 +97,17 @@ def pipeline_with_variable_shape_output(batch_size):
         return data
 
     return sequential_pipeline_def()
+
+
+def numpy_sequential_tensors(sample_info):
+    return np.full((1, 5), sample_info.idx_in_epoch, dtype=np.int32)
+
+def sequential_pipeline_def():
+    data = fn.external_source(
+        source=numpy_sequential_tensors,
+        num_outputs=1,
+        batch=False,
+        dtype=types.INT32)
+    data = data[0].gpu()
+    
+    return data
