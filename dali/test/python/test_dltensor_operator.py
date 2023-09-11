@@ -331,6 +331,7 @@ def test_cupy():
     print(cupy)
     for testcase in [cupy_simple, cupy_kernel_square_diff, cupy_kernel_mix_channels]:
         yield cupy_case, testcase
+    yield from _cupy_flip_with_negative_strides_suite()
 
 
 def test_cupy_kernel_gray_scale():
@@ -619,3 +620,61 @@ def _gpu_permuted_extents_torch_suite():
     ):
         for dtype in (torch.uint8, torch.int16, torch.int32, torch.float64):
             yield _gpu_permuted_extents_torch_case, case_name, dtype, g
+
+
+def _cupy_negative_strides_case(dtype, batch_size, steps):
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
+    def baseline_pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="mixed")
+        img = fn.cast(img, dtype=dtype)
+        img = img[tuple(slice(None, None, step) for step in steps)]
+        return img
+
+    def flip_cupy(dlps):
+        stream = current_dali_stream()
+        cp_stream = cupy.cuda.ExternalStream(stream, device_id=0)
+        with cp_stream:
+            imgs = [cupy.from_dlpack(dlp) for dlp in dlps]
+            imgs = [img[tuple(slice(None, None, step) for step in steps)] for img in imgs]
+            imgs = [img.toDlpack() for img in imgs]
+        return imgs
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="mixed")
+        img = fn.cast(img, dtype=dtype)
+        img = fn.dl_tensor_python_function(img, batch_processing=True, function=flip_cupy,
+                                           synchronize_stream=False)
+        return img
+
+    p = pipeline()
+    p.build()
+    baseline = baseline_pipeline()
+    baseline.build()
+
+    for _ in range(5):
+        batch, = p.run()
+        baseline_batch, = baseline.run()
+        batch = [numpy.array(sample) for sample in batch.as_cpu()]
+        baseline_batch = [numpy.array(sample) for sample in baseline_batch.as_cpu()]
+        assert len(batch) == len(baseline_batch) == batch_size
+        for sample, baseline_sample in zip(batch, baseline_batch):
+            numpy.testing.assert_equal(sample, baseline_sample)
+
+
+def _cupy_flip_with_negative_strides_suite():
+    for dtype, batch_size, steps in [
+        (types.DALIDataType.UINT8, 4, (-1, -1, None)),
+        (types.DALIDataType.UINT8, 16, (-1, None, None)),
+        (types.DALIDataType.UINT8, 2, (None, None, -1)),
+        (types.DALIDataType.UINT8, 5, (-1, -1, -1)),
+        (types.DALIDataType.UINT8, 16, (-2, -2, None)),
+        (types.DALIDataType.UINT16, 11, (None, -1, None)),
+        (types.DALIDataType.FLOAT, 16, (2, -2, None)),
+        (types.DALIDataType.INT32, 12, (-2, None, None)),
+        (types.DALIDataType.FLOAT64, 11, (-2, 4, -1)),
+    ]:
+        yield _cupy_negative_strides_case, dtype, batch_size, steps
