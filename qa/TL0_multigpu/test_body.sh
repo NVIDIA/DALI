@@ -56,8 +56,8 @@ test_jax() {
 
       CUDA_VISIBLE_DEVICES="0,1" ${python_new_invoke_test} -s jax_plugin test_multigpu
 
-      CUDA_VISIBLE_DEVICES="1" python jax/jax_client.py &
-      CUDA_VISIBLE_DEVICES="0" python jax/jax_server.py
+      CUDA_VISIBLE_DEVICES="1" python jax_plugin/jax_client.py &
+      CUDA_VISIBLE_DEVICES="0" python jax_plugin/jax_server.py
     fi
 }
 
