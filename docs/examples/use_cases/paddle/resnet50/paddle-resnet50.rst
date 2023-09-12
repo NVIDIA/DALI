@@ -24,7 +24,7 @@ This model uses the following data augmentation:
 Usage
 -----
 
-Before using install the necessary packages from requirements.txt.
+Install the necessary packages from requirements.txt before use.
 
 .. code-block:: bash
 
