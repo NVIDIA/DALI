@@ -24,7 +24,7 @@ from nvidia.dali.plugin.jax import DALIGenericIterator
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
-from test_integration import get_dali_tensor_gpu
+from utils import get_dali_tensor_gpu
 import jax.numpy as jnp
 
 
@@ -90,8 +90,8 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         dali_tensor_gpu_0 = pipe_0.run()[0].as_tensor()
         dali_tensor_gpu_1 = pipe_1.run()[0].as_tensor()
 
-        jax_shard_0 = dax.iterator._to_jax_array(dali_tensor_gpu_0)
-        jax_shard_1 = dax.iterator._to_jax_array(dali_tensor_gpu_1)
+        jax_shard_0 = dax.integration._to_jax_array(dali_tensor_gpu_0)
+        jax_shard_1 = dax.integration._to_jax_array(dali_tensor_gpu_1)
 
         assert jax_shard_0.device() == jax.devices()[0]
         assert jax_shard_1.device() == jax.devices()[1]
@@ -199,7 +199,8 @@ def run_sharding_test(sharding):
     dali_shard_0 = get_dali_tensor_gpu(0, (1), np.int32, 0)
     dali_shard_1 = get_dali_tensor_gpu(1, (1), np.int32, 1)
 
-    shards = [dax.iterator._to_jax_array(dali_shard_0), dax.iterator._to_jax_array(dali_shard_1)]
+    shards = [dax.integration._to_jax_array(dali_shard_0),
+              dax.integration._to_jax_array(dali_shard_1)]
 
     assert shards[0].device() == jax.devices()[0]
     assert shards[1].device() == jax.devices()[1]

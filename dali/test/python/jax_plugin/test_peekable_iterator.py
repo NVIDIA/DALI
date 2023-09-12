@@ -17,14 +17,13 @@ import jax.numpy as jnp
 from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
 from test_integration import sequential_pipeline
 from clu.data.dataset_iterator import ArraySpec
-from nvidia.dali import pipeline_def
-import nvidia.dali.types as types
-import nvidia.dali.fn as fn
-import numpy as np
+
 from nose_utils import raises
 import time
 
-# Common parameters for all tests
+from utils import pipeline_with_variable_shape_output
+
+# Common parameters for all tests in this file
 batch_size = 3
 shape = (1, 5)
 batch_shape = (batch_size, *shape[1:])
@@ -88,35 +87,6 @@ def test_jax_peekable_iterator_peek_async_result_after_next():
         assert jnp.array_equal(
             output['data'], peeked_output['data']), \
             f"output: {output['data']}, peeked_output: {peeked_output['data']}"
-
-
-def pipeline_with_variable_shape_output(batch_size):
-    """Helper to create DALI pipelines that return GPU tensors with variable shape.
-
-    Args:
-        batch_size: Batch size for the pipeline.
-    """
-
-    def numpy_tensors(sample_info):
-        tensors = [
-            np.full((1, 5), sample_info.idx_in_epoch, dtype=np.int32),
-            np.full((1, 3), sample_info.idx_in_epoch, dtype=np.int32),
-            np.full((1, 2), sample_info.idx_in_epoch, dtype=np.int32),
-            np.full((1, 4), sample_info.idx_in_epoch, dtype=np.int32)
-        ]
-        return tensors[sample_info.idx_in_epoch % len(tensors)]
-
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
-    def sequential_pipeline_def():
-        data = fn.external_source(
-            source=numpy_tensors,
-            num_outputs=1,
-            batch=False,
-            dtype=types.INT32)
-        data = data[0].gpu()
-        return data
-
-    return sequential_pipeline_def()
 
 
 @raises(ValueError, glob="The shape or type of the output changed between iterations.")

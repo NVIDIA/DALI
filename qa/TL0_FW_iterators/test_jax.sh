@@ -14,7 +14,7 @@ test_body() {
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*jax*' test_fw_iterators.py
 
     # More specific JAX tests
-    ${python_new_invoke_test} -s jax test_integration test_peekable_iterator
+    ${python_new_invoke_test} -s jax_plugin/ test_integration test_iterator test_peekable_iterator
 }
 
 pushd ../..
