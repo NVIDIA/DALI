@@ -93,15 +93,19 @@ def test_iterator_decorator_pipeline_arg_duplicate():
         size=iterator_size)(num_threads=4, batch_size=1000, pipeline_fn=sequential_pipeline_def)
 
 
+# This test checks if the arguments for the iterator decorator match the arguments for
+# the iterator __init__ method. Goal is to ensure that the decorator is not missing any
+# arguments that might have been added to the iterator __init__
 def test_iterator_decorator_kwargs_match_iterator_init():
-    # get the list of arguments for the iterator __init__ method
+    # given the list of arguments for the iterator __init__ method
     iterator_init_args = inspect.getfullargspec(dax.iterator.DALIGenericIterator.__init__).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 
-    # get the list of arguments for the iterator decorator
+    # given the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(dax.iterator.data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
 
+    # then
     assert iterator_decorator_args == iterator_init_args, \
         "Arguments for the iterator decorator and the iterator __init__ method do not match"
