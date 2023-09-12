@@ -29,7 +29,7 @@ def get_data():
 @pipeline_def(num_threads = 1, device_id = 0)
 def get_pipeline():
     data = fn.external_source(get_data, batch=True, dtype=types.FLOAT)
-    result = fn.cwt(data.gpu(), device="gpu", a=[1.0, 2.0], wavelet=types.MEXH, wavelet_args=[1.0])
+    result = fn.cwt(data.gpu(), device="gpu", a=[1.0, 2.0, 4.5], wavelet=types.MEXH, wavelet_args=[1.0])
     return data, result
 
 pipe = get_pipeline(batch_size=1, device_id=0)
