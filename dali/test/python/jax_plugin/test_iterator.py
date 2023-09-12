@@ -27,16 +27,19 @@ from nose_utils import raises
 
 import inspect
 
+# Common parameters for all tests in this file
+batch_size = 3
+shape = (1, 5)
+iterator_size = batch_size*10
+
 
 def test_dali_sequential_iterator_to_jax_array():
-    batch_size = 4
-    shape = (1, 5)
-
+    # given
     pipe = sequential_pipeline(batch_size, shape)
-    iter = dax.DALIGenericIterator([pipe], ['data'], size=batch_size*100)
+    iter = dax.DALIGenericIterator([pipe], ['data'], size=iterator_size)
 
+    # when
     for batch_id, data in enumerate(iter):
-        # given
         jax_array = data['data']
 
         # then
@@ -50,22 +53,20 @@ def test_dali_sequential_iterator_to_jax_array():
                     batch_id * batch_size + i,
                     np.int32))
 
-    assert batch_id == 99
+    assert batch_id == 9
 
 
-def test_dali_sequential_iterator_from_decorator_to_jax_array():
-    batch_size = 4
-    shape = (1, 5)
-
+def test_dali_iterator_decorator():
+    # given
     iter = dax.iterator.data_iterator(
         sequential_pipeline_def,
         output_map=['data'],
         batch_size=batch_size,
         device_id=0,
-        size=batch_size*100)(num_threads=4)
+        size=iterator_size)(num_threads=4)
 
+    # when
     for batch_id, data in enumerate(iter):
-        # given
         jax_array = data['data']
 
         # then
@@ -79,7 +80,7 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
                     batch_id * batch_size + i,
                     np.int32))
 
-    assert batch_id == 99
+    assert batch_id == 9
 
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
@@ -89,7 +90,7 @@ def test_iterator_decorator_pipeline_arg_duplicate():
         output_map=['data'],
         batch_size=4,
         device_id=0,
-        size=100)(num_threads=4, batch_size=1000, pipeline_fn=sequential_pipeline_def)
+        size=iterator_size)(num_threads=4, batch_size=1000, pipeline_fn=sequential_pipeline_def)
 
 
 def test_iterator_decorator_kwargs_match_iterator_init():
