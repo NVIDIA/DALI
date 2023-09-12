@@ -55,8 +55,8 @@ function PRINT_THRESHOLD {
     QUALITY=$2
     THRESHOLD=$3
     grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
-$QUALITY = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
-print(f\"$FILENAME: $QUALITY: {$QUALITY}, expected $THRESHOLD\")
+value = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
+print(f\"$FILENAME: $QUALITY: {value}, expected $THRESHOLD\")
 sys.exit(0)"
 }
 
@@ -65,12 +65,12 @@ function CHECK_THRESHOLD {
     QUALITY=$2
     THRESHOLD=$3
     grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
-$QUALITY = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
-if $QUALITY < $THRESHOLD:
-    print(f\"[FAIL] $FILENAME below threshold: {$QUALITY} < $THRESHOLD\")
+value = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
+if value < $THRESHOLD:
+    print(f\"[FAIL] $FILENAME below threshold: {value} < $THRESHOLD\")
     sys.exit(1)
 else:
-    print(f\"[PASS] $FILENAME above threshold: {$QUALITY} >= $THRESHOLD\")
+    print(f\"[PASS] $FILENAME above threshold: {value} >= $THRESHOLD\")
     sys.exit(0)"
 }
 

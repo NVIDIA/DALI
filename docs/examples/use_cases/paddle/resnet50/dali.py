@@ -20,7 +20,7 @@ import numpy as np
 from nvidia.dali.backend import TensorListCPU
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.paddle import DALIGenericIterator
 from utils.mode import Mode
 from utils.utility import get_num_trainers, get_trainer_id
@@ -41,65 +41,61 @@ class PipeOpMeta:
     output_layout: str
     pad_output: bool
 
-def create_dali_pipeline(batch_size, num_threads, device_id, data_dir, ops_meta,
-                         shard_id, num_shards, dali_cpu=False, is_training=True,
-                         seed=12):
-    pipeline = Pipeline(batch_size, num_threads, device_id, seed=seed)
-    with pipeline:
-        images, labels = fn.readers.file(file_root=data_dir,
-                                         shard_id=shard_id,
-                                         num_shards=num_shards,
-                                         random_shuffle=is_training,
-                                         pad_last_batch=True,
-                                         name="Reader")
-        decoder_device = 'cpu' if dali_cpu else 'mixed'
-        # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and
-        #  GPU to avoid reallocations in runtime
-        device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
-        host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
-        # ask HW nvJPEG to allocate memory ahead for the biggest image in the data set to
-        # avoid reallocations in runtime
-        preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
-        preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
-        if is_training:
-            images = fn.decoders.image_random_crop(images,
-                                                   device=decoder_device,
-                                                   output_type=types.RGB,
-                                                   device_memory_padding=device_memory_padding,
-                                                   host_memory_padding=host_memory_padding,
-                                                   preallocate_width_hint=preallocate_width_hint,
-                                                   preallocate_height_hint=preallocate_height_hint,
-                                                   random_aspect_ratio=[
-                                                       ops_meta.lower, ops_meta.upper],
-                                                   random_area=[ops_meta.min_area,
-                                                                ops_meta.max_area],
-                                                   num_attempts=100)
-            images = fn.resize(images,
-                               resize_x=ops_meta.crop,
-                               resize_y=ops_meta.crop,
-                               interp_type=ops_meta.interp)
-            mirror = fn.random.coin_flip(probability=0.5)
-        else:
-            images = fn.decoders.image(images,
-                                       device=decoder_device,
-                                       output_type=types.RGB)
-            images = fn.resize(images,
-                               resize_shorter=ops_meta.resize_shorter,
-            interp_type=ops_meta.interp)
-            mirror = False
+@pipeline_def(seed=12)
+def dali_pipeline(data_dir, ops_meta, shard_id, num_shards, dali_cpu=False, is_training=True):
+    images, labels = fn.readers.file(file_root=data_dir,
+                                        shard_id=shard_id,
+                                        num_shards=num_shards,
+                                        random_shuffle=is_training,
+                                        pad_last_batch=True,
+                                        name="Reader")
+    decoder_device = 'cpu' if dali_cpu else 'mixed'
+    # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and
+    #  GPU to avoid reallocations in runtime
+    device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+    host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+    # ask HW nvJPEG to allocate memory ahead for the biggest image in the data set to
+    # avoid reallocations in runtime
+    preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
+    preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
+    if is_training:
+        images = fn.decoders.image_random_crop(images,
+                                                device=decoder_device,
+                                                output_type=types.RGB,
+                                                device_memory_padding=device_memory_padding,
+                                                host_memory_padding=host_memory_padding,
+                                                preallocate_width_hint=preallocate_width_hint,
+                                                preallocate_height_hint=preallocate_height_hint,
+                                                random_aspect_ratio=[
+                                                    ops_meta.lower, ops_meta.upper],
+                                                random_area=[ops_meta.min_area,
+                                                            ops_meta.max_area],
+                                                num_attempts=100)
+        images = fn.resize(images,
+                            resize_x=ops_meta.crop,
+                            resize_y=ops_meta.crop,
+                            interp_type=ops_meta.interp)
+        mirror = fn.random.coin_flip(probability=0.5)
+    else:
+        images = fn.decoders.image(images,
+                                    device=decoder_device,
+                                    output_type=types.RGB)
+        images = fn.resize(images,
+                            resize_shorter=ops_meta.resize_shorter,
+        interp_type=ops_meta.interp)
+        mirror = False
 
-        images = fn.crop_mirror_normalize(images.gpu(),
-                                          dtype=ops_meta.output_dtype,
-                                          output_layout=ops_meta.output_layout,
-                                          crop=(ops_meta.crop, ops_meta.crop),
-                                          mean=ops_meta.mean,
-                                          std=ops_meta.std,
-                                          pad_output=ops_meta.pad_output,
-                                          mirror=mirror)
-        labels = labels.gpu()
-        labels = fn.cast(labels, dtype=types.INT64)
-        pipeline.set_outputs(images, labels)
-    return pipeline
+    images = fn.crop_mirror_normalize(images.gpu(),
+                                        dtype=ops_meta.output_dtype,
+                                        output_layout=ops_meta.output_layout,
+                                        crop=(ops_meta.crop, ops_meta.crop),
+                                        mean=ops_meta.mean,
+                                        std=ops_meta.std,
+                                        pad_output=ops_meta.pad_output,
+                                        mirror=mirror)
+    labels = labels.gpu()
+    labels = fn.cast(labels, dtype=types.INT64)
+    return images, labels
 
 
 def dali_dataloader(args, mode, device):

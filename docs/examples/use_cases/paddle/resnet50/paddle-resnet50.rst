@@ -9,22 +9,28 @@ Data augmentation
 
 This model uses the following data augmentation:
 
-* For training:
-  * Normalization
-  * Random resized crop to 224x224
-    * Scale from 8% to 100%
-    * Aspect ratio from 3/4 to 4/3
-  * Random horizontal flip
-* For inference:
-  * Normalization
-  * Scale to 256x256
-  * Center crop to 224x224
+- For training:
 
+    - Normalization
+    - Random resized crop to 224x224
+
+        - Scale from 8% to 100%
+        - Aspect ratio from 3/4 to 4/3
+
+    - Random horizontal flip
+
+- For inference:
+
+    - Normalization
+    - Scale to 256x256
+    - Center crop to 224x224
 
 Usage
 -----
 
 Install the necessary packages from requirements.txt before use.
+
+The startup script is :fileref:`docs/examples/use_cases/paddle/resnet50/train.py`.
 
 .. code-block:: bash
 

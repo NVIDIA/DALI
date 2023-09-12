@@ -65,7 +65,7 @@ class MetricSummary:
 
 def main(args):
     """
-    A enterpoint to train and evaluate a ResNet50 model, which contains six steps.
+    An entrypoint to train and evaluate a ResNet50 model, which contains six steps.
         1. Parse arguments from command line.
         2. Initialize distributed training related setting, including CPU affinity.
         3. Build dataloader via DALI.
