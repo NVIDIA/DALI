@@ -230,19 +230,23 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
-# def _merge_kwargs decorator_kwargs, wrapper_kwargs):
-#     merged_kwargs = wrapper_kwargs.copy()
-#     merged_kwargs.update(decorator_kwargs)
+def _merge_pipeline_args(decorator_kwargs, wrapper_kwargs):
+    merged_kwargs = wrapper_kwargs.copy()
     
-#     return merged_kwargs
-
+    for key, value in decorator_kwargs.items():
+        if key in wrapper_kwargs:
+            raise ValueError(f"Duplicate argument {key} in decorator and a call")
+        merged_kwargs[key] = value
+    
+    return merged_kwargs
 
 
 # How this should work:
 # 1. Decorator can accept any arguments that DALIGenericIterator accepts and any arguments that pipeline_def accepts
 # 2. Returned wrapped function should do the same.
 # 3. When wrapped function is called it should merge arguments from both sources, 
-# split the arguments into two groups (DALIGenericIterator and pipeline_def) and pass them to the respective functions.
+#    split the arguments into two groups (DALIGenericIterator and pipeline_def)
+#    and pass them to the respective functions.
 
 def data_iterator(
     pipeline_fn,             
@@ -255,11 +259,14 @@ def data_iterator(
     prepare_first_batch=True,
     sharding=None,
     **decorator_kwargs):
+
     
     def wrapper(**wrapper_kwargs):
-        pipeline_def_fn = pipeline_def(pipeline_fn)
+        merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
         
-        pipeline = pipeline_def_fn(*args, **kwargs)
+        
+        pipeline_def_fn = pipeline_def(pipeline_fn, **merged_kwargs)
+        pipeline = pipeline_def_fn()
         
         return DALIGenericIterator(
             [pipeline],

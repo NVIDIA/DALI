@@ -23,6 +23,8 @@ from utils import sequential_pipeline, sequential_pipeline_def
 
 import nvidia.dali.plugin.jax as dax
 
+from nose_utils import raises
+
 import inspect
 
 
@@ -59,9 +61,8 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
         sequential_pipeline_def,
         output_map=['data'],
         batch_size=batch_size,
-        num_threads=4,
         device_id=0,
-        size=batch_size*100)()
+        size=batch_size*100)(num_threads=4)
 
     for batch_id, data in enumerate(iter):
         # given
@@ -79,17 +80,27 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
                     np.int32))
 
     assert batch_id == 99
+    
+
+@raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
+def test_iterator_decorator_pipeline_arg_duplicate():
+    dax.iterator.data_iterator(
+        sequential_pipeline_def,
+        output_map=['data'],
+        batch_size=4,
+        device_id=0,
+        size=100)(num_threads=4, batch_size=1000, pipeline_fn=sequential_pipeline_def)
 
 
 def test_iterator_decorator_kwargs_match_iterator_init():
     # get the list of arguments for the iterator __init__ method
     iterator_init_args = inspect.getfullargspec(dax.iterator.DALIGenericIterator.__init__).args
+    iterator_init_args.remove("self")
+    iterator_init_args.remove("pipelines")
     
     # get the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(dax.iterator.data_iterator).args
+    iterator_decorator_args.remove("pipeline_fn")
     
-    # check that all iterator __init__ arguments are present in the decorator arguments
-    for arg in iterator_init_args:
-        if arg is not 'self' and arg is not 'pipelines':
-            assert arg in iterator_decorator_args, f"Argument {arg} is not present in the decorator arguments"
-    
+    assert iterator_decorator_args == iterator_init_args, \
+        "Arguments for the iterator decorator and the iterator __init__ method do not match"
