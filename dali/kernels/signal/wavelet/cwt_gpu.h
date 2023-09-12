@@ -21,12 +21,11 @@
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/signal/wavelets/cwt_args.h"
+#include "dali/kernels/signal/wavelet/cwt_args.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelet {
 
 template <typename T = float>
 class DLL_PUBLIC CwtGpu {
@@ -42,7 +41,6 @@ class DLL_PUBLIC CwtGpu {
                       const InListGPU<T, DynamicDimensions> &in, const CwtArgs<T> &args);
 };
 
-}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali

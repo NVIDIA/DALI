@@ -18,8 +18,17 @@
 #include <memory>
 #include <vector>
 #include "dali/core/common.h"
-#include "dali/kernels/signal/wavelets/cwt_args.h"
+#include "dali/core/static_switch.h"
+#include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/signal/wavelet/cwt_args.h"
+#include "dali/kernels/signal/wavelet/cwt_gpu.h"
+#include "dali/operators/signal/wavelet/cwt_op.h"
+#include "dali/operators/signal/wavelet/wavelet_name.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
@@ -32,7 +41,12 @@ class Cwt : public Operator<Backend> {
     if (!spec.HasArgument("a")) {
       DALI_ENFORCE("`a` argument must be provided.");
     }
-    args_.a = spec.GetArgument<float>("a");
+    args_.a = spec.GetRepeatedArgument<float>("a");
+    if (!spec.HasArgument("wavelet")) {
+      DALI_ENFORCE("`wavelet` argument must be provided.");
+    }
+    args_.wavelet = spec.GetArgument<DALIWaveletName>("wavelet");
+    args_.wavelet_args = spec.GetRepeatedArgument<float>("wavelet_args");
   }
 
  protected:
@@ -40,21 +54,15 @@ class Cwt : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    assert(impl_ != nullptr);
-    return impl_->SetupImpl(output_desc, ws);
-  }
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(Workspace &ws) override {
-    assert(impl_ != nullptr);
-    impl_->RunImpl(ws);
-  }
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
   kernels::KernelManager kmgr_;
-  kernels::signal::wavelets::CwtArgs<float> args_;
+  kernels::signal::CwtArgs<float> args_;
 
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType type_ = DALI_NO_TYPE;

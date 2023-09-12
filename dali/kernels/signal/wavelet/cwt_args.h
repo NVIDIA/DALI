@@ -15,17 +15,20 @@
 #ifndef DALI_KERNELS_SIGNAL_WAVELET_CWT_ARGS_H_
 #define DALI_KERNELS_SIGNAL_WAVELET_CWT_ARGS_H_
 
+#include <vector>
+#include "dali/operators/signal/wavelet/wavelet_name.h"
+
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelet {
 
 template <typename T = float>
 struct CwtArgs {
-  T a;
+  std::vector<T> a;
+  dali::DALIWaveletName wavelet;
+  std::vector<T> wavelet_args;
 };
 
-}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali

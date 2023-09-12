@@ -19,13 +19,12 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/signal/wavelets/cwt_args.h"
-#include "dali/kernels/signal/wavelets/cwt_gpu.h"
+#include "dali/kernels/signal/wavelet/cwt_args.h"
+#include "dali/kernels/signal/wavelet/cwt_gpu.h"
 
 namespace dali {
 namespace kernels {
 namespace signal {
-namespace wavelet {
 
 template <typename T>
 struct SampleDesc {
@@ -35,7 +34,7 @@ struct SampleDesc {
 };
 
 template <typename T>
-__global__ void CwtKernel(const SampleDesc<T> *sample_data, CwtArgs<T> args) {
+__global__ void CwtKernel(const SampleDesc<T> *sample_data) {
   const int64_t block_size = blockDim.y * blockDim.x;
   const int64_t grid_size = gridDim.x * block_size;
   const int sample_idx = blockIdx.y;
@@ -44,7 +43,7 @@ __global__ void CwtKernel(const SampleDesc<T> *sample_data, CwtArgs<T> args) {
   const int64_t tid = threadIdx.y * blockDim.x + threadIdx.x;
 
   for (int64_t idx = offset + tid; idx < sample.size; idx += grid_size) {
-    sample.out[idx] = sample.in[idx] * args.a;
+    sample.out[idx] = sample.in[idx];
   }
 }
 
@@ -86,13 +85,12 @@ void CwtGpu<T>::Run(KernelContext &context, const OutListGPU<T, DynamicDimension
   dim3 block(32, 32);
   auto blocks_per_sample = std::max(32, 1024 / num_samples);
   dim3 grid(blocks_per_sample, num_samples);
-  CwtKernel<T><<<grid, block, 0, context.gpu.stream>>>(sample_data_gpu, args);
+  CwtKernel<T><<<grid, block, 0, context.gpu.stream>>>(sample_data_gpu);
 }
 
 template class CwtGpu<float>;
 template class CwtGpu<double>;
 
-}  // namespace wavelet
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
