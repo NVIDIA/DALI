@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ inline std::string to_string(const DLDataType &dl_type) {
 
 DALIDataType DLToDALIType(const DLDataType &dl_type) {
   DALI_ENFORCE(dl_type.lanes == 1,
-               "DALI Tensors do no not support types with the number of lanes other than 1");
+               "DALI Tensors do not support types with the number of lanes other than 1");
   switch (dl_type.code) {
     case kDLUInt: {
       switch (dl_type.bits) {
