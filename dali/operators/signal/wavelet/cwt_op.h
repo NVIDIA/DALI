@@ -18,8 +18,15 @@
 #include <memory>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/kernel_params.h"
 #include "dali/kernels/signal/wavelet/cwt_args.h"
+#include "dali/kernels/signal/wavelet/cwt_gpu.h"
+#include "dali/operators/signal/wavelet/cwt_op.h"
+#include "dali/operators/signal/wavelet/wavelet_name.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
@@ -47,15 +54,9 @@ class Cwt : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    assert(impl_ != nullptr);
-    return impl_->SetupImpl(output_desc, ws);
-  }
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(Workspace &ws) override {
-    assert(impl_ != nullptr);
-    impl_->RunImpl(ws);
-  }
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;

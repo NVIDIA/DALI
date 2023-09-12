@@ -27,16 +27,17 @@
 
 // makes sure both tensors have the same number of samples and
 // that they're one-dimensional
-#define ENFORCE_SHAPES(a_shape, b_shape) do {                           \
-DALI_ENFORCE(a_shape.num_samples() == b_shape.num_samples(),            \
-             "a and b tensors must have the same amount of samples.");  \
-for (int i = 0; i < a_shape.num_samples(); ++i) {                       \
-  DALI_ENFORCE(a_shape.tensor_shape(i).size() == 1,                     \
-               "Tensor of a coeffs should be 1-dimensional.");          \
-  DALI_ENFORCE(b_shape.tensor_shape(i).size() == 1,                     \
-               "Tensor of b coeffs should be 1-dimensional.");          \
-}                                                                       \
-} while (0);
+#define ENFORCE_SHAPES(a_shape, b_shape)                                   \
+  do {                                                                     \
+    DALI_ENFORCE(a_shape.num_samples() == b_shape.num_samples(),           \
+                 "a and b tensors must have the same amount of samples."); \
+    for (int i = 0; i < a_shape.num_samples(); ++i) {                      \
+      DALI_ENFORCE(a_shape.tensor_shape(i).size() == 1,                    \
+                   "Tensor of a coeffs should be 1-dimensional.");         \
+      DALI_ENFORCE(b_shape.tensor_shape(i).size() == 1,                    \
+                   "Tensor of b coeffs should be 1-dimensional.");         \
+    }                                                                      \
+  } while (0);
 
 namespace dali {
 namespace kernels {
@@ -70,26 +71,20 @@ struct SampleDesc {
   WaveletSpan<T> span;
 };
 
-template <typename T, template <typename> class W >
+template <typename T, template <typename> class W>
 class DLL_PUBLIC WaveletGpu {
  public:
-  static_assert(std::is_floating_point<T>::value,
-    "Only floating point types are supported");
+  static_assert(std::is_floating_point<T>::value, "Only floating point types are supported");
 
   DLL_PUBLIC WaveletGpu() = default;
   DLL_PUBLIC ~WaveletGpu() = default;
 
-  DLL_PUBLIC KernelRequirements Setup(KernelContext &context,
-                                      const InListGPU<T> &a,
-                                      const InListGPU<T> &b,
-                                      const WaveletSpan<T> &span,
+  DLL_PUBLIC KernelRequirements Setup(KernelContext &context, const InListGPU<T> &a,
+                                      const InListGPU<T> &b, const WaveletSpan<T> &span,
                                       const std::vector<T> &args);
 
-  DLL_PUBLIC void Run(KernelContext &ctx,
-                      OutListGPU<T> &out,
-                      const InListGPU<T> &a,
-                      const InListGPU<T> &b,
-                      const WaveletSpan<T> &span);
+  DLL_PUBLIC void Run(KernelContext &ctx, OutListGPU<T> &out, const InListGPU<T> &a,
+                      const InListGPU<T> &b, const WaveletSpan<T> &span);
 
   static TensorListShape<> GetOutputShape(const TensorListShape<> &a_shape,
                                           const TensorListShape<> &b_shape,
