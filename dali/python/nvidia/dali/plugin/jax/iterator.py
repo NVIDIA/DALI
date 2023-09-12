@@ -22,8 +22,6 @@ from nvidia.dali.pipeline import pipeline_def
 
 from .integration import _to_jax_array
 
-import inspect
-
 
 class DALIGenericIterator(_DaliBaseIterator):
     """
@@ -232,42 +230,32 @@ class DALIGenericIterator(_DaliBaseIterator):
 
 def _merge_pipeline_args(decorator_kwargs, wrapper_kwargs):
     merged_kwargs = wrapper_kwargs.copy()
-    
+
     for key, value in decorator_kwargs.items():
         if key in wrapper_kwargs:
             raise ValueError(f"Duplicate argument {key} in decorator and a call")
         merged_kwargs[key] = value
-    
+
     return merged_kwargs
 
 
-# How this should work:
-# 1. Decorator can accept any arguments that DALIGenericIterator accepts and any arguments that pipeline_def accepts
-# 2. Returned wrapped function should do the same.
-# 3. When wrapped function is called it should merge arguments from both sources, 
-#    split the arguments into two groups (DALIGenericIterator and pipeline_def)
-#    and pass them to the respective functions.
-
 def data_iterator(
-    pipeline_fn,             
-    output_map,
-    size=-1,
-    reader_name=None,
-    auto_reset=False,
-    last_batch_padded=False,
-    last_batch_policy=LastBatchPolicy.FILL,
-    prepare_first_batch=True,
-    sharding=None,
-    **decorator_kwargs):
-
-    
+        pipeline_fn,
+        output_map,
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+        sharding=None,
+        **decorator_kwargs):
     def wrapper(**wrapper_kwargs):
         merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
-        
-        
+
         pipeline_def_fn = pipeline_def(pipeline_fn, **merged_kwargs)
         pipeline = pipeline_def_fn()
-        
+
         return DALIGenericIterator(
             [pipeline],
             output_map=output_map,
@@ -278,5 +266,5 @@ def data_iterator(
             last_batch_policy=last_batch_policy,
             prepare_first_batch=prepare_first_batch,
             sharding=sharding)
-    
+
     return wrapper

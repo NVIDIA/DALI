@@ -80,7 +80,7 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
                     np.int32))
 
     assert batch_id == 99
-    
+
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
 def test_iterator_decorator_pipeline_arg_duplicate():
@@ -97,10 +97,10 @@ def test_iterator_decorator_kwargs_match_iterator_init():
     iterator_init_args = inspect.getfullargspec(dax.iterator.DALIGenericIterator.__init__).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
-    
+
     # get the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(dax.iterator.data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
-    
+
     assert iterator_decorator_args == iterator_init_args, \
         "Arguments for the iterator decorator and the iterator __init__ method do not match"
