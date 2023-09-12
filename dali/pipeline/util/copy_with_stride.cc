@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,13 +84,8 @@ inline Index DeepestContiguous(const Index *in_strides,
   return 0;
 }
 
-template <>
-void CopyWithStride<CPUBackend>(void *output, const void *input,
-                    const Index *in_strides,
-                    const Index *shape,
-                    int ndim,
-                    size_t item_size,
-                    cudaStream_t) {
+void CopyWithStrideCpu(void *output, const void *input, const Index *in_strides, const Index *shape,
+                       int ndim, size_t item_size) {
   assert(ndim >= 0);
   if (!in_strides) {
     std::memcpy(output, input, item_size * volume(shape, shape + ndim));
@@ -104,6 +99,21 @@ void CopyWithStride<CPUBackend>(void *output, const void *input,
   auto deepest_contiguous = DeepestContiguous(in_strides, shape, ndim, item_size);
   CopyWithStrideHelper(output, input, in_strides, out_strides.data(),
                        shape, ndim, 0, deepest_contiguous);
+}
+
+void CopyDlTensorCpu(void *out_data, DLMTensorPtr &dlm_tensor_ptr) {
+  auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
+  auto item_size = dl_tensor.dtype.bits / 8;
+  if (dl_tensor.strides) {
+    std::vector<Index> strides(dl_tensor.ndim);
+    for (Index i = 0; i < dl_tensor.ndim; ++i)
+      strides[i] = dl_tensor.strides[i] * item_size;
+    CopyWithStrideCpu(out_data, dl_tensor.data, strides.data(), dl_tensor.shape, dl_tensor.ndim,
+                      item_size);
+  } else {
+    CopyWithStrideCpu(out_data, dl_tensor.data, nullptr, dl_tensor.shape, dl_tensor.ndim,
+                      item_size);
+  }
 }
 
 }  // namespace dali
