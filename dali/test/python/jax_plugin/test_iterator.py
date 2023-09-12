@@ -23,6 +23,8 @@ from utils import sequential_pipeline, sequential_pipeline_def
 
 import nvidia.dali.plugin.jax as dax
 
+import inspect
+
 
 def test_dali_sequential_iterator_to_jax_array():
     batch_size = 4
@@ -55,9 +57,10 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
 
     iter = dax.iterator.data_iterator(
         sequential_pipeline_def,
+        output_map=['data'],
         batch_size=batch_size,
-        num_threads=4, 
-        output_map = ['data'], 
+        num_threads=4,
+        device_id=0,
         size=batch_size*100)()
 
     for batch_id, data in enumerate(iter):
@@ -76,3 +79,17 @@ def test_dali_sequential_iterator_from_decorator_to_jax_array():
                     np.int32))
 
     assert batch_id == 99
+
+
+def test_iterator_decorator_kwargs_match_iterator_init():
+    # get the list of arguments for the iterator __init__ method
+    iterator_init_args = inspect.getfullargspec(dax.iterator.DALIGenericIterator.__init__).args
+    
+    # get the list of arguments for the iterator decorator
+    iterator_decorator_args = inspect.getfullargspec(dax.iterator.data_iterator).args
+    
+    # check that all iterator __init__ arguments are present in the decorator arguments
+    for arg in iterator_init_args:
+        if arg is not 'self' and arg is not 'pipelines':
+            assert arg in iterator_decorator_args, f"Argument {arg} is not present in the decorator arguments"
+    

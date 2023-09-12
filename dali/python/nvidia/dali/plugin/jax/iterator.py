@@ -230,24 +230,46 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
-def _extract_iterator_init_kwargs(**kwargs):
-    """Extracts the arguments that are passed to the iterator constructor.
-    """
-    iterator_init_kwargs = inspect.signature(DALIGenericIterator.__init__).parameters
-    return {k: v for k, v in kwargs.items() if k in iterator_init_kwargs}
-
-
-def data_iterator(pipeline_fn, batch_size, *args, **kwargs):
-    iterator_init_kwargs = _extract_iterator_init_kwargs(**kwargs)
+# def _merge_kwargs decorator_kwargs, wrapper_kwargs):
+#     merged_kwargs = wrapper_kwargs.copy()
+#     merged_kwargs.update(decorator_kwargs)
     
-    def wrapper(*args, **kwargs):
-        pipeline_def_fn = pipeline_def(
-            pipeline_fn,
-            batch_size=batch_size,
-            num_threads=4,
-            device_id=0)
+#     return merged_kwargs
+
+
+
+# How this should work:
+# 1. Decorator can accept any arguments that DALIGenericIterator accepts and any arguments that pipeline_def accepts
+# 2. Returned wrapped function should do the same.
+# 3. When wrapped function is called it should merge arguments from both sources, 
+# split the arguments into two groups (DALIGenericIterator and pipeline_def) and pass them to the respective functions.
+
+def data_iterator(
+    pipeline_fn,             
+    output_map,
+    size=-1,
+    reader_name=None,
+    auto_reset=False,
+    last_batch_padded=False,
+    last_batch_policy=LastBatchPolicy.FILL,
+    prepare_first_batch=True,
+    sharding=None,
+    **decorator_kwargs):
+    
+    def wrapper(**wrapper_kwargs):
+        pipeline_def_fn = pipeline_def(pipeline_fn)
         
-        output_map = ['data']
-        return DALIGenericIterator([pipeline_def_fn()], **iterator_init_kwargs)
+        pipeline = pipeline_def_fn(*args, **kwargs)
+        
+        return DALIGenericIterator(
+            [pipeline],
+            output_map=output_map,
+            size=size,
+            reader_name=reader_name,
+            auto_reset=auto_reset,
+            last_batch_padded=last_batch_padded,
+            last_batch_policy=last_batch_policy,
+            prepare_first_batch=prepare_first_batch,
+            sharding=sharding)
     
     return wrapper
