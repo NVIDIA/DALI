@@ -18,10 +18,11 @@ from jax.sharding import NamedSharding, PositionalSharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-
 from nvidia.dali.pipeline import pipeline_def
 
 from .integration import _to_jax_array
+
+import inspect
 
 
 class DALIGenericIterator(_DaliBaseIterator):
@@ -229,7 +230,16 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
-def data_iterator(pipeline_fn, batch_size):
+def _extract_iterator_init_kwargs(**kwargs):
+    """Extracts the arguments that are passed to the iterator constructor.
+    """
+    iterator_init_kwargs = inspect.signature(DALIGenericIterator.__init__).parameters
+    return {k: v for k, v in kwargs.items() if k in iterator_init_kwargs}
+
+
+def data_iterator(pipeline_fn, batch_size, *args, **kwargs):
+    iterator_init_kwargs = _extract_iterator_init_kwargs(**kwargs)
+    
     def wrapper(*args, **kwargs):
         pipeline_def_fn = pipeline_def(
             pipeline_fn,
@@ -238,6 +248,6 @@ def data_iterator(pipeline_fn, batch_size):
             device_id=0)
         
         output_map = ['data']
-        return DALIGenericIterator([pipeline_def_fn()], output_map, size=batch_size*100)
+        return DALIGenericIterator([pipeline_def_fn()], **iterator_init_kwargs)
     
     return wrapper
