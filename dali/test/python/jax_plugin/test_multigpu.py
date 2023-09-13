@@ -20,12 +20,16 @@ import nvidia.dali.plugin.jax as dax
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.plugin.jax import DALIGenericIterator
+from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
 from utils import get_dali_tensor_gpu
 import jax.numpy as jnp
+
+# Common parameters for all tests in this file
+batch_size = 4
+shape = (1, 5)
 
 
 def sequential_sharded_pipeline(
@@ -73,9 +77,6 @@ def sequential_sharded_pipeline(
 
 def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
     assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
-
-    batch_size = 4
-    shape = (1, 5)
 
     # given
     pipe_0 = sequential_sharded_pipeline(
@@ -141,9 +142,6 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
 
 def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_outputs():
     assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
-
-    batch_size = 4
-    shape = (1, 5)
 
     # given
     pipe_0 = sequential_sharded_pipeline(
@@ -222,9 +220,6 @@ def run_sharding_test(sharding):
 def run_sharding_iterator_test(sharding):
     assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
 
-    batch_size = 4
-    shape = (1, 5)
-
     # given
     pipe_0 = sequential_sharded_pipeline(
         batch_size=batch_size,
@@ -295,3 +290,42 @@ def test_named_sharding_workflow_with_iterator():
     sharding = NamedSharding(mesh, PartitionSpec('batch'))
 
     run_sharding_iterator_test(sharding)
+
+
+import os
+
+
+batch_size = 200
+image_size = 28
+num_classes = 10
+batch_size_per_gpu = batch_size // jax.device_count()
+training_data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
+
+
+def test_named_sharding_with_iterator_decorator():
+    mesh = Mesh(jax.devices(), axis_names=('batch'))
+    sharding = NamedSharding(mesh, PartitionSpec('batch'))
+    
+    output_map = ['images', 'labels']
+    
+    @data_iterator(output_map=output_map, batch_size=batch_size_per_gpu, num_threads=4, seed=0, sharding=sharding, reader_name="mnist_caffe2_reader")
+    def sharded_mnist_iterator(num_shards, shard_id):
+        jpegs, labels = fn.readers.caffe2(
+            path=training_data_path,
+            random_shuffle=False,
+            name="mnist_caffe2_reader",
+            num_shards=num_shards,
+            shard_id=shard_id)
+        images = fn.decoders.image(
+            jpegs, device='mixed', output_type=types.GRAY)
+        images = fn.crop_mirror_normalize(
+            images, dtype=types.FLOAT, std=[255.], output_layout="CHW")
+        images = fn.reshape(images, shape=[image_size * image_size])
+        labels = labels.gpu()
+
+        return images, labels
+
+    
+    dali_iterator = sharded_mnist_iterator()
+    
+    
