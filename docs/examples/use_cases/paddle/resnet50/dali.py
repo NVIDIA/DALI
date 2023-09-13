@@ -42,7 +42,8 @@ class PipeOpMeta:
     pad_output: bool
 
 @pipeline_def(seed=12)
-def dali_pipeline(data_dir, ops_meta, shard_id, num_shards, dali_cpu=False, is_training=True):
+def create_dali_pipeline(data_dir, ops_meta, shard_id, num_shards, dali_cpu=False,
+                         is_training=True):
     images, labels = fn.readers.file(file_root=data_dir,
                                         shard_id=shard_id,
                                         num_shards=num_shards,

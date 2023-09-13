@@ -171,7 +171,7 @@ def set_cpu_affinity():
     #                              cpu core groups contains #GPUs groups, each group have,
     #                              nearly eaual amount of cpu cores.
     # Example:
-    # $nvidis-smi topo -m
+    # $nvidia-smi topo -m
     #        GPU0    GPU1    GPU2    GPU3    CPU Affinity    NUMA Affinity
     # GPU0     X     SYS     SYS     SYS      0-9,20-29           0
     # GPU1   SYS       X     SYS     SYS      0-9,20-29           0
