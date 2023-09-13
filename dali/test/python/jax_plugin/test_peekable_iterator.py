@@ -109,6 +109,6 @@ def test_iterators_init_method_args_compatibility():
     # given
     iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
     peekalbe_iterator_init_args = inspect.getfullargspec(DALIIterator.__init__).args
-    
+
     # then
-    assert set(iterator_init_args) == set(peekalbe_iterator_init_args)
+    assert iterator_init_args == peekalbe_iterator_init_args

@@ -22,6 +22,7 @@ import jax.dlpack
 from utils import sequential_pipeline, sequential_pipeline_def
 
 import nvidia.dali.plugin.jax as dax
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 from nose_utils import raises
 
@@ -33,11 +34,8 @@ shape = (1, 5)
 iterator_size = batch_size*10
 
 
-def test_dali_sequential_iterator_to_jax_array():
-    # given
-    pipe = sequential_pipeline(batch_size, shape)
-    iter = dax.DALIGenericIterator([pipe], ['data'], size=iterator_size)
-
+def run_and_assert_sequential_iterator(iter):
+    """Run the iterator and assert that the output is as expected"""
     # when
     for batch_id, data in enumerate(iter):
         jax_array = data['data']
@@ -56,31 +54,62 @@ def test_dali_sequential_iterator_to_jax_array():
     assert batch_id == 9
 
 
-def test_dali_iterator_decorator():
+def test_dali_sequential_iterator_to_jax_array():
+    # given
+    pipe = sequential_pipeline(batch_size, shape)
+    iter = dax.DALIGenericIterator([pipe], ['data'], size=iterator_size)
+
+    # then
+    run_and_assert_sequential_iterator(iter)
+
+
+@raises(AssertionError, glob="JAX iterator does not support partial last batch policy.")
+def test_iterator_last_batch_policy_partial_exception():
+    pipe = sequential_pipeline(batch_size, shape)
+    dax.DALIGenericIterator(
+        [pipe], ['data'], size=iterator_size, last_batch_policy=LastBatchPolicy.PARTIAL)
+
+
+def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
     # given
     iter = dax.iterator.data_iterator(
         sequential_pipeline_def,
         output_map=['data'],
         batch_size=batch_size,
         device_id=0,
-        size=iterator_size)(num_threads=4)
+        num_threads=4,
+        size=iterator_size)()
 
-    # when
-    for batch_id, data in enumerate(iter):
-        jax_array = data['data']
+    # then
+    run_and_assert_sequential_iterator(iter)
 
-        # then
-        assert jax_array.device() == jax.devices()[0]
 
-        for i in range(batch_size):
-            assert jax.numpy.array_equal(
-                jax_array[i],
-                jax.numpy.full(
-                    shape[1:],  # TODO(awolant): Explain shape consistency
-                    batch_id * batch_size + i,
-                    np.int32))
+def test_dali_iterator_decorator_all_pipeline_args_in_call():
+    # given
+    iter = dax.iterator.data_iterator(
+        sequential_pipeline_def,
+        output_map=['data'],
+        size=iterator_size)(
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4)
 
-    assert batch_id == 9
+    # then
+    run_and_assert_sequential_iterator(iter)
+
+
+def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
+    # given
+    iter = dax.iterator.data_iterator(
+        sequential_pipeline_def,
+        output_map=['data'],
+        size=iterator_size,
+        num_threads=4,
+        device_id=0)(
+            batch_size=batch_size)
+
+    # then
+    run_and_assert_sequential_iterator(iter)
 
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
@@ -90,7 +119,8 @@ def test_iterator_decorator_pipeline_arg_duplicate():
         output_map=['data'],
         batch_size=4,
         device_id=0,
-        size=iterator_size)(num_threads=4, batch_size=1000, pipeline_fn=sequential_pipeline_def)
+        size=iterator_size)(
+            num_threads=4, batch_size=1000)
 
 
 # This test checks if the arguments for the iterator decorator match the arguments for
