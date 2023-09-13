@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import jax
 import numpy as np
 
@@ -21,6 +22,7 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
+import nvidia.dali.tfrecord as tfrec
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
@@ -292,37 +294,33 @@ def test_named_sharding_workflow_with_iterator():
     run_sharding_iterator_test(sharding)
 
 
-import os
-
-batch_size = 200
-image_size = 28
-num_classes = 10
-batch_size_per_gpu = batch_size // jax.device_count()
-training_data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
+dataset_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/sequential/tfrecord/')
 
 
 def test_named_sharding_with_iterator_decorator():
     mesh = Mesh(jax.devices(), axis_names=('batch'))
     sharding = NamedSharding(mesh, PartitionSpec('batch'))
 
-    output_map = ['images', 'labels']
+    output_map = ['tensor']
 
-    @data_iterator(output_map=output_map, batch_size=batch_size_per_gpu, num_threads=4, seed=0, sharding=sharding, reader_name="mnist_caffe2_reader")
-    def sharded_iterator_function(num_shards, shard_id):
-        jpegs, labels = fn.readers.caffe2(
-            path=training_data_path,
-            random_shuffle=False,
-            name="mnist_caffe2_reader",
+    @data_iterator(
+        output_map=output_map,
+        batch_size=1,
+        num_threads=4,
+        sharding=sharding,
+        reader_name="reader")
+    def sharded_iterator_function(shard_id, num_shards):
+        tfrecord = fn.readers.tfrecord(
+            path=[os.path.join(dataset_path, 'sequential.tfrecord')],
+            index_path=[os.path.join(dataset_path, 'sequential.idx')],
+            features={'tensor': tfrec.FixedLenFeature([10], tfrec.int64, -1)},
+            shard_id=shard_id,
             num_shards=num_shards,
-            shard_id=shard_id)
-        images = fn.decoders.image(
-            jpegs, device='mixed', output_type=types.GRAY)
-        images = fn.crop_mirror_normalize(
-            images, dtype=types.FLOAT, std=[255.], output_layout="CHW")
-        images = fn.reshape(images, shape=[image_size * image_size])
-        labels = labels.gpu()
+            name='reader')
 
-        return images, labels
+        return tfrecord['tensor'].gpu()
 
+    data_iterator_instance = sharded_iterator_function()
 
-    dali_iterator = sharded_iterator_function()
+    for output in data_iterator_instance:
+        pass
