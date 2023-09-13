@@ -19,7 +19,7 @@ import jax
 import jax.numpy
 import jax.dlpack
 
-from utils import sequential_pipeline, sequential_pipeline_def
+from utils import sequential_pipeline, sequential_pipeline_def, numpy_sequential_tensors
 
 import nvidia.dali.plugin.jax as dax
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
@@ -107,6 +107,40 @@ def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
         num_threads=4,
         device_id=0)(
             batch_size=batch_size)
+
+    # then
+    run_and_assert_sequential_iterator(iter)
+
+
+def test_dali_iterator_decorator_declarative():
+    # given
+    @dax.iterator.data_iterator(
+        output_map=['data'],
+        size=iterator_size,
+        num_threads=4,
+        device_id=0,
+        batch_size=batch_size)
+    def iterator_function():
+        return sequential_pipeline_def()
+    
+    iter = iterator_function()
+
+    # then
+    run_and_assert_sequential_iterator(iter)
+
+
+def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
+    # given
+    @dax.iterator.data_iterator(
+        output_map=['data'],
+        size=iterator_size,
+        num_threads=4,
+        device_id=0,
+        batch_size=batch_size)
+    def iterator_function(source_fn):
+        return sequential_pipeline_def(source_fn)
+    
+    iter = iterator_function(numpy_sequential_tensors)
 
     # then
     run_and_assert_sequential_iterator(iter)

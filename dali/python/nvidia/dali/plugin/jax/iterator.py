@@ -240,8 +240,8 @@ def _merge_pipeline_args(decorator_kwargs, wrapper_kwargs):
 
 
 def data_iterator(
-        pipeline_fn,
-        output_map,
+        pipeline_fn=None,
+        output_map=[],
         size=-1,
         reader_name=None,
         auto_reset=False,
@@ -314,24 +314,26 @@ def data_iterator(
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions.
     """
-    def wrapper(**wrapper_kwargs):
-        merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
+    def data_iterator_decorator(func):
+        def create_iterator(*args, **wrapper_kwargs):
+            merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
 
-        if sharding is None:
-            pipeline_def_fn = pipeline_def(pipeline_fn, **merged_kwargs)
-            pipelines = [pipeline_def_fn()]
-        else:
-            pass
+            if sharding is None:
+                pipeline_def_fn = pipeline_def(func)
+                pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
+            else:
+                pass
 
-        return DALIGenericIterator(
-            pipelines=pipelines,
-            output_map=output_map,
-            size=size,
-            reader_name=reader_name,
-            auto_reset=auto_reset,
-            last_batch_padded=last_batch_padded,
-            last_batch_policy=last_batch_policy,
-            prepare_first_batch=prepare_first_batch,
-            sharding=sharding)
+            return DALIGenericIterator(
+                pipelines=pipelines,
+                output_map=output_map,
+                size=size,
+                reader_name=reader_name,
+                auto_reset=auto_reset,
+                last_batch_padded=last_batch_padded,
+                last_batch_policy=last_batch_policy,
+                prepare_first_batch=prepare_first_batch,
+                sharding=sharding)
 
-    return wrapper
+        return create_iterator
+    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator

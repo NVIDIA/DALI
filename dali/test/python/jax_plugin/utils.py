@@ -103,9 +103,9 @@ def numpy_sequential_tensors(sample_info):
     return np.full((1, 5), sample_info.idx_in_epoch, dtype=np.int32)
 
 
-def sequential_pipeline_def():
+def sequential_pipeline_def(source_fn=numpy_sequential_tensors):
     data = fn.external_source(
-        source=numpy_sequential_tensors,
+        source=source_fn,
         num_outputs=1,
         batch=False,
         dtype=types.INT32)
