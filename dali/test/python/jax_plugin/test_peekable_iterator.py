@@ -15,11 +15,14 @@
 
 import jax.numpy as jnp
 from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
+from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 from test_integration import sequential_pipeline
 from clu.data.dataset_iterator import ArraySpec
 
 from nose_utils import raises
 import time
+
+import inspect
 
 from utils import pipeline_with_variable_shape_output
 
@@ -100,3 +103,12 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
 
     # when
     iterator.next()
+
+
+def test_iterators_init_method_args_compatibility():
+    # given
+    iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
+    peekalbe_iterator_init_args = inspect.getfullargspec(DALIIterator.__init__).args
+    
+    # then
+    assert set(iterator_init_args) == set(peekalbe_iterator_init_args)
