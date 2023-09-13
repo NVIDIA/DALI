@@ -318,22 +318,23 @@ def data_iterator(
         def create_iterator(*args, **wrapper_kwargs):
             merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
             pipeline_def_fn = pipeline_def(func)
-            
+
             if sharding is None:
                 pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
             else:
                 pipelines = []
-                
+
                 for id, device in enumerate(jax.local_devices()):
+                    # How device_id, shard_id and num_shards are used in the pipeline
+                    # is affected by: https://github.com/google/jax/issues/16024
                     pipeline = pipeline_def_fn(
-                        *args, 
+                        *args,
                         **merged_kwargs,
                         device_id=id,
-                        shard_id=id,
-                        num_shards=len(jax.local_devices()))
-                    
+                        shard_id=device.id,
+                        num_shards=len(jax.devices()))
+
                     pipelines.append(pipeline)
-                    
 
             return DALIGenericIterator(
                 pipelines=pipelines,

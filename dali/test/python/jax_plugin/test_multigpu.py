@@ -294,7 +294,6 @@ def test_named_sharding_workflow_with_iterator():
 
 import os
 
-
 batch_size = 200
 image_size = 28
 num_classes = 10
@@ -305,11 +304,11 @@ training_data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/train
 def test_named_sharding_with_iterator_decorator():
     mesh = Mesh(jax.devices(), axis_names=('batch'))
     sharding = NamedSharding(mesh, PartitionSpec('batch'))
-    
+
     output_map = ['images', 'labels']
-    
+
     @data_iterator(output_map=output_map, batch_size=batch_size_per_gpu, num_threads=4, seed=0, sharding=sharding, reader_name="mnist_caffe2_reader")
-    def sharded_mnist_iterator(num_shards, shard_id):
+    def sharded_iterator_function(num_shards, shard_id):
         jpegs, labels = fn.readers.caffe2(
             path=training_data_path,
             random_shuffle=False,
@@ -325,7 +324,5 @@ def test_named_sharding_with_iterator_decorator():
 
         return images, labels
 
-    
-    dali_iterator = sharded_mnist_iterator()
-    
-    
+
+    dali_iterator = sharded_iterator_function()

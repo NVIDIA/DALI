@@ -122,7 +122,7 @@ def test_dali_iterator_decorator_declarative():
         batch_size=batch_size)
     def iterator_function():
         return sequential_pipeline_def()
-    
+
     iter = iterator_function()
 
     # then
@@ -139,7 +139,7 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
         batch_size=batch_size)
     def iterator_function(source_fn):
         return sequential_pipeline_def(source_fn)
-    
+
     iter = iterator_function(numpy_sequential_tensors)
 
     # then
