@@ -19,25 +19,25 @@ import jax
 import jax.numpy
 import jax.dlpack
 
-from utils import sequential_pipeline, sequential_pipeline_def, numpy_sequential_tensors
+from utils import iterator_function_def, sequential_dataset
 
 import nvidia.dali.plugin.jax as dax
+from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 from nose_utils import raises
 
 import inspect
+import itertools
 
 # Common parameters for all tests in this file
 batch_size = 3
-shape = (1, 5)
-iterator_size = batch_size*10
 
 
 def run_and_assert_sequential_iterator(iter):
     """Run the iterator and assert that the output is as expected"""
     # when
-    for batch_id, data in enumerate(iter):
+    for batch_id, data in itertools.islice(enumerate(iter), 10):
         jax_array = data['data']
 
         # then
@@ -47,17 +47,17 @@ def run_and_assert_sequential_iterator(iter):
             assert jax.numpy.array_equal(
                 jax_array[i],
                 jax.numpy.full(
-                    shape[1:],  # TODO(awolant): Explain shape consistency
+                    sequential_dataset['sample_shape'],
                     batch_id * batch_size + i,
                     np.int32))
 
     assert batch_id == 9
 
 
-def test_dali_sequential_iterator_to_jax_array():
+def test_dali_sequential_iterator():
     # given
-    pipe = sequential_pipeline(batch_size, shape)
-    iter = dax.DALIGenericIterator([pipe], ['data'], size=iterator_size)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
+    iter = dax.DALIGenericIterator([pipe], ['data'], reader_name='reader')
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -65,20 +65,20 @@ def test_dali_sequential_iterator_to_jax_array():
 
 @raises(AssertionError, glob="JAX iterator does not support partial last batch policy.")
 def test_iterator_last_batch_policy_partial_exception():
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
     dax.DALIGenericIterator(
-        [pipe], ['data'], size=iterator_size, last_batch_policy=LastBatchPolicy.PARTIAL)
+        [pipe], ['data'], reader_name='reader', last_batch_policy=LastBatchPolicy.PARTIAL)
 
 
 def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
     # given
     iter = dax.iterator.data_iterator(
-        sequential_pipeline_def,
+        iterator_function_def,
         output_map=['data'],
         batch_size=batch_size,
         device_id=0,
         num_threads=4,
-        size=iterator_size)()
+        reader_name='reader')()
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -87,9 +87,9 @@ def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
 def test_dali_iterator_decorator_all_pipeline_args_in_call():
     # given
     iter = dax.iterator.data_iterator(
-        sequential_pipeline_def,
+        iterator_function_def,
         output_map=['data'],
-        size=iterator_size)(
+        reader_name='reader')(
             batch_size=batch_size,
             device_id=0,
             num_threads=4)
@@ -101,9 +101,9 @@ def test_dali_iterator_decorator_all_pipeline_args_in_call():
 def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
     # given
     iter = dax.iterator.data_iterator(
-        sequential_pipeline_def,
+        iterator_function_def,
         output_map=['data'],
-        size=iterator_size,
+        reader_name='reader',
         num_threads=4,
         device_id=0)(
             batch_size=batch_size)
@@ -116,12 +116,12 @@ def test_dali_iterator_decorator_declarative():
     # given
     @dax.iterator.data_iterator(
         output_map=['data'],
-        size=iterator_size,
+        reader_name='reader',
         num_threads=4,
         device_id=0,
         batch_size=batch_size)
     def iterator_function():
-        return sequential_pipeline_def()
+        return iterator_function_def()
 
     iter = iterator_function()
 
@@ -133,14 +133,14 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     # given
     @dax.iterator.data_iterator(
         output_map=['data'],
-        size=iterator_size,
+        reader_name='reader',
         num_threads=4,
         device_id=0,
         batch_size=batch_size)
-    def iterator_function(source_fn):
-        return sequential_pipeline_def(source_fn)
+    def iterator_function(dataset_file_name):
+        return iterator_function_def(dataset_file_name=dataset_file_name)
 
-    iter = iterator_function(numpy_sequential_tensors)
+    iter = iterator_function(dataset_file_name='sequential.tfrecord')
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -149,11 +149,11 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
 def test_iterator_decorator_pipeline_arg_duplicate():
     dax.iterator.data_iterator(
-        sequential_pipeline_def,
+        iterator_function_def,
         output_map=['data'],
         batch_size=4,
         device_id=0,
-        size=iterator_size)(
+        reader_name='reader')(
             num_threads=4, batch_size=1000)
 
 

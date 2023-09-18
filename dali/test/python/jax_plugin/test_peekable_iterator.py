@@ -14,9 +14,10 @@
 
 
 import jax.numpy as jnp
+from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
-from test_integration import sequential_pipeline
+from utils import iterator_function_def, sequential_dataset
 from clu.data.dataset_iterator import ArraySpec
 
 from nose_utils import raises
@@ -28,16 +29,15 @@ from utils import pipeline_with_variable_shape_output
 
 # Common parameters for all tests in this file
 batch_size = 3
-shape = (1, 5)
-batch_shape = (batch_size, *shape[1:])
+batch_shape = (batch_size, *sequential_dataset['sample_shape'])
 
 
 def test_jax_peekable_iterator_peek():
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -52,7 +52,7 @@ def test_jax_peekable_iterator_peek():
 
 def test_jax_peekable_iterator_peek_async_result_before_next():
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
     iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
@@ -73,7 +73,7 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
 def test_jax_peekable_iterator_peek_async_result_after_next():
     '''This test is not deterministic, but it should pass most of the time.'''
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
     iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
@@ -105,6 +105,7 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
     iterator.next()
 
 
+# Makes sure that API of DALIGenericIterator and DALIGenericPeekableIterator did not diverge
 def test_iterators_init_method_args_compatibility():
     # given
     iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args

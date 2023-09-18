@@ -263,7 +263,10 @@ def data_iterator(
 
     Parameters
     ----------
-    pipeline_fn (_type_): _description_
+    pipeline_fn function:
+                Function to be decorated. It should be comaptible with :meth:`nvidia.dali.pipeline.pipeline_def`
+                decorator.
+                For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
     output_map : list of str
                 List of strings which maps consecutive outputs
                 of DALI pipelines to user specified name.

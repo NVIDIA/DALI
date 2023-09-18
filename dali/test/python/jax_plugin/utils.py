@@ -13,12 +13,15 @@
 # limitations under the License.
 
 
+import os
+
 import numpy as np
 
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend import TensorGPU
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import nvidia.dali.tfrecord as tfrec
 
 
 def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
@@ -99,16 +102,24 @@ def pipeline_with_variable_shape_output(batch_size):
     return sequential_pipeline_def()
 
 
-def numpy_sequential_tensors(sample_info):
-    return np.full((1, 5), sample_info.idx_in_epoch, dtype=np.int32)
+sequential_dataset = {
+    'path': os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/sequential/tfrecord/'),
+    'file_name': 'sequential.tfrecord',
+    'index_file_name': 'sequential.idx',
+    'sample_shape': [10]
+}
 
-
-def sequential_pipeline_def(source_fn=numpy_sequential_tensors):
-    data = fn.external_source(
-        source=source_fn,
-        num_outputs=1,
-        batch=False,
-        dtype=types.INT32)
-    data = data[0].gpu()
-
-    return data
+def iterator_function_def(dataset_file_name='sequential.tfrecord'):
+    tfrecord = fn.readers.tfrecord(
+        path=[os.path.join(
+            sequential_dataset['path'], sequential_dataset['file_name'])],
+        index_path=[os.path.join(
+            sequential_dataset['path'], sequential_dataset['index_file_name'])],
+        features={
+            'tensor': tfrec.FixedLenFeature(
+                sequential_dataset['sample_shape'], tfrec.int64, -1)},
+        shard_id=0,
+        num_shards=1,
+        name='reader')
+    
+    return tfrecord['tensor'].gpu()
