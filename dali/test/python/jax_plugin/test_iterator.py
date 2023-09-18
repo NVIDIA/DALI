@@ -21,7 +21,7 @@ import jax.dlpack
 
 from utils import iterator_function_def, sequential_dataset
 
-import nvidia.dali.plugin.jax as dax
+from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
@@ -57,7 +57,7 @@ def run_and_assert_sequential_iterator(iter):
 def test_dali_sequential_iterator():
     # given
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
-    iter = dax.DALIGenericIterator([pipe], ['data'], reader_name='reader')
+    iter = DALIGenericIterator([pipe], ['data'], reader_name='reader')
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -65,14 +65,15 @@ def test_dali_sequential_iterator():
 
 @raises(AssertionError, glob="JAX iterator does not support partial last batch policy.")
 def test_iterator_last_batch_policy_partial_exception():
-    pipe = pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
-    dax.DALIGenericIterator(
+    pipe = pipe = pipeline_def(iterator_function_def)(
+        batch_size=batch_size, num_threads=4, device_id=0)
+    DALIGenericIterator(
         [pipe], ['data'], reader_name='reader', last_batch_policy=LastBatchPolicy.PARTIAL)
 
 
 def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
     # given
-    iter = dax.iterator.data_iterator(
+    iter = data_iterator(
         iterator_function_def,
         output_map=['data'],
         batch_size=batch_size,
@@ -86,7 +87,7 @@ def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
 
 def test_dali_iterator_decorator_all_pipeline_args_in_call():
     # given
-    iter = dax.iterator.data_iterator(
+    iter = data_iterator(
         iterator_function_def,
         output_map=['data'],
         reader_name='reader')(
@@ -100,7 +101,7 @@ def test_dali_iterator_decorator_all_pipeline_args_in_call():
 
 def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
     # given
-    iter = dax.iterator.data_iterator(
+    iter = data_iterator(
         iterator_function_def,
         output_map=['data'],
         reader_name='reader',
@@ -114,7 +115,7 @@ def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
 
 def test_dali_iterator_decorator_declarative():
     # given
-    @dax.iterator.data_iterator(
+    @data_iterator(
         output_map=['data'],
         reader_name='reader',
         num_threads=4,
@@ -131,7 +132,7 @@ def test_dali_iterator_decorator_declarative():
 
 def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     # given
-    @dax.iterator.data_iterator(
+    @data_iterator(
         output_map=['data'],
         reader_name='reader',
         num_threads=4,
@@ -148,7 +149,7 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
 def test_iterator_decorator_pipeline_arg_duplicate():
-    dax.iterator.data_iterator(
+    data_iterator(
         iterator_function_def,
         output_map=['data'],
         batch_size=4,
@@ -162,12 +163,12 @@ def test_iterator_decorator_pipeline_arg_duplicate():
 # arguments that might have been added to the iterator __init__
 def test_iterator_decorator_kwargs_match_iterator_init():
     # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(dax.iterator.DALIGenericIterator.__init__).args
+    iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 
     # given the list of arguments for the iterator decorator
-    iterator_decorator_args = inspect.getfullargspec(dax.iterator.data_iterator).args
+    iterator_decorator_args = inspect.getfullargspec(data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
 
     # then

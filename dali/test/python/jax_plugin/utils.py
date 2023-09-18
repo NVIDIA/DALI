@@ -109,6 +109,7 @@ sequential_dataset = {
     'sample_shape': [10]
 }
 
+
 def iterator_function_def(dataset_file_name='sequential.tfrecord'):
     tfrecord = fn.readers.tfrecord(
         path=[os.path.join(
@@ -121,5 +122,5 @@ def iterator_function_def(dataset_file_name='sequential.tfrecord'):
         shard_id=0,
         num_shards=1,
         name='reader')
-    
+
     return tfrecord['tensor'].gpu()

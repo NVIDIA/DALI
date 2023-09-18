@@ -239,6 +239,58 @@ def _merge_pipeline_args(decorator_kwargs, wrapper_kwargs):
     return merged_kwargs
 
 
+def data_iterator_impl(
+        iterator_type,
+        pipeline_fn=None,
+        output_map=[],
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+        sharding=None,
+        **decorator_kwargs):
+    """ Implementation of the data_iterator decorator. It is extracted to a separate function
+    to be reused by the peekable iterator decorator.
+    """
+    def data_iterator_decorator(func):
+        def create_iterator(*args, **wrapper_kwargs):
+            merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
+            pipeline_def_fn = pipeline_def(func)
+
+            if sharding is None:
+                pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
+            else:
+                pipelines = []
+
+                for id, device in enumerate(jax.local_devices()):
+                    # How device_id, shard_id and num_shards are used in the pipeline
+                    # is affected by: https://github.com/google/jax/issues/16024
+                    pipeline = pipeline_def_fn(
+                        *args,
+                        **merged_kwargs,
+                        device_id=id,
+                        shard_id=device.id,
+                        num_shards=len(jax.devices()))
+
+                    pipelines.append(pipeline)
+
+            return iterator_type(
+                pipelines=pipelines,
+                output_map=output_map,
+                size=size,
+                reader_name=reader_name,
+                auto_reset=auto_reset,
+                last_batch_padded=last_batch_padded,
+                last_batch_policy=last_batch_policy,
+                prepare_first_batch=prepare_first_batch,
+                sharding=sharding)
+
+        return create_iterator
+    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
+
+
 def data_iterator(
         pipeline_fn=None,
         output_map=[],
@@ -264,8 +316,8 @@ def data_iterator(
     Parameters
     ----------
     pipeline_fn function:
-                Function to be decorated. It should be comaptible with :meth:`nvidia.dali.pipeline.pipeline_def`
-                decorator.
+                Function to be decorated. It should be comaptible with
+                :meth:`nvidia.dali.pipeline.pipeline_def` decorator.
                 For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
     output_map : list of str
                 List of strings which maps consecutive outputs
@@ -317,38 +369,15 @@ def data_iterator(
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions.
     """
-    def data_iterator_decorator(func):
-        def create_iterator(*args, **wrapper_kwargs):
-            merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
-            pipeline_def_fn = pipeline_def(func)
-
-            if sharding is None:
-                pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
-            else:
-                pipelines = []
-
-                for id, device in enumerate(jax.local_devices()):
-                    # How device_id, shard_id and num_shards are used in the pipeline
-                    # is affected by: https://github.com/google/jax/issues/16024
-                    pipeline = pipeline_def_fn(
-                        *args,
-                        **merged_kwargs,
-                        device_id=id,
-                        shard_id=device.id,
-                        num_shards=len(jax.devices()))
-
-                    pipelines.append(pipeline)
-
-            return DALIGenericIterator(
-                pipelines=pipelines,
-                output_map=output_map,
-                size=size,
-                reader_name=reader_name,
-                auto_reset=auto_reset,
-                last_batch_padded=last_batch_padded,
-                last_batch_policy=last_batch_policy,
-                prepare_first_batch=prepare_first_batch,
-                sharding=sharding)
-
-        return create_iterator
-    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
+    return data_iterator_impl(
+        DALIGenericIterator,
+        pipeline_fn,
+        output_map,
+        size,
+        reader_name,
+        auto_reset,
+        last_batch_padded,
+        last_batch_policy,
+        prepare_first_batch,
+        sharding,
+        **decorator_kwargs)
