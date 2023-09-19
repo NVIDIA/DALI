@@ -26,8 +26,10 @@ import nvidia.dali.tfrecord as tfrec
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
-from utils import get_dali_tensor_gpu
+from utils import get_dali_tensor_gpu, iterator_function_def, sequential_dataset
 import jax.numpy as jnp
+
+import itertools
 
 # Common parameters for all tests in this file
 batch_size = 4
@@ -294,7 +296,47 @@ def test_named_sharding_workflow_with_iterator():
     run_sharding_iterator_test(sharding)
 
 
-dataset_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/sequential/tfrecord/')
+def run_sharded_iterator_test(iterator):
+    assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
+    
+    batch_size_per_gpu = batch_size // jax.device_count()
+
+    # when
+    for batch_id, batch in itertools.islice(enumerate(iterator), 10):
+        # then
+        jax_array = batch['tensor']
+        
+        # For 2 GPUs expected result is as follows:
+        # In first iteration, first shard should be:
+        # [[0 0 0 0 0 0 0 0 0 0]
+        #  [1 1 1 1 1 1 1 1 1 1]]
+        # And second shard should be:
+        # [[500 500 500 500 500 500 500 500 500 500]
+        # [501 501 501 501 501 501 501 501 501 501]]
+        # Then, in second iteration first shard should be:
+        # [[2 2 2 2 2 2 2 2 2 2]
+        #  [3 3 3 3 3 3 3 3 3 3]]
+        # And second shard should be:
+        # [[502 502 502 502 502 502 502 502 502 502]
+        #  [503 503 503 503 503 503 503 503 503 503]]
+        
+        sample_id = 0
+        for device_id in range(jax.device_count()):
+            for i in range(batch_size_per_gpu):
+                ground_truth = jax.numpy.full(
+                        sequential_dataset['sample_shape'],
+                        batch_id * batch_size_per_gpu + i + device_id * 500,
+                        np.int32)
+                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth)
+                sample_id += 1
+
+        # Assert correct backing devices for shards
+        assert jax_array.device_buffers[0].device() == jax.devices()[0]
+        assert jax_array.device_buffers[1].device() == jax.devices()[1]
+
+    # Assert correct number of batches returned from the iterator
+    assert batch_id == 9
+
 
 
 def test_named_sharding_with_iterator_decorator():
@@ -305,22 +347,13 @@ def test_named_sharding_with_iterator_decorator():
 
     @data_iterator(
         output_map=output_map,
-        batch_size=1,
+        batch_size=batch_size,
         num_threads=4,
         sharding=sharding,
         reader_name="reader")
-    def sharded_iterator_function(shard_id, num_shards):
-        tfrecord = fn.readers.tfrecord(
-            path=[os.path.join(dataset_path, 'sequential.tfrecord')],
-            index_path=[os.path.join(dataset_path, 'sequential.idx')],
-            features={'tensor': tfrec.FixedLenFeature([10], tfrec.int64, -1)},
-            shard_id=shard_id,
-            num_shards=num_shards,
-            name='reader')
+    def iterator_function(shard_id, num_shards):
+        return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
-        return tfrecord['tensor'].gpu()
+    data_iterator_instance = iterator_function()
 
-    data_iterator_instance = sharded_iterator_function()
-
-    for output in data_iterator_instance:
-        pass
+    run_sharded_iterator_test(data_iterator_instance)

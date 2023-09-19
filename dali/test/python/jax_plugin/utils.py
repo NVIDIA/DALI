@@ -110,7 +110,7 @@ sequential_dataset = {
 }
 
 
-def iterator_function_def(dataset_file_name='sequential.tfrecord'):
+def iterator_function_def(dataset_file_name='sequential.tfrecord', shard_id=0, num_shards=1):
     tfrecord = fn.readers.tfrecord(
         path=[os.path.join(
             sequential_dataset['path'], sequential_dataset['file_name'])],
@@ -119,8 +119,8 @@ def iterator_function_def(dataset_file_name='sequential.tfrecord'):
         features={
             'tensor': tfrec.FixedLenFeature(
                 sequential_dataset['sample_shape'], tfrec.int64, -1)},
-        shard_id=0,
-        num_shards=1,
+        shard_id=shard_id,
+        num_shards=num_shards,
         name='reader')
 
     return tfrecord['tensor'].gpu()

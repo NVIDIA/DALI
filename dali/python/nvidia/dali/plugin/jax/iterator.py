@@ -263,6 +263,11 @@ def data_iterator_impl(
                 pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
             else:
                 pipelines = []
+                
+                # Handle batch_size_per_gpu
+                global_batch_size = merged_kwargs['batch_size']
+                batch_size_per_gpu = global_batch_size // len(jax.devices())
+                merged_kwargs['batch_size'] = batch_size_per_gpu
 
                 for id, device in enumerate(jax.local_devices()):
                     # How device_id, shard_id and num_shards are used in the pipeline
