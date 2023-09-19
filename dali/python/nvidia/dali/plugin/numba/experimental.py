@@ -446,6 +446,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self.blocks = blocks
         self.threads_per_block = threads_per_block
 
+    @staticmethod
     def _check_minimal_numba_version():
         current_version = LooseVersion(nb.__version__)
         toolkit_version = cuda.runtime.get_version()
@@ -457,6 +458,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                                f"requires Numba {str(min_ver)} or higher. "
                                f"Detected version: {str(LooseVersion(nb.__version__))}.")
 
+    @staticmethod
     def _check_cuda_compatibility():
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
