@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,10 @@ _to_numba = {
 
 
 # Minimal version of Numba that is required for Numba GPU operator to work
-minimal_numba_version = LooseVersion('0.55.2')
+minimal_numba_version = {
+    11: LooseVersion('0.55.2'),
+    12: LooseVersion('0.57.0'),
+}
 
 
 @nb.extending.intrinsic
@@ -378,8 +381,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                  threads_per_block=None,
                  **kwargs):
         if device == 'gpu':
-            self._check_minimal_numba_version()
-            self._check_cuda_compatibility()
+            NumbaFunction._check_minimal_numba_version()
+            NumbaFunction._check_cuda_compatibility()
 
         assert len(in_types) == len(ins_ndim), ("Number of input types "
                                                 "and input dimensions should match.")
@@ -443,14 +446,18 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self.blocks = blocks
         self.threads_per_block = threads_per_block
 
-    def _check_minimal_numba_version(self):
+    def _check_minimal_numba_version():
         current_version = LooseVersion(nb.__version__)
-        if current_version < minimal_numba_version:
+        toolkit_version = cuda.runtime.get_version()
+        if toolkit_version[0] not in minimal_numba_version:
+            raise RuntimeError(f'Unsupported CUDA toolkit version: {toolkit_version}')
+        min_ver = minimal_numba_version[toolkit_version[0]]
+        if current_version < min_ver:
             raise RuntimeError("Insufficient Numba version. Numba GPU operator "
-                               f"requires Numba {minimal_numba_version} or higher. "
-                               f"Detected version: {LooseVersion(nb.__version__)}.")
+                               f"requires Numba {str(min_ver)} or higher. "
+                               f"Detected version: {str(LooseVersion(nb.__version__))}.")
 
-    def _check_cuda_compatibility(self):
+    def _check_cuda_compatibility():
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
 
