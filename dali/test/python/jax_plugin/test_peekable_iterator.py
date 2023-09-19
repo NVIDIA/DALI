@@ -15,7 +15,7 @@
 
 import jax.numpy as jnp
 from nvidia.dali.pipeline import pipeline_def
-from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
+from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIPeekableIterator
 from nvidia.dali.plugin.jax.clu import peekable_data_iterator
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 from utils import iterator_function_def, sequential_dataset
@@ -40,7 +40,7 @@ def test_jax_peekable_iterator_peek():
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -58,7 +58,7 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -79,7 +79,7 @@ def test_jax_peekable_iterator_peek_async_result_after_next():
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -101,7 +101,7 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
     batch_size = 1
     pipe = pipeline_with_variable_shape_output(batch_size)
 
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ['data'], size=batch_size*100)
     iterator.next()
 
     # when
@@ -112,7 +112,7 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
 def test_iterators_init_method_args_compatibility():
     # given
     iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
-    peekalbe_iterator_init_args = inspect.getfullargspec(DALIIterator.__init__).args
+    peekalbe_iterator_init_args = inspect.getfullargspec(DALIPeekableIterator.__init__).args
 
     # then
     assert iterator_init_args == peekalbe_iterator_init_args
@@ -210,7 +210,7 @@ def test_iterator_decorator_pipeline_arg_duplicate():
 # arguments that might have been added to the iterator __init__
 def test_iterator_decorator_kwargs_match_iterator_init():
     # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(DALIIterator.__init__).args
+    iterator_init_args = inspect.getfullargspec(DALIPeekableIterator.__init__).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 

@@ -176,6 +176,11 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     def __next__(self):
         with self._mutex:
             return self._next_with_peek_impl()
+        
+    def __iter__(self):
+        if self._counter != 0 and self._ever_consumed and self._peek is None:
+            self.reset()
+        return self
 
     def peek(self):
         """Returns the next element from the iterator without advancing the iterator.
