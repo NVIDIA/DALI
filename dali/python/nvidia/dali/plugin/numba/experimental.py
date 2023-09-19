@@ -447,27 +447,38 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self.threads_per_block = threads_per_block
 
     @staticmethod
-    def _check_minimal_numba_version():
+    def _check_minimal_numba_version(throw: bool = True):
         current_version = LooseVersion(nb.__version__)
         toolkit_version = cuda.runtime.get_version()
         if toolkit_version[0] not in minimal_numba_version:
-            raise RuntimeError(f'Unsupported CUDA toolkit version: {toolkit_version}')
+            if throw:
+                raise RuntimeError(f'Unsupported CUDA toolkit version: {toolkit_version}')
+            else:
+                return False
         min_ver = minimal_numba_version[toolkit_version[0]]
         if current_version < min_ver:
-            raise RuntimeError("Insufficient Numba version. Numba GPU operator "
-                               f"requires Numba {str(min_ver)} or higher. "
-                               f"Detected version: {str(LooseVersion(nb.__version__))}.")
+            if throw:
+                raise RuntimeError(f"Insufficient Numba version. Numba GPU operator "
+                                   f"requires Numba {str(min_ver)} or higher. "
+                                   f"Detected version: {str(LooseVersion(nb.__version__))}.")
+            else:
+                return False
+        return True
 
     @staticmethod
-    def _check_cuda_compatibility():
+    def _check_cuda_compatibility(throw: bool = True):
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
 
         if toolkit_version > driver_version:
-            raise RuntimeError("Environment is not compatible with Numba GPU operator. "
-                               f"Driver version is {driver_version} and CUDA Toolkit "
-                               f"version is {toolkit_version}. "
-                               "Driver cannot be older than the CUDA Toolkit")
+            if throw:
+                raise RuntimeError(f"Environment is not compatible with Numba GPU operator. "
+                                   f"Driver version is {driver_version} and CUDA Toolkit "
+                                   f"version is {toolkit_version}. "
+                                   "Driver cannot be older than the CUDA Toolkit")
+            else:
+                return False
+        return True
 
 
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")

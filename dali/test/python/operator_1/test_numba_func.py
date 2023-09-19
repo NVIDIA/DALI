@@ -46,9 +46,8 @@ def check_env_compatibility_cpu():
 
 def check_env_compatibility_gpu():
     import nvidia.dali.plugin.numba.experimental as ex
-    try:
-        ex.NumbaFunction._check_minimal_numba_version()
-    except RuntimeError:
+    if (not ex.NumbaFunction._check_minimal_numba_version(False)
+            or not ex.NumbaFunction._check_cuda_compatibility(False)):
         raise SkipTest()
 
 
