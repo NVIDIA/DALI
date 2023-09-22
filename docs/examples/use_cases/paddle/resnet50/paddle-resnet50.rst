@@ -1,49 +1,54 @@
 ResNet Training in PaddlePaddle
 ===============================
 
-This simple demo showcases ResNet50 training on ImageNet.
+This is a demo showcasing ResNet50 training on ImageNet.
+The code is based on `NVIDIA Deep Learning Examples <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PaddlePaddle/Classification/RN50v1.5>`_
 
-Run it with the commands below:
+Data augmentation
+-----------------
 
-.. code-block:: bash
+This model uses the following data augmentation:
 
-   python -m paddle.distributed.launch --selected_gpus 0,1,2,3,4,5,6,7 train.py -b 128 -j 4 [imagenet-folder with train and val folders]
+- For training:
 
-Training
---------
+    - Normalization
+    - Random resized crop to 224x224
 
-To train the model, run :fileref:`docs/examples/use_cases/paddle/resnet50/main.py` with the desired ResNet depth and the path to the ImageNet dataset:
+        - Scale from 8% to 100%
+        - Aspect ratio from 3/4 to 4/3
 
-.. code-block:: bash
+    - Random horizontal flip
 
-   python -m paddle.distributed.launch --selected_gpus 0,1,2,3,4,5,6,7 main.py -d 50 [imagenet-folder with train and val folders]
+- For inference:
 
-The training schedule in `He et al. 2015 <https://arxiv.org/abs/1512.03385>`_ was used where learning rate starts at 0.1 and decays by a factor of 10 every 30 epochs.
+    - Normalization
+    - Scale to 256x256
+    - Center crop to 224x224
 
 Usage
 -----
 
+Install the necessary packages from requirements.txt before use.
+
+The startup script is :fileref:`docs/examples/use_cases/paddle/resnet50/train.py`.
+
 .. code-block:: bash
 
-   usage: main.py [-h] [-d N] [-j N] [-b N] [--lr LR] [--momentum M]
-                   [--weight-decay W] [--print-freq N]
-                   DIR
+   # For single GPU training with AMP
+  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch --gpus=0 train.py \
+    --epochs 90 \
+    --amp \
+    --scale-loss 128.0 \
+    --use-dynamic-loss-scaling \
+    --data-layout NHWC
 
-   Paddle ImageNet Training
+  # For 8 GPUs training with AMP
+  FLAGS_apply_pass_to_program=1 python -m paddle.distributed.launch --gpus=0,1,2,3,4,5,6,7 train.py \
+    --epochs 90 \
+    --amp \
+    --scale-loss 128.0 \
+    --use-dynamic-loss-scaling \
+    --data-layout NHWC
 
-   positional arguments:
-     DIR                   path to dataset (should have subdirectories named
-                           "train" and "val"
-
-   optional arguments:
-     -h, --help            show this help message and exit
-     -d N, --depth N       number of layers (default: 50)
-     -j N, --num_threads N
-                           number of threads (default: 4)
-     -b N, --batch-size N  mini-batch size (default: 256)
-     --lr LR, --learning-rate LR
-                           initial learning rate
-     --momentum M          momentum
-     --weight-decay W, --wd W
-                           weight decay (default: 1e-4)
-     --print-freq N, -p N  print frequency (default: 10)
+  # For all available options
+  python train.py --help

@@ -10,6 +10,8 @@ function CLEAN_AND_EXIT {
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50
 
+pip install --no-cache-dir -r requirements.txt
+
 GPUS=$(nvidia-smi -L | sed "s/GPU \([0-9]*\):.*/\1/g")
 
 if [ ! -d "val" ]; then
@@ -24,8 +26,18 @@ LOG=dali.log
 SECONDS=0
 EPOCHS=25  # limiting to 25 epochs to save time
 export FLAGS_fraction_of_gpu_memory_to_use=.80
-python -m paddle.distributed.launch --selected_gpus $(echo $GPUS | tr ' ' ',') \
-    main.py -b 96 -j 4 --lr=0.3 --epochs ${EPOCHS} ./ 2>&1 | tee $LOG
+export FLAGS_apply_pass_to_program=1
+
+python -m paddle.distributed.launch --gpus=$(echo $GPUS | tr ' ' ',') train.py \
+    --epochs ${EPOCHS} \
+    --batch-size 96 \
+    --amp \
+    --scale-loss 128.0 \
+    --dali-num-threads 4 \
+    --use-dynamic-loss-scaling \
+    --data-layout NHWC \
+    --report-file train.json \
+    --image-root ./ 2>&1 | tee $LOG
 
 RET=${PIPESTATUS[0]}
 echo "Training ran in $SECONDS seconds"
@@ -34,30 +46,39 @@ if [[ $RET -ne 0 ]]; then
     CLEAN_AND_EXIT 2
 fi
 
-MIN_TOP1=45.0  # would be 75.0 if we run 90 epochs
-MIN_TOP5=70.0  # would be 92.0 if we run 90 epochs
-MIN_PERF=2000
+MIN_TOP1=.45  # would be 75% if we run 90 epochs
+MIN_TOP5=.70  # would be 92% if we run 90 epochs
+MIN_PERF=7000
 
-TOP1=$(grep "^##Top-1" $LOG | awk '{print $2}')
-TOP5=$(grep "^##Top-5" $LOG | awk '{print $2}')
-PERF=$(grep "^##Perf" $LOG | awk '{print $2}')
+function PRINT_THRESHOLD {
+    FILENAME=$1
+    QUALITY=$2
+    THRESHOLD=$3
+    grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
+value = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
+print(f\"$FILENAME: $QUALITY: {value}, expected $THRESHOLD\")
+sys.exit(0)"
+}
 
-if [[ -z "$TOP1" || -z "$TOP5" ]]; then
-    echo "Incomplete output."
-    CLEAN_AND_EXIT 3
-fi
+function CHECK_THRESHOLD {
+    FILENAME=$1
+    QUALITY=$2
+    THRESHOLD=$3
+    grep "$QUALITY" $FILENAME | tail -1 | cut -c 5- | python3 -c "import sys, json
+value = json.load(sys.stdin)[\"data\"][\"$QUALITY\"]
+if value < $THRESHOLD:
+    print(f\"[FAIL] $FILENAME below threshold: {value} < $THRESHOLD\")
+    sys.exit(1)
+else:
+    print(f\"[PASS] $FILENAME above threshold: {value} >= $THRESHOLD\")
+    sys.exit(0)"
+}
 
-TOP1_RESULT=$(echo "$TOP1 $MIN_TOP1" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
-TOP5_RESULT=$(echo "$TOP5 $MIN_TOP5" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
-PERF_RESULT=$(echo "$PERF $MIN_PERF" | awk '{if ($1>=$2) {print "OK"} else { print "FAIL" }}')
+PRINT_THRESHOLD "train.json" "train.ips" $MIN_PERF
+PRINT_THRESHOLD "train.json" "val.top1" $MIN_TOP1
+PRINT_THRESHOLD "train.json" "val.top5" $MIN_TOP5
+CHECK_THRESHOLD "train.json" "train.ips" $MIN_PERF
+CHECK_THRESHOLD "train.json" "val.top1" $MIN_TOP1
+CHECK_THRESHOLD "train.json" "val.top5" $MIN_TOP5
 
-echo
-printf "TOP-1 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP1 $MIN_TOP1 $TOP1_RESULT
-printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP5_RESULT
-printf "Average perf: %.2f (expect at least %f) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
-
-if [[ "$TOP1_RESULT" == "OK" && "$TOP5_RESULT" == "OK" && "$PERF_RESULT" == "OK" ]]; then
-    CLEAN_AND_EXIT 0
-fi
-
-CLEAN_AND_EXIT 4
+CLEAN_AND_EXIT 0

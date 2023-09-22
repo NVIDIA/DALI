@@ -84,7 +84,7 @@ enable_sanitizer() {
 
 # turn off sanitizer to avoid breaking any non-related system built-ins
 disable_sanitizer() {
-    export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0
+    export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0:detect_container_overflow=0
     export LD_PRELOAD=${OLD_LD_PRELOAD}
     unset ASAN_SYMBOLIZER_PATH
     unset PYTHONMALLOC
