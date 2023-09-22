@@ -161,12 +161,16 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
 }
 
 int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
-    if (decoder_) {
+    while (decoder_) {
         if ((format->codec != decoder_info_.CodecType) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
             DALI_FAIL("Encountered a dynamic video format change.");
         }
-        if ((format->coded_width != decoder_info_.ulWidth) ||
+        if (format->bit_depth_chroma_minus8 != decoder_info_.bitDepthMinus8) {
+            NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
+            decoder_ = {};
+            break;
+        } else if ((format->coded_width != decoder_info_.ulWidth) ||
             (format->coded_height != decoder_info_.ulHeight)) {
             if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
               LOG_LINE << "reconfigure decoder";
