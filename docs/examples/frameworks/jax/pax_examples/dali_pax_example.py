@@ -37,7 +37,7 @@ from praxis.layers import convolutions
 from praxis.layers import linears
 from praxis.layers import poolings
 
-from dali_pax_input import MnistDaliInput
+from pax_examples.dali_pax_input import MnistDaliInput
 
 
 NestedMap = py_utils.NestedMap
