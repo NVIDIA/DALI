@@ -367,7 +367,8 @@ def test_named_sharding_with_iterator_decorator():
 
 def test_positional_sharding_with_iterator_decorator():
     # given
-    sharding = PositionalSharding(jax.devices())
+    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
+    sharding = PositionalSharding(mesh)
 
     output_map = ['tensor']
 
