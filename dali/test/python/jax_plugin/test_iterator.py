@@ -19,7 +19,7 @@ import jax
 import jax.numpy
 import jax.dlpack
 
-from utils import iterator_function_def, sequential_dataset
+from utils import iterator_function_def_file as iterator_function_def
 
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from nvidia.dali.pipeline import pipeline_def
@@ -34,7 +34,27 @@ import itertools
 batch_size = 3
 
 
-def run_and_assert_sequential_iterator(iter):
+def run_and_assert_sequential_iterator(iter, num_iters=4):
+    """Run the iterator and assert that the output is as expected"""
+    # when
+    for batch_id, data in itertools.islice(enumerate(iter), num_iters):
+        jax_array = data['data']
+
+        # then
+        assert jax_array.device() == jax.devices()[0]
+
+        for i in range(batch_size):
+            assert jax.numpy.array_equal(
+                jax_array[i],
+                jax.numpy.full(
+                    (1),
+                    batch_id * batch_size + i,
+                    np.int32))
+
+    assert batch_id == num_iters - 1
+    
+    
+def run_and_assert_sequential_iterator_file(iter):
     """Run the iterator and assert that the output is as expected"""
     # when
     for batch_id, data in itertools.islice(enumerate(iter), 10):
@@ -138,13 +158,19 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
         num_threads=4,
         device_id=0,
         batch_size=batch_size)
-    def iterator_function(dataset_file_name):
-        return iterator_function_def(dataset_file_name=dataset_file_name)
+    def iterator_function(num_shards):
+        return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(dataset_file_name='sequential.tfrecord')
+    iter = iterator_function(num_shards=2)
 
     # then
     run_and_assert_sequential_iterator(iter)
+    
+    # We want to assert that the argument was actually passed. It should affect the
+    # number of samples in the iterator.
+    # Dataset has 47 samples, with batch_size=3 and num_shards=2, we should get 24 samples.
+    # That is because the last batch is extended with the first sample to match the batch_size.
+    assert iter.size == 24
 
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")

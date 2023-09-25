@@ -124,3 +124,28 @@ def iterator_function_def(dataset_file_name='sequential.tfrecord', shard_id=0, n
         name='reader')
 
     return tfrecord['tensor'].gpu()
+
+
+data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db', 'single', 'jpeg')
+def get_all_files_from_directory(dir_path, ext):
+    file_list = []
+    for root, dirs, files in os.walk(dir_path):
+        for file in files:
+            if file.endswith(ext):
+                file_list.append(os.path.join(root, file))
+    return file_list
+
+
+file_names = get_all_files_from_directory(data_path, '.jpg')
+file_labels = [*range(len(file_names))]
+
+
+def iterator_function_def_file(shard_id=0, num_shards=1):
+    files, labels = fn.readers.file(
+        name='reader',
+        files=file_names,
+        labels=file_labels,
+        shard_id=shard_id,
+        num_shards=num_shards)
+    
+    return labels.gpu()
