@@ -180,3 +180,5 @@ def test_iterator_decorator_kwargs_match_iterator_init():
     # then
     assert iterator_decorator_args == iterator_init_args, \
         "Arguments for the iterator decorator and the iterator __init__ method do not match"
+
+    # TODO: Do we want to test documentation as well?
