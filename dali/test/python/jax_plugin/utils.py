@@ -102,30 +102,6 @@ def pipeline_with_variable_shape_output(batch_size):
     return sequential_pipeline_def()
 
 
-sequential_dataset = {
-    'path': os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/sequential/tfrecord/'),
-    'file_name': 'sequential.tfrecord',
-    'index_file_name': 'sequential.idx',
-    'sample_shape': [10]
-}
-
-
-def iterator_function_def(dataset_file_name='sequential.tfrecord', shard_id=0, num_shards=1):
-    tfrecord = fn.readers.tfrecord(
-        path=[os.path.join(
-            sequential_dataset['path'], sequential_dataset['file_name'])],
-        index_path=[os.path.join(
-            sequential_dataset['path'], sequential_dataset['index_file_name'])],
-        features={
-            'tensor': tfrec.FixedLenFeature(
-                sequential_dataset['sample_shape'], tfrec.int64, -1)},
-        shard_id=shard_id,
-        num_shards=num_shards,
-        name='reader')
-
-    return tfrecord['tensor'].gpu()
-
-
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db', 'single', 'jpeg')
 def get_all_files_from_directory(dir_path, ext):
     file_list = []
@@ -140,7 +116,7 @@ file_names = get_all_files_from_directory(data_path, '.jpg')
 file_labels = [*range(len(file_names))]
 
 
-def iterator_function_def_file(shard_id=0, num_shards=1):
+def iterator_function_def(shard_id=0, num_shards=1):
     files, labels = fn.readers.file(
         name='reader',
         files=file_names,

@@ -19,7 +19,7 @@ import jax
 import jax.numpy
 import jax.dlpack
 
-from utils import iterator_function_def_file as iterator_function_def
+from utils import iterator_function_def
 
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from nvidia.dali.pipeline import pipeline_def

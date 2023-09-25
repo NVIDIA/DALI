@@ -18,7 +18,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIPeekableIterator
 from nvidia.dali.plugin.jax.clu import peekable_data_iterator
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
-from utils import iterator_function_def, sequential_dataset
+from utils import iterator_function_def
 from clu.data.dataset_iterator import ArraySpec
 
 from test_iterator import run_and_assert_sequential_iterator
@@ -32,7 +32,7 @@ from utils import pipeline_with_variable_shape_output
 
 # Common parameters for all tests in this file
 batch_size = 3
-batch_shape = (batch_size, *sequential_dataset['sample_shape'])
+batch_shape = (batch_size, 1)
 
 
 def test_jax_peekable_iterator_peek():
@@ -185,13 +185,19 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
         num_threads=4,
         device_id=0,
         batch_size=batch_size)
-    def iterator_function(dataset_file_name):
-        return iterator_function_def(dataset_file_name=dataset_file_name)
+    def iterator_function(num_shards):
+        return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(dataset_file_name='sequential.tfrecord')
+    iter = iterator_function(num_shards=2)
 
     # then
     run_and_assert_sequential_iterator(iter)
+    
+    # We want to assert that the argument was actually passed. It should affect the
+    # number of samples in the iterator.
+    # Dataset has 47 samples, with batch_size=3 and num_shards=2, we should get 24 samples.
+    # That is because the last batch is extended with the first sample to match the batch_size.
+    assert iter.size == 24
 
 
 @raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")

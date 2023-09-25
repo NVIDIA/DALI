@@ -22,11 +22,12 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 import nvidia.dali.tfrecord as tfrec
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
-from utils import get_dali_tensor_gpu, iterator_function_def, sequential_dataset
+from utils import get_dali_tensor_gpu, iterator_function_def
 import jax.numpy as jnp
 
 import itertools
@@ -296,38 +297,40 @@ def test_named_sharding_workflow_with_iterator():
     run_sharding_iterator_test(sharding)
 
 
-def run_sharded_iterator_test(iterator):
-    assert jax.device_count() > 1, "Multigpu test requires more than one GPU"
+def run_sharded_iterator_test(iterator, num_iters=11):
+    assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
     
     batch_size_per_gpu = batch_size // jax.device_count()
+    
+    # Iterator should return 23 samples per shard
+    assert iterator.size == 23
 
     # when
-    for batch_id, batch in itertools.islice(enumerate(iterator), 10):
+    for batch_id, batch in itertools.islice(enumerate(iterator), num_iters):
         # then
         jax_array = batch['tensor']
         
         # For 2 GPUs expected result is as follows:
         # In first iteration, first shard should be:
-        # [[0 0 0 0 0 0 0 0 0 0]
-        #  [1 1 1 1 1 1 1 1 1 1]]
+        # [[0]
+        #  [1]]
         # And second shard should be:
-        # [[500 500 500 500 500 500 500 500 500 500]
-        # [501 501 501 501 501 501 501 501 501 501]]
+        # [[23]
+        # [24]]
         # Then, in second iteration first shard should be:
-        # [[2 2 2 2 2 2 2 2 2 2]
-        #  [3 3 3 3 3 3 3 3 3 3]]
+        # [[2]
+        #  [3]]
         # And second shard should be:
-        # [[502 502 502 502 502 502 502 502 502 502]
-        #  [503 503 503 503 503 503 503 503 503 503]]
-        
+        # [[23]
+        #  [24]]
         sample_id = 0
         for device_id in range(jax.device_count()):
             for i in range(batch_size_per_gpu):
                 ground_truth = jax.numpy.full(
-                        sequential_dataset['sample_shape'],
-                        batch_id * batch_size_per_gpu + i + device_id * 500,
+                        (1),
+                        batch_id * batch_size_per_gpu + i + device_id * iterator.size,
                         np.int32)
-                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth)
+                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth), jax_array[sample_id]
                 sample_id += 1
 
         # Assert correct backing devices for shards
@@ -335,25 +338,51 @@ def run_sharded_iterator_test(iterator):
         assert jax_array.device_buffers[1].device() == jax.devices()[1]
 
     # Assert correct number of batches returned from the iterator
-    assert batch_id == 9
-
+    assert batch_id == num_iters - 1
 
 
 def test_named_sharding_with_iterator_decorator():
+    # given
     mesh = Mesh(jax.devices(), axis_names=('batch'))
     sharding = NamedSharding(mesh, PartitionSpec('batch'))
 
     output_map = ['tensor']
 
+    # when
     @data_iterator(
         output_map=output_map,
         batch_size=batch_size,
         num_threads=4,
         sharding=sharding,
+        last_batch_policy=LastBatchPolicy.DROP,
         reader_name="reader")
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
     data_iterator_instance = iterator_function()
 
+    # then
+    run_sharded_iterator_test(data_iterator_instance)
+
+
+def test_positional_sharding_with_iterator_decorator():
+    # given
+    sharding = PositionalSharding(jax.devices())
+
+    output_map = ['tensor']
+
+    # when
+    @data_iterator(
+        output_map=output_map,
+        batch_size=batch_size,
+        num_threads=4,
+        sharding=sharding,
+        last_batch_policy=LastBatchPolicy.DROP,
+        reader_name="reader")
+    def iterator_function(shard_id, num_shards):
+        return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
+
+    data_iterator_instance = iterator_function()
+
+    # then
     run_sharded_iterator_test(data_iterator_instance)
