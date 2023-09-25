@@ -65,7 +65,7 @@ def test_dali_sequential_iterator():
 
 @raises(AssertionError, glob="JAX iterator does not support partial last batch policy.")
 def test_iterator_last_batch_policy_partial_exception():
-    pipe = pipe = pipeline_def(iterator_function_def)(
+    pipe = pipeline_def(iterator_function_def)(
         batch_size=batch_size, num_threads=4, device_id=0)
     DALIGenericIterator(
         [pipe], ['data'], reader_name='reader', last_batch_policy=LastBatchPolicy.PARTIAL)
