@@ -166,11 +166,27 @@ class DLL_PUBLIC OperatorBase {
   /**
    * @brief Restores operator state from checkpoint.
    *
-   * Executor synchronizes checkpoints before restoring them.
+   * Passed OpCheckpoint should have the host access order.
    *
    * Implementation can be blocking, as the performance is not critical.
   */
   virtual void RestoreState(const OpCheckpoint &cpt) {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Serializes the passed OpCheckpoint, containing state saved by this operator.
+   *
+   * Passed OpCheckpoint should have the host access order.
+  */
+  virtual std::string SerializeCheckpoint(const OpCheckpoint &cpt) const {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Deserializes serialized operator state and sets it in the passed OpCheckpoint.
+  */
+  virtual void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
     DALI_FAIL("Checkpointing is not implemented for this operator.");
   }
 

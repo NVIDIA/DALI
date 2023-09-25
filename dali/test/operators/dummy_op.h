@@ -15,6 +15,7 @@
 #ifndef DALI_TEST_OPERATORS_DUMMY_OP_H_
 #define DALI_TEST_OPERATORS_DUMMY_OP_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
@@ -53,6 +54,10 @@ class TestStatefulSource : public Operator<CPUBackend> {
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   using Operator<CPUBackend>::RunImpl;
@@ -77,6 +82,10 @@ class TestStatefulOpCPU : public Operator<CPUBackend> {
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   using Operator<CPUBackend>::RunImpl;
@@ -99,6 +108,10 @@ class TestStatefulOpMixed : public Operator<MixedBackend> {
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void Run(Workspace &ws) override;
@@ -118,6 +131,10 @@ class TestStatefulOpGPU : public Operator<GPUBackend> {
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

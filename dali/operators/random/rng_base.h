@@ -16,9 +16,12 @@
 #define DALI_OPERATORS_RANDOM_RNG_BASE_H_
 
 #include <random>
+#include <string>
 #include <vector>
+
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/util/randomizer.cuh"
@@ -43,11 +46,25 @@ class RNGBase : public Operator<Backend> {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      rng_ = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+      const auto &rng = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+      DALI_ENFORCE(rng.BatchSize() == max_batch_size_,
+                  "Provided checkpoint doesn't match the expected batch size. "
+                  "Perhaps the batch size setting changed? ");
+      rng_ = rng;
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
       DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
     }
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    const auto &state = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+    return SnapshotSerializer().Serialize(state.ToVector());
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    auto deserialized = SnapshotSerializer().Deserialize<std::vector<std::mt19937_64>>(data);
+    cpt.MutableCheckpointState() = BatchRNG<std::mt19937_64>::FromVector(deserialized);
   }
 
  protected:

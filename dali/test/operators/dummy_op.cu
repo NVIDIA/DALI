@@ -14,6 +14,7 @@
 
 #include "dali/test/operators/dummy_op.h"
 
+#include <string>
 #include <vector>
 
 namespace dali {
@@ -27,6 +28,14 @@ void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_
 
 void TestStatefulOpMixed::RestoreState(const OpCheckpoint &cpt) {
   state_ = cpt.CheckpointState<uint8_t>();
+}
+
+std::string TestStatefulOpMixed::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulOpMixed::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulOpMixed::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
@@ -75,6 +84,14 @@ void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t>
 void TestStatefulOpGPU::RestoreState(const OpCheckpoint &cpt) {
   CUDA_CALL(cudaMemcpy(state_, cpt.CheckpointState<std::vector<uint8_t>>().data(),
                        sizeof(uint8_t) * max_batch_size_, cudaMemcpyHostToDevice));
+}
+
+std::string TestStatefulOpGPU::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulOpGPU::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulOpGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {

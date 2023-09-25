@@ -62,6 +62,10 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     loader_->RestoreStateFromSnapshot(cpt.CheckpointState<LoaderStateSnapshot>());
   }
 
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
 };

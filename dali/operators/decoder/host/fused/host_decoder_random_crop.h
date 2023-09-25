@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_DECODER_HOST_FUSED_HOST_DECODER_RANDOM_CROP_H_
 #define DALI_OPERATORS_DECODER_HOST_FUSED_HOST_DECODER_RANDOM_CROP_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/core/common.h"
@@ -35,14 +36,13 @@ class HostDecoderRandomCrop : public HostDecoder, public RandomCropAttr {
   inline ~HostDecoderRandomCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    cpt.MutableCheckpointState() = RNGSnapshot();
-  }
+  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
 
-  void RestoreState(const OpCheckpoint &cpt) override {
-    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-    RestoreRNGState(rngs);
-  }
+  void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

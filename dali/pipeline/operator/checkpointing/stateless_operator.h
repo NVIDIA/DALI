@@ -15,6 +15,8 @@
 #ifndef DALI_PIPELINE_OPERATOR_CHECKPOINTING_STATELESS_OPERATOR_H_
 #define DALI_PIPELINE_OPERATOR_CHECKPOINTING_STATELESS_OPERATOR_H_
 
+#include <string>
+
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -32,6 +34,12 @@ class StatelessOperator : public Operator<Backend> {
   void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {}
 
   void RestoreState(const OpCheckpoint &cpt) override {}
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override { return {}; }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    DALI_ENFORCE(data.empty());
+  }
 };
 
 }  // namespace dali
