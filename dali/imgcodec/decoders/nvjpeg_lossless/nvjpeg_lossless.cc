@@ -28,7 +28,7 @@ namespace dali {
 namespace imgcodec {
 
 NvJpegLosslessDecoderInstance::NvJpegLosslessDecoderInstance(
-    int device_id, const std::map<std::string, any> &params)
+    int device_id, const std::map<std::string, std::any> &params)
     : BatchedApiDecoderImpl(device_id, params),
       event_(CUDAEvent::Create(device_id)) {
   DeviceGuard dg(device_id_);

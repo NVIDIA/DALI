@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace imgcodec {
 class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  explicit LibTiffDecoderInstance(int device_id, const std::map<std::string, any> &params)
+  explicit LibTiffDecoderInstance(int device_id, const std::map<std::string, std::any> &params)
   : Base(device_id, params) {
     SetParams(params);
   }
@@ -56,7 +56,7 @@ class LibTiffDecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(
-        int device_id, const std::map<std::string, any> &params = {}) const override {
+        int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<LibTiffDecoderInstance>(device_id, params);
   }
 };

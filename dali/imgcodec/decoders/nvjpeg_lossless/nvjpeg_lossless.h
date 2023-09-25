@@ -33,7 +33,8 @@ namespace imgcodec {
 
 class DLL_PUBLIC NvJpegLosslessDecoderInstance : public BatchedApiDecoderImpl {
  public:
-  explicit NvJpegLosslessDecoderInstance(int device_id, const std::map<std::string, any> &params);
+  explicit NvJpegLosslessDecoderInstance(int device_id,
+                                         const std::map<std::string, std::any> &params);
   ~NvJpegLosslessDecoderInstance();
 
   using ImageDecoderImpl::CanDecode;
@@ -112,7 +113,7 @@ class NvJpegLosslessDecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance>
-  Create(int device_id, const std::map<std::string, any> &params = {}) const override {
+  Create(int device_id, const std::map<std::string, std::any> &params = {}) const override {
     assert(IsSupported(device_id));
     return std::make_shared<NvJpegLosslessDecoderInstance>(device_id, params);
   }

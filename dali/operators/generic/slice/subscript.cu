@@ -34,10 +34,10 @@ void TensorSubscript<GPUBackend>::RunTyped(Workspace &ws) {
     TensorListView<StorageGPU, T, ndim> tmp_out;
     vector<kernels::SliceArgs<T, ndim>> args;
   };
-  Ctx *ctx = any_cast<Ctx>(&ctx_);
+  Ctx *ctx = std::any_cast<Ctx>(&ctx_);
   if (!ctx) {
     ctx_ = Ctx();
-    ctx = &any_cast<Ctx&>(ctx_);
+    ctx = &std::any_cast<Ctx&>(ctx_);
   }
 
   ctx->tmp_in.resize(N);

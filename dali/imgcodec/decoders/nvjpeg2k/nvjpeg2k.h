@@ -34,7 +34,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
+  explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, std::any> &params);
   ~NvJpeg2000DecoderInstance();
 
   DecodeResult DecodeImplTask(int thread_idx,
@@ -53,19 +53,19 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     return BatchParallelDecoderImpl::ScheduleDecode(std::move(ctx), out, in, std::move(opts), rois);
   }
 
-  bool SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const std::any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
-      nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+      nvjpeg2k_device_memory_padding_ = std::any_cast<size_t>(value);
       return true;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
-      nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+      nvjpeg2k_host_memory_padding_ = std::any_cast<size_t>(value);
       return true;
     } else {
       return false;
     }
   }
 
-  any GetParam(const char *name) const override {
+  std::any GetParam(const char *name) const override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       return nvjpeg2k_device_memory_padding_;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
@@ -158,7 +158,7 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(
-        int device_id, const std::map<std::string, any> &params = {}) const override {
+        int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<NvJpeg2000DecoderInstance>(device_id, params);
   }
 };

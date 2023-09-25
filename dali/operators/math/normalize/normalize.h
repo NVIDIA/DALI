@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 #ifndef DALI_OPERATORS_MATH_NORMALIZE_NORMALIZE_H_
 #define DALI_OPERATORS_MATH_NORMALIZE_NORMALIZE_H_
 
+#include <any>
 #include <memory>
 #include <sstream>
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"

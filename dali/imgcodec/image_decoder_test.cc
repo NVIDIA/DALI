@@ -426,7 +426,8 @@ class ImageDecoderTest<ImageDecoderTestParams<Backend, OutputType, color_fmt>>
 
   void FilterDecoder(std::function<bool(ImageDecoderFactory *)> decoder_filter) {
     this->SetDecoder(std::make_unique<ImageDecoder>(this->GetDeviceId(), false,
-                                                    std::map<std::string, any>{}, decoder_filter));
+                                                    std::map<std::string, std::any>{},
+                                                    decoder_filter));
   }
 
   void DisableFallback() {

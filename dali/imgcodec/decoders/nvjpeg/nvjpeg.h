@@ -31,7 +31,7 @@ namespace imgcodec {
 
 class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params);
+  explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, std::any> &params);
 
   using BatchParallelDecoderImpl::CanDecode;
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override;
@@ -59,8 +59,8 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
   ~NvJpegDecoderInstance();
 
-  bool SetParam(const char *name, const any &value) override;
-  any GetParam(const char *name) const override;
+  bool SetParam(const char *name, const std::any &value) override;
+  std::any GetParam(const char *name) const override;
 
  private:
   nvjpegHandle_t nvjpeg_handle_;
@@ -138,7 +138,7 @@ class NvJpegDecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance>
-  Create(int device_id, const std::map<std::string, any> &params = {}) const override {
+  Create(int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<NvJpegDecoderInstance>(device_id, params);
   }
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 #ifndef DALI_OPERATORS_GENERIC_PAD_H_
 #define DALI_OPERATORS_GENERIC_PAD_H_
 
+#include <any>
 #include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
@@ -105,7 +105,7 @@ class Pad : public Operator<Backend> {
       kernel_sample_args_ = std::vector<Args>();
     }
 
-    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
     kernel_sample_args.clear();
     kernel_sample_args.resize(nsamples);
 
@@ -153,7 +153,7 @@ class Pad : public Operator<Backend> {
   ArgValue<float> fill_value_;
 
   kernels::KernelManager kmgr_;
-  any kernel_sample_args_;
+  std::any kernel_sample_args_;
 
   USE_OPERATOR_MEMBERS();
 };
