@@ -21,7 +21,6 @@ from nvidia.dali import pipeline_def
 from nvidia.dali.backend import TensorGPU
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import nvidia.dali.tfrecord as tfrec
 
 
 def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
@@ -103,6 +102,8 @@ def pipeline_with_variable_shape_output(batch_size):
 
 
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db', 'single', 'jpeg')
+
+
 def get_all_files_from_directory(dir_path, ext):
     file_list = []
     for root, dirs, files in os.walk(dir_path):
@@ -123,5 +124,5 @@ def iterator_function_def(shard_id=0, num_shards=1):
         labels=file_labels,
         shard_id=shard_id,
         num_shards=num_shards)
-    
+
     return labels.gpu()

@@ -52,26 +52,6 @@ def run_and_assert_sequential_iterator(iter, num_iters=4):
                     np.int32))
 
     assert batch_id == num_iters - 1
-    
-    
-def run_and_assert_sequential_iterator_file(iter):
-    """Run the iterator and assert that the output is as expected"""
-    # when
-    for batch_id, data in itertools.islice(enumerate(iter), 10):
-        jax_array = data['data']
-
-        # then
-        assert jax_array.device() == jax.devices()[0]
-
-        for i in range(batch_size):
-            assert jax.numpy.array_equal(
-                jax_array[i],
-                jax.numpy.full(
-                    sequential_dataset['sample_shape'],
-                    batch_id * batch_size + i,
-                    np.int32))
-
-    assert batch_id == 9
 
 
 def test_dali_sequential_iterator():
@@ -165,7 +145,7 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 
     # then
     run_and_assert_sequential_iterator(iter)
-    
+
     # We want to assert that the argument was actually passed. It should affect the
     # number of samples in the iterator.
     # Dataset has 47 samples, with batch_size=3 and num_shards=2, we should get 24 samples.

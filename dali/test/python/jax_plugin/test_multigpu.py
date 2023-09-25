@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import jax
 import numpy as np
 
@@ -23,7 +22,6 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-import nvidia.dali.tfrecord as tfrec
 
 from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
 from jax.experimental import mesh_utils
@@ -299,9 +297,9 @@ def test_named_sharding_workflow_with_iterator():
 
 def run_sharded_iterator_test(iterator, num_iters=11):
     assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
-    
+
     batch_size_per_gpu = batch_size // jax.device_count()
-    
+
     # Iterator should return 23 samples per shard
     assert iterator.size == 23
 
@@ -309,7 +307,7 @@ def run_sharded_iterator_test(iterator, num_iters=11):
     for batch_id, batch in itertools.islice(enumerate(iterator), num_iters):
         # then
         jax_array = batch['tensor']
-        
+
         # For 2 GPUs expected result is as follows:
         # In first iteration, first shard should be:
         # [[0]
@@ -330,7 +328,7 @@ def run_sharded_iterator_test(iterator, num_iters=11):
                         (1),
                         batch_id * batch_size_per_gpu + i + device_id * iterator.size,
                         np.int32)
-                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth), jax_array[sample_id]
+                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth)
                 sample_id += 1
 
         # Assert correct backing devices for shards

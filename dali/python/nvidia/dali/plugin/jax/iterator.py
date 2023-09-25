@@ -263,7 +263,7 @@ def data_iterator_impl(
                 pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
             else:
                 pipelines = []
-                
+
                 # Handle batch_size_per_gpu
                 global_batch_size = merged_kwargs['batch_size']
                 batch_size_per_gpu = global_batch_size // len(jax.devices())

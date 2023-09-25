@@ -192,7 +192,7 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 
     # then
     run_and_assert_sequential_iterator(iter)
-    
+
     # We want to assert that the argument was actually passed. It should affect the
     # number of samples in the iterator.
     # Dataset has 47 samples, with batch_size=3 and num_shards=2, we should get 24 samples.
