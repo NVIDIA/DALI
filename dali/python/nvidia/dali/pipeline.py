@@ -191,7 +191,7 @@ Parameters
                  *,
                  enable_memory_stats=False,
                  checkpointing=False,
-                 serialized_checkpoint=None,
+                 checkpoint_to_restore=None,
                  py_num_workers=1,
                  py_start_method="fork",
                  py_callback_pickler=None,
@@ -246,7 +246,7 @@ Parameters
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
         self._checkpointing = checkpointing
-        self._serialized_checkpoint = serialized_checkpoint
+        self._checkpoint_to_restore = checkpoint_to_restore
         self._prefetch_queue_depth = prefetch_queue_depth
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
@@ -805,8 +805,8 @@ Parameters
             self._start_py_workers()
 
     def _restore_state_from_checkpoint(self):
-        if self._serialized_checkpoint is not None:
-            self._pipe.RestoreStateFromCheckpoint(self._serialized_checkpoint)
+        if self._checkpoint_to_restore is not None:
+            self._pipe.RestoreStateFromCheckpoint(self._checkpoint_to_restore)
 
     def build(self):
         """Build the pipeline.

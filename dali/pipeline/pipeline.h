@@ -331,7 +331,7 @@ class DLL_PUBLIC Pipeline {
     auto &cpt = executor_->GetCurrentCheckpoint();
     // Make sure the checkpoint is accessible on host
     cpt.SetOrder(AccessOrder::host());
-    return cpt.SerializeToProtobuf();
+    return cpt.SerializeToProtobuf(graph_);
   }
 
   /**
@@ -339,7 +339,7 @@ class DLL_PUBLIC Pipeline {
   */
   DLL_PUBLIC void RestoreStateFromCheckpoint(const std::string &serialized_checkpoint) {
     Checkpoint cpt;
-    cpt.DeserializeFromProtobuf(serialized_checkpoint);
+    cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
     executor_->RestoreStateFromCheckpoint(cpt);
   }
 

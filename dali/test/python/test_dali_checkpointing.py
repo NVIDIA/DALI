@@ -66,7 +66,7 @@ def check_pipeline_checkpointing_native(pipeline_factory):
     for _ in range(warmup_epochs * iterations_in_epoch):
         pipe.run()
 
-    restored = pipeline_factory(**pipeline_args, serialized_checkpoint=pipe.checkpoint())
+    restored = pipeline_factory(**pipeline_args, checkpoint_to_restore=pipe.checkpoint())
     compare_pipelines(pipe, restored, pipeline_args['batch_size'], comparsion_iterations)
 
 
@@ -90,9 +90,9 @@ def check_pipeline_checkpointing_iterator(pipeline_factory):
     epochs_processed = warmup_iterations // iterations_in_epoch
     expected_outputs = outputs[epochs_processed * iterations_in_epoch:]
 
-    restored = pipeline_factory(**pipeline_args, serialized_checkpoint=iter.checkpoints()[0])
+    restored = pipeline_factory(**pipeline_args, checkpoint_to_restore=iter.checkpoints()[0])
     for batch in expected_outputs:
-        check_batch(batch, restored.run()) 
+        check_batch(batch, restored.run())
 
 
 def test_simple_cpu_pipeline():
@@ -101,7 +101,7 @@ def test_simple_cpu_pipeline():
       data, label = fn.readers.file(name="Reader", file_root=images_dir, pad_last_batch=True, random_shuffle=True)
       decoded = fn.decoders.image_random_crop(data)
       return fn.resize(decoded, resize_x=120, resize_y=90), label
-      
+
     check_pipeline_checkpointing_native(pipeline_factory)
     check_pipeline_checkpointing_iterator(pipeline_factory)
 
@@ -111,7 +111,7 @@ def test_simple_mixed_pipeline():
       data, label = fn.readers.file(name="Reader", file_root=images_dir, pad_last_batch=True, random_shuffle=True)
       decoded = fn.decoders.image_random_crop(data, device='mixed')
       return fn.resize(decoded, resize_x=120, resize_y=90), label
-      
+
     check_pipeline_checkpointing_native(pipeline_factory)
     check_pipeline_checkpointing_iterator(pipeline_factory)
 
@@ -120,5 +120,5 @@ def test_rng_cpu_pipeline():
     def pipeline_factory():
        random_data = fn.random.coin_flip(shape=[10])
        return fn.reductions.sum(random_data, axes=0)
-      
+
     check_pipeline_checkpointing_native(pipeline_factory)
