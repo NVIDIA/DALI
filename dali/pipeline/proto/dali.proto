@@ -78,7 +78,7 @@ message PipelineDef {
 message Checkpoint {
   message OpCheckpoint {
     optional string operator_name = 1;
-    optional string operator_state = 2;
+    optional bytes operator_state = 2;
   }
 
   repeated OpCheckpoint cpts = 1;
@@ -93,7 +93,7 @@ message RNGSnapshotCPU {
 
 message ReaderStateSnapshot {
   message LoaderStateSnapshot {
-    optional string rng = 1;
+    optional bytes rng = 1;
     optional int32 current_epoch = 2;
   }
   optional LoaderStateSnapshot loader_state = 1;
