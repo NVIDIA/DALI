@@ -24,6 +24,10 @@
 
 namespace dali {
 
+/**
+ * @brief An object that provides implementation of serialization/deserialization
+ *        for checkpointing.
+*/
 class DLL_PUBLIC SnapshotSerializer {
  public:
   std::string Serialize(const std::vector<std::mt19937> &snapshot);
@@ -32,6 +36,11 @@ class DLL_PUBLIC SnapshotSerializer {
 
   std::string Serialize(const LoaderStateSnapshot &snapshot);
 
+  /**
+   * @brief Deserializes string into an object.
+   *
+   * The template should be specialized for a type iff it is serialized by this object.
+  */
   template<class T> T Deserialize(const std::string &data);
 };
 
