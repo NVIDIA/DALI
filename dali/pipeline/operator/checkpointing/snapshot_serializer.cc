@@ -72,7 +72,7 @@ std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937> &snaps
   return SerializeRNG(snapshot);
 }
 
-template<>
+template<> DLL_PUBLIC
 std::vector<std::mt19937> SnapshotSerializer::Deserialize(const std::string &data) {
   return DeserializeRNG<std::mt19937>(data);
 }
@@ -81,7 +81,7 @@ std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937_64> &sn
   return SerializeRNG(snapshot);
 }
 
-template<>
+template<> DLL_PUBLIC
 std::vector<std::mt19937_64> SnapshotSerializer::Deserialize(const std::string &data) {
   return DeserializeRNG<std::mt19937_64>(data);
 }
@@ -93,7 +93,7 @@ std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot &snapshot) {
   return proto_snapshot.SerializeAsString();
 }
 
-template<>
+template<> DLL_PUBLIC
 LoaderStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
   dali_proto::ReaderStateSnapshot proto_snapshot;
   proto_snapshot.ParseFromString(data);

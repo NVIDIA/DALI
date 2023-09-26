@@ -30,18 +30,18 @@ namespace dali {
 */
 class DLL_PUBLIC SnapshotSerializer {
  public:
-  std::string Serialize(const std::vector<std::mt19937> &snapshot);
+  DLL_PUBLIC std::string Serialize(const std::vector<std::mt19937> &snapshot);
 
-  std::string Serialize(const std::vector<std::mt19937_64> &snapshot);
+  DLL_PUBLIC std::string Serialize(const std::vector<std::mt19937_64> &snapshot);
 
-  std::string Serialize(const LoaderStateSnapshot &snapshot);
+  DLL_PUBLIC std::string Serialize(const LoaderStateSnapshot &snapshot);
 
   /**
    * @brief Deserializes string into an object.
    *
    * The template should be specialized for a type iff it is serialized by this object.
   */
-  template<class T> T Deserialize(const std::string &data);
+  template<typename T> T Deserialize(const std::string &data);
 };
 
 }  // namespace dali
