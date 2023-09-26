@@ -20,8 +20,29 @@
 #include "dali/image/image_factory.h"
 #include "dali/operators/decoder/host/fused/host_decoder_random_crop.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 
 namespace dali {
+
+void HostDecoderRandomCrop::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+  cpt.MutableCheckpointState() = RNGSnapshot();
+}
+
+void HostDecoderRandomCrop::RestoreState(const OpCheckpoint &cpt) {
+  auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
+  RestoreRNGState(rngs);
+}
+
+std::string HostDecoderRandomCrop::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
+  return SnapshotSerializer().Serialize(state);
+}
+
+void
+HostDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() =
+    SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
+}
 
 DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);

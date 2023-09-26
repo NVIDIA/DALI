@@ -74,3 +74,31 @@ message PipelineDef {
   optional int32 device_id = 8 [default = 0];
   optional int64 seed = 9 [default = -1];
 }
+
+message Checkpoint {
+  message OpCheckpoint {
+    optional string operator_name = 1;
+    optional bytes operator_state = 2;
+  }
+
+  repeated OpCheckpoint cpts = 1;
+}
+
+// For stateless operators
+message StatelessOp {}
+
+message RNGSnapshotCPU {
+  repeated string rng = 1;
+}
+
+message ReaderStateSnapshot {
+  message LoaderStateSnapshot {
+    optional bytes rng = 1;
+    optional int32 current_epoch = 2;
+  }
+  optional LoaderStateSnapshot loader_state = 1;
+}
+
+message DummySnapshot {
+  repeated uint32 dummy_state = 1;
+}
