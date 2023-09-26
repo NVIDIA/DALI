@@ -64,8 +64,8 @@ void Checkpoint::DeserializeFromProtobuf(const OpGraph &graph,
   dali_proto::Checkpoint checkpoint;
   checkpoint.ParseFromString(serialized_data);
   DALI_ENFORCE(checkpoint.cpts_size() == static_cast<int>(cpts_.size()),
-               "Provided checkpoint stores state of different number of operators "
-               "than there are in the pipeline. ");
+               "The number of operators in the checkpoint differs from the number "
+               "of operators in the pipeline. ");
 
   const auto &nodes = graph.GetOpNodes();
   for (int i = 0; i < checkpoint.cpts_size(); i++) {
@@ -73,7 +73,7 @@ void Checkpoint::DeserializeFromProtobuf(const OpGraph &graph,
     const auto &name = checkpoint.cpts(i).operator_name();
     const auto &data = checkpoint.cpts(i).operator_state();
     DALI_ENFORCE(name == op_cpt.OperatorName(),
-                 "Attepted to restore state from checkpoint of another operator. "
+                 "Attempted to restore state from checkpoint of another operator. "
                  "The checkpoint might come from another pipeline. ");
     nodes[i].op->DeserializeCheckpoint(op_cpt, data);
   }

@@ -38,7 +38,9 @@ class StatelessOperator : public Operator<Backend> {
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override { return {}; }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    DALI_ENFORCE(data.empty());
+    DALI_ENFORCE(data.empty(),
+                 "Provided checkpoint contains non-empty data for a stateless operator. "
+                 "The checkpoint might come from another pipeline. ");
   }
 };
 

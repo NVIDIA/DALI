@@ -54,14 +54,12 @@ class DLL_PUBLIC Checkpoint {
   DLL_PUBLIC Index NumOp() const;
 
   /**
-   * @brief Serializes this entire object, and writes the output to the given file.
+   * @brief Serializes this entire object into a serialized protobuf message.
   */
   DLL_PUBLIC std::string SerializeToProtobuf(const OpGraph &graph) const;
 
   /**
-   * @brief Reads data from file, and deserializes, filling in this object.
-   *
-   * Deserialized Checkpoint mustn't be built again.
+   * @brief Deserializes a protobuf message and builds this object.
   */
   DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
 
