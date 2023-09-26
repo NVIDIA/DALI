@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <any>
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/float16.h"
@@ -108,7 +108,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<Out>;
     if (!kernel_args_.has_value())
       kernel_args_ = std::vector<typename Kernel::SampleArgs>{};
-    auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
+    auto &args = std::any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
 
     auto num_samples = ws.GetInputBatchSize(0);
     output_desc.resize(1);
@@ -173,7 +173,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
         kernels::slice_flip_normalize::SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>;
     if (!kernel_args_.has_value())
       kernel_args_ = typename Kernel::Args{};
-    auto &args = any_cast<typename Kernel::Args &>(kernel_args_);
+    auto &args = std::any_cast<typename Kernel::Args &>(kernel_args_);
 
     int h_dim = input_layout_.find('H');
     assert(h_dim >= 0);
@@ -266,14 +266,14 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
     if (output_type_ == DALI_FLOAT) {
       using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<float>;
 
-      auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
+      auto &args = std::any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
       auto cargs = make_cspan(args);
       RunSfnKernel<Kernel, float, uint8_t, 3>(ws, cargs);
       return;
     } else if (output_type_ == DALI_FLOAT16) {
       using Kernel = kernels::slice_flip_normalize::SliceHwc2HwcChwNormalizeGPU<float16>;
 
-      auto &args = any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
+      auto &args = std::any_cast<std::vector<typename Kernel::SampleArgs> &>(kernel_args_);
       auto cargs = make_cspan(args);
       RunSfnKernel<Kernel, float16, uint8_t, 3>(ws, cargs);
       return;
@@ -291,7 +291,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
                                                                      SpatialNdim, ChannelDim>;
             constexpr int ndim = SpatialNdim + 1;
 
-            auto &args = any_cast<typename Kernel::Args &>(kernel_args_);
+            auto &args = std::any_cast<typename Kernel::Args &>(kernel_args_);
             RunSfnKernel<Kernel, OutputType, InputType, ndim>(ws, args);
           ), DALI_FAIL(make_string("Unsupported channel dimension:", channel_dim_idx_)););  // NOLINT
         ), DALI_FAIL(make_string("Unsupported number of spatial dimensions:", spatial_ndim_)););  // NOLINT
@@ -415,7 +415,7 @@ class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
   float shift_ = 0.0f;
 
   kernels::KernelManager kmgr_;
-  any kernel_args_;
+  std::any kernel_args_;
 
   USE_OPERATOR_MEMBERS();
 };

@@ -34,7 +34,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC BatchedApiDecoderImpl : public ImageDecoderImpl {
  public:
-  explicit BatchedApiDecoderImpl(int device_id, const std::map<std::string, any> &params)
+  explicit BatchedApiDecoderImpl(int device_id, const std::map<std::string, std::any> &params)
       : ImageDecoderImpl(device_id, params) {}
 
   using ImageDecoderImpl::Decode;

@@ -44,7 +44,7 @@ int nvjpegGetVersion() {
 }  // namespace
 
 NvJpegDecoderInstance::
-NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
+NvJpegDecoderInstance(int device_id, const std::map<std::string, std::any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
@@ -180,25 +180,25 @@ bool NvJpegDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, Decode
   return !is_lossless_jpeg;
 }
 
-bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
+bool NvJpegDecoderInstance::SetParam(const char *name, const std::any &value) {
   if (strcmp(name, "device_memory_padding") == 0) {
-    device_memory_padding_ = any_cast<size_t>(value);
+    device_memory_padding_ = std::any_cast<size_t>(value);
     return true;
   } else if (strcmp(name, "host_memory_padding") == 0) {
-    host_memory_padding_ = any_cast<size_t>(value);
+    host_memory_padding_ = std::any_cast<size_t>(value);
     return true;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
-    num_threads_ = any_cast<int>(value);
+    num_threads_ = std::any_cast<int>(value);
     return true;
   } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
-    use_jpeg_fancy_upsampling_ = any_cast<bool>(value);
+    use_jpeg_fancy_upsampling_ = std::any_cast<bool>(value);
     return true;
   }
 
   return false;
 }
 
-any NvJpegDecoderInstance::GetParam(const char *name) const {
+std::any NvJpegDecoderInstance::GetParam(const char *name) const {
   if (strcmp(name, "device_memory_padding") == 0) {
     return device_memory_padding_;
   } else if (strcmp(name, "host_memory_padding") == 0) {

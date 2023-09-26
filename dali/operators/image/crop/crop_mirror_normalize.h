@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 #ifndef DALI_OPERATORS_IMAGE_CROP_CROP_MIRROR_NORMALIZE_H_
 #define DALI_OPERATORS_IMAGE_CROP_CROP_MIRROR_NORMALIZE_H_
 
+#include <any>
 #include <cstring>
 #include <utility>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
@@ -193,7 +193,7 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
     // We won't change the underlying type after the first allocation
     if (!kernel_sample_args_.has_value())
       kernel_sample_args_ = std::vector<Args>(nsamples);
-    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
     kernel_sample_args.clear();
     kernel_sample_args.reserve(nsamples);
     // Set internal info for each sample based on CropAttr
@@ -247,7 +247,7 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
   std::vector<float> mean_vec_, inv_std_vec_;
 
   kernels::KernelManager kmgr_;
-  any kernel_sample_args_;
+  std::any kernel_sample_args_;
 
   USE_OPERATOR_MEMBERS();
 };

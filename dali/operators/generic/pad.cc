@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,7 +240,7 @@ void Pad<CPUBackend>::RunImpl(Workspace &ws) {
             kernels::KernelContext ctx;
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
-            auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+            auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
             kmgr_.Run<Kernel>(i, ctx, out_view, in_view, kernel_sample_args[i]);
           }, out_shape.tensor_size(i));
       }
