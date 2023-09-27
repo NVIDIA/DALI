@@ -36,7 +36,7 @@ class HostDecoderRandomCrop : public HostDecoder, public RandomCropAttr {
   inline ~HostDecoderRandomCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 

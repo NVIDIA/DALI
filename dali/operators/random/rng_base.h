@@ -35,7 +35,7 @@ struct RNGBaseFields;
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public Operator<Backend> {
  public:
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
       cpt.MutableCheckpointState() = rng_;
     } else {

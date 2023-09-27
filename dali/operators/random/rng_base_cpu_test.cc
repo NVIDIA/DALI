@@ -63,7 +63,7 @@ class RNGCheckpointingTest : public ::testing::Test {
     // save and restore the pipeline
     auto node = original_pipe.GetOperatorNode("rng_op");
     OpCheckpoint cpt(node->spec);
-    node->op->SaveState(cpt, std::nullopt);
+    node->op->SaveState(cpt, {});
     restored_pipe.GetOperatorNode("rng_op")->op->RestoreState(cpt);
 
     // make sure the restored pipeline has the same internal state

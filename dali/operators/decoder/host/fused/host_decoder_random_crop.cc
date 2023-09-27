@@ -24,7 +24,7 @@
 
 namespace dali {
 
-void HostDecoderRandomCrop::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void HostDecoderRandomCrop::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   cpt.MutableCheckpointState() = RNGSnapshot();
 }
 

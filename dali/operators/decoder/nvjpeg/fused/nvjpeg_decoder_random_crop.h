@@ -32,7 +32,7 @@ class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 

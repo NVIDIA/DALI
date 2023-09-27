@@ -537,7 +537,7 @@ class FileReaderTest : public DALITest {
                                                            bool stick_to_shard = false) {
     auto node = pipe.GetOperatorNode("file_reader");
     OpCheckpoint cpt(node->spec);
-    node->op->SaveState(cpt, std::nullopt);
+    node->op->SaveState(cpt, {});
     EXPECT_EQ(cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
     return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
   }
