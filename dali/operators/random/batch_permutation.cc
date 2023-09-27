@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,11 @@ indexing samples in the batch.)")
   .AddOptionalArg("allow_repetitions",
       R"(If true, the output can contain repetitions and omissions.)", false)
   .AddOptionalArg("no_fixed_points", R"(If true, the the output permutation cannot contain fixed
-points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false);
+points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false)
+  .AddOptionalArg<int>("_scope", R"code(Any CPU batch to infer the current batch size from.
+
+If the operator has no other tensor inputs, this argument can serve as a source of a current
+batch size.)code", 0, true);
 
 void BatchPermutation::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);

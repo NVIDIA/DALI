@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,6 +46,10 @@ struct DefaultedArgumentDef {
   std::string doc;
   DALIDataType dtype;
   Value *default_value;
+  // As opposed to purely internal argument, the hidden argument
+  // can be specified as any other argument on per-operator basis, through Python API, etc.
+  // It is just hidden from the docs.
+  bool hidden;
 };
 
 struct DeprecatedArgDef {
@@ -63,6 +67,10 @@ enum class InputDevice : uint8_t {
   CPU = 1,
   GPU = 2,
 };
+
+inline bool HideArgument(const std::string &name) {
+  return name.size() && name[0] == '_';
+}
 
 class DLL_PUBLIC OpSchema {
  public:
@@ -304,6 +312,8 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Adds an optional non-vector argument without default to op
    *        The type can be specified as enum, nullptr_t is used for overload resolution
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   DLL_PUBLIC OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
                                       DALIDataType dtype, std::nullptr_t,
@@ -311,7 +321,9 @@ class DLL_PUBLIC OpSchema {
                                       bool support_per_frame_input = false);
 
   /**
-   * @brief Adds an optional non-vector argument without default to op
+   * @brief Adds an optional non-vector argument without default to op.
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   template <typename T>
   DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
@@ -325,6 +337,9 @@ class DLL_PUBLIC OpSchema {
 
   /**
    * @brief Adds an optional non-vector argument to op
+   *
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   template <typename T>
   DLL_PUBLIC inline std::enable_if_t<!is_vector<T>::value && !is_std_array<T>::value, OpSchema &>
@@ -336,7 +351,7 @@ class DLL_PUBLIC OpSchema {
 used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc, nullptr)`)");
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
+    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get(), HideArgument(s)};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_[s] = {support_per_frame_input};
@@ -346,12 +361,18 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**
    * @brief Adds an optional argument of type DALIDataType with a default value
+   *
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   DLL_PUBLIC OpSchema &AddOptionalTypeArg(const std::string &s, const std::string &doc,
                                           DALIDataType default_value);
 
   /**
    * @brief Adds an optional argument of type DALIDataType without a default value
+   *
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   DLL_PUBLIC OpSchema &AddOptionalTypeArg(const std::string &s, const std::string &doc);
 
@@ -360,6 +381,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**
    * @brief Adds an optional vector argument to op
+   *
+   *        If the arg name starts is with an underscore, it will be marked hidden, which
+   *        makes it not listed in the docs.
    */
   template <typename T>
   DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s, const std::string &doc,
@@ -369,7 +393,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     CheckArgument(s);
     using S = argument_storage_t<T>;
     auto to_store = Value::construct(detail::convert_vector<S>(default_value));
-    optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get()};
+    bool hide_argument = HideArgument(s);
+    optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get(), hide_argument};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_[s] = {support_per_frame_input};
@@ -704,7 +729,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   template <typename T>
   void AddInternalArg(const std::string &name, const std::string &doc, T value) {
     auto v = Value::construct(value);
-    internal_arguments_[name] = {doc, type2id<T>::value, v.get()};
+    internal_arguments_[name] = {doc, type2id<T>::value, v.get(), true};
     internal_arguments_unq_.push_back(std::move(v));
   }
 
