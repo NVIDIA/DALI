@@ -506,7 +506,6 @@ class FileReaderTest : public DALITest {
             .AddOutput("data_out", "cpu")
             .AddOutput("labels", "cpu")
             .AddArg("files", filepaths_)
-            .AddArg("checkpointing", true)
             .AddArg("pad_last_batch", true);
   }
 
@@ -556,6 +555,7 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
   constexpr int epochs = 4;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("prefetch_queue_depth", 20)
@@ -586,6 +586,7 @@ TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
   constexpr int epochs = 8;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("random_shuffle", true)
@@ -616,6 +617,7 @@ TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
   constexpr int epochs = 8;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("shuffle_after_epoch", true)
@@ -648,6 +650,7 @@ TEST_F(FileReaderTest, CheckpointingMultipleShards) {
   constexpr int num_shards = 5;
 
   auto prepare_pipeline = [this, num_shards](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("shard_id", 2)
@@ -681,6 +684,7 @@ TEST_F(FileReaderTest, CheckpointingStickStoShard) {
   constexpr int num_shards = 3;
 
   auto prepare_pipeline = [this, num_shards](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("stick_to_shard", true)
@@ -714,6 +718,7 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
   constexpr int epochs = 4;
 
   auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
     pipe.AddOperator(
         MakeOpSpec()
         .AddArg("shuffle_after_epoch", true)

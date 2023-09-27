@@ -450,6 +450,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
                   num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
                   default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
+  executor_->EnableCheckpointing(checkpointing_);
   executor_->Init();
 
   // Creating the graph
@@ -675,6 +676,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   spec->AddArg("max_batch_size", max_batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
+    .AddArg("checkpointing", checkpointing_)
     .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")

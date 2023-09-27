@@ -385,6 +385,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
+<<<<<<< HEAD
   // Create a checkpoint for the given iteration.
   auto create_checkpoint = [&](int iter) {
     auto &cpt = GetCurrentIterationData(iter).checkpoint;
@@ -398,6 +399,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   if (checkpointing_ && iteration_id == 0)
     create_checkpoint(iteration_id);
 
+=======
+>>>>>>> 34f28d63 (WIP)
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
 
@@ -544,7 +547,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
   // return the created checkpoint.
   if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
-    create_checkpoint(iteration_id + 1);
+    CreateCheckpoint(op_node, iteration_id + 1,
+                     ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
 }
 
 
@@ -697,14 +701,52 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
   /* If there is no operator with ReaderMeta, set the epoch size to 1. */
   if (checkpointing_epoch_size_ == -1)
     checkpointing_epoch_size_ = 1;
+
+  // Create initial checkpoint.
+  // This way, we make sure there is always a checkpoint that can be accessed.
+  for (const auto &node : graph_->GetOpNodes()) {
+    std::optional<cudaStream_t> stream;
+    switch (node.op_type) {
+      case OpType::CPU:
+        stream = std::nullopt;
+        break;
+      
+      case OpType::MIXED:
+        stream = mixed_op_stream_;
+        break;
+      
+      case OpType::GPU:
+        stream = gpu_op_stream_;
+        break;
+      
+      default:
+        DALI_FAIL(make_string("Operator node has unexpected type: ", static_cast<int>(node.op_type)));
+    }
+
+    CreateCheckpoint(node, 0, stream);
+  }
+
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_node,
+                                                              int iteration_id,
+                                                              std::optional<cudaStream_t> stream) {
+  auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
+  auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+  cpt.SetIterationId(iteration_id);
+  op_node.op->SaveState(op_cpt, stream);
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
+  DALI_ENFORCE(checkpointing_, "Cannot access checkpoints when checkpointing is not enabled. ");
   auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
   // Sanity check
   DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
-               "Requested checkpoint does not correspond to the matching iteration. ");
+               "The pipeline cannot be checkpointed at the given iteration. "
+               "Currently, checkpointing is supported at the end of the epoch only "
+               "(after the last batch from the epoch was consumed). ");
   return cpt;
 }
 

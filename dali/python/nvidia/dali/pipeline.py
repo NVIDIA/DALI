@@ -56,7 +56,7 @@ Parameters
     serialized pipeline (the value stored in serialized pipeline
     is used instead). In most cases, the actual batch size of the pipeline
     will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
-    is also supported. The batch size might change from iteration to iteration.
+    ism also supported. The batch size might change from iteration to iteration.
 
     Please note, that DALI might perform memory preallocations according to this
     parameter. Setting it too high might result in out-of-memory failure.
@@ -190,6 +190,8 @@ Parameters
                  default_cuda_stream_priority=0,
                  *,
                  enable_memory_stats=False,
+                 checkpointing=False,
+                 serialized_checkpoint=None,
                  py_num_workers=1,
                  py_start_method="fork",
                  py_callback_pickler=None,
@@ -243,6 +245,8 @@ Parameters
         self._parallel_input_callbacks = None
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
+        self._checkpointing = checkpointing
+        self._serialized_checkpoint = serialized_checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
@@ -709,6 +713,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
+        self._pipe.EnableCheckpointing(self._checkpointing)
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -799,6 +804,10 @@ Parameters
         if not self._py_pool_started:
             self._start_py_workers()
 
+    def _restore_state_from_checkpoint(self):
+        if self._serialized_checkpoint is not None:
+            self._pipe.RestoreStateFromCheckpoint(self._serialized_checkpoint)
+
     def build(self):
         """Build the pipeline.
 
@@ -818,6 +827,7 @@ Parameters
         self._setup_pipe_pool_dependency()
 
         self._pipe.Build(self._generate_build_args())
+        self._restore_state_from_checkpoint()
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1205,7 +1215,7 @@ Parameters
         """Serialize the pipeline to a Protobuf string.
 
         Additionally, you can pass file name, so that serialized pipeline will be written there.
-        The file contents will be overwritten
+        The file contents will be overwritten.
 
         Parameters
         ----------
@@ -1214,7 +1224,7 @@ Parameters
                 This parameter must not be set, if the pipeline outputs are specified with
                 :meth:`set_outputs`.
         filename : str
-                File, from where serialized pipeline will be writeen.
+                The file that the serialized pipeline will be written to.
         kwargs : dict
                 Refer to Pipeline constructor for full list of arguments.
         """
@@ -1285,8 +1295,10 @@ Parameters
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
+        pipeline._pipe.EnableCheckpointing(pipeline._checkpointing)
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
+        pipeline._restore_state_from_checkpoint()
         pipeline._built = True
         pipeline._deserialized = True
         pipeline._max_batch_size = kw.get("batch_size", -1)
@@ -1324,8 +1336,10 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
+        self._pipe.EnableCheckpointing(self._checkpointing)
         self._backend_prepared = True
         self._pipe.Build()
+        self._restore_state_from_checkpoint()
         self._built = True
         self._deserialized = True
 
@@ -1347,6 +1361,23 @@ Parameters
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
+
+    def checkpoint(self, filename=None):
+        """Returns the pipeline's state, as a serialized Protobuf string.
+
+        Additionally, you can pass file name, so that serialized checkpoint will be written there.
+        The file contents will be overwritten.
+
+        Parameters
+        ----------
+        filename : str
+                The file that the serialized pipeline will be written to.
+        """
+        ret = self._pipe.GetCheckpoint()
+        if filename is not None:
+            with open(filename, 'wb') as checkpoint_file:
+                checkpoint_file.write(ret)
+        return ret
 
     def set_outputs(self, *output_data_nodes):
         """Set the outputs of the pipeline.

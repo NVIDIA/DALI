@@ -202,6 +202,19 @@ class _DaliBaseIterator(object):
         self._ever_scheduled = False
         self._ever_consumed = False
 
+        self._checkpointing = self._pipes[0]._checkpointing
+        for p in self._pipes:
+            assert p._checkpointing == self._checkpointing, \
+                   "All pipelines should have the same value of the checkpointing option"
+            
+        if self._checkpointing:
+            assert self._last_batch_padded, \
+                   "Currently, checkpointing is not supported with last_batch_padded=False"
+            assert self._last_batch_policy != LastBatchPolicy.DROP, \
+                   "Currently, checkpointing is not supported with last_batch_policy=DROP"
+            self._checkpoints = [None] * len(self._pipes)
+            self._store_checkpoints()
+
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)
         shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num)
@@ -357,12 +370,21 @@ class _DaliBaseIterator(object):
 
         return should_end
 
+    def _store_checkpoints(self):
+        assert self._checkpointing, "Cannot store checkpoints with checkpointing disabled"
+        for i in len(self._pipes):
+            self._checkpoints[i] = self._pipes[i].checkpoint()
+
     def reset(self):
         """
         Resets the iterator after the full epoch.
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
+        # if the checkpointing is enabled, store the produced checkpoints in the iterator
+        if self._checkpointing:
+            self._store_checkpoints()
+
         # in the case of the DROP policy the user who runs DALI, based on the iterator length,
         # can assume there is no more data in the pipeline where there still is the last,
         # incomplete batch, we need to extract from the pipeline and drop before rising

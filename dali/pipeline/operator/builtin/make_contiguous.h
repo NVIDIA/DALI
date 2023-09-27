@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/common.h"
 
@@ -30,10 +30,10 @@
 namespace dali {
 
 template<typename Backend>
-class MakeContiguousBase : public Operator<Backend> {
+class MakeContiguousBase : public StatelessOperator<Backend> {
  public:
   inline explicit MakeContiguousBase(const OpSpec &spec) :
-      Operator<Backend>(spec) {
+      StatelessOperator<Backend>(spec) {
     std::vector<int> hints;
     GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
