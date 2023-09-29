@@ -331,7 +331,7 @@ OpSchema &OpSchema::AddOptionalArg(const std::string &s, const std::string &doc,
                                    std::nullptr_t, bool enable_tensor_input,
                                    bool support_per_frame_input) {
   CheckArgument(s);
-  optional_arguments_[s] = {doc, dtype, nullptr, HideArgument(s)};
+  optional_arguments_[s] = {doc, dtype, nullptr, ShouldHideArgument(s)};
   if (enable_tensor_input) {
     tensor_arguments_[s] = {support_per_frame_input};
   }
@@ -343,7 +343,7 @@ OpSchema &OpSchema::AddOptionalTypeArg(const std::string &s, const std::string &
                                        DALIDataType default_value) {
   CheckArgument(s);
   auto to_store = Value::construct(default_value);
-  optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get(), HideArgument(s)};
+  optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get(), ShouldHideArgument(s)};
   optional_arguments_unq_.push_back(std::move(to_store));
   return *this;
 }

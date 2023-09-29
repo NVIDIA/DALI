@@ -68,10 +68,6 @@ enum class InputDevice : uint8_t {
   GPU = 2,
 };
 
-inline bool HideArgument(const std::string &name) {
-  return name.size() && name[0] == '_';
-}
-
 class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
@@ -351,7 +347,7 @@ class DLL_PUBLIC OpSchema {
 used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc, nullptr)`)");
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
-    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get(), HideArgument(s)};
+    optional_arguments_[s] = {doc, type2id<T>::value, to_store.get(), ShouldHideArgument(s)};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
       tensor_arguments_[s] = {support_per_frame_input};
@@ -393,7 +389,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     CheckArgument(s);
     using S = argument_storage_t<T>;
     auto to_store = Value::construct(detail::convert_vector<S>(default_value));
-    bool hide_argument = HideArgument(s);
+    bool hide_argument = ShouldHideArgument(s);
     optional_arguments_[s] = {doc, type2id<std::vector<T>>::value, to_store.get(), hide_argument};
     optional_arguments_unq_.push_back(std::move(to_store));
     if (enable_tensor_input) {
@@ -714,6 +710,10 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   DLL_PUBLIC bool ArgSupportsPerFrameInput(const std::string &arg_name) const;
 
  private:
+  static inline bool ShouldHideArgument(const std::string &name) {
+    return name.size() && name[0] == '_';
+  }
+
   const TensorArgDesc *FindTensorArgument(const std::string &name) const;
 
   void CheckArgument(const std::string &s);
