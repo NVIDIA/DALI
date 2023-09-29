@@ -184,7 +184,7 @@ class CheckpointTest : public DALITest {
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
       ASSERT_EQ(original_graph.Node(i).spec.name(),
                 checkpoint.GetOpCheckpoint(i).OperatorName());
-      original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i), 
+      original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i),
                                            AccessOrder(this->stream_.get()));
     }
 
