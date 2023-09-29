@@ -56,7 +56,7 @@ Parameters
     serialized pipeline (the value stored in serialized pipeline
     is used instead). In most cases, the actual batch size of the pipeline
     will be equal to the maximum one. Running the DALI Pipeline with a smaller batch size
-    ism also supported. The batch size might change from iteration to iteration.
+    is also supported. The batch size might change from iteration to iteration.
 
     Please note, that DALI might perform memory preallocations according to this
     parameter. Setting it too high might result in out-of-memory failure.
@@ -110,6 +110,12 @@ Parameters
 `enable_memory_stats`: bool, optional, default = 1
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
+`enable_checkpointing`: bool, optional, default = 0
+    Experimental feature: When enabled, DALI produces checkpoints, which allow to save
+    and later resume the training.
+`checkpoint`: str, optional, default = None
+    Experimental feature: Serialized checkpoint, received using ``checkpoint()`` method.
+    When pipeline is built, it's state is restored from the checkpoint.
 `py_num_workers`: int, optional, default = 1
     The number of Python workers that will process ``ExternalSource`` callbacks.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
@@ -190,8 +196,8 @@ Parameters
                  default_cuda_stream_priority=0,
                  *,
                  enable_memory_stats=False,
-                 checkpointing=False,
-                 checkpoint_to_restore=None,
+                 enable_checkpointing=False,
+                 checkpoint=None,
                  py_num_workers=1,
                  py_start_method="fork",
                  py_callback_pickler=None,
@@ -245,8 +251,8 @@ Parameters
         self._parallel_input_callbacks = None
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
-        self._checkpointing = checkpointing
-        self._checkpoint_to_restore = checkpoint_to_restore
+        self._enable_checkpointing = enable_checkpointing
+        self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
@@ -713,7 +719,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._checkpointing)
+        self._pipe.EnableCheckpointing(self._enable_checkpointing)
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -805,8 +811,8 @@ Parameters
             self._start_py_workers()
 
     def _restore_state_from_checkpoint(self):
-        if self._checkpoint_to_restore is not None:
-            self._pipe.RestoreStateFromCheckpoint(self._checkpoint_to_restore)
+        if self._checkpoint is not None:
+            self._pipe.RestoreStateFromCheckpoint(self._checkpoint)
 
     def build(self):
         """Build the pipeline.
@@ -1295,7 +1301,7 @@ Parameters
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
-        pipeline._pipe.EnableCheckpointing(pipeline._checkpointing)
+        pipeline._pipe.EnableCheckpointing(pipeline._enable_checkpointing)
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._restore_state_from_checkpoint()
@@ -1336,7 +1342,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
-        self._pipe.EnableCheckpointing(self._checkpointing)
+        self._pipe.EnableCheckpointing(self._enable_checkpointing)
         self._backend_prepared = True
         self._pipe.Build()
         self._restore_state_from_checkpoint()

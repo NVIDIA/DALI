@@ -202,16 +202,19 @@ class _DaliBaseIterator(object):
         self._ever_scheduled = False
         self._ever_consumed = False
 
-        self._checkpointing = self._pipes[0]._checkpointing
+        self._enable_checkpointing = self._pipes[0]._enable_checkpointing
         for p in self._pipes:
-            assert p._checkpointing == self._checkpointing, \
-                   "All pipelines should have the same value of the checkpointing option"
+            if p._enable_checkpointing != self._enable_checkpointing:
+                   raise ValueError("All pipelines should have the same value of the checkpointing option")
 
-        if self._checkpointing:
-            assert self._last_batch_padded, \
-                   "Currently, checkpointing is not supported with last_batch_padded=False"
-            assert self._last_batch_policy != LastBatchPolicy.DROP, \
-                   "Currently, checkpointing is not supported with last_batch_policy=DROP"
+        if self._enable_checkpointing:
+            # Note: currenty, checkpointing is not supported with last_batch_padded=False.
+            # It is verified in FileReader, where this assumption is needed.
+            # Adding this assertion here lead to problem when reader was not used in the pipeline.
+
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                raise NotImplementedError(
+                    "Currently, checkpointing is not supported with last_batch_policy=DROP")
 
             # Precompute the initial checkpoints, to prevent any problems
             # related to the `prepare_first_batch` flag.
@@ -374,10 +377,10 @@ class _DaliBaseIterator(object):
 
     def checkpoints(self):
         """
-        Returns the current checkpoint.
+        Returns the current checkpoints of the pipelines.
         Can only be called between the epochs (or before the first epoch).
         """
-        assert self._checkpointing, "Cannot access checkpoints with checkpointing disabled"
+        assert self._enable_checkpointing, "Cannot access checkpoints with checkpointing disabled"
         if not self._ever_consumed:
             return self._initial_checkpoints
         else:
