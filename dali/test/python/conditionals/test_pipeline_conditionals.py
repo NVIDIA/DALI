@@ -865,6 +865,84 @@ def test_named_tensor_arguments(op):
         pipe.run()
 
 
+@params((32, 0), (32, 1), (32, 7), (32, 16), (32, 31), (32, 32))
+def test_simple_batch_permute(batch_size, permute_prefix):
+    """
+    Permute `permute_prefix` of the batch and leave the remaining part untouched
+    """
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    def pipeline():
+        sample_idx = fn.external_source(
+            lambda sample_info: np.array(sample_info.idx_in_batch, dtype=np.int32), batch=False)
+        if sample_idx < permute_prefix:
+            sample_idx = fn.batch_permutation()
+        return sample_idx
+
+    p = pipeline()
+    p.build()
+
+    for _ in range(3):
+        sample_indices, = p.run()
+        sample_indices = [np.array(sample).item() for sample in sample_indices]
+        permuted_prefix = sample_indices[:permute_prefix]
+        expected_prefix = list(range(permute_prefix))
+        untouched_suffix = sample_indices[permute_prefix:]
+        expected_suffix = list(range(permute_prefix, batch_size))
+        assert sorted(permuted_prefix) == expected_prefix, \
+            f"expected permuted prefix `{permuted_prefix}` to contain the " \
+            f"following samples {expected_prefix}"
+        assert untouched_suffix == expected_suffix, \
+            f"expected untouched suffix `{untouched_suffix}` to be exactly " \
+            f"{expected_suffix}"
+
+
+# the fn.batch_permutation is special operator in the context of the
+# conditional execution, as it relies on the local batch size to generate
+# valid permutation for the split batch, while it does not accept explicitly
+# any arguments to infer the local batch size from
+@params((7, 1), (1, 1), (16, 2), (16, 3), (101, 3))
+def test_batch_permutation(batch_size, num_split_level):
+    """
+    Split the batch into `2**num_split_level` random groups and permute
+    the groups separately
+    """
+
+    def split_and_permute(batch, num_levels, group=0):
+        assert num_levels >= 0
+        if num_levels == 0:
+            return fn.permute_batch(batch, indices=fn.batch_permutation()), group
+        else:
+            if fn.random.coin_flip():
+                return split_and_permute(batch, num_levels - 1, group)
+            else:
+                return split_and_permute(batch, num_levels - 1, group + 2**(num_levels - 1))
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    def pipeline():
+        sample_idx = fn.external_source(lambda sample_info: np.array(sample_info.idx_in_batch),
+                                        batch=False)
+        sample_idx, group = split_and_permute(sample_idx, num_split_level)
+        return sample_idx, group
+
+    p = pipeline()
+    p.build()
+
+    for _ in range(3):
+        sample_indices, groups = p.run()
+        sample_idx = [np.array(sample).item() for sample in sample_indices]
+        group = [np.array(sample).item() for sample in groups]
+        groups = {i: ([], []) for i in range(2**num_split_level)}
+
+        for group_idx in range(batch_size):
+            got, expected = groups[group[group_idx]]
+            got.append(sample_idx[group_idx])
+            expected.append(group_idx)
+
+        for group_idx, (got, expected) in groups.items():
+            assert sorted(got) == expected, f"{group_idx}: {got} vs {expected}"
+
+
 def test_error_condition():
     kwargs = {
         "enable_conditionals": True,
