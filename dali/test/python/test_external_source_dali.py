@@ -418,6 +418,15 @@ def test_layout_changing():
     src_pipe.run()
 
 
+def test_layout_set_as_arg():
+    src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
+    src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))])
+    out, = src_pipe.run()
+    assert out.layout() == "H"
+
+
 def _test_partially_utilized_external_source_warning(usage_mask, source_type):
     np_rng = np.random.default_rng(12345)
     max_batch_size = 8
