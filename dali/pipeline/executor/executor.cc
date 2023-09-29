@@ -385,22 +385,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-<<<<<<< HEAD
-  // Create a checkpoint for the given iteration.
-  auto create_checkpoint = [&](int iter) {
-    auto &cpt = GetCurrentIterationData(iter).checkpoint;
-    auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
-    cpt.SetIterationId(iter);
-    op_node.op->SaveState(op_cpt, ws.output_order());
-  };
-
-  // If it is the first iteration, create initial checkpoint.
-  // This way, we make sure there is always a checkpoint that can be accessed.
-  if (checkpointing_ && iteration_id == 0)
-    create_checkpoint(iteration_id);
-
-=======
->>>>>>> 34f28d63 (WIP)
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
 

@@ -208,7 +208,7 @@ class _DaliBaseIterator(object):
                    raise ValueError("All pipelines should have the same value of the checkpointing option")
 
         if self._enable_checkpointing:
-            # Note: currenty, checkpointing is not supported with last_batch_padded=False.
+            # Note: currently, checkpointing is not supported with last_batch_padded=False.
             # It is verified in FileReader, where this assumption is needed.
             # Adding this assertion here lead to problem when reader was not used in the pipeline.
 
