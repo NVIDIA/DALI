@@ -161,7 +161,7 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
 }
 
 int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
-    while (decoder_) {
+    if (decoder_) {
         if ((format->codec != decoder_info_.CodecType) ||
             (format->chroma_format != decoder_info_.ChromaFormat)) {
             DALI_FAIL("Encountered a dynamic video format change.");
@@ -169,7 +169,6 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         if (format->bit_depth_chroma_minus8 != decoder_info_.bitDepthMinus8) {
             NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
             decoder_ = {};
-            break;
         } else if ((format->coded_width != decoder_info_.ulWidth) ||
             (format->coded_height != decoder_info_.ulHeight)) {
             if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
@@ -179,8 +178,10 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
              DALI_FAIL("Encountered a dynamic video resolution change. Install Nvidia driver"
                        " version >=396 (x86) or >=415 (Power PC)");
             }
+            return 1;
+        } else {
+            return 1;
         }
-        return 1;
     }
 
     LOG_LINE << "Hardware Decoder Input Information" << std::endl
