@@ -291,7 +291,7 @@ def _process_inputs(schema, spec, inputs, operator_name):
         if not isinstance(inp, _DataNode):
             raise TypeError(f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
         spec.AddInput(inp.name, inp.device)
-    return inputs
+    return list(inputs)
 
 
 def _add_spec_args(schema, spec, kwargs):
@@ -337,7 +337,7 @@ class _OperatorInstance(object):
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
-            _conditionals.inject_implicit_scope_argument(op._schema, arguments)
+            _conditionals.inject_implicit_scope_argument(op._schema, arg_inputs)
 
         self._process_instance_name(arguments)
         _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
@@ -483,6 +483,10 @@ def python_op_factory(name, schema_name=None):
 
             # Process the first part of arguments, due to the historical reasons
             # we need to do it in __init__ for error reporting
+            # TODO(klecki): Get rid of two-stage adding of scalar arguments - we can do it
+            # but the error message would be worse or delayed.
+            # Name is handled in the op instance, keep it for later.
+            self._name = self._init_args.pop("name", None)
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
 
         @property
@@ -512,6 +516,8 @@ def python_op_factory(name, schema_name=None):
             # Due to the fact that we already handled *some* args in init, we need to keep only
             # the new ones.
             args = _resolve_double_definitions(args, self._init_args, keep_old=False)
+            if self._name is not None:
+                args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
 
             # Adding argument inputs is fully delayed into call, so we just do the check
             arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
