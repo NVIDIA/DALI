@@ -144,7 +144,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     return init_args, call_args
 
 
-def _handle_deprecations(schema, kwargs, op_name):
+def _handle_arg_deprecations(schema, kwargs, op_name):
     """Handle deprecation of the named arguments (scalar arguments and argument inputs) specified
     to the operator.
 
@@ -189,6 +189,21 @@ def _handle_deprecations(schema, kwargs, op_name):
     return kwargs
 
 
+def _handle_op_deprecation(schema, op_name):
+    if schema.IsDeprecated():
+        # TODO(klecki): how to know if this is fn or ops?
+        msg = "WARNING: `{}` is now deprecated".format(_op_name(op_name, "fn"))
+        use_instead = _op_name(schema.DeprecatedInFavorOf(), "fn")
+        if use_instead:
+            msg += ". Use `" + use_instead + "` instead."
+        explanation = schema.DeprecationMessage()
+        if explanation:
+            msg += "\n" + explanation
+        with warnings.catch_warnings():
+            warnings.simplefilter("default")
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
+
 def _resolve_double_definitions(current, previous, keep_old=True):
     """Unify the arguments (or argument inputs) between __call__ and __init__ - ops API only.
 
@@ -210,53 +225,40 @@ def _resolve_double_definitions(current, previous, keep_old=True):
     Dict
         Merged dictionaries after error handling.
     """
-    # Potential compatibility issue: in theory we can do it for init arguments as well,
-    # now they are just processed twice. For arguments it will be handled by the backend though,
-    # so extending this to handle both won't be an issue. It will possibly return a better error
-    # message than: arg is already specified.
-    result = {**previous}  # copy the dict
+    merged_result = {**previous}  # copy the dict
+    new_result = {}
     for k, v in current.items():
         if v is None:
             # if an argument was specified in __init__ and in __call__ it is None, ignore it
             continue
         if k in previous:
             raise ValueError(f"The argument `{k}` was already specified in __init__.")
-        result[k] = v
+        merged_result[k] = v
+        new_result[k] = v
 
     if keep_old:
-        return result
+        return merged_result
     else:
-        return result - previous
-
-
-
+        return new_result
 
 
 def _process_arguments(schema, spec, kwargs, operator_name):
-    kwargs = _handle_deprecations(schema, kwargs, operator_name)
+    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling
+    """
+    kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
     _add_spec_args(schema, spec, kwargs)
 
 
 def _process_argument_inputs(schema, spec, kwargs, operator_name):
-    """_summary_
-
-    Parameters
-    ----------
-    schema : _type_
-        _description_
-    spec : _type_
-        _description_
-    kwargs : _type_
-        _description_
-    operator_name : _type_
-        _description_
+    """Process argument inputs: validate, deprecate, promote constants, add to spec and return the
+    list of DataNodes that need to be kept alive for the graph to exist.
 
     Returns
     -------
     List
         the list of DataNodes representing inputs (there may be conversions)
     """
-    kwargs = _handle_deprecations(schema, kwargs, operator_name)
+    kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
     # Add argument inputs
     result = []
     for k in sorted(kwargs.keys()):
@@ -270,14 +272,19 @@ def _process_argument_inputs(schema, spec, kwargs, operator_name):
         _check_arg_input(schema, operator_name, k)
 
         spec.AddArgumentInput(k, arg_inp.name)
-        # TODO(klecki): Hmm, keeping those alive and ready for traversal
-        # self._inputs = list(self._inputs) + [arg_inp]
         result.append(arg_inp)
     return result
 
 
 def _process_inputs(schema, spec, inputs, operator_name):
-    # Add inputs
+    """Process inputs: validate, add to spec and return the list of DataNodes that need to be kept
+    alive for the graph to exist.
+
+    Returns
+    -------
+    List
+        the list of DataNodes representing inputs (there may be conversions)
+    """
     if not inputs:
         return []
     for inp in inputs:
@@ -304,6 +311,21 @@ def _add_spec_args(schema, spec, kwargs):
 
 
 class _OperatorInstance(object):
+    """Class representing the operator node in DALI Pipeline/graph.
+    The entry point accepts grouped arguments: inputs (positional arguments with DataNodes),
+    arguments (dictionary with scalar values), and argument inputs (dictionary with DataNodes).
+
+    It is responsible for the full* validation of the three input/argument kinds and their
+    additional processing (scalar promotions, deprecations and renaming, splitting for conditionals)
+
+    Each "_process_[arguments/inputs]" step adds them to the OpSpec specifying the operator for
+    the C++ backend.
+
+    Parameters
+    ----------
+    object : _type_
+        _description_
+    """
 
     def __init__(self, inputs, arguments, arg_inputs, op):
         self._counter = _OpCounter()
@@ -311,9 +333,11 @@ class _OperatorInstance(object):
         self._op = op
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
+        # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
+            _conditionals.inject_implicit_scope_argument(op._schema, arguments)
 
         self._process_instance_name(arguments)
         _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
@@ -322,27 +346,11 @@ class _OperatorInstance(object):
         self._inputs += _process_argument_inputs(op._schema, self._spec, arg_inputs,
                                                  type(op).__name__)
 
-        # TODO: move deprecation out of the instance.
-        if self._op.schema.IsDeprecated():
-            # TODO(klecki): how to know if this is fn or ops?
-            msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
-            use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
-            if use_instead:
-                msg += ". Use `" + use_instead + "` instead."
-            explanation = self._op.schema.DeprecationMessage()
-            if explanation:
-                msg += "\n" + explanation
-            with warnings.catch_warnings():
-                warnings.simplefilter("default")
-                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+        _handle_op_deprecation(self._op.schema, type(op).__name__)
 
         self._generate_outputs()
 
         if _conditionals.conditionals_enabled():
-            # TODO(klecki): Test conditionals with MIS
-            # if len(op_instances) != 1:
-            #     raise ValueError("Multiple input sets are not supported with conditional"
-            #                         " execution (when `enable_conditionals=True`)")
             _conditionals.register_data_nodes(self.outputs, inputs, arg_inputs)
 
     def check_args(self):
@@ -501,9 +509,6 @@ def python_op_factory(name, schema_name=None):
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
             input_sets = _build_input_sets(inputs, self.__class__.__name__)
 
-            if _conditionals.conditionals_enabled():
-                self._inject_implicit_scope_argument(kwargs)
-
             args, arg_inputs = _separate_kwargs(kwargs)
 
             # Due to the fact that we already handled *some* args in init, we need to keep only
@@ -513,7 +518,8 @@ def python_op_factory(name, schema_name=None):
             # Adding argument inputs is fully delayed into call, so we just do the check
             arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
 
-            # Create OperatorInstance for every input set
+            # Create OperatorInstance for every input set.
+            # OperatorInstance handles the creation of OpSpec and generation of output DataNodes
             op_instances = []
             for input_set in input_sets:
                 op_instances.append(_OperatorInstance(input_set, args, arg_inputs, self))
@@ -541,19 +547,6 @@ def python_op_factory(name, schema_name=None):
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                     f"but received {len(inputs)}.")
 
-        def _inject_implicit_scope_argument(self, kwargs):
-            """
-            Adds hidden _scope argument to the inputless operators whose outputs for
-            any given sample depend on the actual batch size, e.g. fn.batch_permutation.
-            """
-            # TODO(ktokarski) Consider optimizing the case - the implicit `_scope` argument is not
-            # needed if operator can accept any other positional/tensor argument and any such
-            # arg was specified. For now, the ops that use the _scope arg (ImplicitScopeAttr schema)
-            # do not have any other tensor inputs.
-            if self._schema.HasArgument("_scope"):
-                conditional_scope = _conditionals.this_condition_stack()
-                scope_masked_batch = conditional_scope.scope_batch_size_tracker()
-                kwargs["_scope"] = scope_masked_batch
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__

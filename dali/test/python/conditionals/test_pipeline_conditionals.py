@@ -1075,3 +1075,30 @@ def test_sanity_enable_conditionals():
     pipe = pipeline(10, enable_conditionals=True, b=4, **kwargs)
     pipe.build()
     pipe.run()
+
+
+
+def test_multiple_input_source():
+
+    batch_size=16
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
+    def pipeline():
+        sample_idx = fn.external_source(
+            lambda sample_info: np.array(sample_info.idx_in_batch, dtype=np.int32), batch=False)
+
+        const_42 = types.Constant(np.uint8([42]), device="cpu")
+        if sample_idx < batch_size / 2:
+            out_42_scoped, out_idx_scoped = fn.copy([const_42 + 0, sample_idx])
+        else:
+            out_42_scoped = types.Constant(np.uint8([0]), device="cpu")
+            out_idx_scoped = types.Constant(np.uint8([0]), device="cpu")
+
+        return out_42_scoped, out_idx_scoped
+
+    pipe = pipeline()
+    pipe.build()
+    for _ in range(4):
+        out_42, out_idx = pipe.run()
+        check_batch(out_42, [42 if i < (batch_size / 2) else 0 for i in range(batch_size)])
+        check_batch(out_idx, [i if i < (batch_size / 2) else 0 for i in range(batch_size)])

@@ -81,7 +81,9 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
                 raise TypeError(f"Expected inputs of type `DataNode`. "
                                 f"Received input of type '{type(inp).__name__}'. "
                                 f"Python Operators do not support Multiple Input Sets.")
-        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
+
+        args, arg_inputs = ops._separate_kwargs(kwargs)
+        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
         op_instance.spec.AddArg("device", self.device)

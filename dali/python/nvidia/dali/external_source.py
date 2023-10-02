@@ -617,7 +617,7 @@ Keyword Args
                  prefetch_queue_depth=None, bytes_per_sample_hint=None, batch_info=None,
                  repeat_last=False, **kwargs):
         ""
-        from nvidia.dali.ops import _OperatorInstance
+        from nvidia.dali.ops import _OperatorInstance, _separate_kwargs
         if batch_info is None:
             batch_info = self._batch_info or False
         elif self._batch_info is not None:
@@ -793,7 +793,9 @@ Keyword Args
                     else:
                         this_layout = layout
                     kwargs['layout'] = this_layout
-                op_instance = _OperatorInstance([], self, **kwargs)
+
+                args, arg_inputs = _separate_kwargs(kwargs)
+                op_instance = _OperatorInstance([], args, arg_inputs, self)
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
@@ -814,7 +816,9 @@ Keyword Args
                 kwargs['ndim'] = ndim
             if layout is not None:
                 kwargs['layout'] = layout
-            op_instance = _OperatorInstance([], self, **kwargs)
+
+            args, arg_inputs = _separate_kwargs(kwargs)
+            op_instance = _OperatorInstance([], args, arg_inputs, self)
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(callback, source_desc, False, [op_instance],

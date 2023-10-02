@@ -417,6 +417,21 @@ def register_data_nodes(data_node, inputs=[], args={}):
     this_condition_stack().register_data_nodes(data_node, global_scope=not any_input)
 
 
+def inject_implicit_scope_argument(schema, kwargs):
+    """
+    Adds hidden _scope argument to the inputless operators whose outputs for
+    any given sample depend on the actual batch size, e.g. fn.batch_permutation.
+    """
+    # TODO(ktokarski) Consider optimizing the case - the implicit `_scope` argument is not
+    # needed if operator can accept any other positional/tensor argument and any such
+    # arg was specified. For now, the ops that use the _scope arg (ImplicitScopeAttr schema)
+    # do not have any other tensor inputs.
+    if schema.HasArgument("_scope"):
+        conditional_scope = this_condition_stack()
+        scope_masked_batch = conditional_scope.scope_batch_size_tracker()
+        kwargs["_scope"] = scope_masked_batch
+
+
 def apply_conditional_split(input):
     """Preprocess the DataNode to obtain correctly split batch for the current if scope."""
     return this_condition_stack().preprocess_input(input)

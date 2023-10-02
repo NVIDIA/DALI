@@ -77,7 +77,8 @@ class _TFRecordReaderImpl():
                 f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                 f"but received {len(inputs)}.")
 
-        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
+        args, arg_inputs = ops._separate_kwargs(kwargs)
+        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self)
         outputs = {}
         feature_names = []
         features = []
