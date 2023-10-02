@@ -324,22 +324,40 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
-   * @brief Returns serialized Checkpoint
+   * @brief Returns a serialized Checkpoint
    */
-  DLL_PUBLIC string GetCheckpoint() const {
+  DLL_PUBLIC string SerializedCheckpoint() const {
+    return GetCheckpoint().SerializeToProtobuf(graph_);
+  }
+
+  /**
+   * @brief Returns an unserialized Checkpoint
+  */
+  DLL_PUBLIC Checkpoint GetCheckpoint() const {
     DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
     auto &cpt = executor_->GetCurrentCheckpoint();
     // Make sure the checkpoint is accessible on host
     cpt.SetOrder(AccessOrder::host());
-    return cpt.SerializeToProtobuf(graph_);
+    return cpt;
   }
 
   /**
    * @brief Restores pipeline state from a serialized Checkpoint
+   * 
+   * Should be called before building.
   */
-  DLL_PUBLIC void RestoreStateFromCheckpoint(const std::string &serialized_checkpoint) {
+  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
     Checkpoint cpt;
     cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
+    RestoreFromCheckpoint(cpt);
+  }
+
+  /**
+   * @brief Restores pipeline state from an unserialized Checkpoint
+   * 
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromCheckpoint(const Checkpoint &cpt) {
     executor_->RestoreStateFromCheckpoint(cpt);
   }
 

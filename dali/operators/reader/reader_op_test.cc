@@ -531,19 +531,14 @@ class FileReaderTest : public DALITest {
     return result;
   }
 
-  std::pair<vector<uint8_t>, OpCheckpoint> CheckpointEpoch(Pipeline &pipe, int batch_size,
+  std::pair<vector<uint8_t>, Checkpoint> CheckpointEpoch(Pipeline &pipe, int batch_size,
                                                            int epoch_nr, int num_shards = 1,
                                                            bool stick_to_shard = false) {
+    auto cpt = pipe.GetCheckpoint();
     auto node = pipe.GetOperatorNode("file_reader");
-    OpCheckpoint cpt(node->spec);
-    node->op->SaveState(cpt, {});
-    EXPECT_EQ(cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
+    auto &op_cpt = cpt.GetOpCheckpoint(node->id);
+    EXPECT_EQ(op_cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
     return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
-  }
-
-  void RestoreCheckpointedState(Pipeline &pipe, const OpCheckpoint &cpt) {
-    auto node = pipe.GetOperatorNode("file_reader");
-    node->op->RestoreState(cpt);
   }
 
  protected:
@@ -566,7 +561,7 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
     results.push_back(res);
@@ -576,7 +571,7 @@ TEST_F(FileReaderTest, SimpleCheckpointing) {
   for (int i = 0; i < epochs; i++) {
     Pipeline fresh_pipe(batch_size, 1, 0);
     prepare_pipeline(fresh_pipe);
-    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
     EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
   }
 }
@@ -597,7 +592,7 @@ TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
     results.push_back(res);
@@ -607,7 +602,7 @@ TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
   for (int i = 0; i < epochs; i++) {
     Pipeline fresh_pipe(batch_size, 1, 0);
     prepare_pipeline(fresh_pipe);
-    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
     EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
   }
 }
@@ -629,7 +624,7 @@ TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
     results.push_back(res);
@@ -639,7 +634,7 @@ TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
   for (int i = 0; i < epochs; i++) {
     Pipeline fresh_pipe(batch_size, 1, 0);
     prepare_pipeline(fresh_pipe);
-    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
     EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
   }
 }
@@ -663,7 +658,7 @@ TEST_F(FileReaderTest, CheckpointingMultipleShards) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i, num_shards);
     results.push_back(res);
@@ -673,7 +668,7 @@ TEST_F(FileReaderTest, CheckpointingMultipleShards) {
   for (int i = 0; i < epochs; i++) {
     Pipeline fresh_pipe(batch_size, 1, 0);
     prepare_pipeline(fresh_pipe);
-    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
     EXPECT_EQ(RunEpoch(fresh_pipe, batch_size, num_shards), results[i]);
   }
 }
@@ -697,7 +692,7 @@ TEST_F(FileReaderTest, CheckpointingStickStoShard) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i, num_shards, true);
     results.push_back(res);
@@ -707,7 +702,7 @@ TEST_F(FileReaderTest, CheckpointingStickStoShard) {
   for (int i = 0; i < epochs; i++) {
     Pipeline fresh_pipe(batch_size, 1, 0);
     prepare_pipeline(fresh_pipe);
-    RestoreCheckpointedState(fresh_pipe, checkpoints[i]);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
     EXPECT_EQ(RunEpoch(fresh_pipe, batch_size, num_shards, true), results[i]);
   }
 }
@@ -730,7 +725,7 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
   Pipeline pipe(batch_size, 1, 0);
   prepare_pipeline(pipe);
   std::vector<std::vector<uint8_t>> results;
-  std::vector<OpCheckpoint> checkpoints;
+  std::vector<Checkpoint> checkpoints;
   for (int i = 0; i < epochs; i++) {
     auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
     results.push_back(res);
@@ -740,9 +735,9 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
   for (int i = 0; i < epochs; i++) {
     Pipeline intermediate_pipe(batch_size, 1, 0);
     prepare_pipeline(intermediate_pipe);
-    RestoreCheckpointedState(intermediate_pipe, checkpoints[i]);
+    intermediate_pipe.RestoreFromCheckpoint(checkpoints[i]);
 
-    std::vector<OpCheckpoint> cpts_after_resume;
+    std::vector<Checkpoint> cpts_after_resume;
     for (int j = 0; i + j < epochs; j++) {
       auto [res, cpt] = CheckpointEpoch(intermediate_pipe, batch_size, i + j);
       EXPECT_EQ(res, results[i + j]);
@@ -752,7 +747,7 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
     for (int j = 0; i + j < epochs; j++) {
       Pipeline fresh_pipe(batch_size, 1, 0);
       prepare_pipeline(fresh_pipe);
-      RestoreCheckpointedState(fresh_pipe, cpts_after_resume[j]);
+      fresh_pipe.RestoreFromCheckpoint(cpts_after_resume[j]);
       EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i + j]);
     }
   }

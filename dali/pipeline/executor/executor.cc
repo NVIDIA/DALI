@@ -531,8 +531,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
   // return the created checkpoint.
   if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
-    CreateCheckpoint(op_node, iteration_id + 1,
-                     ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
+    CreateCheckpoint(op_node, iteration_id + 1, ws.output_order());
 }
 
 
@@ -670,7 +669,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     if (meta.epoch_size_padded <= 0)
       continue;
 
-    int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
+    int shards = meta.number_of_shards;
+    int local_samples_per_epoch = (meta.epoch_size_padded + shards - 1) / shards;
+    int local_epoch_size = (local_samples_per_epoch + max_batch_size_ - 1) / max_batch_size_;
     if (checkpointing_epoch_size_ == -1) {
       checkpointing_epoch_size_ = local_epoch_size;
       reader_name = node.spec.name();
@@ -688,38 +689,42 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
 
   // Create initial checkpoint.
   // This way, we make sure there is always a checkpoint that can be accessed.
+  CreateInitialCheckpoints();
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_node,
+                                                              int iteration_id,
+                                                              AccessOrder order) {
+  auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
+  auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+  cpt.SetIterationId(iteration_id);
+  op_node.op->SaveState(op_cpt, order);
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::CreateInitialCheckpoints() {
   for (const auto &node : graph_->GetOpNodes()) {
-    std::optional<cudaStream_t> stream;
+    AccessOrder order;
     switch (node.op_type) {
       case OpType::CPU:
-        stream = std::nullopt;
+        order = {};
         break;
       
       case OpType::MIXED:
-        stream = mixed_op_stream_;
+        order = AccessOrder(mixed_op_stream_);
         break;
       
       case OpType::GPU:
-        stream = gpu_op_stream_;
+        order = AccessOrder(gpu_op_stream_);
         break;
       
       default:
         DALI_FAIL(make_string("Operator node has unexpected type: ", static_cast<int>(node.op_type)));
     }
 
-    CreateCheckpoint(node, 0, stream);
+    CreateCheckpoint(node, 0, order);
   }
-
-}
-
-template<typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_node,
-                                                              int iteration_id,
-                                                              std::optional<cudaStream_t> stream) {
-  auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
-  auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
-  cpt.SetIterationId(iteration_id);
-  op_node.op->SaveState(op_cpt, stream);
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
@@ -739,6 +744,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Ch
   DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
   for (int i = 0; i < graph_->NumOp(); ++i)
     graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
+
+  // Overwrite the initial checkpoints after the state was restored.
+  CreateInitialCheckpoints();
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>

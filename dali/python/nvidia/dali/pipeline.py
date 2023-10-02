@@ -812,7 +812,7 @@ Parameters
 
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
-            self._pipe.RestoreStateFromCheckpoint(self._checkpoint)
+            self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
 
     def build(self):
         """Build the pipeline.
@@ -1379,7 +1379,7 @@ Parameters
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-        ret = self._pipe.GetCheckpoint()
+        ret = self._pipe.SerializedCheckpoint()
         if filename is not None:
             with open(filename, 'wb') as checkpoint_file:
                 checkpoint_file.write(ret)

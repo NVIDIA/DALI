@@ -475,7 +475,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    * @brief Create a checkpoint for the OpNode in the given iteration
    *        and save it in iteration data.
   */
-  void CreateCheckpoint(const OpNode &op_node, int iteration_id, std::optional<cudaStream_t> stream);
+  void CreateCheckpoint(const OpNode &op_node, int iteration_id, AccessOrder order);
+
+  /**
+   * @brief Create initial checkpoints for the whole pipeline.
+  */
+  void CreateInitialCheckpoints();
 
   /**
    * Returns the iteration data for given iteration ID and stage.

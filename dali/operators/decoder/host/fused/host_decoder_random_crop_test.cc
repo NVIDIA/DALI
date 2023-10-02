@@ -69,21 +69,20 @@ class ImageRandomCropCheckpointingTest_CPU : public CheckpointingTest {};
 
 TEST_F(ImageRandomCropCheckpointingTest_CPU, Simple) {
   PipelineWrapper pipe(8, {{"decoded", "cpu"}});
+  pipe.EnableCheckpointing();
 
   auto filepath = testing::dali_extra_path() + "/db/single/jpeg/134/site-1534685_1280.jpg";
   pipe.AddOperator(
     OpSpec("FileReader")
       .AddOutput("file", "cpu")
       .AddOutput("label", "cpu")
-      .AddArg("checkpointing", true)
       .AddArg("pad_last_batch", true)
       .AddArg("files", std::vector{filepath}));
 
   pipe.AddOperator(
     OpSpec("decoders__ImageRandomCrop")
       .AddInput("file", "cpu")
-      .AddOutput("decoded", "cpu")
-      .AddArg("checkpointing", true));
+      .AddOutput("decoded", "cpu"));
 
   pipe.Build();
   this->RunTest<uint8_t>(std::move(pipe), 2);

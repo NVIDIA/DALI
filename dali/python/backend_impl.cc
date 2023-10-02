@@ -1858,13 +1858,13 @@ PYBIND11_MODULE(backend_impl, m) {
           p->EnableCheckpointing(checkpointing);
         },
         "checkpointing"_a = true)
-    .def("GetCheckpoint",
+    .def("SerializedCheckpoint",
         [](Pipeline *p) -> py::bytes {
-          return p->GetCheckpoint();
+          return p->SerializedCheckpoint();
           }, py::return_value_policy::take_ownership)
-    .def("RestoreStateFromCheckpoint",
+    .def("RestoreFromSerializedCheckpoint",
         [](Pipeline *p, const std::string &serialized_checkpoint) {
-          p->RestoreStateFromCheckpoint(serialized_checkpoint);
+          p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
         })
     .def("executor_statistics",
         [](Pipeline *p) {
