@@ -356,7 +356,6 @@ class _OperatorInstance(object):
     def check_args(self):
         self._op.schema.CheckArgs(self._spec)
 
-
     def _process_instance_name(self, arguments):
         """Extract the name from the arguments or generate the default one.
         The "name" is removed from arguments.
@@ -371,7 +370,6 @@ class _OperatorInstance(object):
             self._name = name
         else:
             self._name = '__' + type(self._op).__name__ + "_" + str(self._counter.id)
-
 
     def _generate_outputs(self):
         pipeline = _Pipeline.current()
@@ -546,7 +544,6 @@ def python_op_factory(name, schema_name=None):
                     f"Operator {type(self).__name__} expects "
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                     f"but received {len(inputs)}.")
-
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__

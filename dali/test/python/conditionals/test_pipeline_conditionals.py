@@ -1077,10 +1077,9 @@ def test_sanity_enable_conditionals():
     pipe.run()
 
 
-
 def test_multiple_input_source():
 
-    batch_size=16
+    batch_size = 16
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_conditionals=True)
     def pipeline():
