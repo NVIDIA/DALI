@@ -23,7 +23,7 @@
     url: https://github.com/opencv/opencv/archive/refs/tags/4.8.0.tar.gz
     sha256: cbf47ecc336d2bff36b0dcd7d6c179a9bb59e805136af6b9670ca944aef889bd
     patches:
-      - patches/opencv-libwebp-CVE-2023-1999.patch
+      - patches/opencv-libwebp-CVE-2023-5129.patch
 
   build:
     number: 0
