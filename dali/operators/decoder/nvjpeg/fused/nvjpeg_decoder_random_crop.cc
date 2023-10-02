@@ -20,7 +20,7 @@
 
 namespace dali {
 
-void nvJPEGDecoderRandomCrop::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void nvJPEGDecoderRandomCrop::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   cpt.MutableCheckpointState() = RNGSnapshot();
 }
 

@@ -22,7 +22,7 @@ namespace dali {
 TestStatefulOpMixed::TestStatefulOpMixed(const OpSpec &spec)
     : Operator<MixedBackend>(spec) {}
 
-void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   cpt.MutableCheckpointState() = state_;
 }
 
@@ -68,17 +68,17 @@ TestStatefulOpGPU::~TestStatefulOpGPU() {
   CUDA_CALL(cudaFree(state_));
 }
 
-void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
-  DALI_ENFORCE(stream, "Cuda stream was not provided for GPU operator checkpointing. ");
+void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, AccessOrder order) {
+  DALI_ENFORCE(order.is_device(), "Cuda stream was not provided for GPU operator checkpointing. ");
 
   std::any &cpt_state = cpt.MutableCheckpointState();
   if (!cpt_state.has_value())
     cpt_state = std::vector<uint8_t>(max_batch_size_);
 
-  cpt.SetOrder(AccessOrder(*stream));
+  cpt.SetOrder(order);
   CUDA_CALL(cudaMemcpyAsync(std::any_cast<std::vector<uint8_t>>(cpt_state).data(),
                             state_, sizeof(uint8_t) * max_batch_size_,
-                            cudaMemcpyDeviceToHost, *stream));
+                            cudaMemcpyDeviceToHost, order.stream()));
 }
 
 void TestStatefulOpGPU::RestoreState(const OpCheckpoint &cpt) {

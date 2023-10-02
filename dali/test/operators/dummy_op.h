@@ -50,7 +50,7 @@ class TestStatefulSource : public Operator<CPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulSource);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
@@ -78,7 +78,7 @@ class TestStatefulOpCPU : public Operator<CPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpCPU);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
@@ -104,7 +104,7 @@ class TestStatefulOpMixed : public Operator<MixedBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpMixed);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 
@@ -128,7 +128,7 @@ class TestStatefulOpGPU : public Operator<GPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpGPU);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
 

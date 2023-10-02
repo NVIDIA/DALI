@@ -54,7 +54,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     label_output.mutable_data<int>()[0] = image_label.label;
   }
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     cpt.MutableCheckpointState() = loader_->PopStateSnapshot();
   }
 

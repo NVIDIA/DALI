@@ -31,7 +31,7 @@ class StatelessOperator : public Operator<Backend> {
 
   inline ~StatelessOperator() override {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {}
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {}
 
   void RestoreState(const OpCheckpoint &cpt) override {}
 

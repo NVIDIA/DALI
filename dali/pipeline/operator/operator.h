@@ -159,7 +159,7 @@ class DLL_PUBLIC OperatorBase {
    *
    * Is called exactly once per epoch.
   */
-  virtual void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+  virtual void SaveState(OpCheckpoint &cpt, AccessOrder order) {
     DALI_FAIL("Checkpointing is not implemented for this operator.");
   }
 

@@ -66,7 +66,7 @@ class PipelineWrapper {
       OpCheckpoint cpt(spec);
       // TODO(mstaniewski): provide a stream, so operators with state kept
       // in device memory can be tested.
-      GetOperator(id)->SaveState(cpt, std::nullopt);
+      GetOperator(id)->SaveState(cpt, {});
       clone.GetOperator(id)->RestoreState(cpt);
     }
 
