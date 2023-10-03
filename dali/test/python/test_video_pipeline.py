@@ -499,3 +499,33 @@ def test_pad_sequence():
 
     assert sampl_idx == padded_sampl
     assert ts_index == last_sample_frame_count
+
+
+def test_10bit_vid_reconfigure():
+    batch_size = 1
+    sequence_length = 5
+    iter = 5
+    filenames = [
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p.mp4'),
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p_10b.mp4')
+             ]
+    filenames2 = [
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p_10b.mp4'),
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p.mp4')
+            ]
+
+    @pipeline_def(device_id=0)
+    def video_decoder_pipeline():
+        a = fn.readers.video(filenames=filenames, sequence_length=sequence_length, device="gpu",
+                             random_shuffle=True, seed=1234)
+        b = fn.readers.video(filenames=filenames2, sequence_length=sequence_length, device="gpu",
+                             random_shuffle=True, seed=1234)
+        return a, b
+    pipe = video_decoder_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    pipe.build()
+    for _ in range(iter):
+        (a, b) = pipe.run()
+        a = a.as_cpu().as_array()
+        b = b.as_cpu().as_array()
+        absdiff = np.abs(a.astype(int) - b.astype(int))
+        assert np.mean(absdiff) < 2, f'error is {np.mean(absdiff)}'

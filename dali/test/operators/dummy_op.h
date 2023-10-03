@@ -15,6 +15,7 @@
 #ifndef DALI_TEST_OPERATORS_DUMMY_OP_H_
 #define DALI_TEST_OPERATORS_DUMMY_OP_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
@@ -49,9 +50,13 @@ class TestStatefulSource : public Operator<CPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulSource);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
@@ -73,9 +78,13 @@ class TestStatefulOpCPU : public Operator<CPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpCPU);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
@@ -95,9 +104,13 @@ class TestStatefulOpMixed : public Operator<MixedBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpMixed);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
@@ -115,9 +128,13 @@ class TestStatefulOpGPU : public Operator<GPUBackend> {
 
   DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpGPU);
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override;
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
 
   void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

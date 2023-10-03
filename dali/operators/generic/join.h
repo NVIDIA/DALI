@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 #ifndef DALI_OPERATORS_GENERIC_JOIN_H_
 #define DALI_OPERATORS_GENERIC_JOIN_H_
 
+#include <any>
 #include <string>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/join/tensor_join_cpu.h"
@@ -58,10 +58,10 @@ class TensorJoin : public Operator<Backend> {
   template <typename T>
   auto &inputs() {
     using RetType = vector<TensorListView<Storage, const T>>;
-    if (RetType *inp = any_cast<RetType>(&inputs_))
+    if (RetType *inp = std::any_cast<RetType>(&inputs_))
       return *inp;
     inputs_ = RetType();
-    return any_cast<RetType&>(inputs_);
+    return std::any_cast<RetType&>(inputs_);
   }
 
   template <typename T>
@@ -77,7 +77,7 @@ class TensorJoin : public Operator<Backend> {
   void SetupAxis(int ndim);
   void SetOutputLayout(const Workspace &ws);
 
-  any inputs_;
+  std::any inputs_;
   kernels::KernelManager kmgr_;
   int axis_ = -1;
   TensorLayout input_layout_, output_layout_;

@@ -57,16 +57,16 @@ TEST(LibJpegTurboDecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  std::map<string, any> params = { { "fast_idct", false } };
+  std::map<string, std::any> params = { { "fast_idct", false } };
   auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
-  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), false);
+  EXPECT_EQ(std::any_cast<bool>(decoder->GetParam("fast_idct")), false);
 
   decoder.reset();
   params = { { "fast_idct", true } };
   decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
-  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), true);
+  EXPECT_EQ(std::any_cast<bool>(decoder->GetParam("fast_idct")), true);
 }
 
 template<typename OutputType>

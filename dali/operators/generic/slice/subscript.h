@@ -15,11 +15,11 @@
 #ifndef DALI_OPERATORS_GENERIC_SLICE_SUBSCRIPT_H_
 #define DALI_OPERATORS_GENERIC_SLICE_SUBSCRIPT_H_
 
+#include <any>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/core/convert.h"
 #include "dali/core/math_util.h"
 #include "dali/core/static_switch.h"
@@ -367,7 +367,7 @@ class TensorSubscript : public Operator<Backend> {
   SmallVector<int, 6> out_dim_map_;
 
   kernels::KernelManager kmgr_;
-  any ctx_;
+  std::any ctx_;
 };
 
 }  // namespace dali

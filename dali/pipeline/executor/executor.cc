@@ -390,7 +390,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     auto &cpt = GetCurrentIterationData(iter).checkpoint;
     auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
     cpt.SetIterationId(iter);
-    op_node.op->SaveState(op_cpt, ws.has_stream() ? std::optional{ws.stream()} : std::nullopt);
+    op_node.op->SaveState(op_cpt, ws.output_order());
   };
 
   // If it is the first iteration, create initial checkpoint.

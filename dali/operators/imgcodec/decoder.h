@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ class DecoderBase : public Operator<Backend> {
     return decoder_ptr_.get();
   }
 
-  std::map<std::string, any> decoder_params_;
+  std::map<std::string, std::any> decoder_params_;
   std::vector<ImageSource> srcs_;
   std::vector<ImageSource *> src_ptrs_;
   std::vector<ROI> rois_;

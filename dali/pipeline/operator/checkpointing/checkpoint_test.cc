@@ -35,7 +35,7 @@ class DummyOperatorWithState<CPUBackend> : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec)
       , state_(spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     cpt.MutableCheckpointState() = state_;
   }
 
@@ -75,17 +75,17 @@ class DummyOperatorWithState<GPUBackend> : public Operator<GPUBackend> {
       , state_(spec.GetArgument<cudaStream_t>("cuda_stream"),
                spec.GetArgument<uint32_t>("dummy_state")) {}
 
-  void SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) override {
-    if (!stream)
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    if (!order.is_device())
       FAIL() << "Cuda stream was not provided for GPU operator checkpointing.";
 
     std::any &cpt_state = cpt.MutableCheckpointState();
     if (!cpt_state.has_value())
       cpt_state = static_cast<uint32_t>(0);
 
-    cpt.SetOrder(AccessOrder(*stream));
+    cpt.SetOrder(order);
     CUDA_CALL(cudaMemcpyAsync(&std::any_cast<uint32_t &>(cpt_state), state_.ptr,
-                              sizeof(uint32_t), cudaMemcpyDeviceToHost, *stream));
+                              sizeof(uint32_t), cudaMemcpyDeviceToHost, order.stream()));
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
@@ -184,7 +184,8 @@ class CheckpointTest : public DALITest {
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
       ASSERT_EQ(original_graph.Node(i).spec.name(),
                 checkpoint.GetOpCheckpoint(i).OperatorName());
-      original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i), this->stream_.get());
+      original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i),
+                                           AccessOrder(this->stream_.get()));
     }
 
     ASSERT_EQ(new_graph.NumOp(), nodes_cnt);
@@ -334,6 +335,51 @@ TEST_F(CheckpointTest, Mixed) {
     graph.InstantiateOperators();
     return graph;
   });
+}
+
+TEST_F(CheckpointTest, Serialize) {
+  Checkpoint checkpoint;
+  OpGraph graph;
+
+  graph.AddOp(this->PrepareSpec(
+    OpSpec("TestStatefulSource")
+    .AddArg("device", "cpu")
+    .AddArg("epoch_size", 1)
+    .AddOutput("data_1", "cpu")), "");
+
+  graph.AddOp(this->PrepareSpec(
+    OpSpec("TestStatefulOp")
+    .AddArg("device", "cpu")
+    .AddInput("data_1", "cpu")
+    .AddOutput("data_2", "cpu")), "");
+
+  graph.AddOp(this->PrepareSpec(
+    OpSpec("TestStatefulOp")
+    .AddArg("device", "mixed")
+    .AddInput("data_2", "cpu")
+    .AddOutput("data_3", "gpu")), "");
+
+  graph.AddOp(this->PrepareSpec(
+    OpSpec("TestStatefulOp")
+    .AddArg("device", "gpu")
+    .AddInput("data_3", "gpu")
+    .AddOutput("data_4", "gpu")), "");
+
+  graph.InstantiateOperators();
+  checkpoint.Build(graph);
+
+  size_t nodes = static_cast<size_t>(graph.NumOp());
+  for (uint8_t i = 0; i < nodes; i++)
+    checkpoint.GetOpCheckpoint(i).MutableCheckpointState() = i;
+
+  auto serialized = checkpoint.SerializeToProtobuf(graph);
+
+  Checkpoint deserialized;
+  deserialized.DeserializeFromProtobuf(graph, serialized);
+
+  ASSERT_EQ(deserialized.NumOp(), nodes);
+  for (uint8_t i = 0; i < nodes; i++)
+    EXPECT_EQ(deserialized.GetOpCheckpoint(i).CheckpointState<uint8_t>(), i);
 }
 
 }  // namespace dali

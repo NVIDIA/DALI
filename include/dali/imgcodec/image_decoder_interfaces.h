@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 #ifndef DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 #define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
+#include <any>
 #include <map>
 #include <memory>
 #include <utility>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/imgcodec/image_format.h"
@@ -206,7 +206,7 @@ class DLL_PUBLIC ImageDecoderInstance {
    * @remarks The function may throw if the parameter name is valid for this decoder, but
    *          the value is incorrect.
    */
-  virtual bool SetParam(const char *key, const any &value) = 0;
+  virtual bool SetParam(const char *key, const std::any &value) = 0;
 
   /**
    * @brief Sets codec-specific parameters.
@@ -216,22 +216,22 @@ class DLL_PUBLIC ImageDecoderInstance {
    * @remarks The function may throw if the parameter name is valid for this decoder, but
    *          the value is incorrect.
    */
-  virtual int SetParams(const std::map<std::string, any> &params) = 0;
+  virtual int SetParams(const std::map<std::string, std::any> &params) = 0;
 
   /**
    * @brief Gets a codec-specific parameter
    */
-  virtual any GetParam(const char *key) const = 0;
+  virtual std::any GetParam(const char *key) const = 0;
 
   template <typename T>
-  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value, bool>
+  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, std::any>::value, bool>
   SetParam(const char *key, T &&value) {
-    return SetParam(key, any(std::forward<T>(value)));
+    return SetParam(key, std::any(std::forward<T>(value)));
   }
 
   template <typename T>
   inline T GetParam(const char *key) const {
-    return any_cast<T>(GetParam(key));
+    return std::any_cast<T>(GetParam(key));
   }
 };
 
@@ -256,7 +256,7 @@ class DLL_PUBLIC ImageDecoderFactory {
    * @brief Creates an instance of a codec
    */
   virtual std::shared_ptr<ImageDecoderInstance>
-  Create(int device_id, const std::map<std::string, any> &params = {}) const = 0;
+  Create(int device_id, const std::map<std::string, std::any> &params = {}) const = 0;
 };
 
 }  // namespace imgcodec

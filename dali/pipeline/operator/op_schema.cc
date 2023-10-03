@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -331,7 +331,7 @@ OpSchema &OpSchema::AddOptionalArg(const std::string &s, const std::string &doc,
                                    std::nullptr_t, bool enable_tensor_input,
                                    bool support_per_frame_input) {
   CheckArgument(s);
-  optional_arguments_[s] = {doc, dtype, nullptr};
+  optional_arguments_[s] = {doc, dtype, nullptr, ShouldHideArgument(s)};
   if (enable_tensor_input) {
     tensor_arguments_[s] = {support_per_frame_input};
   }
@@ -343,7 +343,7 @@ OpSchema &OpSchema::AddOptionalTypeArg(const std::string &s, const std::string &
                                        DALIDataType default_value) {
   CheckArgument(s);
   auto to_store = Value::construct(default_value);
-  optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get()};
+  optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get(), ShouldHideArgument(s)};
   optional_arguments_unq_.push_back(std::move(to_store));
   return *this;
 }
@@ -807,7 +807,9 @@ std::vector<std::string> OpSchema::GetArgumentNames() const {
     ret.push_back(arg_pair.first);
   }
   for (auto &arg_pair : optional) {
-    ret.push_back(arg_pair.first);
+    if (!arg_pair.second.hidden) {
+      ret.push_back(arg_pair.first);
+    }
   }
   for (auto &arg_pair : deprecated) {
     // Deprecated aliases only appear in `deprecated` but regular

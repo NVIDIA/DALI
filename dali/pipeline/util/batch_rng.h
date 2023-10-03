@@ -53,6 +53,19 @@ class BatchRNG {
     return rngs_[sample];
   }
 
+  std::vector<RNG> ToVector() const {
+    return rngs_;
+  }
+
+  static BatchRNG<RNG> FromVector(const std::vector<RNG> &vec) {
+    BatchRNG<RNG> result(0, 0);
+    result.rngs_ = vec;
+    return result;
+  }
+
+  int BatchSize() const {
+    return static_cast<int>(rngs_.size());
+  }
 
  private:
   int64_t seed_;

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit LibJpegTurboDecoderInstance(int device_id, const std::map<std::string, any> &params)
+  explicit LibJpegTurboDecoderInstance(int device_id, const std::map<std::string, std::any> &params)
   : BatchParallelDecoderImpl(device_id, params) {
     SetParams(params);
   }
@@ -40,16 +40,16 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
                               DecodeParams opts,
                               const ROI &roi) override;
 
-  bool SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const std::any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
-      use_fast_idct_ = any_cast<bool>(value);
+      use_fast_idct_ = std::any_cast<bool>(value);
       return true;
     } else {
       return false;
     }
   }
 
-  any GetParam(const char *name) const override {
+  std::any GetParam(const char *name) const override {
     if (strcmp(name, "fast_idct") == 0) {
       return use_fast_idct_;
     } else {
@@ -79,7 +79,7 @@ class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(
-          int device_id, const std::map<std::string, any> &params = {}) const override {
+          int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<LibJpegTurboDecoderInstance>(device_id, params);
   }
 };

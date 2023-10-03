@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -157,16 +157,23 @@ class ExternalSource : public InputOperator<Backend> {
     ndim_ = input_ndim;
 
     if (spec_.HasArgument("layout")) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Expected data with layout: \"", layout_,
+      if (batch.GetLayout().empty()) {
+        layout_ = spec_.template GetArgument<TensorLayout>("layout");
+      } else {
+        DALI_ENFORCE(layout_ == batch.GetLayout(),
+                     make_string("Expected data with layout: \"", layout_,
                      "\" and got: \"", batch.GetLayout(), "\"."));
-    } else if (!layout_.empty()) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Layout of the data fed to the external source has changed "
-                     "from previous iteration. Layout in the previous iteration was \"", layout_,
-                     "\" and the current is \"", batch.GetLayout(), "\"."));
+      }
+    } else {
+        if (layout_.empty()) {
+          layout_ = batch.GetLayout();
+        } else  {
+          DALI_ENFORCE(layout_ == batch.GetLayout(),
+                        make_string("Layout of the data fed to the external source has changed "
+                          "from previous iteration. Layout in the previous iteration was \"",
+                          layout_, "\" and the current is \"", batch.GetLayout(), "\"."));
+        }
     }
-    layout_ = batch.GetLayout();
   }
 
   const bool repeats_last_;

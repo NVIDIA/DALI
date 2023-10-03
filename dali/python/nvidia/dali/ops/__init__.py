@@ -416,6 +416,9 @@ def python_op_factory(name, schema_name=None):
 
             input_sets = _build_input_sets(inputs, self.__class__.__name__)
 
+            if _conditionals.conditionals_enabled():
+                self._inject_implicit_scope_argument(kwargs)
+
             # Create OperatorInstance for every input set
             op_instances = []
             for input_set in input_sets:
@@ -448,6 +451,20 @@ def python_op_factory(name, schema_name=None):
                     f"Operator {type(self).__name__} expects "
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
                     f"but received {len(inputs)}.")
+
+        def _inject_implicit_scope_argument(self, kwargs):
+            """
+            Adds hidden _scope argument to the inputless operators whose outputs for
+            any given sample depend on the actual batch size, e.g. fn.batch_permutation.
+            """
+            # TODO(ktokarski) Consider optimizing the case - the implicit `_scope` argument is not
+            # needed if operator can accept any other positional/tensor argument and any such
+            # arg was specified. For now, the ops that use the _scope arg (ImplicitScopeAttr schema)
+            # do not have any other tensor inputs.
+            if self._schema.HasArgument("_scope"):
+                conditional_scope = _conditionals.this_condition_stack()
+                scope_masked_batch = conditional_scope.scope_batch_size_tracker()
+                kwargs["_scope"] = scope_masked_batch
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
