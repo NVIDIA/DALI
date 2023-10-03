@@ -341,7 +341,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                       .format(type(inp).__name__))
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self)
+        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, {}, self)
         op_instance.spec.AddArg("run_fn", self.run_fn)
         if self.setup_fn is not None:
             op_instance.spec.AddArg("setup_fn", self.setup_fn)

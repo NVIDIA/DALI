@@ -78,7 +78,7 @@ class _TFRecordReaderImpl():
                 f"but received {len(inputs)}.")
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self)
+        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, {}, self)
         outputs = {}
         feature_names = []
         features = []
@@ -93,10 +93,6 @@ class _TFRecordReaderImpl():
             outputs[feature_name] = t
             feature_names.append(feature_name)
             features.append(feature)
-
-        # We know this reader doesn't have any inputs
-        if _conditionals.conditionals_enabled():
-            _conditionals.register_data_nodes(list(outputs.values()))
 
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)

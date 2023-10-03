@@ -321,13 +321,28 @@ class _OperatorInstance(object):
     Each "_process_[arguments/inputs]" step adds them to the OpSpec specifying the operator for
     the C++ backend.
 
-    Parameters
-    ----------
-    object : _type_
-        _description_
+    * some validation is done in class Operator.__init__ due to legacy reasons.
+    This is the reason for `_processed_arguments` constructor parameter.
     """
 
-    def __init__(self, inputs, arguments, arg_inputs, op):
+    def __init__(self, inputs, arg_inputs, arguments, _processed_arguments, op):
+        """Construct the OperatorInstance and handle the processing of all inputs and arguments.
+
+        Parameters
+        ----------
+        inputs : tuple of DataNode
+            Positional inputs to operator instance.
+        arg_inputs : dict of DataNode
+            Argument inputs - named DataNode inputs to operator.
+        arguments : dict of scalar values
+            Scalar arguments to be added to OpSpec.
+        _processed_arguments : dict of scalar values
+            Remaining scalar arguments. Available here for completeness, for historical reasons
+            already validated in Operator.__init__.
+            NOTE: they are already added to the `op.spec`!
+        op : Operator class.
+            Operator class containing the schema, and spec filled with `processed_arguments`.
+        """
         self._counter = _OpCounter()
         self._outputs = []
         self._op = op
@@ -465,21 +480,14 @@ def python_op_factory(name, schema_name=None):
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
             self._device = device
-            self._spec.AddArg("device", self._device)
+            kwargs |= {"device", self._device}
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
 
             for k in self._call_args.keys():
                 _check_arg_input(self._schema, type(self).__name__, k)
 
-            if "preserve" in self._init_args.keys():
-                self._preserve = self._init_args["preserve"]
-                # we don't want to set "preserve" arg twice
-                del self._init_args["preserve"]
-            else:
-                self._preserve = False
-            self._spec.AddArg("preserve", self._preserve)
-            self._preserve = self._preserve or self._schema.IsNoPrune()
+            self._preserve = self._init_args.get("preserve", False)
 
             # Process the first part of arguments, due to the historical reasons
             # we need to do it in __init__ for error reporting
@@ -519,6 +527,9 @@ def python_op_factory(name, schema_name=None):
             if self._name is not None:
                 args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
 
+            self._preserve = (self._preserve or args.get("preserve", False)
+                              or self._schema.IsNoPrune())
+
             # Adding argument inputs is fully delayed into call, so we just do the check
             arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
 
@@ -526,7 +537,8 @@ def python_op_factory(name, schema_name=None):
             # OperatorInstance handles the creation of OpSpec and generation of output DataNodes
             op_instances = []
             for input_set in input_sets:
-                op_instances.append(_OperatorInstance(input_set, args, arg_inputs, self))
+                op_instances.append(
+                    _OperatorInstance(input_set, arg_inputs, args, self._init_args, self))
 
             # Tie the instances together
             relation_id = op_instances[0].id
