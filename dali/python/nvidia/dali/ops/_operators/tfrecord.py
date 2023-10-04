@@ -13,9 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali import backend as _b
-from nvidia.dali import _conditionals
 from nvidia.dali import ops
-from nvidia.dali.data_node import DataNode as _DataNode
 
 _internal_schemas = ['_TFRecordReader', 'readers___TFRecord']
 
@@ -46,7 +44,6 @@ class _TFRecordReaderImpl():
         self._schema = _b.GetSchema(self._internal_schema_name)
         self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
-
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
         self._init_args |= {

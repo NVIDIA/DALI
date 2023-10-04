@@ -15,7 +15,6 @@
 
 import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
-from nvidia.dali import _conditionals
 from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
