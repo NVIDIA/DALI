@@ -228,17 +228,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
-def _merge_pipeline_args(decorator_kwargs, wrapper_kwargs):
-    merged_kwargs = wrapper_kwargs.copy()
-
-    for key, value in decorator_kwargs.items():
-        if key in wrapper_kwargs:
-            raise ValueError(f"Duplicate argument {key} in decorator and a call")
-        merged_kwargs[key] = value
-
-    return merged_kwargs
-
-
 def data_iterator_impl(
         iterator_type,
         pipeline_fn=None,
@@ -255,25 +244,24 @@ def data_iterator_impl(
     """
     def data_iterator_decorator(func):
         def create_iterator(*args, **wrapper_kwargs):
-            merged_kwargs = wrapper_kwargs
             pipeline_def_fn = pipeline_def(func)
 
             if sharding is None:
-                pipelines = [pipeline_def_fn(*args, **merged_kwargs)]
+                pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
             else:
                 pipelines = []
 
                 # Handle batch_size_per_gpu
-                global_batch_size = merged_kwargs['batch_size']
+                global_batch_size = wrapper_kwargs['batch_size']
                 batch_size_per_gpu = global_batch_size // len(jax.devices())
-                merged_kwargs['batch_size'] = batch_size_per_gpu
+                wrapper_kwargs['batch_size'] = batch_size_per_gpu
 
                 for id, device in enumerate(jax.local_devices()):
                     # How device_id, shard_id and num_shards are used in the pipeline
                     # is affected by: https://github.com/google/jax/issues/16024
                     pipeline = pipeline_def_fn(
                         *args,
-                        **merged_kwargs,
+                        **wrapper_kwargs,
                         device_id=id,
                         shard_id=device.id,
                         num_shards=len(jax.devices()))
