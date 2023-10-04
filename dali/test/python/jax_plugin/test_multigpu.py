@@ -349,15 +349,13 @@ def test_named_sharding_with_iterator_decorator():
     # when
     @data_iterator(
         output_map=output_map,
-        batch_size=batch_size,
-        num_threads=4,
         sharding=sharding,
         last_batch_policy=LastBatchPolicy.DROP,
         reader_name="reader")
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
-    data_iterator_instance = iterator_function()
+    data_iterator_instance = iterator_function(batch_size=batch_size, num_threads=4,)
 
     # then
     run_sharded_iterator_test(data_iterator_instance)
@@ -373,15 +371,13 @@ def test_positional_sharding_with_iterator_decorator():
     # when
     @data_iterator(
         output_map=output_map,
-        batch_size=batch_size,
-        num_threads=4,
         sharding=sharding,
         last_batch_policy=LastBatchPolicy.DROP,
         reader_name="reader")
     def iterator_function(shard_id, num_shards):
         return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
 
-    data_iterator_instance = iterator_function()
+    data_iterator_instance = iterator_function(batch_size=batch_size, num_threads=4)
 
     # then
     run_sharded_iterator_test(data_iterator_instance)

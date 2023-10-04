@@ -106,11 +106,20 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
 
 
 # Makes sure that API of DALIGenericIterator and DALIGenericPeekableIterator did not diverge
-def test_iterators_init_method_args_compatibility():
-    # TODO: Do we want to test documentation as well?
+def test_iterators_init_method_api_compatibility():
     # given
     iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
     peekalbe_iterator_init_args = inspect.getfullargspec(DALIPeekableIterator.__init__).args
 
     # then
     assert iterator_init_args == peekalbe_iterator_init_args
+
+    # Get docs for the docorator "Parameters" section
+    # Skip the first argument, which differs (pipelines vs. pipeline_fn)
+    iterator_decorator_docs = inspect.getdoc(DALIGenericIterator)
+    iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
+
+    iterator_init_docs = inspect.getdoc(DALIPeekableIterator)
+    iterator_init_docs = iterator_init_docs.split("output_map")[1]
+
+    assert iterator_decorator_docs == iterator_init_docs
