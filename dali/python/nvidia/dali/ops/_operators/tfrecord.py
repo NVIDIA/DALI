@@ -47,12 +47,14 @@ class _TFRecordReaderImpl():
         self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
 
-        self._spec.AddArg("path", self._path)
-        self._spec.AddArg("index_path", self._index_path)
 
-        kwargs, self._call_args = ops._separate_kwargs(kwargs)
+        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
+        self._init_args |= {
+            "path": self._path,
+            "index_path": self._index_path
+        }
 
-        for key, value in kwargs.items():
+        for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
 
         self._features = features
@@ -72,7 +74,7 @@ class _TFRecordReaderImpl():
     def __call__(self, *inputs, **kwargs):
         # We do not handle multiple input sets for Reader as they do not have inputs
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, {}, self)
+        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self._init_args, self)
         outputs = {}
         feature_names = []
         features = []
@@ -81,6 +83,7 @@ class _TFRecordReaderImpl():
             feature_names.append(feature_name)
             features.append(feature)
 
+        # Those arguments are added after the outputs are generated
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs

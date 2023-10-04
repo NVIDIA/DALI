@@ -332,19 +332,25 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                       .format(type(inp).__name__))
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, {}, self)
-        op_instance.spec.AddArg("run_fn", self.run_fn)
+        args |= {
+            "run_fn": self.run_fn,
+            "out_types": self.out_types,
+            "in_types": self.in_types,
+            "outs_ndim": self.outs_ndim,
+            "ins_ndim": self.ins_ndim,
+            "batch_processing": self.batch_processing,
+        }
         if self.setup_fn is not None:
-            op_instance.spec.AddArg("setup_fn", self.setup_fn)
-        op_instance.spec.AddArg("out_types", self.out_types)
-        op_instance.spec.AddArg("in_types", self.in_types)
-        op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
-        op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
-        op_instance.spec.AddArg("device", self.device)
-        op_instance.spec.AddArg("batch_processing", self.batch_processing)
+            args |= {"setup_fn": self.setup_fn}
         if self.device == 'gpu':
-            op_instance.spec.AddArg("blocks", self.blocks)
-            op_instance.spec.AddArg("threads_per_block", self.threads_per_block)
+            args |= {
+                "blocks": self.blocks,
+                "threads_per_block": self.threads_per_block,
+            }
+
+        self._spec.AddArg("device", self.device)
+
+        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
 
         return op_instance.unwrapped_outputs
 
@@ -402,9 +408,9 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self._spec = _b.OpSpec(self._impl_name)
         self._device = device
 
-        kwargs, self._call_args = ops._separate_kwargs(kwargs)
+        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
 
-        for key, value in kwargs.items():
+        for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
 
         if device == 'gpu':

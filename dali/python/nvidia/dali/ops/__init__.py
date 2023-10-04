@@ -482,9 +482,11 @@ def python_op_factory(name, schema_name=None):
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
 
-            # Get the device argument. We will need this to determine
-            # the device that our outputs will be stored on
+            # Get the device argument. We will need this to determine the device that our outputs
+            # will be stored on. The argument is not listed in schema, so we need to add it
+            # manually to spec. TODO(klecki): Make it more generic.
             self._device = device
+            self._spec.AddArg("device", self._device)
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
 
@@ -518,8 +520,6 @@ def python_op_factory(name, schema_name=None):
             return self._preserve
 
         def __call__(self, *inputs, **kwargs):
-            self._check_schema_num_inputs(inputs)
-
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
             input_sets = _build_input_sets(inputs, self.__class__.__name__)
 
