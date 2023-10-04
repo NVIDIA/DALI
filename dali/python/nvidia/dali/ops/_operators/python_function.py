@@ -82,8 +82,8 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
             "function_id": id(self.function),
             "num_outputs": self.num_outputs,
         }
-        self._spec.AddArg("device", self.device)
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
+        op_instance.spec.AddArg("device", self.device)
         return op_instance.unwrapped_outputs
 
 

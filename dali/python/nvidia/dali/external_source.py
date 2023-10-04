@@ -795,7 +795,7 @@ Keyword Args
                     kwargs['layout'] = this_layout
 
                 args, arg_inputs = _separate_kwargs(kwargs)
-                op_instance = _OperatorInstance([], arg_inputs, args, self)
+                op_instance = _OperatorInstance([], arg_inputs, args, {}, self)
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group

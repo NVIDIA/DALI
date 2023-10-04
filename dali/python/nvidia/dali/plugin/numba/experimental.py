@@ -348,9 +348,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                 "threads_per_block": self.threads_per_block,
             }
 
-        self._spec.AddArg("device", self.device)
-
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
+        op_instance.spec.AddArg("device", self.device)
 
         return op_instance.unwrapped_outputs
 
