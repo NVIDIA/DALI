@@ -105,7 +105,9 @@ def EfficientnetPipeline():
 
 def feed_input(dali_pipeline, data):
     if needs_feed_input:
+        assert data is not None, "Input data has not been provided."
         dali_pipeline.feed_input(DALI_INPUT_NAME, data)
+
 
 
 def create_input_tensor(batch_size, file_list):
@@ -153,7 +155,7 @@ else:
 for p in pipes:
     p.build()
 
-input_tensor = create_input_tensor(args.batch_size, args.image_list)
+input_tensor = create_input_tensor(args.batch_size, args.image_list) if needs_feed_input else None
 
 for iteration in range(args.warmup_iterations):
     for p in pipes:
