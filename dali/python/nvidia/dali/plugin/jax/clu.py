@@ -238,7 +238,9 @@ def peekable_data_iterator(
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
         sharding=None):
-    """TODO: add docstring
+    """Decorator for DALI pipelines that returns a peekable iterator. Compatible with Google CLU
+    PeekableIterator. It supports peeking the next element in the iterator without advancing the
+    iterator.
 
     Parameters
     ----------
