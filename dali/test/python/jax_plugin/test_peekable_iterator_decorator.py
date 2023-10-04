@@ -13,20 +13,22 @@
 # limitations under the License.
 
 
+from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator
+from nvidia.dali.plugin.jax.clu import peekable_data_iterator
 from utils import iterator_function_def
 
-from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from test_iterator import run_and_assert_sequential_iterator
 
 import inspect
 
 # Common parameters for all tests in this file
 batch_size = 3
+batch_shape = (batch_size, 1)
 
 
-def test_dali_iterator_decorator_functional():
+def test_dali_iterator_decorator_all_pipeline_args_in_call():
     # given
-    iter = data_iterator(
+    iter = peekable_data_iterator(
         iterator_function_def,
         output_map=['data'],
         reader_name='reader')(
@@ -40,7 +42,7 @@ def test_dali_iterator_decorator_functional():
 
 def test_dali_iterator_decorator_declarative():
     # given
-    @data_iterator(
+    @peekable_data_iterator(
         output_map=['data'],
         reader_name='reader')
     def iterator_function():
@@ -57,7 +59,7 @@ def test_dali_iterator_decorator_declarative():
 
 def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     # given
-    @data_iterator(
+    @peekable_data_iterator(
         output_map=['data'],
         reader_name='reader')
     def iterator_function(num_shards):
@@ -84,12 +86,12 @@ def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
 # arguments that might have been added to the iterator __init__
 def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
+    iterator_init_args = inspect.getfullargspec(DALIGenericPeekableIterator.__init__).args
     iterator_init_args.remove("self")
     iterator_init_args.remove("pipelines")
 
     # given the list of arguments for the iterator decorator
-    iterator_decorator_args = inspect.getfullargspec(data_iterator).args
+    iterator_decorator_args = inspect.getfullargspec(peekable_data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
 
     # then
@@ -98,10 +100,10 @@ def test_iterator_decorator_api_match_iterator_init():
 
     # Get docs for the docorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
-    iterator_decorator_docs = inspect.getdoc(data_iterator)
+    iterator_decorator_docs = inspect.getdoc(peekable_data_iterator)
     iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
 
-    iterator_init_docs = inspect.getdoc(DALIGenericIterator)
+    iterator_init_docs = inspect.getdoc(DALIGenericPeekableIterator)
     iterator_init_docs = iterator_init_docs.split("output_map")[1]
 
     assert iterator_decorator_docs == iterator_init_docs, \

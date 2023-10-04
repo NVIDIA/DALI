@@ -70,9 +70,9 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                 It can be one of the following values:
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
-                  and reset() needs to be called
+                and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                  is called internally automatically.
+                is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
@@ -237,8 +237,7 @@ def peekable_data_iterator(
         last_batch_padded=False,
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
-        sharding=None,
-        **decorator_kwargs):
+        sharding=None):
     """TODO: add docstring
 
     Parameters
@@ -296,6 +295,25 @@ def peekable_data_iterator(
     sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions.
+
+    Example
+    -------
+    With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
+
+    Note:
+        JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
     return data_iterator_impl(
         DALIGenericPeekableIterator,
@@ -307,5 +325,4 @@ def peekable_data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding,
-        **decorator_kwargs)
+        sharding)

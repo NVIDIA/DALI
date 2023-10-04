@@ -16,12 +16,9 @@
 import jax.numpy as jnp
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIPeekableIterator
-from nvidia.dali.plugin.jax.clu import peekable_data_iterator
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
 from utils import iterator_function_def
 from clu.data.dataset_iterator import ArraySpec
-
-from test_iterator import run_and_assert_sequential_iterator
 
 from nose_utils import raises
 import time
@@ -117,116 +114,3 @@ def test_iterators_init_method_args_compatibility():
 
     # then
     assert iterator_init_args == peekalbe_iterator_init_args
-
-
-def test_dali_iterator_decorator_all_pipeline_args_in_decorator():
-    # given
-    iter = peekable_data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        batch_size=batch_size,
-        device_id=0,
-        num_threads=4,
-        reader_name='reader')()
-
-    # then
-    run_and_assert_sequential_iterator(iter)
-
-
-def test_dali_iterator_decorator_all_pipeline_args_in_call():
-    # given
-    iter = peekable_data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        reader_name='reader')(
-            batch_size=batch_size,
-            device_id=0,
-            num_threads=4)
-
-    # then
-    run_and_assert_sequential_iterator(iter)
-
-
-def test_dali_iterator_decorator_pipeline_args_split_in_decorator_and_call():
-    # given
-    iter = peekable_data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        reader_name='reader',
-        num_threads=4,
-        device_id=0)(
-            batch_size=batch_size)
-
-    # then
-    run_and_assert_sequential_iterator(iter)
-
-
-def test_dali_iterator_decorator_declarative():
-    # given
-    @peekable_data_iterator(
-        output_map=['data'],
-        reader_name='reader',
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
-    def iterator_function():
-        return iterator_function_def()
-
-    iter = iterator_function()
-
-    # then
-    run_and_assert_sequential_iterator(iter)
-
-
-def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
-    # given
-    @peekable_data_iterator(
-        output_map=['data'],
-        reader_name='reader',
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
-    def iterator_function(num_shards):
-        return iterator_function_def(num_shards=num_shards)
-
-    iter = iterator_function(num_shards=2)
-
-    # then
-    run_and_assert_sequential_iterator(iter)
-
-    # We want to assert that the argument was actually passed. It should affect the
-    # number of samples in the iterator.
-    # Dataset has 47 samples, with batch_size=3 and num_shards=2, we should get 24 samples.
-    # That is because the last batch is extended with the first sample to match the batch_size.
-    assert iter.size == 24
-
-
-@raises(ValueError,  glob="Duplicate argument batch_size in decorator and a call")
-def test_iterator_decorator_pipeline_arg_duplicate():
-    peekable_data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        batch_size=4,
-        device_id=0,
-        reader_name='reader')(
-            num_threads=4, batch_size=1000)
-
-
-# This test checks if the arguments for the iterator decorator match the arguments for
-# the iterator __init__ method. Goal is to ensure that the decorator is not missing any
-# arguments that might have been added to the iterator __init__
-def test_iterator_decorator_kwargs_match_iterator_init():
-    # given the list of arguments for the iterator __init__ method
-    iterator_init_args = inspect.getfullargspec(DALIPeekableIterator.__init__).args
-    iterator_init_args.remove("self")
-    iterator_init_args.remove("pipelines")
-
-    # given the list of arguments for the iterator decorator
-    iterator_decorator_args = inspect.getfullargspec(peekable_data_iterator).args
-    iterator_decorator_args.remove("pipeline_fn")
-
-    # then
-    assert iterator_decorator_args == iterator_init_args, \
-        "Arguments for the iterator decorator and the iterator __init__ method do not match"
-
-    # TODO: Do we want to test documentation as well?

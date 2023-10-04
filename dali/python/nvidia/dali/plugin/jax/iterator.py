@@ -58,9 +58,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 It can be one of the following values:
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
-                  and reset() needs to be called
+                and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                  is called internally automatically.
+                is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
@@ -249,14 +249,13 @@ def data_iterator_impl(
         last_batch_padded=False,
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
-        sharding=None,
-        **decorator_kwargs):
+        sharding=None):
     """ Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
     """
     def data_iterator_decorator(func):
         def create_iterator(*args, **wrapper_kwargs):
-            merged_kwargs = _merge_pipeline_args(decorator_kwargs, wrapper_kwargs)
+            merged_kwargs = wrapper_kwargs
             pipeline_def_fn = pipeline_def(func)
 
             if sharding is None:
@@ -305,8 +304,7 @@ def data_iterator(
         last_batch_padded=False,
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
-        sharding=None,
-        **decorator_kwargs):
+        sharding=None):
     """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
     iterator for JAX.
 
@@ -373,6 +371,25 @@ def data_iterator(
     sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions.
+
+    Example
+    -------
+    With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
+
+    Note:
+        JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
     return data_iterator_impl(
         DALIGenericIterator,
@@ -384,5 +401,4 @@ def data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding,
-        **decorator_kwargs)
+        sharding)
