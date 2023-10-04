@@ -71,26 +71,13 @@ class _TFRecordReaderImpl():
 
     def __call__(self, *inputs, **kwargs):
         # We do not handle multiple input sets for Reader as they do not have inputs
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
-
         args, arg_inputs = ops._separate_kwargs(kwargs)
         op_instance = ops._OperatorInstance(inputs, args, arg_inputs, {}, self)
         outputs = {}
         feature_names = []
         features = []
-        for i, (feature_name, feature) in enumerate(self._features.items()):
-            t_name = op_instance._name
-            if len(self._features.items()) > 1:
-                t_name += "[{}]".format(i)
-
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            outputs[feature_name] = t
+        for (feature_name, feature), output in zip(self._features.items(), op_instance.outputs):
+            outputs[feature_name] = output
             feature_names.append(feature_name)
             features.append(feature)
 

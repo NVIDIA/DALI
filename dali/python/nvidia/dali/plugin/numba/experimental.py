@@ -324,15 +324,6 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
         if pipeline is None:
             Pipeline._raise_pipeline_required("NumbaFunction operator")
-        if (len(inputs) > self._schema.MaxNumInput() or
-                len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                ("Operator {} expects from {} to " +
-                 "{} inputs, but received {}.")
-                .format(type(self).__name__,
-                        self._schema.MinNumInput(),
-                        self._schema.MaxNumInput(),
-                        len(inputs)))
         for inp in inputs:
             if not isinstance(inp, _DataNode):
                 raise TypeError(
@@ -355,23 +346,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             op_instance.spec.AddArg("blocks", self.blocks)
             op_instance.spec.AddArg("threads_per_block", self.threads_per_block)
 
-        if self.num_outputs == 0:
-            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = _DataNode(t_name, self._device, op_instance)
-            pipeline.add_sink(t)
-            return
-        outputs = []
-
-        for i in range(self.num_outputs):
-            t_name = op_instance._name
-            if self.num_outputs > 1:
-                t_name += "[{}]".format(i)
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            pipeline.add_sink(t)
-            outputs.append(t)
-        return outputs[0] if len(outputs) == 1 else outputs
+        return op_instance.unwrapped_outputs
 
     def __init__(self, run_fn,
                  out_types, in_types,

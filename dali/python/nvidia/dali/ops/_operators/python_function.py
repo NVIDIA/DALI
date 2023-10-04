@@ -71,11 +71,6 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         if pipeline is None:
             _Pipeline._raise_pipeline_required("PythonFunction operator")
 
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
         for inp in inputs:
             if not isinstance(inp, _DataNode):
                 raise TypeError(f"Expected inputs of type `DataNode`. "

@@ -285,6 +285,11 @@ def _process_inputs(schema, spec, inputs, operator_name):
     List
         the list of DataNodes representing inputs (there may be conversions)
     """
+    if len(inputs) < schema.MinNumInput() or len(inputs) > schema.MaxNumInput():
+        raise ValueError(
+            f"Operator {operator_name} expects "
+            f"from {schema.MinNumInput()} to {schema.MaxNumInput()} inputs, "
+            f"but received {len(inputs)}.")
     if not inputs:
         return []
     for inp in inputs:
@@ -480,7 +485,6 @@ def python_op_factory(name, schema_name=None):
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
             self._device = device
-            kwargs |= {"device", self._device}
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
 
@@ -554,14 +558,6 @@ def python_op_factory(name, schema_name=None):
                     outputs.append(op.outputs)
                 result = _repack_output_sets(outputs)
             return result
-
-        # TODO(klecki): Move it to _process_inputs
-        def _check_schema_num_inputs(self, inputs):
-            if len(inputs) < self._schema.MinNumInput() or len(inputs) > self._schema.MaxNumInput():
-                raise ValueError(
-                    f"Operator {type(self).__name__} expects "
-                    f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                    f"but received {len(inputs)}.")
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
