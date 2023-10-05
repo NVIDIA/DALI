@@ -46,10 +46,7 @@ class _TFRecordReaderImpl():
         self._device = "cpu"
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
-        self._init_args |= {
-            "path": self._path,
-            "index_path": self._index_path
-        }
+        self._init_args.update({"path": self._path, "index_path": self._index_path})
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)

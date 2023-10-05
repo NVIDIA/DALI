@@ -332,21 +332,21 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                       .format(type(inp).__name__))
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        args |= {
+        args.update({
             "run_fn": self.run_fn,
             "out_types": self.out_types,
             "in_types": self.in_types,
             "outs_ndim": self.outs_ndim,
             "ins_ndim": self.ins_ndim,
             "batch_processing": self.batch_processing,
-        }
+        })
         if self.setup_fn is not None:
-            args |= {"setup_fn": self.setup_fn}
+            args.update({"setup_fn": self.setup_fn})
         if self.device == 'gpu':
-            args |= {
+            args.update({
                 "blocks": self.blocks,
                 "threads_per_block": self.threads_per_block,
-            }
+            })
 
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)

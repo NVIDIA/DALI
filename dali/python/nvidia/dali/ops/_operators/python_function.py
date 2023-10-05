@@ -77,10 +77,7 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
                                 f"Python Operators do not support Multiple Input Sets.")
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        args |= {
-            "function_id": id(self.function),
-            "num_outputs": self.num_outputs,
-        }
+        args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)
         return op_instance.unwrapped_outputs
