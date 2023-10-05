@@ -34,7 +34,7 @@ parser.add_argument('-j', dest='num_threads', help='num_threads', default=1, typ
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument('-i', dest='images_dir', help='images dir')
 input_files_arg.add_argument('--image_list', dest='image_list', nargs='+', default=[], help='List of images used for the benchmark.')
-parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50', 'efficientnet'],
+parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50', 'efficientnet_inference'],
                     help='pipeline to test', default='decoder',
                     type=str)
 parser.add_argument('--width_hint', dest='width_hint', default=0, type=int)
@@ -45,7 +45,7 @@ parser.add_argument('--hw_load', dest='hw_load',
 args = parser.parse_args()
 
 DALI_INPUT_NAME = 'DALI_INPUT_0'
-needs_feed_input = args.pipeline == 'efficientnet'
+needs_feed_input = args.pipeline == 'efficientnet_inference'
 
 
 @pipeline_def(batch_size=args.batch_size,
@@ -89,7 +89,7 @@ def RN50Pipeline():
 
 @pipeline_def(batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id,
               prefetch_queue_depth=1)
-def EfficientnetPipeline():
+def EfficientnetInferencePipeline():
     images = fn.external_source(device='cpu', name=DALI_INPUT_NAME)
     images = fn.decoders.image(images, device='mixed' if args.device == 'gpu' else 'cpu', output_type=types.RGB,
                                hw_decoder_load=args.hw_load)
@@ -147,9 +147,9 @@ if args.pipeline == 'decoder':
 elif args.pipeline == 'rn50':
     for i in range(args.gpu_num):
         pipes.append(RN50Pipeline(device_id=i + args.device_id))
-elif args.pipeline == 'efficientnet':
+elif args.pipeline == 'efficientnet_inference':
     for i in range(args.gpu_num):
-        pipes.append(EfficientnetPipeline(device_id=i + args.device_id))
+        pipes.append(EfficientnetInferencePipeline(device_id=i + args.device_id))
 else:
     raise RuntimeError('Unsupported pipeline')
 for p in pipes:
