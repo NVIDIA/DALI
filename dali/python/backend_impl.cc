@@ -453,8 +453,8 @@ void ExposeTensor(py::module &m) {
       R"code(
       Exposes tensor data as DLPack compatible capsule.
 
-      Note: 
-        This function does not implement full DLPack contract and 
+      Note:
+        This function does not implement full DLPack contract and
       should not be used to export DALI CPU tensors to DLPack compatible
       endpoints.
 
@@ -641,8 +641,8 @@ void ExposeTensor(py::module &m) {
       R"code(
       Exposes tensor data as DLPack compatible capsule.
 
-      Note: 
-        This function does not implement full DLPack contract and 
+      Note:
+        This function does not implement full DLPack contract and
       should not be used to export DALI GPU tensors to DLPack compatible
       endpoints.
 
@@ -2131,7 +2131,11 @@ PYBIND11_MODULE(backend_impl, m) {
           auto meta = schema->DeprecatedArgMeta(arg_name);
           return DeprecatedArgMetaToDict(meta);
         })
-    .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
+    .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts)
+    .def("HasArgument",
+        [](OpSchema *schema, const std::string &arg_name) {
+          return schema->HasArgument(arg_name);
+        });
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

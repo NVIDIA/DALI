@@ -297,15 +297,8 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     int ret = avformat_open_input(&tmp_raw_fmt_ctx, NULL, NULL, NULL);
     DALI_ENFORCE(ret >= 0, std::string("Could not open file ") + filename +
                  " because of " + av_err2str(ret));
-
     file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, avformat_close_input);
     LOG_LINE << "File open " << filename << std::endl;
-
-    // is this needed?
-    if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
-      DALI_FAIL(std::string("Could not find stream information in ")
-                                + filename);
-    }
 
     LOG_LINE << "File info fetched for " << filename << std::endl;
 
@@ -318,16 +311,34 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
     file.vid_stream_idx_ = av_find_best_stream(file.fmt_ctx_.get(), AVMEDIA_TYPE_VIDEO,
                                   -1, -1, nullptr, 0);
+    if (file.vid_stream_idx_ < 0) {
+      if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
+        DALI_FAIL(std::string("Could not find stream information in ") + filename);
+      }
+      file.vid_stream_idx_ = av_find_best_stream(file.fmt_ctx_.get(), AVMEDIA_TYPE_VIDEO,
+                                  -1, -1, nullptr, 0);
+      DALI_ENFORCE(file.vid_stream_idx_ >= 0,
+                   std::string("Could not find video stream in ") + filename);
+    }
     LOG_LINE << "Best stream " << file.vid_stream_idx_ << " found for "
               << filename << std::endl;
-    if (file.vid_stream_idx_ < 0) {
-      DALI_FAIL(std::string("Could not find video stream in ") + filename);
-    }
 
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
     int width = codecpar(stream)->width;
     int height = codecpar(stream)->height;
     auto codec_id = codecpar(stream)->codec_id;
+
+    if (width == 0 || height == 0) {
+      if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
+        DALI_FAIL(std::string("Could not find stream information in ")
+                                  + filename);
+      }
+
+      width = codecpar(stream)->width;
+      height = codecpar(stream)->height;
+      codec_id = codecpar(stream)->codec_id;
+    }
+
     if (max_width_ == 0) {  // first file to open
       max_width_ = width;
       max_height_ = height;
@@ -513,7 +524,6 @@ void VideoLoader::read_file() {
   auto& file = get_or_open_file(req.filename);
   auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
   req.frame_base = file.frame_base_;
-  req.full_range = codecpar(stream)->color_range == AVCOL_RANGE_JPEG;
 
   if (vid_decoder_) {
       vid_decoder_->push_req(req);

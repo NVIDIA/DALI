@@ -15,6 +15,7 @@
 #include "dali/test/operators/dummy_op.h"
 
 #include <cstdlib>
+#include <string>
 
 namespace dali {
 
@@ -22,7 +23,7 @@ TestStatefulSource::TestStatefulSource(const OpSpec &spec)
     : Operator<CPUBackend>(spec),
       epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
-void TestStatefulSource::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void TestStatefulSource::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   DALI_ENFORCE(checkpoints_to_collect_ > 0,
                "Attempting to collect a checkpoint from an empty queue. ");
   checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
@@ -31,6 +32,14 @@ void TestStatefulSource::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t
 
 void TestStatefulSource::RestoreState(const OpCheckpoint &cpt) {
   state_ = cpt.CheckpointState<uint8_t>();
+}
+
+std::string TestStatefulSource::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulSource::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulSource::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
@@ -59,12 +68,20 @@ void TestStatefulSource::RunImpl(Workspace &ws) {
 TestStatefulOpCPU::TestStatefulOpCPU(const OpSpec &spec)
     : Operator<CPUBackend>(spec) {}
 
-void TestStatefulOpCPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void TestStatefulOpCPU::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   cpt.MutableCheckpointState() = state_;
 }
 
 void TestStatefulOpCPU::RestoreState(const OpCheckpoint &cpt) {
   state_ = cpt.CheckpointState<uint8_t>();
+}
+
+std::string TestStatefulOpCPU::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulOpCPU::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulOpCPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {

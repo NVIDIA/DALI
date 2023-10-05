@@ -15,11 +15,11 @@
 #ifndef DALI_OPERATORS_GENERIC_SLICE_SLICE_BASE_H_
 #define DALI_OPERATORS_GENERIC_SLICE_SLICE_BASE_H_
 
+#include <any>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"

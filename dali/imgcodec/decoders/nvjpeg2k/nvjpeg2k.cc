@@ -44,17 +44,17 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
 }  // namespace
 
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
-    int device_id, const std::map<std::string, any> &params)
+    int device_id, const std::map<std::string, std::any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
 , nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k()) {
   SetParams(params);
-  any num_threads_any = GetParam("nvjpeg2k_num_threads");
-  int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 4;
+  std::any num_threads_any = GetParam("nvjpeg2k_num_threads");
+  int num_threads = num_threads_any.has_value() ? std::any_cast<int>(num_threads_any) : 4;
   tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
   per_thread_resources_ = vector<PerThreadResources>(num_threads);
-  size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
-  size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
+  size_t device_memory_padding = std::any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
+  size_t host_memory_padding = std::any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
 
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initialization failed");

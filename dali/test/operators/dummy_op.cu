@@ -14,6 +14,7 @@
 
 #include "dali/test/operators/dummy_op.h"
 
+#include <string>
 #include <vector>
 
 namespace dali {
@@ -21,12 +22,20 @@ namespace dali {
 TestStatefulOpMixed::TestStatefulOpMixed(const OpSpec &spec)
     : Operator<MixedBackend>(spec) {}
 
-void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
+void TestStatefulOpMixed::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   cpt.MutableCheckpointState() = state_;
 }
 
 void TestStatefulOpMixed::RestoreState(const OpCheckpoint &cpt) {
   state_ = cpt.CheckpointState<uint8_t>();
+}
+
+std::string TestStatefulOpMixed::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulOpMixed::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulOpMixed::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
@@ -59,22 +68,30 @@ TestStatefulOpGPU::~TestStatefulOpGPU() {
   CUDA_CALL(cudaFree(state_));
 }
 
-void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, std::optional<cudaStream_t> stream) {
-  DALI_ENFORCE(stream, "Cuda stream was not provided for GPU operator checkpointing. ");
+void TestStatefulOpGPU::SaveState(OpCheckpoint &cpt, AccessOrder order) {
+  DALI_ENFORCE(order.is_device(), "Cuda stream was not provided for GPU operator checkpointing. ");
 
   std::any &cpt_state = cpt.MutableCheckpointState();
   if (!cpt_state.has_value())
     cpt_state = std::vector<uint8_t>(max_batch_size_);
 
-  cpt.SetOrder(AccessOrder(*stream));
+  cpt.SetOrder(order);
   CUDA_CALL(cudaMemcpyAsync(std::any_cast<std::vector<uint8_t>>(cpt_state).data(),
                             state_, sizeof(uint8_t) * max_batch_size_,
-                            cudaMemcpyDeviceToHost, *stream));
+                            cudaMemcpyDeviceToHost, order.stream()));
 }
 
 void TestStatefulOpGPU::RestoreState(const OpCheckpoint &cpt) {
   CUDA_CALL(cudaMemcpy(state_, cpt.CheckpointState<std::vector<uint8_t>>().data(),
                        sizeof(uint8_t) * max_batch_size_, cudaMemcpyHostToDevice));
+}
+
+std::string TestStatefulOpGPU::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  return std::to_string(cpt.CheckpointState<uint8_t>());
+}
+
+void TestStatefulOpGPU::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = static_cast<uint8_t>(std::stoi(data));
 }
 
 bool TestStatefulOpGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {

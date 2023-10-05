@@ -409,7 +409,7 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
 
 ImageDecoder::ImageDecoder(int device_id,
                            bool lazy_init,
-                           const std::map<std::string, any> &params,
+                           const std::map<std::string, std::any> &params,
                            std::function<bool(ImageDecoderFactory *)> decoder_filter) {
   SetParams(params);
   if (device_id == -1)
@@ -497,7 +497,7 @@ void ImageDecoder::CalculateOutputShape(TensorListShape<> &shape,
   }
 }
 
-bool ImageDecoder::SetParam(const char *key, const any &value) {
+bool ImageDecoder::SetParam(const char *key, const std::any &value) {
   params_[key] = value;
 
   for (auto &[_, worker] : workers_)
@@ -507,12 +507,12 @@ bool ImageDecoder::SetParam(const char *key, const any &value) {
   return true;
 }
 
-any ImageDecoder::GetParam(const char *key) const {
+std::any ImageDecoder::GetParam(const char *key) const {
   auto it = params_.find(key);
-  return it != params_.end() ? it->second : any{};
+  return it != params_.end() ? it->second : std::any{};
 }
 
-int ImageDecoder::SetParams(const std::map<std::string, any> &params) {
+int ImageDecoder::SetParams(const std::map<std::string, std::any> &params) {
   for (auto &[k, v] : params)
     params_[k] = v;
 

@@ -21,6 +21,8 @@ from nvidia.dali.pipeline import pipeline_def
 parser = argparse.ArgumentParser(description='DALI HW decoder benchmark')
 parser.add_argument('-b', dest='batch_size', help='batch size', default=1, type=int)
 parser.add_argument('-d', dest='device_id', help='device id', default=0, type=int)
+parser.add_argument('-n', dest='gpu_num',
+                    help='Number of GPUs used starting from device_id', default=1, type=int)
 parser.add_argument('-g', dest='device', choices=['gpu', 'cpu'],
                     help='device to use', default='gpu',
                     type=str)
@@ -31,8 +33,8 @@ parser.add_argument('-i', dest='images_dir', help='images dir')
 parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50'],
                     help='pipeline to test', default='decoder',
                     type=str)
-parser.add_argument('--width_hint', dest="width_hint", default=0, type=int)
-parser.add_argument('--height_hint', dest="height_hint", default=0, type=int)
+parser.add_argument('--width_hint', dest='width_hint', default=0, type=int)
+parser.add_argument('--height_hint', dest='height_hint', default=0, type=int)
 parser.add_argument('--hw_load', dest='hw_load',
                     help='HW decoder workload (e.g. 0.66 means 66% of the batch)', default=0.75,
                     type=float)
@@ -78,16 +80,25 @@ def RN50Pipeline():
     return images
 
 
+pipes = []
 if args.pipeline == 'decoder':
-    pipe = DecoderPipeline()
+    for i in range(args.gpu_num):
+        pipes.append(DecoderPipeline(device_id=i+args.device_id))
 elif args.pipeline == 'rn50':
-    pipe = RN50Pipeline()
+    for i in range(args.gpu_num):
+        pipes.append(RN50Pipeline(device_id=i+args.device_id))
 else:
     raise RuntimeError('Unsupported pipeline')
-pipe.build()
+for p in pipes:
+    p.build()
 
 for iteration in range(args.warmup_iterations):
-    output = pipe.run()
+    for p in pipes:
+        p.schedule_run()
+    for p in pipes:
+        _ = p.share_outputs()
+    for p in pipes:
+        p.release_outputs()
 print('Warmup finished')
 
 start = time.time()
@@ -95,8 +106,13 @@ test_iterations = args.total_images // args.batch_size
 
 print('Test iterations: ', test_iterations)
 for iteration in range(test_iterations):
-    output = pipe.run()
+    for p in pipes:
+        p.schedule_run()
+    for p in pipes:
+        _ = p.share_outputs()
+    for p in pipes:
+        p.release_outputs()
 end = time.time()
 total_time = end - start
 
-print(test_iterations * args.batch_size / total_time, 'fps')
+print(test_iterations * args.batch_size * args.gpu_num / total_time, 'fps')

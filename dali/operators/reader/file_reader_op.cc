@@ -16,8 +16,18 @@
 
 #include "dali/operators/reader/file_reader_op.h"
 #include "dali/operators/reader/loader/utils.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 
 namespace dali {
+
+std::string FileReader::SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  const auto &state = cpt.CheckpointState<LoaderStateSnapshot>();
+  return SnapshotSerializer().Serialize(state);
+}
+
+void FileReader::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  cpt.MutableCheckpointState() = SnapshotSerializer().Deserialize<LoaderStateSnapshot>(data);
+}
 
 DALI_REGISTER_OPERATOR(readers__File, FileReader, CPU);
 
