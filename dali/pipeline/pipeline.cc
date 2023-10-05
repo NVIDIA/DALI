@@ -773,7 +773,7 @@ const OpNode *Pipeline::GetInputOperatorNode(const std::string& name) {
       return node;
     }
   }
-  DALI_FAIL("Could not find an input operator with name " + name);
+  DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
 }
 
 std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
