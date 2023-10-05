@@ -162,7 +162,7 @@ class DLL_PUBLIC Pipeline {
                               std::optional<std::string> data_id, AccessOrder order = {},
                               InputOperatorSettingMode ext_src_setting_mode = {},
                               bool is_refeeding = false) {
-    auto *node = GetOperatorNode(name);
+    auto *node = GetInputOperatorNode(name);
     OperatorBase *op_ptr = node->op.get();
 
     switch (node->op_type) {
@@ -248,6 +248,11 @@ class DLL_PUBLIC Pipeline {
    * with a given name
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
+
+  /**
+   * @brief Rreturns an input graph node with a given name
+   */
+  DLL_PUBLIC const OpNode *GetInputOperatorNode(const std::string &name);
 
   /** @{ */
   /**
@@ -640,8 +645,8 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> input_operators_names_;
-
+  // input operators are sorted by names
+  std::map<std::string, const OpNode*> input_operators_;
 
   /**
    * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on

@@ -767,6 +767,15 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
+const OpNode *Pipeline::GetInputOperatorNode(const std::string& name) {
+  for (auto &[op_name, node] : input_operators_) {
+    if (op_name == name) {
+      return node;
+    }
+  }
+  DALI_FAIL("Could not find an input operator with name " + name);
+}
+
 std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   std::map<std::string, ReaderMeta> ret;
   for (Index i = 0; i < graph_.NumOp(); ++i) {
@@ -864,12 +873,12 @@ const std::string &Pipeline::input_name(int n) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"input_name(int)\".");
   DALI_ENFORCE(n >= 0,
                make_string("Id of an input operator must be a non-negative integer. Got: ", n));
-  DALI_ENFORCE(static_cast<size_t>(n) < input_operators_names_.size(),
+  DALI_ENFORCE(static_cast<size_t>(n) < input_operators_.size(),
                make_string("Trying to fetch the name of an input operator with id=", n,
                            " while the id has to be smaller than ", num_inputs(), "."));
-  auto it = input_operators_names_.begin();
+  auto it = input_operators_.begin();
   std::advance(it, n);
-  return *it;
+  return it->first;
 }
 
 const std::string &Pipeline::output_name(int id) const {
@@ -909,7 +918,7 @@ static bool is_input_operator(const OpNode &op_node) {
 
 int Pipeline::num_inputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_inputs()\".");
-  return input_operators_names_.size();
+  return input_operators_.size();
 }
 
 
@@ -1048,8 +1057,9 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
 void Pipeline::DiscoverInputOperators() {
   auto& op_nodes = graph_.GetOpNodes();
   for (const auto & node : op_nodes) {
-    if (!is_input_operator(node)) continue;
-    input_operators_names_.insert(node.instance_name);
+    if (is_input_operator(node)) {
+      input_operators_.insert(std::make_pair(node.instance_name, &node));
+    }
   }
 }
 
