@@ -168,7 +168,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
                 samples that iterator needs to deal with. It automatically sets
                 `last_batch_padded` accordingly to match
@@ -471,7 +471,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
                 samples that iterator needs to deal with. It automatically sets
                 `last_batch_padded` accordingly to match the reader's configuration.
@@ -610,7 +610,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
                 samples that iterator needs to deal with. It automatically sets
                 `last_batch_padded` accordingly to match the reader's configuration.

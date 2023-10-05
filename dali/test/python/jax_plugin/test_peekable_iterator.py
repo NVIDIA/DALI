@@ -14,27 +14,30 @@
 
 
 import jax.numpy as jnp
-from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIIterator
-from test_integration import sequential_pipeline
+from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator as DALIPeekableIterator
+from nvidia.dali.plugin.jax.iterator import DALIGenericIterator
+from utils import iterator_function_def
 from clu.data.dataset_iterator import ArraySpec
 
 from nose_utils import raises
 import time
 
+import inspect
+
 from utils import pipeline_with_variable_shape_output
 
 # Common parameters for all tests in this file
 batch_size = 3
-shape = (1, 5)
-batch_shape = (batch_size, *shape[1:])
+batch_shape = (batch_size, 1)
 
 
 def test_jax_peekable_iterator_peek():
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -49,10 +52,10 @@ def test_jax_peekable_iterator_peek():
 
 def test_jax_peekable_iterator_peek_async_result_before_next():
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -70,10 +73,10 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
 def test_jax_peekable_iterator_peek_async_result_after_next():
     '''This test is not deterministic, but it should pass most of the time.'''
     # given
-    pipe = sequential_pipeline(batch_size, shape)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
 
     # then
     assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
@@ -95,8 +98,28 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
     batch_size = 1
     pipe = pipeline_with_variable_shape_output(batch_size)
 
-    iterator = DALIIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ['data'], size=batch_size*100)
     iterator.next()
 
     # when
     iterator.next()
+
+
+# Makes sure that API of DALIGenericIterator and DALIGenericPeekableIterator did not diverge
+def test_iterators_init_method_api_compatibility():
+    # given
+    iterator_init_args = inspect.getfullargspec(DALIGenericIterator.__init__).args
+    peekalbe_iterator_init_args = inspect.getfullargspec(DALIPeekableIterator.__init__).args
+
+    # then
+    assert iterator_init_args == peekalbe_iterator_init_args
+
+    # Get docs for the docorator "Parameters" section
+    # Skip the first argument, which differs (pipelines vs. pipeline_fn)
+    iterator_decorator_docs = inspect.getdoc(DALIGenericIterator)
+    iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
+
+    iterator_init_docs = inspect.getdoc(DALIPeekableIterator)
+    iterator_init_docs = iterator_init_docs.split("output_map")[1]
+
+    assert iterator_decorator_docs == iterator_init_docs

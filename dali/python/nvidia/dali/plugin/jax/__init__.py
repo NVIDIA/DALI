@@ -15,7 +15,7 @@ import sys
 import jax
 
 from distutils.version import LooseVersion
-from .iterator import DALIGenericIterator
+from .iterator import DALIGenericIterator, data_iterator
 
 assert sys.version_info.major == 3 and sys.version_info.minor >= 8, \
     "DALI JAX support requires Python 3.8 or above"
@@ -25,4 +25,4 @@ assert LooseVersion(jax.__version__) >= LooseVersion('0.4.11'), \
     "DALI JAX support requires JAX 0.4.11 or above"
 
 
-__all__ = ["DALIGenericIterator"]
+__all__ = ["DALIGenericIterator", "data_iterator"]

@@ -18,6 +18,7 @@ from jax.sharding import NamedSharding, PositionalSharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+from nvidia.dali.pipeline import pipeline_def
 
 from .integration import _to_jax_array
 
@@ -46,7 +47,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
                 samples that iterator needs to deal with. It automatically sets `last_batch_padded`
                 accordingly to match the reader's configuration.
@@ -57,9 +58,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 It can be one of the following values:
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
-                  and reset() needs to be called
+                and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                  is called internally automatically.
+                is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
@@ -225,3 +226,167 @@ class DALIGenericIterator(_DaliBaseIterator):
         for shard in category_outputs:
             assert shard.shape == category_outputs[0].shape, \
                 "Shards shapes have to be the same."
+
+
+def data_iterator_impl(
+        iterator_type,
+        pipeline_fn=None,
+        output_map=[],
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+        sharding=None):
+    """ Implementation of the data_iterator decorator. It is extracted to a separate function
+    to be reused by the peekable iterator decorator.
+    """
+    def data_iterator_decorator(func):
+        def create_iterator(*args, **wrapper_kwargs):
+            pipeline_def_fn = pipeline_def(func)
+
+            if sharding is None:
+                pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
+            else:
+                pipelines = []
+
+                # Handle batch_size_per_gpu
+                global_batch_size = wrapper_kwargs['batch_size']
+                batch_size_per_gpu = global_batch_size // len(jax.devices())
+                wrapper_kwargs['batch_size'] = batch_size_per_gpu
+
+                for id, device in enumerate(jax.local_devices()):
+                    # How device_id, shard_id and num_shards are used in the pipeline
+                    # is affected by: https://github.com/google/jax/issues/16024
+                    pipeline = pipeline_def_fn(
+                        *args,
+                        **wrapper_kwargs,
+                        device_id=id,
+                        shard_id=device.id,
+                        num_shards=len(jax.devices()))
+
+                    pipelines.append(pipeline)
+
+            return iterator_type(
+                pipelines=pipelines,
+                output_map=output_map,
+                size=size,
+                reader_name=reader_name,
+                auto_reset=auto_reset,
+                last_batch_padded=last_batch_padded,
+                last_batch_policy=last_batch_policy,
+                prepare_first_batch=prepare_first_batch,
+                sharding=sharding)
+
+        return create_iterator
+    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
+
+
+def data_iterator(
+        pipeline_fn=None,
+        output_map=[],
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+        sharding=None):
+    """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
+    iterator for JAX.
+
+    Decorated function should return DALI pipeline definition function. Decorator accepts
+    all arguments of :meth:`nvidia.dali.plugin.base_iterator.DALIGenericIterator.__init__` and
+    passes them to the iterator constructor. It also accepts all arguments of
+    :meth:`nvidia.dali.pipeline.pipeline_def` and passes them to the pipeline definition
+    function.
+    If the same argument is passed to the decorator and the decorated function,
+    exception is raised.
+
+    Parameters
+    ----------
+    pipeline_fn function:
+                Function to be decorated. It should be comaptible with
+                :meth:`nvidia.dali.pipeline.pipeline_def` decorator.
+                For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
+    output_map : list of str
+                List of strings which maps consecutive outputs
+                of DALI pipelines to user specified name.
+                Outputs will be returned from iterator as dictionary
+                of those names.
+                Each name should be distinct
+    size : int, default = -1
+                Number of samples in the shard for the wrapped pipeline (if there is more than
+                one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and
+                `last_batch_padded` don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
+    reader_name : str, default = None
+                Name of the reader which will be queried for the shard size, number of shards and
+                all other properties necessary to count properly the number of relevant and padded
+                samples that iterator needs to deal with. It automatically sets `last_batch_padded`
+                accordingly to match the reader's configuration.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be
+                called explicitly.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
+                and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
+                is called internally automatically.
+    last_batch_policy: optional, default = LastBatchPolicy.FILL
+                What to do with the last batch when there are not enough samples in the epoch
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                JAX iterator does not support LastBatchPolicy.PARTIAL
+    last_batch_padded : bool, optional, default = False
+                Whether the last batch provided by DALI is padded with the last sample
+                or it just wraps up. In the conjunction with ``last_batch_policy`` it tells
+                if the iterator returning last batch with data only partially filled with
+                data from the current epoch is dropping padding samples or samples from
+                the next epoch. If set to ``False`` next
+                epoch will end sooner as data from it was consumed but dropped. If set to
+                True next epoch would be the same length as the first one. For this to happen,
+                the option `pad_last_batch` in the reader needs to be set to True as well.
+                It is overwritten when `reader_name` argument is provided
+    prepare_first_batch : bool, optional, default = True
+                Whether DALI should buffer the first batch right after the creation of the iterator,
+                so one batch is already prepared when the iterator is prompted for the data
+    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+                build an output jax.Array for each category. If ``None``, the iterator returns
+                values compatible with pmapped JAX functions.
+
+    Example
+    -------
+    With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
+
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
+
+    Note:
+        JAX iterator does not support LastBatchPolicy.PARTIAL.
+    """
+    return data_iterator_impl(
+        DALIGenericIterator,
+        pipeline_fn,
+        output_map,
+        size,
+        reader_name,
+        auto_reset,
+        last_batch_padded,
+        last_batch_policy,
+        prepare_first_batch,
+        sharding)
