@@ -47,6 +47,8 @@ class _TFRecordReaderImpl():
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
         self._init_args.update({"path": self._path, "index_path": self._index_path})
+        self._name = self._init_args.pop("name", None)
+        self._preserve = self._init_args.get("preserve", False)
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
@@ -65,21 +67,37 @@ class _TFRecordReaderImpl():
     def device(self):
         return self._device
 
+    @property
+    def preserve(self):
+        return self._preserve
+
     def __call__(self, *inputs, **kwargs):
         # We do not handle multiple input sets for Reader as they do not have inputs
         args, arg_inputs = ops._separate_kwargs(kwargs)
-        op_instance = ops._OperatorInstance(inputs, args, arg_inputs, self._init_args, self)
-        outputs = {}
+
+        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
+        if self._name is not None:
+            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+
+        self._preserve = (self._preserve or args.get("preserve", False) or self._schema.IsNoPrune())
+
         feature_names = []
         features = []
-        for (feature_name, feature), output in zip(self._features.items(), op_instance.outputs):
-            outputs[feature_name] = output
+        for feature_name, feature in self._features.items():
             feature_names.append(feature_name)
             features.append(feature)
 
         # Those arguments are added after the outputs are generated
-        op_instance.spec.AddArg("feature_names", feature_names)
-        op_instance.spec.AddArg("features", features)
+        self.spec.AddArg("feature_names", feature_names)
+        self.spec.AddArg("features", features)
+
+        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
+
+
+        outputs = {}
+        for feature_name, output in zip(feature_names, op_instance.outputs):
+            outputs[feature_name] = output
+
         return outputs
 
 

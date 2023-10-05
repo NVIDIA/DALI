@@ -40,6 +40,7 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         self._impl_name = impl_name
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
+        self._name = self._init_args.pop("name", None)
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
@@ -78,6 +79,11 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
         args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
+
+        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
+        if self._name is not None:
+            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)
         return op_instance.unwrapped_outputs

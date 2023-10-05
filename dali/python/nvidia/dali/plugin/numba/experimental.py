@@ -348,6 +348,10 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                 "threads_per_block": self.threads_per_block,
             })
 
+        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
+        if self._name is not None:
+            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)
 
@@ -408,6 +412,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self._device = device
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
+        self._name = self._init_args.pop("name", None)
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
