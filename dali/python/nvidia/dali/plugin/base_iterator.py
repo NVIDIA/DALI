@@ -71,7 +71,7 @@ class _DaliBaseIterator(object):
                 one pipeline inside the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards, and
+                Name of the reader which will be queried for the shard size, number of shards, and
                 all other properties necessary to count properly the number of relevant and padded
                 samples that iterator needs to deal with. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
