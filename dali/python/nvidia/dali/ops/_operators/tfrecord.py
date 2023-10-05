@@ -93,7 +93,6 @@ class _TFRecordReaderImpl():
 
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
 
-
         outputs = {}
         for feature_name, output in zip(feature_names, op_instance.outputs):
             outputs[feature_name] = output
