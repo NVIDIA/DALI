@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """A self-contained example of a CNN classifier on the MNIST dataset."""
 
 from typing import cast
@@ -205,6 +206,7 @@ class MnistExperiment(base_experiment.BaseExperiment):
         tasks_lib.SingleTask,
         name='mnist_task',
         model=model_p,
+        summary_verbosity=0,
         train=pax_fiddle.Config(
             tasks_lib.SingleTask.Train,
             learner=learner_p,
