@@ -29,9 +29,23 @@ def _join_string(data, crop, edgeitems, sep=', '):
     return sep.join(data)
 
 
+np = None
+
+
+def import_numpy():
+    global np
+    if np is None:
+        try:
+            import numpy as np
+        except ImportError:
+            raise RuntimeError('Could not import numpy. Numpy is required for '
+                               'Tensor and TensorList printing. '
+                               'Please make sure you have numpy installed.')
+
+
 def _tensor_to_string(self):
     """ Returns string representation of Tensor."""
-    import numpy as np
+    import_numpy()
 
     type_name = type(self).__name__
     indent = ' ' * 4
@@ -48,7 +62,7 @@ def _tensor_to_string(self):
 
 def _tensorlist_to_string(self, indent=''):
     """ Returns string representation of TensorList."""
-    import numpy as np
+    import_numpy()
 
     edgeitems = 2
     spaces_indent = indent + ' ' * 4
