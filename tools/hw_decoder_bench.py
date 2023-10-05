@@ -33,7 +33,8 @@ parser.add_argument('-t', dest='total_images', help='total images', default=100,
 parser.add_argument('-j', dest='num_threads', help='num_threads', default=1, type=int)
 input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument('-i', dest='images_dir', help='images dir')
-input_files_arg.add_argument('--image_list', dest='image_list', nargs='+', default=[], help='List of images used for the benchmark.')
+input_files_arg.add_argument('--image_list', dest='image_list', nargs='+', default=[],
+                             help='List of images used for the benchmark.')
 parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50', 'efficientnet_inference'],
                     help='pipeline to test', default='decoder',
                     type=str)
@@ -91,8 +92,8 @@ def RN50Pipeline():
               prefetch_queue_depth=1)
 def EfficientnetInferencePipeline():
     images = fn.external_source(device='cpu', name=DALI_INPUT_NAME)
-    images = fn.decoders.image(images, device='mixed' if args.device == 'gpu' else 'cpu', output_type=types.RGB,
-                               hw_decoder_load=args.hw_load)
+    images = fn.decoders.image(images, device='mixed' if args.device == 'gpu' else 'cpu',
+                               output_type=types.RGB, hw_decoder_load=args.hw_load)
     images = fn.resize(images, resize_x=224, resize_y=224)
     images = fn.crop_mirror_normalize(images,
                                       dtype=types.FLOAT,
@@ -107,7 +108,6 @@ def feed_input(dali_pipeline, data):
     if needs_feed_input:
         assert data is not None, "Input data has not been provided."
         dali_pipeline.feed_input(DALI_INPUT_NAME, data)
-
 
 
 def create_input_tensor(batch_size, file_list):
