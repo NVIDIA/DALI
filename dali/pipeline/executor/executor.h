@@ -380,7 +380,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   bool has_conditionals_ = false;
 
   bool checkpointing_;
-  int checkpointing_epoch_size_;
+  int checkpointing_epoch_size_ = 0;
 
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);

@@ -181,7 +181,7 @@ DALI_DEVICE DALI_FORCEINLINE void AlignedCopy(const StridedCopyDesc &sample,
                                               MismatchedNdimT mismatched_ndim) {
   using T = typename ElementTypeDesc::type;
   using VecT = typename ElementTypeDesc::vec_type;
-  constexpr int vec_len = ElementTypeDesc::vec_len;
+  constexpr int64_t vec_len = ElementTypeDesc::vec_len;
   const T *__restrict__ input = static_cast<const T *>(sample.input);
   VecT *__restrict__ output =
       reinterpret_cast<VecT *>(static_cast<T *>(sample.output) + sample.aligned.skip_left);
@@ -351,7 +351,7 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
   }
   int element_size, ndim;
   ValidateBatch(element_size, ndim, dl_tensors, batch_size);
-  SmallVector<strided_copy::StridedCopyDesc, 128> sample_descs;
+  SmallVector<strided_copy::StridedCopyDesc, 32> sample_descs;
   const auto cuda_mem_copy = [&output, element_size, stream](int sample_idx,
                                                              const auto &dl_tensor) {
     void *out_data = output.raw_mutable_tensor(sample_idx);
@@ -369,7 +369,7 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
       cuda_mem_copy(sample_idx, dl_tensor);
       continue;
     }
-    strided_copy::StridedCopyDesc sample_desc;
+    strided_copy::StridedCopyDesc sample_desc{};
     sample_desc.output = output.raw_mutable_tensor(sample_idx);
     sample_desc.input = dl_tensor.data;
     sample_desc.size = volume(dl_tensor.shape, dl_tensor.shape + ndim);
