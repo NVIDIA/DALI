@@ -35,6 +35,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 
 namespace dali {
@@ -289,13 +290,69 @@ class DLL_PUBLIC Pipeline {
    * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
    *
    * @param enable_memory_stats If statistics should be gathered
-   * Usefull for `bytes_per_sample_hint` operator parameter.
+   * Useful for `bytes_per_sample_hint` operator parameter.
    */
   DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
     enable_memory_stats_ = enable_memory_stats;
     if (executor_) {
       executor_->EnableMemoryStats(enable_memory_stats_);
     }
+  }
+
+  /**
+   * @brief Set if the DALI pipeline should create checkpoints between the epochs
+   *
+   * @param enable_memory_stats If checkpoints should be created
+   */
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = true) {
+    checkpointing_ = checkpointing;
+    if (executor_) {
+      executor_->EnableCheckpointing(checkpointing_);
+    }
+  }
+
+  /**
+   * @brief Returns a serialized Checkpoint
+   */
+  DLL_PUBLIC string SerializedCheckpoint() const {
+    return GetCheckpoint().SerializeToProtobuf(graph_);
+  }
+
+  /**
+   * @brief Returns an unserialized Checkpoint
+  */
+  DLL_PUBLIC Checkpoint GetCheckpoint() const {
+    DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot save the checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    auto &cpt = executor_->GetCurrentCheckpoint();
+    // Make sure the checkpoint is accessible on host
+    cpt.SetOrder(AccessOrder::host());
+    return cpt;
+  }
+
+  /**
+   * @brief Restores pipeline state from a serialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot restore checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    Checkpoint cpt;
+    cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
+    RestoreFromCheckpoint(cpt);
+  }
+
+  /**
+   * @brief Restores pipeline state from an unserialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromCheckpoint(const Checkpoint &cpt) {
+    executor_->RestoreStateFromCheckpoint(cpt);
   }
 
   /**
@@ -621,6 +678,7 @@ class DLL_PUBLIC Pipeline {
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;

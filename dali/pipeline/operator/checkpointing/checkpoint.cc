@@ -43,6 +43,11 @@ size_t Checkpoint::GetIterationId() const {
   return iteration_id_;
 }
 
+void Checkpoint::SetOrder(AccessOrder order) {
+  for (auto &cpt : cpts_)
+    cpt.SetOrder(order);
+}
+
 Index Checkpoint::NumOp() const {
   return cpts_.size();
 }

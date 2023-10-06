@@ -1853,6 +1853,19 @@ PYBIND11_MODULE(backend_impl, m) {
           p->EnableExecutorMemoryStats(enable_memory_stats);
         },
         "enable_memory_stats"_a = true)
+    .def("EnableCheckpointing",
+        [](Pipeline *p, bool checkpointing) {
+          p->EnableCheckpointing(checkpointing);
+        },
+        "checkpointing"_a = true)
+    .def("SerializedCheckpoint",
+        [](Pipeline *p) -> py::bytes {
+          return p->SerializedCheckpoint();
+          }, py::return_value_policy::take_ownership)
+    .def("RestoreFromSerializedCheckpoint",
+        [](Pipeline *p, const std::string &serialized_checkpoint) {
+          p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
+        })
     .def("executor_statistics",
         [](Pipeline *p) {
           auto ret = p->GetExecutorMeta();

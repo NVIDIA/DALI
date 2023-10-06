@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -202,6 +202,25 @@ class _DaliBaseIterator(object):
         self._ever_scheduled = False
         self._ever_consumed = False
 
+        self._enable_checkpointing = self._pipes[0]._enable_checkpointing
+        for p in self._pipes:
+            if p._enable_checkpointing != self._enable_checkpointing:
+                raise ValueError(
+                    "All wrapped pipelines must have the same value for `enable_checkpointing`.")
+
+        if self._enable_checkpointing:
+            # Note: currently, checkpointing is not supported with last_batch_padded=False.
+            # It is verified in FileReader, where this assumption is needed.
+            # Adding this assertion here lead to problem when reader was not used in the pipeline.
+
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                raise NotImplementedError(
+                    "Currently, checkpointing is not supported with last_batch_policy=DROP")
+
+            # Precompute the initial checkpoints, to prevent any problems
+            # related to the `prepare_first_batch` flag.
+            self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
+
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)
         shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num)
@@ -356,6 +375,18 @@ class _DaliBaseIterator(object):
                 self._end_iteration()
 
         return should_end
+
+    def checkpoints(self):
+        """
+        Returns the current checkpoints of the pipelines.
+        Can only be called between the epochs (or before the first epoch).
+        """
+        if not self._enable_checkpointing:
+            raise ValueError("Cannot access checkpoints with checkpointing disabled")
+        if not self._ever_consumed:
+            return self._initial_checkpoints
+        else:
+            return [p.checkpoint() for p in self._pipes]
 
     def reset(self):
         """
