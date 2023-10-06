@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -188,8 +188,9 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
 
     if (checkpointing_ && shuffle_after_epoch_) {
       // save initial order
-      // moving to prevent one copy, as it is restored in the Reset()
-      backup_image_label_pairs_ = std::move(image_label_pairs_);
+      // DO not call std::move on image_label_pairs_, even though it is restored in Reset
+      // it may be needed if SizeImpl is called!
+      backup_image_label_pairs_ = image_label_pairs_;
     }
 
     Reset(true);
