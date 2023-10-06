@@ -16,7 +16,6 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 from nvidia.dali.pipeline import pipeline_def
-from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
@@ -64,6 +63,8 @@ def check_pipeline_checkpointing_native(pipeline_factory):
 
 
 def check_pipeline_checkpointing_pytorch(pipeline_factory, reader_name=None, size=-1):
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator
+
     pipe = pipeline_factory(**pipeline_args)
     pipe.build()
 
@@ -189,6 +190,8 @@ def test_file_reader(
 def test_file_reader_pytorch(
         num_epochs, batch_size, shard_id, num_shards,
         random_shuffle, shuffle_after_epoch, stick_to_shard):
+
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
