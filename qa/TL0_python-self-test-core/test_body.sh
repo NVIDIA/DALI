@@ -36,7 +36,7 @@ test_pytorch() {
 }
 
 test_checkpointing() {
-    ${python_new_invoke_test} test_dali_stateless_operators
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s checkpointing
 }
 
 test_no_fw() {
