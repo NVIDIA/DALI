@@ -335,6 +335,9 @@ class DLL_PUBLIC Pipeline {
   */
   DLL_PUBLIC Checkpoint GetCheckpoint() const {
     DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot save the checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
     auto &cpt = executor_->GetCurrentCheckpoint();
     // Make sure the checkpoint is accessible on host
     cpt.SetOrder(AccessOrder::host());
@@ -343,10 +346,13 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Restores pipeline state from a serialized Checkpoint
-   * 
+   *
    * Should be called before building.
   */
   DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot restore checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
     Checkpoint cpt;
     cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
     RestoreFromCheckpoint(cpt);
@@ -354,7 +360,7 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Restores pipeline state from an unserialized Checkpoint
-   * 
+   *
    * Should be called before building.
   */
   DLL_PUBLIC void RestoreFromCheckpoint(const Checkpoint &cpt) {

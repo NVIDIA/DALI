@@ -1369,10 +1369,10 @@ Parameters
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
     def checkpoint(self, filename=None):
-        """Returns the pipeline's state, as a serialized Protobuf string.
+        """Returns the pipeline's state as a serialized Protobuf string.
 
-        Additionally, you can pass file name, so that serialized checkpoint will be written there.
-        The file contents will be overwritten.
+        Additionally, if, `filename` is specified, the serialized checkpoint will be
+        written to the specified file. The file contents will be overwritten.
 
         Parameters
         ----------

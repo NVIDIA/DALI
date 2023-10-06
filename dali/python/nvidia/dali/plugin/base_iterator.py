@@ -381,7 +381,8 @@ class _DaliBaseIterator(object):
         Returns the current checkpoints of the pipelines.
         Can only be called between the epochs (or before the first epoch).
         """
-        assert self._enable_checkpointing, "Cannot access checkpoints with checkpointing disabled"
+        if not self._enable_checkpointing:
+            raise ValueError("Cannot access checkpoints with checkpointing disabled")
         if not self._ever_consumed:
             return self._initial_checkpoints
         else:
