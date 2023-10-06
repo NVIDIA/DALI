@@ -26,7 +26,7 @@ TestStatefulSource::TestStatefulSource(const OpSpec &spec)
 void TestStatefulSource::SaveState(OpCheckpoint &cpt, AccessOrder order) {
   // TODO(ktokarski) Any ops queues etc. should not be modified by saving state
   // Rework this test to stop checking this
-  if (ever_run_) { // do not count the initial checkpoints before anything is run
+  if (ever_run_) {  // do not count the initial checkpoints before anything is run
     DALI_ENFORCE(checkpoints_to_collect_ > 0,
                 "Attempting to collect a checkpoint from an empty queue. ");
     checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */

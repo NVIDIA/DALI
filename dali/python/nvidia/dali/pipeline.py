@@ -111,11 +111,28 @@ Parameters
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
 `enable_checkpointing`: bool, optional, default = 0
-    Experimental feature: When enabled, DALI produces checkpoints, which allow to save
-    and later resume the training.
+    If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
+    method returns serialized state of the pipeline. The same pipeline can be later rebuilt
+    with the serialized state passed as the `checkpoint` parameter to resume running
+    from the saved epoch.
+
+    .. warning::
+        This is an experimental feature. The API may change without notice. Checkpoints
+        created with this DALI version may not be compatible with the future releases.
+        Currently, some operators do not support checkpointing. The state of the pipeline
+        can be saved at the beginning of an epoch only.
+
 `checkpoint`: str, optional, default = None
-    Experimental feature: Serialized checkpoint, received using ``checkpoint()`` method.
-    When pipeline is built, it's state is restored from the checkpoint.
+    Serialized checkpoint, received from ``checkpoint`` method.
+    When pipeline is built, it's state is restored from the `checkpoint` and the pipeline
+    resumes execution from the saved epoch.
+
+    .. warning::
+        This is an experimental feature. The API may change without notice. Checkpoints
+        created with this DALI version may not be compatible with the future releases.
+        Currently, some operators do not support checkpointing. The state of the pipeline
+        can be saved at the beginning of an epoch only.
+
 `py_num_workers`: int, optional, default = 1
     The number of Python workers that will process ``ExternalSource`` callbacks.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
@@ -1373,6 +1390,15 @@ Parameters
 
         Additionally, if, `filename` is specified, the serialized checkpoint will be
         written to the specified file. The file contents will be overwritten.
+
+        The same pipeline can be rebuilt with the saved checkpoint passed as a `checkpoint`
+        parameter to resume execution from the saved epoch.
+
+        .. warning::
+            This is an experimental feature. The API may change without notice. Checkpoints
+            created with this DALI version may not be compatible with the future releases.
+            Currently, some operators do not support checkpointing. The state of the pipeline
+            can be saved at the beginning of an epoch only.
 
         Parameters
         ----------
