@@ -199,6 +199,17 @@ class Loader {
             pad_last_batch_;
   }
 
+  void FastForward(uint64_t steps) {
+    DALI_ENFORCE(read_sample_counter_ == 0, 
+                 "Some samples were read already, loader fast-forward not supported");
+    PopulateSampleBuffer(SimulateBufferContents(steps));
+    auto target_position = steps + initial_buffer_fill_;
+    Advance(target_position - read_sample_counter_);
+    shards_.back().start += steps;
+    shards_.back().end += steps + initial_buffer_fill_;
+  }
+
+
   // Get a random read sample
   LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch) {
     PrepareMetadata();
@@ -220,14 +231,7 @@ class Loader {
       }
 
       // need some entries in the empty_tensors_ list
-      DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
-      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      for (int i = 0; i < initial_empty_size_; ++i) {
-        auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
-        PrepareEmpty(*tensor_ptr);
-        empty_tensors_.push_back(std::move(tensor_ptr));
-      }
-
+      FillEmptyTensorList();
       initial_buffer_filled_ = true;
     }
 
@@ -432,6 +436,70 @@ class Loader {
         cache_ = image_cache_factory.Get(device_id_);
     });
     return cache_ && cache_->IsCached(key);
+  }
+
+  void FillEmptyTensorList() {
+    DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
+    std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+    for (int i = 0; i < initial_empty_size_; ++i) {
+      auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+      PrepareEmpty(*tensor_ptr);
+      empty_tensors_.push_back(std::move(tensor_ptr));
+    }
+  }
+
+  std::vector<Index> SimulateBufferContents(uint64_t steps) {
+    DALI_ENFORCE(num_shards_ == 1, "Shards not supported yet");  // TODO(skarpinski)
+
+    std::vector<Index> buffer(initial_buffer_fill_);
+    for (size_t i = 0; i < buffer.size(); i++) {
+      buffer[i] = i;
+    }
+    uint64_t unread_idx = initial_buffer_fill_;
+    
+    auto start = 0, end = initial_buffer_fill_;
+
+    for (uint64_t step = 0; step < steps; step++) {
+      std::uniform_int_distribution<> dis;
+      dis = std::uniform_int_distribution<>(0, end - start - 1);
+      int offset = shuffle_ ? dis(e_) : 0;
+      Index idx = (start + offset) % buffer.size();
+      std::swap(buffer[idx], buffer[start % buffer.size()]);
+      buffer[end % buffer.size()] = unread_idx++;
+      end++;
+      start++;
+    }
+
+    return buffer;
+  }
+
+  void PopulateSampleBuffer(const std::vector<Index> &sample_indices) {
+    DALI_ENFORCE(!initial_buffer_filled_ && sample_buffer_.empty(), "Sample buffer already filled");
+    DALI_ENFORCE(sample_indices.size() == initial_buffer_fill_, "Invalid number of sample indices");
+    DALI_ENFORCE(read_sample_counter_ == 0, "Some samples were read already");
+    DALI_ENFORCE(num_shards_ == 1, "Shards not supported yet");  // TODO(skarpinski)
+    
+    FillEmptyTensorList();
+    shards_.push_back({0, 0});
+
+    // As we can't seek backwards, samples have to be read in order.
+    std::vector<std::pair<Index, size_t>> to_read(sample_indices.size());
+    for (size_t i = 0; i < sample_indices.size(); i++) {
+      to_read[i] = {sample_indices[i], i};
+    }
+    std::sort(to_read.begin(), to_read.end());
+
+    sample_buffer_.resize(initial_buffer_fill_);
+    for (auto [index, position] : to_read) {
+      Advance(index - read_sample_counter_);
+      auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+      PrepareEmpty(*tensor_ptr);
+      ReadSample(*tensor_ptr);
+      read_sample_counter_++;
+      sample_buffer_[position] = std::move(tensor_ptr);
+    }
+    
+    initial_buffer_filled_ = true;
   }
 
   std::vector<LoadTargetUniquePtr> sample_buffer_;

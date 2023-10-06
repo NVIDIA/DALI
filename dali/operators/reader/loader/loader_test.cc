@@ -183,9 +183,9 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 
 class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
-  explicit DummyCountingLoader(const OpSpec& spec) :
+  explicit DummyCountingLoader(const OpSpec& spec, uint64_t size) :
     Loader<CPUBackend, Tensor<CPUBackend>>(spec),
-    counter_(0) {}
+    size_(size), counter_(0) {}
 
   void ReadSample(Tensor<CPUBackend> &t) override {
     t.Resize({1}, DALI_UINT64);
@@ -195,7 +195,7 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void PrepareMetadataImpl() override {}
 
   Index SizeImpl() override {
-    return 1;
+    return size_;
   }
 
   void Reset(bool wrap_to_shard) override {
@@ -203,13 +203,15 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  private:
+  uint64_t size_;
   uint64_t counter_;
 };
 
 TEST(LoaderCheckpointingTest, TestGenericAdvance) {
   auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
                                                 .AddArg("device_id", 0)
-                                                .AddArg("max_batch_size", 32));
+                                                .AddArg("max_batch_size", 32),
+                                                100);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 0);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 1);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 2);
@@ -232,6 +234,37 @@ TEST(LoaderCheckpointingTest, TestGenericAdvance) {
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 6);
   loader->Advance(0);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 7);
+}
+
+TEST(LoaderCheckpointingTest, TestFastForwardNoShuffle) {
+  auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
+                                                .AddArg("device_id", 0)
+                                                .AddArg("max_batch_size", 32), 1);
+  loader->FastForward(10);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 10);
+}
+
+TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
+  auto spec = OpSpec("FileReader")
+                .AddArg("device_id", 0)
+                .AddArg("max_batch_size", 32)
+                .AddArg("initial_fill", 10)
+                .AddArg("random_shuffle", true)
+                .AddArg("seed", 123);
+
+  auto loader1 = InitLoader<DummyCountingLoader>(spec, 100);
+  auto loader2 = InitLoader<DummyCountingLoader>(spec, 100);
+  
+  loader1->FastForward(30);
+  for (int i = 0; i < 30; i++) {
+    loader2->ReadOne(false, false)->data<uint64_t>();
+  }
+
+  for (int i = 0; i < 30; i++) {
+    auto a = *(loader1->ReadOne(false, false)->data<uint64_t>());
+    auto b = *(loader2->ReadOne(false, false)->data<uint64_t>());
+    EXPECT_EQ(a, b);
+  }
 }
 
 };  // namespace dali
