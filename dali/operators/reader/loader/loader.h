@@ -160,7 +160,6 @@ class Loader {
    *  to create a new snapshot and store it in the inner queue.
    */
   void PushStateSnapshot() {
-    // if (!checkpointing_) return;
     std::lock_guard<std::mutex> lock(state_queue_mutex_);
     state_queue_[state_queue_back_].rng = e_;
     state_queue_[state_queue_back_].current_epoch = checkpoint_epoch_++;

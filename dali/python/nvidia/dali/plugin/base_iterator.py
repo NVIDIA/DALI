@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -205,7 +205,8 @@ class _DaliBaseIterator(object):
         self._enable_checkpointing = self._pipes[0]._enable_checkpointing
         for p in self._pipes:
             if p._enable_checkpointing != self._enable_checkpointing:
-                   raise ValueError("All pipelines should have the same value of the checkpointing option")
+                raise ValueError(
+                    "All wrapped pipelines must have the same value for `enable_checkpointing`.")
 
         if self._enable_checkpointing:
             # Note: currently, checkpointing is not supported with last_batch_padded=False.

@@ -710,17 +710,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::CreateInitialCheckpoints() {
       case OpType::CPU:
         order = {};
         break;
-      
+
       case OpType::MIXED:
         order = AccessOrder(mixed_op_stream_);
         break;
-      
+
       case OpType::GPU:
         order = AccessOrder(gpu_op_stream_);
         break;
-      
+
       default:
-        DALI_FAIL(make_string("Operator node has unexpected type: ", static_cast<int>(node.op_type)));
+        DALI_FAIL(
+            make_string("Operator has unexpected device type (should be CPU, MIXED or GPU), "
+                        "got: ", static_cast<int>(node.op_type)));
     }
 
     CreateCheckpoint(node, 0, order);

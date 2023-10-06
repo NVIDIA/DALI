@@ -18,7 +18,7 @@ import os
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, compare_pipelines
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -85,7 +85,9 @@ def check_pipeline_checkpointing_pytorch(pipeline_factory, reader_name=None, siz
 def check_single_input_operator(op, device, **kwargs):
     @pipeline_def
     def pipeline_factory():
-        data, _ = fn.readers.file(name="Reader", file_root=images_dir, pad_last_batch=True, random_shuffle=True)
+        data, _ = fn.readers.file(
+            name="Reader", file_root=images_dir,
+            pad_last_batch=True, random_shuffle=True)
         decoding_device = 'mixed' if device == 'gpu' else 'cpu'
         decoded = fn.decoders.image_random_crop(data, device=decoding_device)
         casted = fn.cast(decoded, dtype=types.DALIDataType.UINT8)
@@ -93,16 +95,19 @@ def check_single_input_operator(op, device, **kwargs):
         return op(resized, device=device, **kwargs)
 
     check_pipeline_checkpointing_native(pipeline_factory)
-    check_pipeline_checkpointing_pytorch(pipeline_factory, reader_name='Reader')
+    check_pipeline_checkpointing_pytorch(
+        pipeline_factory, reader_name='Reader')
 
 
 def check_no_input_operator(op, device, **kwargs):
+
     @pipeline_def
     def pipeline_factory():
         return op(device=device, **kwargs)
 
     check_pipeline_checkpointing_native(pipeline_factory)
-    check_pipeline_checkpointing_pytorch(pipeline_factory, size=8)
+    check_pipeline_checkpointing_pytorch(
+        pipeline_factory, size=8)
 
 
 # Readers section
@@ -110,20 +115,21 @@ def check_no_input_operator(op, device, **kwargs):
 
 
 # Randomized operators section
-# note: fn.decoders.image_random_crop is tested by `check_single_input_operator`
+# note: fn.decoders.image_random_crop is tested by
+# `check_single_input_operator`
 
-@params('cpu')
-def test_random_coin_flip(device):
-    check_no_input_operator(fn.random.coin_flip, device, shape=[10])
+@cartesian_params('cpu', (None, (1,), (10,)))
+def test_random_coin_flip(device, shape):
+    check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
 
-@params('cpu')
+@cartesian_params('cpu', (None, (1,), (10,)))
 def test_random_normal(device):
     check_no_input_operator(fn.random.normal, device, shape=[10])
 
 
-@params('cpu')
-def test_random_normal(device):
+@cartesian_params('cpu', (None, (1,), (10,)))
+def test_random_uniform(device):
     check_no_input_operator(fn.random.uniform, device, shape=[10])
 
 
