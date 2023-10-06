@@ -150,7 +150,8 @@ def test_file_reader(
     num_epochs, batch_size, shard_id, num_shards,
     random_shuffle, shuffle_after_epoch, stick_to_shard):
 
-    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_checkpointing=True)
+    @pipeline_def(batch_size=batch_size, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
     def pipeline():
         data, label = fn.readers.file(
             name="Reader", file_root=images_dir,
@@ -158,6 +159,7 @@ def test_file_reader(
             shard_id=shard_id, num_shards=num_shards,
             shuffle_after_epoch=shuffle_after_epoch,
             stick_to_shard=stick_to_shard)
+
         return data, label
 
     p = pipeline()
@@ -171,6 +173,54 @@ def test_file_reader(
     restored.build()
 
     compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
+
+
+@attr('pytorch')
+@params(
+        (1, 3, 0, 1, True, False, False),
+        (5, 10, 0, 2, True, False, False),
+        (3, 64, 3, 4, False, False, False),
+        (0, 32, 1, 4, False, False, True),
+        (3, 64, 3, 4, False, False, True),
+        (1, 8, 0, 2, False, True, False),
+        (1, 8, 1, 2, False, True, False),
+        (1, 8, 3, 4, False, True, False),
+)
+def test_file_reader_pytorch(
+    num_epochs, batch_size, shard_id, num_shards,
+    random_shuffle, shuffle_after_epoch, stick_to_shard):
+
+    @pipeline_def(batch_size=batch_size, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        data, label = fn.readers.file(
+            name="Reader", file_root=images_dir,
+            pad_last_batch=True, random_shuffle=random_shuffle,
+            shard_id=shard_id, num_shards=num_shards,
+            shuffle_after_epoch=shuffle_after_epoch,
+            stick_to_shard=stick_to_shard)
+        image = fn.decoders.image_random_crop(data, device="mixed")
+        image = fn.resize(image, size=(200, 200))
+        return image, label
+
+    p = pipeline()
+    p.build()
+
+    iter = DALIGenericIterator(p, ['data', 'labels'], auto_reset=True,
+                               reader_name="Reader")
+    for _ in range(num_epochs):
+        for _ in iter:
+            pass
+
+    restored = pipeline(checkpoint=iter.checkpoints()[0])
+    restored.build()
+    iter2 = DALIGenericIterator(restored, ['data', 'labels'], auto_reset=True,
+                                reader_name="Reader")
+
+    for out1, out2 in zip(iter, iter2):
+        for d1, d2 in zip(out1, out2):
+            for key in d1.keys():
+                assert (d1[key] == d2[key]).all()
 
 
 # Randomized operators section
