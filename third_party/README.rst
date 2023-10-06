@@ -82,7 +82,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Aug 21, 2023)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/476ffa2fd272243275a74c36952f210267dc3088
+.. |rapidjsonver| replace:: Top-of-tree (Sep 28, 2023)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/f9d53419e912910fd8fa57d5705fa41425428c35
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
