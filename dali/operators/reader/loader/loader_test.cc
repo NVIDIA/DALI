@@ -180,4 +180,58 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 }
 #endif
 
+
+class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+ public:
+  explicit DummyCountingLoader(const OpSpec& spec) :
+    Loader<CPUBackend, Tensor<CPUBackend>>(spec),
+    counter_(0) {}
+
+  void ReadSample(Tensor<CPUBackend> &t) override {
+    t.Resize({1}, DALI_UINT64);
+    *t.mutable_data<uint64_t>() = counter_++;
+  }
+
+  void PrepareMetadataImpl() override {}
+
+  Index SizeImpl() override {
+    return 1;
+  }
+
+  void Reset(bool wrap_to_shard) override {
+    counter_ = 0;
+  }
+
+ private:
+  uint64_t counter_;
+};
+
+TEST(LoaderCheckpointingTest, TestGenericAdvance) {
+  auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
+                                                .AddArg("device_id", 0)
+                                                .AddArg("max_batch_size", 32));
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 0);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 1);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 2);
+  loader->Advance(5);
+  // 3 is already in the buffer. 4, 5, 6, 7, 8 are skipped.
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 3);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 9);
+  loader->Advance(3);
+  // 10 is already in the buffer. 11, 12, 13 are skipped.
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 10);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 14);
+  loader->Reset(true);
+  // 15 is already in the buffer
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 15);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 0);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 1);
+  loader->Advance(3);
+  // 2 is already in the buffer. 3, 4, 5 are skipped.
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 2);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 6);
+  loader->Advance(0);
+  EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 7);
+}
+
 };  // namespace dali

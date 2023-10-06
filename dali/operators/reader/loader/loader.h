@@ -299,6 +299,36 @@ class Loader {
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
+  /**
+   * @brief Advances loader position in the data source by skipping n samples 
+   *        and adjusts Loader state.
+   * @param n Number of samples to skip.
+  */
+  void Advance(uint64_t n) {
+    AdvanceImpl(n);
+    for (uint64_t i = 0; i < n; i++) {
+      IncreaseReadSampleCounter();
+    }
+  }
+
+  /**
+   * @brief Advances loader position in the data source by skipping n samples.
+   * @warning This generic implementation is inefficient and should be overriden.
+  */
+  virtual void AdvanceImpl(uint64_t n) {
+    LoadTargetUniquePtr tensor_ptr;
+    {
+      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors");
+      tensor_ptr = std::move(empty_tensors_.back());
+      empty_tensors_.pop_back();
+    }
+    for (uint64_t i = 0; i < n; i++) {
+      ReadSample(*tensor_ptr);
+    }
+    RecycleTensor(std::move(tensor_ptr));
+  }
+
   void PrepareMetadata() {
     if (!loading_flag_) {
       std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
