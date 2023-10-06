@@ -147,8 +147,8 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
         (2, 11, 2, 5, False, True, False)
 )
 def test_file_reader(
-    num_epochs, batch_size, shard_id, num_shards,
-    random_shuffle, shuffle_after_epoch, stick_to_shard):
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, shuffle_after_epoch, stick_to_shard):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
@@ -187,8 +187,8 @@ def test_file_reader(
         (1, 8, 3, 4, False, True, False),
 )
 def test_file_reader_pytorch(
-    num_epochs, batch_size, shard_id, num_shards,
-    random_shuffle, shuffle_after_epoch, stick_to_shard):
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, shuffle_after_epoch, stick_to_shard):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
@@ -245,7 +245,7 @@ def test_random_normal(device, shape):
 
 @attr('pytorch')
 @cartesian_params(('cpu',), (None, (1,), (10,)))
-def test_random_normal(device, shape):
+def test_random_normal_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.normal, device, shape=shape)
 
 
@@ -256,7 +256,7 @@ def test_random_uniform(device, shape):
 
 @attr('pytorch')
 @cartesian_params(('cpu',), (None, (1,), (10,)))
-def test_random_uniform(device, shape):
+def test_random_uniform_pytorch(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
 
 
