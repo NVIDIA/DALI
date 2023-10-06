@@ -19,6 +19,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.plugin.pytorch import DALIGenericIterator
 from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
+from nose.plugins.attrib import attr
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -37,23 +38,24 @@ pipeline_args = {
 
 # Checkpoints can be only accessed between the epochs
 # Because of that, we need to calculate the exact epoch size
-def calculate_iterations_in_epoch(pipe):
+def calculate_iterations_in_epoch(pipe, batch_size, num_shards=1):
     reader_meta = pipe.reader_meta()
     try:
         epoch_size = reader_meta['Reader']['epoch_size_padded']
+        epoch_size = epoch_size // num_shards
     except KeyError:
         # There is no reader in the pipeline
         epoch_size = 1
 
     # Round up, because pad_last_batch=True
-    return (epoch_size + pipeline_args['batch_size'] - 1) // pipeline_args['batch_size']
+    return (epoch_size + batch_size - 1) // batch_size
 
 
 def check_pipeline_checkpointing_native(pipeline_factory):
     pipe = pipeline_factory(**pipeline_args)
     pipe.build()
 
-    iterations_in_epoch = calculate_iterations_in_epoch(pipe)
+    iterations_in_epoch = calculate_iterations_in_epoch(pipe, pipeline_args['batch_size'])
     for _ in range(warmup_epochs * iterations_in_epoch):
         pipe.run()
 
@@ -82,9 +84,10 @@ def check_pipeline_checkpointing_pytorch(pipeline_factory, reader_name=None, siz
                 assert (d1[key] == d2[key]).all()
 
 
-def check_single_input_operator(op, device, **kwargs):
+def check_single_input_operator_pipeline(op, device, **kwargs):
+
     @pipeline_def
-    def pipeline_factory():
+    def pipeline():
         data, _ = fn.readers.file(
             name="Reader", file_root=images_dir,
             pad_last_batch=True, random_shuffle=True)
@@ -94,7 +97,16 @@ def check_single_input_operator(op, device, **kwargs):
         resized = fn.resize(casted, resize_x=120, resize_y=80)
         return op(resized, device=device, **kwargs)
 
+    return pipeline
+
+
+def check_single_input_operator(op, device, **kwargs):
+    pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
     check_pipeline_checkpointing_native(pipeline_factory)
+
+
+def check_single_input_operator_pytorch(op, device, **kwargs):
+    pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
     check_pipeline_checkpointing_pytorch(
         pipeline_factory, reader_name='Reader')
 
@@ -106,12 +118,59 @@ def check_no_input_operator(op, device, **kwargs):
         return op(device=device, **kwargs)
 
     check_pipeline_checkpointing_native(pipeline_factory)
-    check_pipeline_checkpointing_pytorch(
-        pipeline_factory, size=8)
+
+
+def check_no_input_operator_pytorch(op, device, **kwargs):
+
+    @pipeline_def
+    def pipeline_factory():
+        return op(device=device, **kwargs)
+
+    check_pipeline_checkpointing_pytorch(pipeline_factory, size=8)
 
 
 # Readers section
-# note: fn.readers.file is tested by `check_single_input_operator`
+
+@params(
+        (1, 3, 0, 1, True, False, False),
+        (5, 10, 0, 2, True, False, False),
+        (0, 32, 1, 4, False, False, False),
+        (3, 64, 3, 4, False, False, False),
+        (1, 3, 0, 1, True, False, True),
+        (5, 10, 0, 2, True, False, True),
+        (0, 32, 1, 4, False, False, True),
+        (3, 64, 3, 4, False, False, True),
+        (2, 7, 0, 1, False, True, False),
+        (1, 8, 0, 2, False, True, False),
+        (1, 8, 1, 2, False, True, False),
+        (1, 8, 3, 4, False, True, False),
+        (2, 11, 2, 5, False, True, False)
+)
+def test_file_reader(
+    num_epochs, batch_size, shard_id, num_shards,
+    random_shuffle, shuffle_after_epoch, stick_to_shard):
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        data, label = fn.readers.file(
+            name="Reader", file_root=images_dir,
+            pad_last_batch=True, random_shuffle=random_shuffle,
+            shard_id=shard_id, num_shards=num_shards,
+            shuffle_after_epoch=shuffle_after_epoch,
+            stick_to_shard=stick_to_shard)
+        return data, label
+
+    p = pipeline()
+    p.build()
+
+    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
+    for _ in range(num_epochs * iterations_in_epoch):
+        p.run()
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
 
 
 # Randomized operators section
@@ -123,11 +182,29 @@ def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
 
+@attr('pytorch')
+@cartesian_params(('cpu',), (None, (1,), (10,)))
+def test_random_coin_flip_pytorch(device, shape):
+    check_no_input_operator_pytorch(fn.random.coin_flip, device, shape=shape)
+
+
 @cartesian_params(('cpu',), (None, (1,), (10,)))
 def test_random_normal(device, shape):
     check_no_input_operator(fn.random.normal, device, shape=shape)
 
 
+@attr('pytorch')
+@cartesian_params(('cpu',), (None, (1,), (10,)))
+def test_random_normal(device, shape):
+    check_no_input_operator_pytorch(fn.random.normal, device, shape=shape)
+
+
+@cartesian_params(('cpu',), (None, (1,), (10,)))
+def test_random_uniform(device, shape):
+    check_no_input_operator(fn.random.uniform, device, shape=shape)
+
+
+@attr('pytorch')
 @cartesian_params(('cpu',), (None, (1,), (10,)))
 def test_random_uniform(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
