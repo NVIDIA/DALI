@@ -118,19 +118,19 @@ def check_no_input_operator(op, device, **kwargs):
 # note: fn.decoders.image_random_crop is tested by
 # `check_single_input_operator`
 
-@cartesian_params('cpu', (None, (1,), (10,)))
+@cartesian_params(('cpu',), (None, (1,), (10,)))
 def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
 
-@cartesian_params('cpu', (None, (1,), (10,)))
-def test_random_normal(device):
-    check_no_input_operator(fn.random.normal, device, shape=[10])
+@cartesian_params(('cpu',), (None, (1,), (10,)))
+def test_random_normal(device, shape):
+    check_no_input_operator(fn.random.normal, device, shape=shape)
 
 
-@cartesian_params('cpu', (None, (1,), (10,)))
-def test_random_uniform(device):
-    check_no_input_operator(fn.random.uniform, device, shape=[10])
+@cartesian_params(('cpu',), (None, (1,), (10,)))
+def test_random_uniform(device, shape):
+    check_no_input_operator(fn.random.uniform, device, shape=shape)
 
 
 # Stateless operators section
