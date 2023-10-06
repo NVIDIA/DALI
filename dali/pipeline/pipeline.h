@@ -162,27 +162,10 @@ class DLL_PUBLIC Pipeline {
                               std::optional<std::string> data_id, AccessOrder order = {},
                               InputOperatorSettingMode ext_src_setting_mode = {},
                               bool is_refeeding = false) {
-    OpType op_type;
-    OpNodeId node_id = -1;
+    auto *node = GetInputOperatorNode(name);
+    OperatorBase *op_ptr = node->op.get();
 
-    if (graph_.TensorExists(name + "_cpu")) {
-      node_id = graph_.TensorSourceID(name + "_cpu");
-      op_type = graph_.NodeType(node_id);
-      DALI_ENFORCE(op_type == OpType::CPU,
-                   "Internal error setting external input data.");
-    } else if (graph_.TensorExists(name + "_gpu")) {
-      node_id = graph_.TensorSourceID(name + "_gpu");
-      op_type = graph_.NodeType(node_id);
-      DALI_ENFORCE(op_type == OpType::GPU || op_type == OpType::MIXED,
-                   "Internal error setting external input data.");
-    } else {
-      DALI_FAIL("Cannot find " + name + " tensor, it doesn't exists or was pruned as unused one.");
-    }
-
-    auto &node = graph_.Node(node_id);
-    OperatorBase *op_ptr = &node.InstantiateOperator();
-
-    switch (op_type) {
+    switch (node->op_type) {
       case OpType::CPU:
         SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order,
                                                  ext_src_setting_mode, is_refeeding);
@@ -265,6 +248,11 @@ class DLL_PUBLIC Pipeline {
    * with a given name
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
+
+  /**
+   * @brief Rreturns an input graph node with a given name
+   */
+  DLL_PUBLIC const OpNode *GetInputOperatorNode(const std::string &name);
 
   /** @{ */
   /**
@@ -657,8 +645,8 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> input_operators_names_;
-
+  // input operators are sorted by names
+  std::map<std::string, const OpNode*> input_operators_;
 
   /**
    * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on
