@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,18 +16,8 @@
 
 #include "dali/operators/reader/file_reader_op.h"
 #include "dali/operators/reader/loader/utils.h"
-#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 
 namespace dali {
-
-std::string FileReader::SerializeCheckpoint(const OpCheckpoint &cpt) const {
-  const auto &state = cpt.CheckpointState<LoaderStateSnapshot>();
-  return SnapshotSerializer().Serialize(state);
-}
-
-void FileReader::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
-  cpt.MutableCheckpointState() = SnapshotSerializer().Deserialize<LoaderStateSnapshot>(data);
-}
 
 DALI_REGISTER_OPERATOR(readers__File, FileReader, CPU);
 
