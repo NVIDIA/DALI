@@ -223,7 +223,7 @@ class Loader {
     for (Index i = 0; i < samples_returned; i++) {
       ReadOne(false, false, true);
     }
-    PopulateSampleBuffer();
+    ReadMissingSamples();
   }
 
 
@@ -472,33 +472,45 @@ class Loader {
     }
   }
 
-  /**
-   * @brief Fills sample buffer with samples of given indices.
-   * State of the Loader is adjusted to reflect the fact that some samples were read.
-   * Counters of returned samples are left unchanged.
-  */
-  void PopulateSampleBuffer() {
+  void ReadMissingSamples() {
     if (!initial_buffer_filled_) return;
 
-    // As we can't seek backwards, samples have to be read in order.
-    std::vector<std::pair<Index, size_t>> to_read(sample_buffer_.size());
-    for (size_t i = 0; i < sample_buffer_.size(); i++) {
-      to_read[i] = {sample_buffer_[i].idx, i};
+    std::vector<IndexedLoadTargetSharedPtr*> to_read;
+    if (!last_sample_ptr_tmp.ptr) {
+      to_read.push_back(&last_sample_ptr_tmp);
     }
-    std::sort(to_read.begin(), to_read.end());
+    for (auto &sample : sample_buffer_) {
+      if (!sample.ptr) {
+        to_read.push_back(&sample);
+      }
+    }
+
+    // We can't move backwards, so samples have to be read in order
+    std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
 
     Reset(true);
 
     Index at = 0;
-    for (auto [index, position] : to_read) {
-      Advance(index - at);
-      at = index;
+    LoadTargetSharedPtr last = nullptr;
+    for (auto target : to_read) {
+      if (target->idx < at) {
+        target->ptr = last;
+        continue;
+      }
 
-      auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+      Advance(target->idx - at);
+      at = target->idx;
+
+      LoadTargetSharedPtr tensor_ptr = {new LoadTarget,
+                           [this](LoadTarget* sample){
+                                      LoadTargetUniquePtr recycle_ptr(sample);
+                                      RecycleTensor(std::move(recycle_ptr));
+                            }};
       PrepareEmpty(*tensor_ptr);
       ReadSample(*tensor_ptr);
+      last = tensor_ptr;
+      target->ptr = std::move(tensor_ptr);
       at++;
-      sample_buffer_[position] = {index, std::move(tensor_ptr)};
     }
   }
 
