@@ -46,7 +46,7 @@ TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
 
 #if LMDB_ENABLED
 TYPED_TEST(DataLoadStoreTest, LMDBTest) {
-  shared_ptr<dali::LMDBLoader> reader(
+  shared_ptr<dali::LMDBloLoader> reader(
       new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("max_batch_size", 32)
@@ -208,6 +208,7 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> 
 };
 
 TEST(LoaderCheckpointingTest, TestGenericAdvance) {
+  // TODO(skarpinski) This should test ReadSample?
   auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
                                                 .AddArg("device_id", 0)
                                                 .AddArg("max_batch_size", 32),
@@ -239,8 +240,8 @@ TEST(LoaderCheckpointingTest, TestGenericAdvance) {
 TEST(LoaderCheckpointingTest, TestFastForwardNoShuffle) {
   auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
                                                 .AddArg("device_id", 0)
-                                                .AddArg("max_batch_size", 32), 1);
-  loader->FastForward(11, 10);
+                                                .AddArg("max_batch_size", 32), 100);
+  loader->FastForward(10);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 10);
 }
 
@@ -255,7 +256,7 @@ TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
   auto loader1 = InitLoader<DummyCountingLoader>(spec, 100);
   auto loader2 = InitLoader<DummyCountingLoader>(spec, 100);
   
-  loader1->FastForward(30+10, 30);
+  loader1->FastForward(30);
   for (int i = 0; i < 30; i++) {
     loader2->ReadOne(false, false)->data<uint64_t>();
   }
@@ -275,7 +276,7 @@ void TestLoaderCheckpointing(const std::unique_ptr<DummyCountingLoader> &loader,
     reference.push_back(*(loader->ReadOne(false, false)->data<uint64_t>()));
   }
 
-  for (int start = 0; start < 2/*n*/; start++) {
+  for (int start = 0; start < n; start++) {
     loader->RestoreStateFromSnapshot(snapshots[start]);
     std::vector<uint64_t> rest;
     for (int i = start; i < n; i++) {
@@ -297,7 +298,7 @@ TEST(LoaderCheckpointingTest, TestCheckpoint) {
   TestLoaderCheckpointing(InitLoader<DummyCountingLoader>(spec, 30), 20);
 }
 
-TEST(LoaderCheckpointingTest, TestCheckpointShuffledSmallBuffer) {
+TEST(LoaderCheckpointingTest, TestCheckpointShuffled) {
   auto spec = OpSpec("FileReader")
                 .AddArg("device_id", 0)
                 .AddArg("max_batch_size", 32)
