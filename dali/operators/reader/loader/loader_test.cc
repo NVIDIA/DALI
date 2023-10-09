@@ -46,7 +46,7 @@ TYPED_TEST_SUITE(DataLoadStoreTest, TestTypes);
 
 #if LMDB_ENABLED
 TYPED_TEST(DataLoadStoreTest, LMDBTest) {
-  shared_ptr<dali::LMDBloLoader> reader(
+  shared_ptr<dali::LMDBLoader> reader(
       new LMDBLoader(
           OpSpec("CaffeReader")
           .AddArg("max_batch_size", 32)
