@@ -117,12 +117,12 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
 
-    def is_arg_input_or_name(name, value):
+    def is_arg_input(name, value):
         if name == "device":
             return False
         if name == "ndim":
             return False
-        if name == "name" or is_arg_input_type(value):
+        if is_arg_input_type(value):
             return True
         if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
             return False
@@ -136,7 +136,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     for name, value in kwargs.items():
         if value is None:
             continue
-        if is_arg_input_or_name(name, value):
+        if is_arg_input(name, value):
             call_args[name] = value
         else:
             init_args[name] = to_scalar(value)
@@ -144,7 +144,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     return init_args, call_args
 
 
-def _handle_deprecations(schema, kwargs, op_name):
+def _handle_arg_deprecations(schema, kwargs, op_name):
     """Handle deprecation of the named arguments (scalar arguments and argument inputs) specified
     to the operator.
 
@@ -189,6 +189,116 @@ def _handle_deprecations(schema, kwargs, op_name):
     return kwargs
 
 
+def _handle_op_deprecation(schema, op_name):
+    if schema.IsDeprecated():
+        # TODO(klecki): how to know if this is fn or ops?
+        msg = "WARNING: `{}` is now deprecated".format(_op_name(op_name, "fn"))
+        use_instead = _op_name(schema.DeprecatedInFavorOf(), "fn")
+        if use_instead:
+            msg += ". Use `" + use_instead + "` instead."
+        explanation = schema.DeprecationMessage()
+        if explanation:
+            msg += "\n" + explanation
+        with warnings.catch_warnings():
+            warnings.simplefilter("default")
+            warnings.warn(msg, DeprecationWarning, stacklevel=2)
+
+
+def _resolve_double_definitions(current, previous, keep_old=True):
+    """Unify the arguments (or argument inputs) between __call__ and __init__ - ops API only.
+
+    If the same argument was passed in both invocation it should result in error, with exception,
+    of passing `None` in `__call__`.
+
+    Parameters
+    ----------
+    current : Dict
+        Parameters passed in __call__
+    previous : Dict
+        Parameters initially passed in __init__
+    keep_old : bool
+        If the old parameters should be returned. Otherwise they just are checked against
+        double definition
+
+    Returns
+    -------
+    Dict
+        Merged dictionaries after error handling.
+    """
+    merged_result = {**previous}  # copy the dict
+    new_result = {}
+    for k, v in current.items():
+        if v is None:
+            # if an argument was specified in __init__ and in __call__ it is None, ignore it
+            continue
+        if k in previous:
+            raise ValueError(f"The argument `{k}` was already specified in __init__.")
+        merged_result[k] = v
+        new_result[k] = v
+
+    if keep_old:
+        return merged_result
+    else:
+        return new_result
+
+
+def _process_arguments(schema, spec, kwargs, operator_name):
+    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling
+    """
+    kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
+    _add_spec_args(schema, spec, kwargs)
+
+
+def _process_argument_inputs(schema, spec, kwargs, operator_name):
+    """Process argument inputs: validate, deprecate, promote constants, add to spec and return the
+    list of DataNodes that need to be kept alive for the graph to exist.
+
+    Returns
+    -------
+    List
+        the list of DataNodes representing inputs (there may be conversions)
+    """
+    kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
+    # Add argument inputs
+    result = []
+    for k in sorted(kwargs.keys()):
+        arg_inp = kwargs[k]
+        if arg_inp is None:
+            continue
+        # Argument input constants are always placed on CPU
+        # TODO(klecki): For MIS we can extract this step outside and do it once
+        arg_inp = _handle_constant(arg_inp, "cpu", k, operator_name)
+
+        _check_arg_input(schema, operator_name, k)
+
+        spec.AddArgumentInput(k, arg_inp.name)
+        result.append(arg_inp)
+    return result
+
+
+def _process_inputs(schema, spec, inputs, operator_name):
+    """Process inputs: validate, add to spec and return the list of DataNodes that need to be kept
+    alive for the graph to exist.
+
+    Returns
+    -------
+    List
+        the list of DataNodes representing inputs (there may be conversions)
+    """
+    if len(inputs) < schema.MinNumInput() or len(inputs) > schema.MaxNumInput():
+        raise ValueError(
+            f"Operator {operator_name} expects "
+            f"from {schema.MinNumInput()} to {schema.MaxNumInput()} inputs, "
+            f"but received {len(inputs)}.")
+    if not inputs:
+        return []
+    for inp in inputs:
+        if not isinstance(inp, _DataNode):
+            raise TypeError(f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
+        spec.AddInput(inp.name, inp.device)
+    return list(inputs)
+
+
 def _add_spec_args(schema, spec, kwargs):
     for key, value in kwargs.items():
         if value is None:
@@ -206,75 +316,82 @@ def _add_spec_args(schema, spec, kwargs):
 
 
 class _OperatorInstance(object):
+    """Class representing the operator node in DALI Pipeline/graph.
+    The entry point accepts grouped arguments: inputs (positional arguments with DataNodes),
+    arguments (dictionary with scalar values), and argument inputs (dictionary with DataNodes).
 
-    def __init__(self, inputs, op, **kwargs):
+    It is responsible for the full* validation of the three input/argument kinds and their
+    additional processing (scalar promotions, deprecations and renaming, splitting for conditionals)
+
+    Each "_process_[arguments/inputs]" step adds them to the OpSpec specifying the operator for
+    the C++ backend.
+
+    * some validation is done in class Operator.__init__ due to legacy reasons.
+    This is the reason for `_processed_arguments` constructor parameter.
+    """
+
+    def __init__(self, inputs, arg_inputs, arguments, _processed_arguments, op):
+        """Construct the OperatorInstance and handle the processing of all inputs and arguments.
+
+        Parameters
+        ----------
+        inputs : tuple of DataNode
+            Positional inputs to operator instance.
+        arg_inputs : dict of DataNode
+            Argument inputs - named DataNode inputs to operator.
+        arguments : dict of scalar values
+            Scalar arguments to be added to OpSpec.
+        _processed_arguments : dict of scalar values
+            Remaining scalar arguments. Available here for completeness, for historical reasons
+            already validated in Operator.__init__.
+            NOTE: they are already added to the `op.spec`!
+        op : Operator class.
+            Operator class containing the schema, and spec filled with `processed_arguments`.
+        """
         self._counter = _OpCounter()
         self._outputs = []
         self._op = op
-        self._default_call_args = op._call_args
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
+        # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
         if _conditionals.conditionals_enabled():
-            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
+            inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
+            _conditionals.inject_implicit_scope_argument(op._schema, arg_inputs)
 
-        self._inputs = inputs
+        self._process_instance_name(arguments)
+        _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
 
-        spec_args, kwargs = _separate_kwargs(kwargs)
-        _add_spec_args(op._schema, self._spec, spec_args)
+        self._inputs = _process_inputs(op._schema, self._spec, inputs, type(op).__name__)
+        self._inputs += _process_argument_inputs(op._schema, self._spec, arg_inputs,
+                                                 type(op).__name__)
 
-        call_args = {**self._default_call_args}
-        for k, v in kwargs.items():
-            if v is None:
-                # if an argument was specified in __init__ and in __call__ it is None, ignore it
-                continue
-            if k in self._default_call_args:
-                raise ValueError("The argument `{}` was already specified in __init__.".format(k))
-            call_args[k] = v
+        _handle_op_deprecation(self._op.schema, type(op).__name__)
 
-        name = call_args.get("name", None)
-        if name is not None:
-            self._name = name
-        else:
-            self._name = '__' + type(op).__name__ + "_" + str(self._counter.id)
-        # Add inputs
-        if inputs:
-            for inp in inputs:
-                if not isinstance(inp, _DataNode):
-                    raise TypeError(
-                        f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
-                self._spec.AddInput(inp.name, inp.device)
-        # Argument inputs
-        for k in sorted(call_args.keys()):
-            if k not in ["name"]:
-                arg_inp = call_args[k]
-                if arg_inp is None:
-                    continue
-                # Argument input constants are always placed on CPU
-                arg_inp = _handle_constant(arg_inp, "cpu", k, type(op).__name__)
+        self._generate_outputs()
 
-                _check_arg_input(op._schema, type(self._op).__name__, k)
-
-                self._spec.AddArgumentInput(k, arg_inp.name)
-                self._inputs = list(self._inputs) + [arg_inp]
-
-        if self._op.schema.IsDeprecated():
-            # TODO(klecki): how to know if this is fn or ops?
-            msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
-            use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
-            if use_instead:
-                msg += ". Use `" + use_instead + "` instead."
-            explanation = self._op.schema.DeprecationMessage()
-            if explanation:
-                msg += "\n" + explanation
-            with warnings.catch_warnings():
-                warnings.simplefilter("default")
-                warnings.warn(msg, DeprecationWarning, stacklevel=2)
+        if _conditionals.conditionals_enabled():
+            _conditionals.register_data_nodes(self.outputs, inputs, arg_inputs)
 
     def check_args(self):
         self._op.schema.CheckArgs(self._spec)
 
-    def generate_outputs(self):
+    def _process_instance_name(self, arguments):
+        """Extract the name from the arguments or generate the default one.
+        The "name" is removed from arguments.
+
+        Parameters
+        ----------
+        arguments : dict
+            Dictionary of all scalar arguments passed to the operator
+        """
+        name = arguments.pop("name", None)
+        if name is not None:
+            self._name = name
+        else:
+            self._name = '__' + type(self._op).__name__ + "_" + str(self._counter.id)
+
+    def _generate_outputs(self):
         pipeline = _Pipeline.current()
         if pipeline is None and self._op.preserve:
             _Pipeline._raise_pipeline_required("Operators with side-effects ")
@@ -349,8 +466,6 @@ class _DaliOperatorMeta(type):
 
 
 def _check_arg_input(schema, op_name, name):
-    if name == "name":
-        return
     if not schema.IsTensorArgument(name):
         expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
         raise TypeError(
@@ -367,31 +482,26 @@ def python_op_factory(name, schema_name=None):
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
 
-            # Get the device argument. We will need this to determine
-            # the device that our outputs will be stored on
+            # Get the device argument. We will need this to determine the device that our outputs
+            # will be stored on. The argument is not listed in schema, so we need to add it
+            # manually to spec. TODO(klecki): Make it more generic.
             self._device = device
             self._spec.AddArg("device", self._device)
 
-            kwargs, self._call_args = _separate_kwargs(kwargs)
+            self._init_args, self._call_args = _separate_kwargs(kwargs)
 
             for k in self._call_args.keys():
                 _check_arg_input(self._schema, type(self).__name__, k)
 
-            if "preserve" in kwargs.keys():
-                self._preserve = kwargs["preserve"]
-                # we don't want to set "preserve" arg twice
-                del kwargs["preserve"]
-            else:
-                self._preserve = False
-            self._spec.AddArg("preserve", self._preserve)
-            self._preserve = self._preserve or self._schema.IsNoPrune()
+            self._preserve = self._init_args.get("preserve", False)
 
-            # Check for any deprecated arguments that should be replaced or removed
-            # TODO(klecki): Why can't we also handle deprecation of Argument Inputs?
-            kwargs = _handle_deprecations(self._schema, kwargs, type(self).__name__)
-
-            # Store the specified arguments
-            _add_spec_args(self._schema, self._spec, kwargs)
+            # Process the first part of arguments, due to the historical reasons
+            # we need to do it in __init__ for error reporting
+            # TODO(klecki): Get rid of two-stage adding of scalar arguments - we can do it
+            # but the error message would be worse or delayed.
+            # Name is handled in the op instance, keep it for later.
+            self._name = self._init_args.pop("name", None)
+            _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
 
         @property
         def spec(self):
@@ -410,20 +520,29 @@ def python_op_factory(name, schema_name=None):
             return self._preserve
 
         def __call__(self, *inputs, **kwargs):
-            self._check_schema_num_inputs(inputs)
-
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
-
             input_sets = _build_input_sets(inputs, self.__class__.__name__)
 
-            if _conditionals.conditionals_enabled():
-                self._inject_implicit_scope_argument(kwargs)
+            args, arg_inputs = _separate_kwargs(kwargs)
 
-            # Create OperatorInstance for every input set
+            # Due to the fact that we already handled *some* args in init, we need to keep only
+            # the new ones.
+            args = _resolve_double_definitions(args, self._init_args, keep_old=False)
+            if self._name is not None:
+                args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
+
+            self._preserve = (self._preserve or args.get("preserve", False)
+                              or self._schema.IsNoPrune())
+
+            # Adding argument inputs is fully delayed into call, so we just do the check
+            arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
+
+            # Create OperatorInstance for every input set.
+            # OperatorInstance handles the creation of OpSpec and generation of output DataNodes
             op_instances = []
             for input_set in input_sets:
-                op_instances.append(_OperatorInstance(input_set, self, **kwargs))
-                op_instances[-1].generate_outputs()
+                op_instances.append(
+                    _OperatorInstance(input_set, arg_inputs, args, self._init_args, self))
 
             # Tie the instances together
             relation_id = op_instances[0].id
@@ -438,33 +557,7 @@ def python_op_factory(name, schema_name=None):
                 for op in op_instances:
                     outputs.append(op.outputs)
                 result = _repack_output_sets(outputs)
-            if _conditionals.conditionals_enabled():
-                if len(op_instances) != 1:
-                    raise ValueError("Multiple input sets are not supported with conditional"
-                                     " execution (when `enable_conditionals=True`)")
-                _conditionals.register_data_nodes(result, input_sets[0], kwargs)
             return result
-
-        def _check_schema_num_inputs(self, inputs):
-            if len(inputs) < self._schema.MinNumInput() or len(inputs) > self._schema.MaxNumInput():
-                raise ValueError(
-                    f"Operator {type(self).__name__} expects "
-                    f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                    f"but received {len(inputs)}.")
-
-        def _inject_implicit_scope_argument(self, kwargs):
-            """
-            Adds hidden _scope argument to the inputless operators whose outputs for
-            any given sample depend on the actual batch size, e.g. fn.batch_permutation.
-            """
-            # TODO(ktokarski) Consider optimizing the case - the implicit `_scope` argument is not
-            # needed if operator can accept any other positional/tensor argument and any such
-            # arg was specified. For now, the ops that use the _scope arg (ImplicitScopeAttr schema)
-            # do not have any other tensor inputs.
-            if self._schema.HasArgument("_scope"):
-                conditional_scope = _conditionals.this_condition_stack()
-                scope_masked_batch = conditional_scope.scope_batch_size_tracker()
-                kwargs["_scope"] = scope_masked_batch
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__

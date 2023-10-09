@@ -13,9 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali import backend as _b
-from nvidia.dali import _conditionals
 from nvidia.dali import ops
-from nvidia.dali.data_node import DataNode as _DataNode
 
 _internal_schemas = ['_TFRecordReader', 'readers___TFRecord']
 
@@ -47,12 +45,12 @@ class _TFRecordReaderImpl():
         self._spec = _b.OpSpec(self._internal_schema_name)
         self._device = "cpu"
 
-        self._spec.AddArg("path", self._path)
-        self._spec.AddArg("index_path", self._index_path)
+        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
+        self._init_args.update({"path": self._path, "index_path": self._index_path})
+        self._name = self._init_args.pop("name", None)
+        self._preserve = self._init_args.get("preserve", False)
 
-        kwargs, self._call_args = ops._separate_kwargs(kwargs)
-
-        for key, value in kwargs.items():
+        for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
 
         self._features = features
@@ -69,36 +67,36 @@ class _TFRecordReaderImpl():
     def device(self):
         return self._device
 
+    @property
+    def preserve(self):
+        return self._preserve
+
     def __call__(self, *inputs, **kwargs):
         # We do not handle multiple input sets for Reader as they do not have inputs
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
+        args, arg_inputs = ops._separate_kwargs(kwargs)
 
-        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
-        outputs = {}
+        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
+        if self._name is not None:
+            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+
+        self._preserve = (self._preserve or args.get("preserve", False) or self._schema.IsNoPrune())
+
         feature_names = []
         features = []
-        for i, (feature_name, feature) in enumerate(self._features.items()):
-            t_name = op_instance._name
-            if len(self._features.items()) > 1:
-                t_name += "[{}]".format(i)
-
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            outputs[feature_name] = t
+        for feature_name, feature in self._features.items():
             feature_names.append(feature_name)
             features.append(feature)
 
-        # We know this reader doesn't have any inputs
-        if _conditionals.conditionals_enabled():
-            _conditionals.register_data_nodes(list(outputs.values()))
+        # Those arguments are added after the outputs are generated
+        self.spec.AddArg("feature_names", feature_names)
+        self.spec.AddArg("features", features)
 
-        op_instance.spec.AddArg("feature_names", feature_names)
-        op_instance.spec.AddArg("features", features)
+        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
+
+        outputs = {}
+        for feature_name, output in zip(feature_names, op_instance.outputs):
+            outputs[feature_name] = output
+
         return outputs
 
 

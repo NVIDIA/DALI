@@ -15,7 +15,6 @@
 
 import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
-from nvidia.dali import _conditionals
 from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
@@ -40,9 +39,10 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         self._device = device
         self._impl_name = impl_name
 
-        kwargs, self._call_args = ops._separate_kwargs(kwargs)
+        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
+        self._name = self._init_args.pop("name", None)
 
-        for key, value in kwargs.items():
+        for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
 
         self.function = function
@@ -71,40 +71,22 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         if pipeline is None:
             _Pipeline._raise_pipeline_required("PythonFunction operator")
 
-        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                f"Operator {type(self).__name__} expects "
-                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
-                f"but received {len(inputs)}.")
         for inp in inputs:
             if not isinstance(inp, _DataNode):
                 raise TypeError(f"Expected inputs of type `DataNode`. "
                                 f"Received input of type '{type(inp).__name__}'. "
                                 f"Python Operators do not support Multiple Input Sets.")
-        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
-        op_instance.spec.AddArg("function_id", id(self.function))
-        op_instance.spec.AddArg("num_outputs", self.num_outputs)
+
+        args, arg_inputs = ops._separate_kwargs(kwargs)
+        args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
+
+        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
+        if self._name is not None:
+            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+
+        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)
-        if self.num_outputs == 0:
-            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = _DataNode(t_name, self._device, op_instance)
-            pipeline.add_sink(t)
-            return
-        outputs = []
-
-        for i in range(self.num_outputs):
-            t_name = op_instance._name
-            if self.num_outputs > 1:
-                t_name += "[{}]".format(i)
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            pipeline.add_sink(t)
-            outputs.append(t)
-
-        if _conditionals.conditionals_enabled():
-            _conditionals.register_data_nodes(outputs, inputs, kwargs)
-        return outputs[0] if len(outputs) == 1 else outputs
+        return op_instance.unwrapped_outputs
 
 
 def _dlpack_to_array(dlpack):
