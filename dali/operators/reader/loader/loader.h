@@ -49,6 +49,8 @@ DLL_PUBLIC Index num_samples(const size_t shard_num,
 struct LoaderStateSnapshot {
   std::default_random_engine rng;
   int current_epoch;
+  uint64_t samples_read;
+  uint64_t samples_returned;
 };
 
 /**
@@ -93,6 +95,7 @@ class Loader {
     // used to pick from our sample buffer
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
+    e_initial_ = e_;
     virtual_shard_id_ = shard_id_;
   }
 
@@ -154,16 +157,14 @@ class Loader {
       DALI_ENFORCE(IsCheckpointingEnabled(),
                    "Checkpointing was not enabled. Please make sure you set"
                    " enable_checkpointing to True when creating the pipeline.");
-      // TODO(ktokarski) Currently, the file reader can only save its
-      // state at the start of an epoch
-      DALI_ENFORCE(IsEpochDepleted(),
-                   "Currently, checkpointing is supported only between the epochs");
       // TODO(mstaniewski): support pad_last_batch=false
       DALI_ENFORCE(pad_last_batch_,
                    "Currently, checkpointing is only supported with pad_last_batch=true");
       LoaderStateSnapshot snapshot;
-      snapshot.rng = e_;
+      snapshot.rng = e_initial_;
       snapshot.current_epoch = consumer_epoch_;
+      snapshot.samples_read = read_sample_counter_;
+      snapshot.samples_returned = returned_sample_counter_;
       SaveStateImpl(snapshot);
       return snapshot;
     }
@@ -177,14 +178,21 @@ class Loader {
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
     e_ = state.rng;
+    e_initial_ = state.rng;
     consumer_epoch_ = state.current_epoch;
     if (!stick_to_shard_)
       virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
-
     RestoreStateImpl(state);
 
     // Re-run reset
     Reset(true);
+
+    read_sample_counter_ = 0;
+    returned_sample_counter_ = 0;
+    initial_buffer_filled_ = false;
+    sample_buffer_.clear();
+    shards_.clear();
+    FastForward(state.samples_read, state.samples_returned);
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -199,14 +207,23 @@ class Loader {
             pad_last_batch_;
   }
 
-  void FastForward(uint64_t steps) {
+  /**
+   * @brief Fast-forwards a loader to a state equal to that of a loader which has already
+   *        read `samples_read` samples and returned `samples_returned` samples.
+  */
+  void FastForward(Index samples_read, Index samples_returned) {
     DALI_ENFORCE(read_sample_counter_ == 0, 
                  "Some samples were read already, loader fast-forward not supported");
-    PopulateSampleBuffer(SimulateBufferContents(steps));
-    auto target_position = steps + initial_buffer_fill_;
-    Advance(target_position - read_sample_counter_);
-    shards_.back().start += steps;
-    shards_.back().end += steps + initial_buffer_fill_;
+    if (samples_read == 0) {
+      samples_read += initial_buffer_fill_;
+    }
+    PopulateSampleBuffer(SimulateBufferContents(samples_returned));
+
+    DALI_ENFORCE(read_sample_counter_ <= samples_read, 
+        make_string("Impossible loader state requested in FastForward: ", samples_read, " read, ", samples_returned, " returned"));
+    Advance(samples_read - read_sample_counter_);
+    returned_sample_counter_ = samples_returned;
+    shards_.back() = {samples_returned, samples_read};
   }
 
 
@@ -313,6 +330,7 @@ class Loader {
     for (uint64_t i = 0; i < n; i++) {
       IncreaseReadSampleCounter();
     }
+    shards_.back().end += n;
   }
 
   /**
@@ -448,7 +466,11 @@ class Loader {
     }
   }
 
-  std::vector<Index> SimulateBufferContents(uint64_t steps) {
+  /**
+   * @brief Returns indices of samples present in the buffer after returning `samples_returned` samples.
+   * Doesn't update the actual buffer or counters, but changes random generator state.
+  */
+  std::vector<Index> SimulateBufferContents(uint64_t samples_returned) {
     DALI_ENFORCE(num_shards_ == 1, "Shards not supported yet");  // TODO(skarpinski)
 
     std::vector<Index> buffer(initial_buffer_fill_);
@@ -459,7 +481,7 @@ class Loader {
     
     auto start = 0, end = initial_buffer_fill_;
 
-    for (uint64_t step = 0; step < steps; step++) {
+    for (uint64_t step = 0; step < samples_returned; step++) {
       std::uniform_int_distribution<> dis;
       dis = std::uniform_int_distribution<>(0, end - start - 1);
       int offset = shuffle_ ? dis(e_) : 0;
@@ -473,6 +495,9 @@ class Loader {
     return buffer;
   }
 
+  /**
+   * @brief Fills sample buffer with samples of given indices.
+  */
   void PopulateSampleBuffer(const std::vector<Index> &sample_indices) {
     DALI_ENFORCE(!initial_buffer_filled_ && sample_buffer_.empty(), "Sample buffer already filled");
     DALI_ENFORCE(sample_indices.size() == initial_buffer_fill_, "Invalid number of sample indices");
@@ -480,6 +505,7 @@ class Loader {
     DALI_ENFORCE(num_shards_ == 1, "Shards not supported yet");  // TODO(skarpinski)
     
     FillEmptyTensorList();
+    shards_.clear();
     shards_.push_back({0, 0});
 
     // As we can't seek backwards, samples have to be read in order.
@@ -516,6 +542,7 @@ class Loader {
 
   // rng
   std::default_random_engine e_;
+  std::default_random_engine e_initial_;
   Index seed_;
 
   // control return of tensors

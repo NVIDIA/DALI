@@ -181,10 +181,10 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 #endif
 
 
-class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
  public:
   explicit DummyCountingLoader(const OpSpec& spec, uint64_t size) :
-    Loader<CPUBackend, Tensor<CPUBackend>>(spec),
+    Loader<CPUBackend, Tensor<CPUBackend>, true>(spec),
     size_(size), counter_(0) {}
 
   void ReadSample(Tensor<CPUBackend> &t) override {
@@ -240,7 +240,7 @@ TEST(LoaderCheckpointingTest, TestFastForwardNoShuffle) {
   auto loader = InitLoader<DummyCountingLoader>(OpSpec("FileReader")
                                                 .AddArg("device_id", 0)
                                                 .AddArg("max_batch_size", 32), 1);
-  loader->FastForward(10);
+  loader->FastForward(11, 10);
   EXPECT_EQ(*(loader->ReadOne(false, false)->data<uint64_t>()), 10);
 }
 
@@ -255,7 +255,7 @@ TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
   auto loader1 = InitLoader<DummyCountingLoader>(spec, 100);
   auto loader2 = InitLoader<DummyCountingLoader>(spec, 100);
   
-  loader1->FastForward(30);
+  loader1->FastForward(30+10, 30);
   for (int i = 0; i < 30; i++) {
     loader2->ReadOne(false, false)->data<uint64_t>();
   }
@@ -265,6 +265,49 @@ TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
     auto b = *(loader2->ReadOne(false, false)->data<uint64_t>());
     EXPECT_EQ(a, b);
   }
+}
+
+void TestLoaderCheckpointing(const std::unique_ptr<DummyCountingLoader> &loader, int n) {
+  std::vector<uint64_t> reference;
+  std::vector<LoaderStateSnapshot> snapshots;
+  for (int i = 0; i < n; i++) {
+    snapshots.push_back(loader->GetStateSnapshot());
+    reference.push_back(*(loader->ReadOne(false, false)->data<uint64_t>()));
+  }
+
+  for (int start = 0; start < 2/*n*/; start++) {
+    loader->RestoreStateFromSnapshot(snapshots[start]);
+    std::vector<uint64_t> rest;
+    for (int i = start; i < n; i++) {
+      rest.push_back(*(loader->ReadOne(false, false)->data<uint64_t>()));
+    }
+    std::vector<uint64_t> expected{reference.begin() + start, reference.end()};
+    EXPECT_EQ(rest, expected);
+  }
+}
+
+TEST(LoaderCheckpointingTest, TestCheckpoint) {
+  auto spec = OpSpec("FileReader")
+                .AddArg("device_id", 0)
+                .AddArg("max_batch_size", 32)
+                .AddArg("seed", 123)
+                .AddArg("checkpointing", true)
+                .AddArg("pad_last_batch", true);
+
+  TestLoaderCheckpointing(InitLoader<DummyCountingLoader>(spec, 30), 20);
+}
+
+TEST(LoaderCheckpointingTest, TestCheckpointShuffledSmallBuffer) {
+  auto spec = OpSpec("FileReader")
+                .AddArg("device_id", 0)
+                .AddArg("max_batch_size", 32)
+                .AddArg("seed", 123)
+                .AddArg("random_shuffle", true)
+                .AddArg("initial_fill", 10)
+                .AddArg("checkpointing", true)
+                .AddArg("pad_last_batch", true);
+
+  TestLoaderCheckpointing(InitLoader<DummyCountingLoader>(spec, 30), 20);
 }
 
 };  // namespace dali
