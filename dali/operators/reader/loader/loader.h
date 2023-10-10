@@ -231,11 +231,12 @@ class Loader {
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         LoadTargetSharedPtr tensor_ptr = nullptr;
         if (!dry_run) {
-          tensor_ptr = LoadTargetSharedPtr(new LoadTarget,
-                           [this](LoadTarget* sample){
-                                      LoadTargetUniquePtr recycle_ptr(sample);
-                                      RecycleTensor(std::move(recycle_ptr));
-                                  });
+          tensor_ptr = LoadTargetSharedPtr(
+            new LoadTarget,
+            [this](LoadTarget* sample){
+              LoadTargetUniquePtr recycle_ptr(sample);
+              RecycleTensor(std::move(recycle_ptr));
+            });
           PrepareEmpty(*tensor_ptr);
           ReadSample(*tensor_ptr);
         }
@@ -287,12 +288,15 @@ class Loader {
       // being called by multiple consumer threads
       {
         std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-        DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-        tensor_ptr = {empty_tensors_.back().release(),
-                      [this](LoadTarget* sample){
-                        LoadTargetUniquePtr recycle_ptr(sample);
-                        RecycleTensor(std::move(recycle_ptr));
-                      }};
+        DALI_ENFORCE(empty_tensors_.size() > 0,
+                     "No empty tensors - did you forget to return them?");
+        tensor_ptr = {
+          empty_tensors_.back().release(),
+          [this](LoadTarget* sample){
+            LoadTargetUniquePtr recycle_ptr(sample);
+            RecycleTensor(std::move(recycle_ptr));
+          }
+        };
         empty_tensors_.pop_back();
       }
       ReadSample(*tensor_ptr);
@@ -352,7 +356,7 @@ class Loader {
   */
   virtual void Rewind(bool wrap_to_shard) {
     DALI_FAIL("Loader doesn't support rewinding, restoring from checkpoint is impossible");
-  };
+  }
 
   void PrepareMetadata() {
     if (!loading_flag_) {
@@ -489,11 +493,13 @@ class Loader {
       Skip(target->idx - at);
       at = target->idx;
 
-      LoadTargetSharedPtr tensor_ptr = {new LoadTarget,
-                           [this](LoadTarget* sample){
-                                      LoadTargetUniquePtr recycle_ptr(sample);
-                                      RecycleTensor(std::move(recycle_ptr));
-                            }};
+      LoadTargetSharedPtr tensor_ptr = {
+        new LoadTarget,
+        [this](LoadTarget* sample){
+          LoadTargetUniquePtr recycle_ptr(sample);
+          RecycleTensor(std::move(recycle_ptr));
+        }
+      };
       PrepareEmpty(*tensor_ptr);
       ReadSample(*tensor_ptr);
       last = tensor_ptr;
