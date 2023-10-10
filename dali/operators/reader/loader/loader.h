@@ -87,13 +87,13 @@ class Loader {
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
       lazy_init_(options.GetArgument<bool>("lazy_init")),
       loading_flag_(false),
-      read_sample_counter_(0),
       returned_sample_counter_(0),
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
       dont_use_mmap_(options.GetArgument<bool>("dont_use_mmap")),
       checkpointing_(options.GetArgument<bool>("checkpointing")),
       consumer_epoch_(0),
-      max_batch_size_(options.GetArgument<int>("max_batch_size")) {
+      max_batch_size_(options.GetArgument<int>("max_batch_size")),
+      read_sample_counter_(0) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -506,7 +506,6 @@ class Loader {
   const int initial_buffer_fill_;
   const int initial_empty_size_;
   const int tensor_init_bytes_;
-  bool initial_buffer_filled_ = false;
 
   // rng
   std::default_random_engine e_;
@@ -543,8 +542,6 @@ class Loader {
   std::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 
-  // Counts how many samples the reader have read already from this epoch
-  Index read_sample_counter_;
   // Counts how many samples the reader have read returned in the current epoch (including padding)
   Index returned_sample_counter_;
   // If true, the last batch will be padded with the last sample so that the number
@@ -564,6 +561,7 @@ class Loader {
   // Batch size
   int max_batch_size_;
   // Number of data shards that were actually read by the reader
+  // TODO(skarpinski) Make it private to prevent ReadSample from depending on it
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
   IndexedLoadTargetSharedPtr last_sample_ptr_tmp;
@@ -574,6 +572,11 @@ class Loader {
   };
 
   std::deque<ShardBoundaries> shards_;
+
+ private:
+  bool initial_buffer_filled_ = false;
+  // Counts how many samples the reader have read already from this epoch
+  Index read_sample_counter_;
 };
 
 template<typename T, typename... Args>
