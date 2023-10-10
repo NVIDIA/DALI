@@ -157,6 +157,7 @@ _HEADER = """
 # needs to import all child modules as `from child_module import *` ?
 # or just use the `from . import child_module`  <- I think the latter!!!
 def gen_all_signatures(whl_path, api):
+    whl_path = Path(whl_path)
     module_to_file = {}
     for schema_name in _registry._all_registered_ops():
         schema = _b.TryGetSchema(schema_name)
