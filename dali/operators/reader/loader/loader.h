@@ -345,6 +345,15 @@ class Loader {
     RecycleTensor(std::move(tensor_ptr));
   }
 
+  /**
+   * @brief Resets the loader to the first sample.
+   * Like `Reset`, but shouldn't make any extra side-effects, i.e. calling `Rewind` 
+   * multiple times should be have the same effect as calling it once.
+  */
+  virtual void Rewind(bool wrap_to_shard) {
+    DALI_FAIL("Loader doesn't support rewinding, restoring from checkpoint is impossible");
+  };
+
   void PrepareMetadata() {
     if (!loading_flag_) {
       std::lock_guard<std::mutex> l(prepare_metadata_mutex_);
@@ -467,7 +476,7 @@ class Loader {
     // We can't move backwards, so samples have to be read in order
     std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
 
-    Reset(true);
+    Rewind(stick_to_shard_);
 
     Index at = 0;
     LoadTargetSharedPtr last = nullptr;
@@ -492,7 +501,7 @@ class Loader {
       at++;
     }
 
-    Reset(true);
+    Rewind(stick_to_shard_);
     Skip(read_sample_counter_);
   }
 
