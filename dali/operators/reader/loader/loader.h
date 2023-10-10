@@ -43,12 +43,31 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 DLL_PUBLIC Index num_samples(const size_t shard_num,
                              const size_t size);
 
-/**
- * @brief Structure describing Loader base state, at the begining of an epoch.
-*/
-struct LoaderStateSnapshot {
+struct ShardBoundaries {
+  Index start;
+  Index end;
+};
+
+struct FullLoaderStateSnapshot {
+  bool initial_buffer_filled;
+  std::vector<Index> samples_in_buffer;
+
+  Index returned_sample_counter;
+  Index read_sample_counter;
+
+  int virtual_shard_id;
+  std::vector<ShardBoundaries> shards;
+
+  bool has_last_sample;
+  Index last_sample_idx;
+
   std::default_random_engine rng;
-  int current_epoch;
+  Index seed;
+};
+
+struct LoaderStateSnapshot {
+  FullLoaderStateSnapshot full_snapshot;
+  Index age;
 };
 
 /**
@@ -91,7 +110,7 @@ class Loader {
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
       dont_use_mmap_(options.GetArgument<bool>("dont_use_mmap")),
       checkpointing_(options.GetArgument<bool>("checkpointing")),
-      consumer_epoch_(0),
+      max_full_checkpoint_age_(5),  // TODO(skarpinski) Make it an argument 
       max_batch_size_(options.GetArgument<int>("max_batch_size")),
       read_sample_counter_(0) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
@@ -101,6 +120,9 @@ class Loader {
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
+    last_sample_ptr_tmp = {0, nullptr};
+    SaveFullState(current_snapshot_.full_snapshot);
+    current_snapshot_.age = 0;
   }
 
   virtual ~Loader() {
@@ -141,38 +163,17 @@ class Loader {
   }
 
   /**
-   * @brief Returns true iff the loader depleted the epoch.
-   *        If true, reading the next sample for a new batch will return
-   *        sample belonging the next epoch.
-   */
-  bool IsEpochDepleted() {
-    return shards_.size() == 0 || shards_.front().start == shards_.front().end;
-  }
-
-  /**
-   * @brief If called when the loader moves to a new shard (i.e. at the end of an epoch),
-   *        returns the current state of the reader. Fails otherwise, as checkpointing
-   *        in the middle of an epoch is not supported for now.
+   * @brief Returns snapshot of current state of the reader.
    */
   LoaderStateSnapshot GetStateSnapshot() {
     if constexpr (!supports_checkpointing) {
       DALI_FAIL("Checkpointing is not supported by this loader.");
     } else {
-      DALI_ENFORCE(IsCheckpointingEnabled(),
-                   "Checkpointing was not enabled. Please make sure you set"
-                   " enable_checkpointing to True when creating the pipeline.");
-      // TODO(ktokarski) Currently, the file reader can only save its
-      // state at the start of an epoch
-      DALI_ENFORCE(IsEpochDepleted(),
-                   "Currently, checkpointing is supported only between the epochs");
-      // TODO(mstaniewski): support pad_last_batch=false
-      DALI_ENFORCE(pad_last_batch_,
-                   "Currently, checkpointing is only supported with pad_last_batch=true");
-      LoaderStateSnapshot snapshot;
-      snapshot.rng = e_;
-      snapshot.current_epoch = consumer_epoch_;
-      SaveStateImpl(snapshot);
-      return snapshot;
+      if (current_snapshot_.age > max_full_checkpoint_age_) {
+        SaveFullState(current_snapshot_.full_snapshot);
+        current_snapshot_.age = 0;
+      }
+      return current_snapshot_;
     }
   }
 
@@ -183,15 +184,9 @@ class Loader {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
-    e_ = state.rng;
-    consumer_epoch_ = state.current_epoch;
-    if (!stick_to_shard_)
-      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
-
-    RestoreStateImpl(state);
-
-    // Re-run reset
-    Reset(true);
+    RestoreFullState(state.full_snapshot);
+    FastForward(state.age);
+    current_snapshot_ = state;
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -259,11 +254,7 @@ class Loader {
     if (shards_.front().start == shards_.front().end) {
       if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
-        if (IsCheckpointingEnabled() && !ShouldPadBatch(is_end_of_batch)) {
-          // If the checkpointing is enabled, the epoch is depleted and the next
-          // batch will contain samples from the next epoch - increment the epoch number.
-          consumer_epoch_++;
-        }
+        current_snapshot_.age++;
         return last_sample_ptr_tmp.ptr;
       }
 
@@ -305,13 +296,7 @@ class Loader {
 
     shards_.front().start++;
     returned_sample_counter_++;
-
-    if (IsCheckpointingEnabled() && IsEpochDepleted() && !ShouldPadBatch(is_end_of_batch)) {
-      // If the checkpointing is enabled, the epoch is depleted and the next
-      // batch will contain samples from the next epoch - increment the epoch number.
-      consumer_epoch_++;
-    }
-
+    current_snapshot_.age++;
     return sample.ptr;
   }
 
@@ -398,17 +383,63 @@ class Loader {
   // Reset reader to the first sample
   virtual void Reset(bool wrap_to_shard) = 0;
 
-  // Method for restoring state from the checkpoint in subclasses
-  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {}
-
-  // Method for saving the state to the checkpoint in subclasses
-  virtual void SaveStateImpl(LoaderStateSnapshot &state) {}
-
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
      return current_index >= Size() ||
             (stick_to_shard_ && shard_id_ + 1 < num_shards_ &&
             current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
+  }
+
+  inline void RestoreFullState(const FullLoaderStateSnapshot &state) {
+    initial_buffer_filled_ = state.initial_buffer_filled;
+    sample_buffer_.clear();
+    if (state.initial_buffer_filled) {
+      sample_buffer_.reserve(state.samples_in_buffer.size());
+      for (const auto &sample_idx : state.samples_in_buffer) {
+        sample_buffer_.push_back({sample_idx, nullptr});
+      }
+    }
+
+    returned_sample_counter_ = state.returned_sample_counter;
+    read_sample_counter_ = state.read_sample_counter;
+    
+    virtual_shard_id_ = state.virtual_shard_id;
+    shards_ = {state.shards.begin(), state.shards.end()};
+
+    if (state.has_last_sample) {
+      last_sample_ptr_tmp = {state.last_sample_idx, nullptr};
+    }
+    
+    e_ = state.rng;
+    seed_ = state.seed;
+
+    Reset(true);
+    Skip(state.read_sample_counter);
+  }
+
+  inline void SaveFullState(FullLoaderStateSnapshot &state) const {
+    state.initial_buffer_filled = initial_buffer_filled_;
+    state.samples_in_buffer.clear();
+    if (initial_buffer_filled_) {
+      state.samples_in_buffer.reserve(sample_buffer_.size());
+      for (const auto &sample : sample_buffer_) {
+        state.samples_in_buffer.push_back(sample.idx);
+      }
+    }
+
+    state.returned_sample_counter = returned_sample_counter_;
+    state.read_sample_counter = read_sample_counter_;
+    
+    state.virtual_shard_id = virtual_shard_id_;
+    state.shards = {shards_.begin(), shards_.end()};
+
+    if (last_sample_ptr_tmp.ptr) {
+      state.has_last_sample = true;
+      state.last_sample_idx = last_sample_ptr_tmp.idx;
+    }
+    
+    state.rng = e_;
+    state.seed = seed_;
   }
 
   inline bool IsNextShardRelative(Index already_read, int virtual_shard_id) {
@@ -463,7 +494,7 @@ class Loader {
         to_read.push_back(&sample);
       }
     }
-
+    
     // We can't move backwards, so samples have to be read in order
     std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
 
@@ -555,9 +586,8 @@ class Loader {
   // for example the derived FileLabel changes the way global shuffling works for easier
   // restoration of the state.
   bool checkpointing_;
-  // The epoch number the next returned sample belongs to,
-  // tracked only if checkpointing is enabled
-  int consumer_epoch_;
+  // A new full checkpoint will be saved when current gets older than `max_full_checkpoint_age_` 
+  int max_full_checkpoint_age_;
   // Batch size
   int max_batch_size_;
   // Number of data shards that were actually read by the reader
@@ -566,17 +596,14 @@ class Loader {
   // Keeps pointer to the last returned sample just in case it needs to be cloned
   IndexedLoadTargetSharedPtr last_sample_ptr_tmp;
 
-  struct ShardBoundaries {
-    Index start;
-    Index end;
-  };
-
   std::deque<ShardBoundaries> shards_;
 
  private:
   bool initial_buffer_filled_ = false;
   // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_;
+
+  LoaderStateSnapshot current_snapshot_;
 };
 
 template<typename T, typename... Args>
