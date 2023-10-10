@@ -465,9 +465,7 @@ class CudaHttpPackage(CudaPackage):
 all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                 PlainPackage("opencv-python", [PckgVer("4.5.4.60", dependencies=["numpy<1.24"])]),
                 CudaPackage("cupy",
-                            {"113": [PckgVer("9.6.0", python_max_ver="3.6",
-                                             dependencies=["numpy<1.24"]),
-                                     PckgVer("10.0.0", python_min_ver="3.7",
+                            {"113": [PckgVer("10.0.0", python_min_ver="3.8",
                                              dependencies=["numpy<1.24"])]},
                             "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
@@ -482,17 +480,11 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                         dependencies=["protobuf<4", "numpy<1.24",
                                                       "urllib3<2.0", "typing_extensions<4.6"])]}),
                 CudaPackageExtraIndex("torch",
-                                      # use the older Torch just for python 3.6
-                                      {"113": [PckgVer("1.10.0", python_max_ver="3.6",
-                                                       dependencies=["numpy<1.24"]),
-                                               PckgVer("1.11.0", python_min_ver="3.7",
+                                      {"113": [PckgVer("1.11.0", python_min_ver="3.8",
                                                        dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("torchvision",
-                                      # use the older Torch just for python 3.6
-                                      {"113": [PckgVer("0.11.0", python_max_ver="3.6",
-                                                       dependencies=["numpy<1.24"]),
-                                               PckgVer("0.12.0", python_min_ver="3.7",
+                                      {"113": [PckgVer("0.12.0", python_min_ver="3.8",
                                                        dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("paddlepaddle-gpu",
@@ -501,20 +493,15 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),
                 CudaPackageExtraIndex("jax",  # name used in our test script, see the mxnet case
-                                      {"113": [PckgVer("0.4.13",
-                                                       python_min_ver="3.8",
+                                      {"113": [PckgVer("0.4.13", python_min_ver="3.8",
                                                        dependencies=["jaxlib"])]},
                                       # name used during installation
                                       name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
                                       links_index=("https://storage.googleapis.com/"
                                                    "jax-releases/jax_cuda_releases.html")),
                 CudaPackage("numba",
-                            {"110": [
-                                PckgVer("0.57.0", python_min_ver="3.8",
-                                        dependencies=["numpy<1.24"]),
-                                PckgVer("0.56.0", python_min_ver="3.7", python_max_ver="3.7",
-                                        dependencies=["numpy<1.24"]),
-                                PckgVer("0.53.1", python_max_ver="3.6")]})
+                            {"110": [PckgVer("0.57.0", python_min_ver="3.8",
+                                             dependencies=["numpy<1.24"])]})
                 ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
