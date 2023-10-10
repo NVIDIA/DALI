@@ -329,17 +329,9 @@ class Loader {
 
   /**
    * @brief Advances loader position in the data source by skipping n samples.
-   * @param n Number of samples to skip.
+   * @warning This generic implementation is very inefficient and should be overriden.
   */
-  void Advance(uint64_t n) {
-    AdvanceImpl(n);
-  }
-
-  /**
-   * @brief Advances loader position in the data source by skipping n samples.
-   * @warning This generic implementation is inefficient and should be overriden.
-  */
-  virtual void AdvanceImpl(uint64_t n) {
+  virtual void Skip(uint64_t n) {
     LoadTargetUniquePtr tensor_ptr;
     {
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
@@ -485,7 +477,7 @@ class Loader {
         continue;
       }
 
-      Advance(target->idx - at);
+      Skip(target->idx - at);
       at = target->idx;
 
       LoadTargetSharedPtr tensor_ptr = {new LoadTarget,
@@ -501,7 +493,7 @@ class Loader {
     }
 
     Reset(true);
-    Advance(read_sample_counter_);
+    Skip(read_sample_counter_);
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
