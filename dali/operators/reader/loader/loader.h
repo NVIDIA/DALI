@@ -65,6 +65,12 @@ class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
+
+  struct IndexedLoadTargetSharedPtr {
+    Index idx;
+    LoadTargetSharedPtr ptr;
+  };
+
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
@@ -199,8 +205,19 @@ class Loader {
             pad_last_batch_;
   }
 
+  /**
+   * @brief Fast-forwards a loader by skipping n samples.
+  */
+  void FastForward(Index n) {
+    for (Index i = 0; i < n; i++) {
+      ReadOne(false, false, true);
+    }
+    ReadMissingSamples();
+  }
+
+
   // Get a random read sample
-  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch) {
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, bool dry_run = false) {
     PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
@@ -211,11 +228,18 @@ class Loader {
       // Read an initial number of samples to fill our
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
-        auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
-        PrepareEmpty(*tensor_ptr);
-        ReadSample(*tensor_ptr);
+        LoadTargetSharedPtr tensor_ptr = nullptr;
+        if (!dry_run) {
+          tensor_ptr = LoadTargetSharedPtr(new LoadTarget,
+                           [this](LoadTarget* sample){
+                                      LoadTargetUniquePtr recycle_ptr(sample);
+                                      RecycleTensor(std::move(recycle_ptr));
+                                  });
+          PrepareEmpty(*tensor_ptr);
+          ReadSample(*tensor_ptr);
+        }
+        sample_buffer_.push_back({read_sample_counter_, std::move(tensor_ptr)});
         IncreaseReadSampleCounter();
-        sample_buffer_.push_back(std::move(tensor_ptr));
         ++shards_.back().end;
       }
 
@@ -239,7 +263,7 @@ class Loader {
           // batch will contain samples from the next epoch - increment the epoch number.
           consumer_epoch_++;
         }
-        return last_sample_ptr_tmp;
+        return last_sample_ptr_tmp.ptr;
       }
 
       // remove shard that was fully consumed
@@ -253,27 +277,30 @@ class Loader {
 
     int offset = shuffle_ ? dis(e_) : 0;
     Index idx = (shards_.front().start + offset) % sample_buffer_.size();
-    LoadTargetSharedPtr sample_ptr(sample_buffer_[idx].release(),
-      [this](LoadTarget* sample) {
-        LoadTargetUniquePtr recycle_ptr(sample);
-        RecycleTensor(std::move(recycle_ptr));
-    });
+
     std::swap(sample_buffer_[idx], sample_buffer_[shards_.front().start % sample_buffer_.size()]);
-    // now grab an empty tensor, fill it and add to filled buffers
-    // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
-    // being called by multiple consumer threads
-    LoadTargetUniquePtr tensor_ptr;
-    {
-      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-      tensor_ptr = std::move(empty_tensors_.back());
-      empty_tensors_.pop_back();
+    LoadTargetSharedPtr tensor_ptr = nullptr;
+    if (!dry_run) {
+      // now grab an empty tensor, fill it and add to filled buffers
+      // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
+      // being called by multiple consumer threads
+      {
+        std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+        DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
+        tensor_ptr = {empty_tensors_.back().release(),
+                      [this](LoadTarget* sample){
+                        LoadTargetUniquePtr recycle_ptr(sample);
+                        RecycleTensor(std::move(recycle_ptr));
+                      }};
+        empty_tensors_.pop_back();
+      }
+      ReadSample(*tensor_ptr);
     }
-    ReadSample(*tensor_ptr);
+    IndexedLoadTargetSharedPtr sample = {read_sample_counter_, tensor_ptr};
     IncreaseReadSampleCounter();
-    std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], tensor_ptr);
+    std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], sample);
     ++shards_.back().end;
-    last_sample_ptr_tmp = sample_ptr;
+    last_sample_ptr_tmp = sample;
 
     shards_.front().start++;
     returned_sample_counter_++;
@@ -284,7 +311,7 @@ class Loader {
       consumer_epoch_++;
     }
 
-    return sample_ptr;
+    return sample.ptr;
   }
 
   // return a tensor to the empty pile
@@ -298,6 +325,32 @@ class Loader {
   // used to populate the sample buffer for "shuffled"
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
+
+  /**
+   * @brief Advances loader position in the data source by skipping n samples.
+   * @param n Number of samples to skip.
+  */
+  void Advance(uint64_t n) {
+    AdvanceImpl(n);
+  }
+
+  /**
+   * @brief Advances loader position in the data source by skipping n samples.
+   * @warning This generic implementation is inefficient and should be overriden.
+  */
+  virtual void AdvanceImpl(uint64_t n) {
+    LoadTargetUniquePtr tensor_ptr;
+    {
+      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors");
+      tensor_ptr = std::move(empty_tensors_.back());
+      empty_tensors_.pop_back();
+    }
+    for (uint64_t i = 0; i < n; i++) {
+      ReadSample(*tensor_ptr);
+    }
+    RecycleTensor(std::move(tensor_ptr));
+  }
 
   void PrepareMetadata() {
     if (!loading_flag_) {
@@ -404,7 +457,52 @@ class Loader {
     return cache_ && cache_->IsCached(key);
   }
 
-  std::vector<LoadTargetUniquePtr> sample_buffer_;
+
+  void ReadMissingSamples() {
+    if (!initial_buffer_filled_) return;
+
+    std::vector<IndexedLoadTargetSharedPtr*> to_read;
+    if (!last_sample_ptr_tmp.ptr) {
+      to_read.push_back(&last_sample_ptr_tmp);
+    }
+    for (auto &sample : sample_buffer_) {
+      if (!sample.ptr) {
+        to_read.push_back(&sample);
+      }
+    }
+
+    // We can't move backwards, so samples have to be read in order
+    std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
+
+    Reset(true);
+
+    Index at = 0;
+    LoadTargetSharedPtr last = nullptr;
+    for (auto target : to_read) {
+      if (target->idx < at) {
+        target->ptr = last;
+        continue;
+      }
+
+      Advance(target->idx - at);
+      at = target->idx;
+
+      LoadTargetSharedPtr tensor_ptr = {new LoadTarget,
+                           [this](LoadTarget* sample){
+                                      LoadTargetUniquePtr recycle_ptr(sample);
+                                      RecycleTensor(std::move(recycle_ptr));
+                            }};
+      PrepareEmpty(*tensor_ptr);
+      ReadSample(*tensor_ptr);
+      last = tensor_ptr;
+      target->ptr = std::move(tensor_ptr);
+      at++;
+    }
+
+    Advance(read_sample_counter_ - at);
+  }
+
+  std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
 
   std::vector<LoadTargetUniquePtr> empty_tensors_;
 
@@ -472,7 +570,7 @@ class Loader {
   // Number of data shards that were actually read by the reader
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
-  LoadTargetSharedPtr last_sample_ptr_tmp;
+  IndexedLoadTargetSharedPtr last_sample_ptr_tmp;
 
   struct ShardBoundaries {
     Index start;
