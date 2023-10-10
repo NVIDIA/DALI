@@ -209,7 +209,7 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> 
   std::vector<uint64_t> ReadInts(size_t n) {
     std::vector<uint64_t> result(n);
     for (size_t i = 0; i < n; i++) {
-      result[i] = ReadInt(false, false);
+      result[i] = ReadInt(i % max_batch_size_ == 0, (i + 1) % max_batch_size_ == 0);
     }
     return result;
   }

@@ -92,7 +92,8 @@ class Loader {
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
       dont_use_mmap_(options.GetArgument<bool>("dont_use_mmap")),
       checkpointing_(options.GetArgument<bool>("checkpointing")),
-      consumer_epoch_(0) {
+      consumer_epoch_(0),
+      max_batch_size_(options.GetArgument<int>("max_batch_size")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -210,11 +211,11 @@ class Loader {
   */
   void FastForward(Index n) {
     for (Index i = 0; i < n; i++) {
-      ReadOne(false, false, true);
+      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
     }
     ReadMissingSamples();
   }
-
 
   // Get a random read sample
   LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, bool dry_run = false) {
@@ -499,7 +500,8 @@ class Loader {
       at++;
     }
 
-    Advance(read_sample_counter_ - at);
+    Reset(true);
+    Advance(read_sample_counter_);
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
@@ -567,6 +569,8 @@ class Loader {
   // The epoch number the next returned sample belongs to,
   // tracked only if checkpointing is enabled
   int consumer_epoch_;
+  // Batch size
+  int max_batch_size_;
   // Number of data shards that were actually read by the reader
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
