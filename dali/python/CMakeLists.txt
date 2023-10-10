@@ -45,5 +45,20 @@ copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DI
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/find_dali.cmake" "${PROJECT_BINARY_DIR}/dali/cmake")
 
 IF (NOT CMAKE_CROSSCOMPILING)
-  # run python, import DALI and write the stubs
+  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
+  if($ENV{PYTHONPATH})
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
+  else()
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}")
+  endif()
+
+
+  add_custom_target(dali_python_generate_stubs DEPENDS dali_python)
+
+  # TODO adjust this
+  add_custom_command(
+    TARGET dali_python_generate_stubs
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python
+  )
 endif()
