@@ -27,7 +27,11 @@ from nvidia.dali import types as _types
 from nvidia.dali.ops import _registry, _names, _docs
 from nvidia.dali.fn import _to_snake_case
 
-from nvidia.dali.data_node import DataNode
+from nvidia.dali.data_node import DataNode as _DataNode
+
+# I don't want to format the parameter annotations by hand right now, so this is a hack, for it
+# to have no module and just be shown as DataNode
+_DataNode.__module__ = None
 
 _MAX_INPUT_SPELLED_OUT = 5
 
@@ -62,7 +66,7 @@ def _arg_type_annotation(arg_dtype):
 def _get_positional_input_param(schema, idx):
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    annotation = "DataNode" if idx < schema.MinNumInput() else Optional["DataNode"]
+    annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
                          default=default, annotation=annotation)
@@ -73,7 +77,7 @@ def _get_positional_input_param(schema, idx):
 def _get_positional_input_params(schema):
     param_list = []
     if schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation="DataNode"))
+        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=_DataNode))
     else:
         for i in range(schema.MaxNumInput()):
             param_list.append(_get_positional_input_param(schema, i))
@@ -89,7 +93,7 @@ def _get_keyword_params(schema):
         scalar_type =  _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        annotation = Union["DataNode", scalar_type] if is_arg_input else scalar_type
+        annotation = Union[_DataNode, scalar_type] if is_arg_input else scalar_type
         if schema.IsArgumentOptional(arg):
             annotation = Optional[annotation]
 
