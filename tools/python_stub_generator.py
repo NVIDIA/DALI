@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,9 +21,12 @@ from nvidia.dali.ops import _signatures
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Produces .pyi stub files for nvidia.dali.fn and nvidia.dali.ops modules')
-    parser.add_argument('wheel_path', type=str,
+    # TODO, it's a path to build/dali/python/nvidia/dali
+    parser.add_argument('--wheel_path', type=str,
                         help='Path to the wheel directory before packaging.')
     args = parser.parse_args()
+
+    print(f"Generating signatures for {args.wheel_path=}")
 
     _signatures.gen_all_signatures(Path(args.wheel_path), "fn")
     _signatures.gen_all_signatures(Path(args.wheel_path), "ops")

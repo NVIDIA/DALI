@@ -62,7 +62,7 @@ def _arg_type_annotation(arg_dtype):
 def _get_positional_input_param(schema, idx):
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    annotation = DataNode if idx < schema.MinNumInput() else Optional[DataNode]
+    annotation = "DataNode" if idx < schema.MinNumInput() else Optional["DataNode"]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
                          default=default, annotation=annotation)
@@ -73,7 +73,7 @@ def _get_positional_input_param(schema, idx):
 def _get_positional_input_params(schema):
     param_list = []
     if schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=DataNode))
+        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation="DataNode"))
     else:
         for i in range(schema.MaxNumInput()):
             param_list.append(_get_positional_input_param(schema, i))
@@ -89,7 +89,7 @@ def _get_keyword_params(schema):
         scalar_type =  _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        annotation = Union[DataNode, scalar_type] if is_arg_input else scalar_type
+        annotation = Union["DataNode", scalar_type] if is_arg_input else scalar_type
         if schema.IsArgumentOptional(arg):
             annotation = Optional[annotation]
 
@@ -199,14 +199,13 @@ def gen_all_signatures(whl_path, api):
         module_path = Path("/".join(module_nesting))
 
         if module_path not in module_to_file:
-            file_path = whl_path / api / module_path / "__init__.py"
+            file_path = whl_path / api / module_path / "__init__.pyi"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
             module_to_file[module_path] = f
             f.write(_HEADER)
             full_module_nesting = [""] + module_nesting
-            print(f"{full_module_nesting=}")
             submodules_dict = module_tree
             for submodule in full_module_nesting:
                 submodules_dict = submodules_dict[submodule]
