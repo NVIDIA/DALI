@@ -81,6 +81,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void EnableCheckpointing(bool checkpointing = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
+  DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
+  DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -153,14 +155,14 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    * Should only be used after the last output of this epoch was consumed, and before consuming
    * outputs from the next epoch.
   */
-  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint();
+  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint() override;
 
   /**
    * Restores states of operators.
    *
    * Can only be used when the executor is not running.
   */
-  DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt);
+  DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt) override;
 
  protected:
   DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
@@ -380,7 +382,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   bool has_conditionals_ = false;
 
   bool checkpointing_;
-  int checkpointing_epoch_size_;
+  int checkpointing_epoch_size_ = 0;
 
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
@@ -468,6 +470,17 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   }
 
   void InitCheckpointing();
+
+  /**
+   * @brief Create a checkpoint for the OpNode in the given iteration
+   *        and save it in iteration data.
+  */
+  void CreateCheckpoint(const OpNode &op_node, int iteration_id, AccessOrder order);
+
+  /**
+   * @brief Create initial checkpoints for the whole pipeline.
+  */
+  void CreateInitialCheckpoints();
 
   /**
    * Returns the iteration data for given iteration ID and stage.

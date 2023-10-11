@@ -450,6 +450,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
                   num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
                   default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
+  executor_->EnableCheckpointing(checkpointing_);
   executor_->Init();
 
   // Creating the graph
@@ -675,6 +676,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   spec->AddArg("max_batch_size", max_batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
+    .AddArg("checkpointing", checkpointing_)
     .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
@@ -765,6 +767,15 @@ string Pipeline::SerializeToProtobuf() const {
 
 OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
+}
+
+const OpNode *Pipeline::GetInputOperatorNode(const std::string& name) {
+  for (auto &[op_name, node] : input_operators_) {
+    if (op_name == name) {
+      return node;
+    }
+  }
+  DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
 }
 
 std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
@@ -864,12 +875,12 @@ const std::string &Pipeline::input_name(int n) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"input_name(int)\".");
   DALI_ENFORCE(n >= 0,
                make_string("Id of an input operator must be a non-negative integer. Got: ", n));
-  DALI_ENFORCE(static_cast<size_t>(n) < input_operators_names_.size(),
+  DALI_ENFORCE(static_cast<size_t>(n) < input_operators_.size(),
                make_string("Trying to fetch the name of an input operator with id=", n,
                            " while the id has to be smaller than ", num_inputs(), "."));
-  auto it = input_operators_names_.begin();
+  auto it = input_operators_.begin();
   std::advance(it, n);
-  return *it;
+  return it->first;
 }
 
 const std::string &Pipeline::output_name(int id) const {
@@ -909,7 +920,7 @@ static bool is_input_operator(const OpNode &op_node) {
 
 int Pipeline::num_inputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_inputs()\".");
-  return input_operators_names_.size();
+  return input_operators_.size();
 }
 
 
@@ -1048,8 +1059,9 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
 void Pipeline::DiscoverInputOperators() {
   auto& op_nodes = graph_.GetOpNodes();
   for (const auto & node : op_nodes) {
-    if (!is_input_operator(node)) continue;
-    input_operators_names_.insert(node.instance_name);
+    if (is_input_operator(node)) {
+      input_operators_.insert(std::make_pair(node.instance_name, &node));
+    }
   }
 }
 

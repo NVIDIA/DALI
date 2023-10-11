@@ -24,9 +24,13 @@ TestStatefulSource::TestStatefulSource(const OpSpec &spec)
       epoch_size_(spec.GetArgument<int>("epoch_size")) {}
 
 void TestStatefulSource::SaveState(OpCheckpoint &cpt, AccessOrder order) {
-  DALI_ENFORCE(checkpoints_to_collect_ > 0,
-               "Attempting to collect a checkpoint from an empty queue. ");
-  checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
+  // TODO(ktokarski) Any ops queues etc. should not be modified by saving state
+  // Rework this test to stop checking this
+  if (ever_run_) {  // do not count the initial checkpoints before anything is run
+    DALI_ENFORCE(checkpoints_to_collect_ > 0,
+                "Attempting to collect a checkpoint from an empty queue. ");
+    checkpoints_to_collect_--;  /* simulate removing checkpoint from queue */
+  }
   cpt.MutableCheckpointState() = state_;
 }
 
@@ -47,6 +51,7 @@ bool TestStatefulSource::SetupImpl(std::vector<OutputDesc> &output_desc, const W
 }
 
 void TestStatefulSource::RunImpl(Workspace &ws) {
+  ever_run_ = true;
   auto &output = ws.Output<CPUBackend>(0);
   int samples = ws.GetRequestedBatchSize(0);
   output.set_type(DALI_UINT8);

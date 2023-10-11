@@ -66,7 +66,8 @@ class TestStatefulSource : public Operator<CPUBackend> {
 
  private:
   uint8_t state_ = 0;
-  int checkpoints_to_collect_ = 1;
+  int checkpoints_to_collect_ = 0;
+  bool ever_run_ = false;
   int epoch_size_;
 };
 

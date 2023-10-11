@@ -35,6 +35,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 
 namespace dali {
@@ -162,27 +163,10 @@ class DLL_PUBLIC Pipeline {
                               std::optional<std::string> data_id, AccessOrder order = {},
                               InputOperatorSettingMode ext_src_setting_mode = {},
                               bool is_refeeding = false) {
-    OpType op_type;
-    OpNodeId node_id = -1;
+    auto *node = GetInputOperatorNode(name);
+    OperatorBase *op_ptr = node->op.get();
 
-    if (graph_.TensorExists(name + "_cpu")) {
-      node_id = graph_.TensorSourceID(name + "_cpu");
-      op_type = graph_.NodeType(node_id);
-      DALI_ENFORCE(op_type == OpType::CPU,
-                   "Internal error setting external input data.");
-    } else if (graph_.TensorExists(name + "_gpu")) {
-      node_id = graph_.TensorSourceID(name + "_gpu");
-      op_type = graph_.NodeType(node_id);
-      DALI_ENFORCE(op_type == OpType::GPU || op_type == OpType::MIXED,
-                   "Internal error setting external input data.");
-    } else {
-      DALI_FAIL("Cannot find " + name + " tensor, it doesn't exists or was pruned as unused one.");
-    }
-
-    auto &node = graph_.Node(node_id);
-    OperatorBase *op_ptr = &node.InstantiateOperator();
-
-    switch (op_type) {
+    switch (node->op_type) {
       case OpType::CPU:
         SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order,
                                                  ext_src_setting_mode, is_refeeding);
@@ -266,6 +250,11 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
 
+  /**
+   * @brief Rreturns an input graph node with a given name
+   */
+  DLL_PUBLIC const OpNode *GetInputOperatorNode(const std::string &name);
+
   /** @{ */
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
@@ -301,13 +290,69 @@ class DLL_PUBLIC Pipeline {
    * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
    *
    * @param enable_memory_stats If statistics should be gathered
-   * Usefull for `bytes_per_sample_hint` operator parameter.
+   * Useful for `bytes_per_sample_hint` operator parameter.
    */
   DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
     enable_memory_stats_ = enable_memory_stats;
     if (executor_) {
       executor_->EnableMemoryStats(enable_memory_stats_);
     }
+  }
+
+  /**
+   * @brief Set if the DALI pipeline should create checkpoints between the epochs
+   *
+   * @param enable_memory_stats If checkpoints should be created
+   */
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = true) {
+    checkpointing_ = checkpointing;
+    if (executor_) {
+      executor_->EnableCheckpointing(checkpointing_);
+    }
+  }
+
+  /**
+   * @brief Returns a serialized Checkpoint
+   */
+  DLL_PUBLIC string SerializedCheckpoint() const {
+    return GetCheckpoint().SerializeToProtobuf(graph_);
+  }
+
+  /**
+   * @brief Returns an unserialized Checkpoint
+  */
+  DLL_PUBLIC Checkpoint GetCheckpoint() const {
+    DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot save the checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    auto &cpt = executor_->GetCurrentCheckpoint();
+    // Make sure the checkpoint is accessible on host
+    cpt.SetOrder(AccessOrder::host());
+    return cpt;
+  }
+
+  /**
+   * @brief Restores pipeline state from a serialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot restore checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    Checkpoint cpt;
+    cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
+    RestoreFromCheckpoint(cpt);
+  }
+
+  /**
+   * @brief Restores pipeline state from an unserialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromCheckpoint(const Checkpoint &cpt) {
+    executor_->RestoreStateFromCheckpoint(cpt);
   }
 
   /**
@@ -633,6 +678,7 @@ class DLL_PUBLIC Pipeline {
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;
@@ -657,8 +703,8 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> input_operators_names_;
-
+  // input operators are sorted by names
+  std::map<std::string, const OpNode*> input_operators_;
 
   /**
    * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on

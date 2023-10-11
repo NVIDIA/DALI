@@ -37,7 +37,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 #define IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
@@ -47,10 +47,10 @@
 
 namespace dali {
 
-class NewCropMirrorNormalizeGPU : public Operator<GPUBackend> {
+class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
  public:
   explicit inline NewCropMirrorNormalizeGPU(const OpSpec &spec)
-      : Operator<GPUBackend>(spec),
+      : StatelessOperator<GPUBackend>(spec),
         fallback_(spec),
         crop_attr_(spec),
         output_type_(spec.GetArgument<DALIDataType>("dtype")),

@@ -39,6 +39,10 @@ class PipelineWrapper {
       pipe_(new Pipeline(batch_size, 1, 0)),
       outputs_(outputs) {}
 
+  inline void EnableCheckpointing() {
+    pipe_->EnableCheckpointing();
+  }
+
   inline void AddOperator(const OpSpec &spec) {
     std::string identifier = std::to_string(next_identifier_++);
     AddOperator(spec, identifier);
@@ -58,6 +62,7 @@ class PipelineWrapper {
    */
   inline PipelineWrapper CopyByCheckpointing() {
     PipelineWrapper clone(batch_size_, outputs_);
+    clone.EnableCheckpointing();
     for (const auto &[spec, id] : ops_)
       clone.AddOperator(spec, id);
     clone.Build();

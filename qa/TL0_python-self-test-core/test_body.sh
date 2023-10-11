@@ -33,10 +33,11 @@ test_autograph() {
 
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_new_invoke_test} -A '!slow,pytorch' -s checkpointing
 }
 
 test_checkpointing() {
-    ${python_new_invoke_test} test_dali_stateless_operators
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s checkpointing
 }
 
 test_no_fw() {

@@ -3,7 +3,7 @@
 # used pip packages
 # nvidia-index provides a stub for tensorboard which collides with one required by pytorch-lightning
 # pin version which is not replaced
-pip_packages='pillow jupyter matplotlib<3.5.3 torchvision torch pytorch-lightning tensorboard==2.2.2'
+pip_packages='pillow jupyter matplotlib<3.5.3 torchvision torch fsspec==2023.1.0 pytorch-lightning tensorboard==2.2.2'
 target_dir=./docs/examples/
 
 do_once() {
@@ -13,6 +13,7 @@ do_once() {
 test_body() {
   # dummy
   exclude_files="#"
+  export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
   # test code
   find frameworks/pytorch/ -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \

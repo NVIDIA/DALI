@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
+    this->SetInitialSnapshot();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
@@ -53,18 +54,6 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
 
     label_output.mutable_data<int>()[0] = image_label.label;
   }
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    cpt.MutableCheckpointState() = loader_->PopStateSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    loader_->RestoreStateFromSnapshot(cpt.CheckpointState<LoaderStateSnapshot>());
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
 
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);

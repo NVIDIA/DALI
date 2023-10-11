@@ -582,7 +582,7 @@ def test_external_source_fail_missing_output():
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
     pipe.build()
     assert_raises(RuntimeError, pipe.run,
-                  regex=r"Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")
+                  regex=r"Could not find an input operator with name .*")
 
 
 def external_data_veri(external_data, batch_size):

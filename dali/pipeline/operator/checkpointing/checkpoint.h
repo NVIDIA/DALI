@@ -47,6 +47,13 @@ class DLL_PUBLIC Checkpoint {
   DLL_PUBLIC size_t GetIterationId() const;
 
   /**
+   * @brief Sets the given order on all the OpCheckpoints.
+   *
+   * Can be used to synchronize the checkpoints.
+  */
+  DLL_PUBLIC void SetOrder(AccessOrder order);
+
+  /**
    * @brief Returns the number of OpCheckpoints kept.
    *
    * It's equivalent to the number of operators in the related pipeline.

@@ -385,19 +385,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  // Create a checkpoint for the given iteration.
-  auto create_checkpoint = [&](int iter) {
-    auto &cpt = GetCurrentIterationData(iter).checkpoint;
-    auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
-    cpt.SetIterationId(iter);
-    op_node.op->SaveState(op_cpt, ws.output_order());
-  };
-
-  // If it is the first iteration, create initial checkpoint.
-  // This way, we make sure there is always a checkpoint that can be accessed.
-  if (checkpointing_ && iteration_id == 0)
-    create_checkpoint(iteration_id);
-
   ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
   ws.ClearOperatorTraces();
 
@@ -544,7 +531,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
   // return the created checkpoint.
   if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
-    create_checkpoint(iteration_id + 1);
+    CreateCheckpoint(op_node, iteration_id + 1, ws.output_order());
 }
 
 
@@ -682,7 +669,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     if (meta.epoch_size_padded <= 0)
       continue;
 
-    int local_epoch_size = (meta.epoch_size_padded + max_batch_size_ - 1) / max_batch_size_;
+    int shards = meta.number_of_shards;
+    int local_samples_per_epoch = (meta.epoch_size_padded + shards - 1) / shards;
+    int local_epoch_size = (local_samples_per_epoch + max_batch_size_ - 1) / max_batch_size_;
     if (checkpointing_epoch_size_ == -1) {
       checkpointing_epoch_size_ = local_epoch_size;
       reader_name = node.spec.name();
@@ -697,14 +686,58 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
   /* If there is no operator with ReaderMeta, set the epoch size to 1. */
   if (checkpointing_epoch_size_ == -1)
     checkpointing_epoch_size_ = 1;
+
+  // Create initial checkpoint.
+  // This way, we make sure there is always a checkpoint that can be accessed.
+  CreateInitialCheckpoints();
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::CreateCheckpoint(const OpNode &op_node,
+                                                              int iteration_id,
+                                                              AccessOrder order) {
+  auto &cpt = GetCurrentIterationData(iteration_id).checkpoint;
+  auto &op_cpt = cpt.GetOpCheckpoint(op_node.id);
+  cpt.SetIterationId(iteration_id);
+  op_node.op->SaveState(op_cpt, order);
+}
+
+template<typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::CreateInitialCheckpoints() {
+  for (const auto &node : graph_->GetOpNodes()) {
+    AccessOrder order;
+    switch (node.op_type) {
+      case OpType::CPU:
+        order = {};
+        break;
+
+      case OpType::MIXED:
+        order = AccessOrder(mixed_op_stream_);
+        break;
+
+      case OpType::GPU:
+        order = AccessOrder(gpu_op_stream_);
+        break;
+
+      default:
+        DALI_FAIL(
+            make_string("Operator has unexpected device type (should be CPU, MIXED or GPU), "
+                        "got: ", static_cast<int>(node.op_type)));
+    }
+
+    CreateCheckpoint(node, 0, order);
+  }
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
+  DALI_ENFORCE(checkpointing_, "Cannot access checkpoints when checkpointing is not enabled. ");
   auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
   // Sanity check
   DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
-               "Requested checkpoint does not correspond to the matching iteration. ");
+               "The pipeline cannot be checkpointed at the given iteration. "
+               "Currently, checkpointing is supported at the end of the epoch only "
+               "(after the last batch from the epoch was consumed). ");
   return cpt;
 }
 
@@ -713,6 +746,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Ch
   DALI_ENFORCE(cpu_iteration_id_ == 0, "Cannot restore state of a running executor. ");
   for (int i = 0; i < graph_->NumOp(); ++i)
     graph_->Node(i).op->RestoreState(cpt.GetOpCheckpoint(i));
+
+  // Overwrite the initial checkpoints after the state was restored.
+  CreateInitialCheckpoints();
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>

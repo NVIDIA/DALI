@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -186,10 +186,11 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
 
-    if (checkpointing_ && shuffle_after_epoch_) {
+    if (IsCheckpointingEnabled() && shuffle_after_epoch_) {
       // save initial order
-      // moving to prevent one copy, as it is restored in the Reset()
-      backup_image_label_pairs_ = std::move(image_label_pairs_);
+      // DO not call std::move on image_label_pairs_, even though it is restored in Reset
+      // it may be needed if SizeImpl is called!
+      backup_image_label_pairs_ = image_label_pairs_;
     }
 
     Reset(true);
@@ -205,7 +206,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
-      if (checkpointing_) {
+      if (IsCheckpointingEnabled()) {
         // With checkpointing enabled, dataset order must be easy to restore.
         // The shuffling is run with different seed every epoch, so this doesn't impact
         // the random distribution.
@@ -229,7 +230,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   using Base::initial_buffer_fill_;
   using Base::copy_read_data_;
   using Base::read_ahead_;
-  using Base::checkpointing_;
+  using Base::IsCheckpointingEnabled;
   using Base::PrepareEmptyTensor;
   using Base::MoveToNextShard;
   using Base::ShouldSkipImage;
