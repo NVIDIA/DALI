@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 
 from typing import Union, Optional
-from typing import List, Set, Dict, Tuple, Any
+from typing import List, Any
 
 from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
@@ -104,7 +104,8 @@ def _get_keyword_params(schema):
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False):
     param_list = []
     if include_self:
-        param_list.append(Parameter("self", Parameter.POSITIONAL_OR_KEYWORD))
+        # TODO(klecki): what kind of parameter is `self`?
+        param_list.append(Parameter("self", kind=Parameter.POSITIONAL_ONLY))
 
     if include_inputs:
         param_list.extend(_get_positional_input_params(schema))
@@ -151,13 +152,41 @@ _HEADER = """
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from typing import Union, Optional
+from typing import List, Any
+
+from nvidia.dali.data_node import DataNode
 """
+
+
+def _build_module_tree():
+    module_tree = {}
+    processed = set()
+    for schema_name in _registry._all_registered_ops():
+        schema = _b.TryGetSchema(schema_name)
+        if schema is None:
+            continue
+        if schema.IsDocHidden() or schema.IsInternal():
+            continue
+        dotted_name, module_nesting, op_name = _names._process_op_name(schema_name)
+        if dotted_name not in processed:
+            module_nesting.insert(0, "")  # add the top-level module
+            curr_dict = module_tree
+            # add all submodules on the path
+            for curr_module in module_nesting:
+                if curr_module not in curr_dict:
+                    curr_dict[curr_module] = dict()
+                curr_dict = curr_dict[curr_module]
+    return module_tree
+
 
 # TODO(klecki): Generate the full hierarchy of submodules, each higher level module
 # needs to import all child modules as `from child_module import *` ?
 # or just use the `from . import child_module`  <- I think the latter!!!
 def gen_all_signatures(whl_path, api):
     whl_path = Path(whl_path)
+    module_tree = _build_module_tree()
     module_to_file = {}
     for schema_name in _registry._all_registered_ops():
         schema = _b.TryGetSchema(schema_name)
@@ -176,14 +205,24 @@ def gen_all_signatures(whl_path, api):
             f = open(file_path, "a")
             module_to_file[module_path] = f
             f.write(_HEADER)
+            full_module_nesting = [""] + module_nesting
+            print(f"{full_module_nesting=}")
+            submodules_dict = module_tree
+            for submodule in full_module_nesting:
+                submodules_dict = submodules_dict[submodule]
+            direct_submodules = submodules_dict.keys()
+            for direct_submodule in direct_submodules:
+                f.write(f"from . import {direct_submodule}\n")
+
+            f.write("\n\n")
 
         if api == "fn":
             module_to_file[module_path].write(_gen_fn_signature(schema, schema_name, fn_name))
         else:
             module_to_file[module_path].write(_gen_ops_signature(schema, schema_name, op_name))
 
-        print(f"Converting {module_path}: {op_name}/{fn_name}:")
-        print(_call_signature(schema, include_kwargs=True, include_self=False))
+        # print(f"Converting {module_path}: {op_name}/{fn_name}:")
+        # print(_call_signature(schema, include_kwargs=True, include_self=False))
 
     for _, f in module_to_file.items():
         f.close()

@@ -52,10 +52,8 @@ IF (NOT CMAKE_CROSSCOMPILING)
     set(PYTHONPATH "${PYTHON_TARGET_PATH}")
   endif()
 
-
   add_custom_target(dali_python_generate_stubs DEPENDS dali_python)
 
-  # TODO adjust this
   add_custom_command(
     TARGET dali_python_generate_stubs
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}

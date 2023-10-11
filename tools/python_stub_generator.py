@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+from pathlib import Path
+
 from nvidia.dali.ops import _signatures
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Produces .pyi stub files for nvidia.dali.fn and nvidia.dali.ops modules')
+    parser.add_argument('wheel_path', type=str,
+                        help='Path to the wheel directory before packaging.')
+    args = parser.parse_args()
 
-_signatures.gen_all_signatures()
+    _signatures.gen_all_signatures(Path(args.wheel_path), "fn")
+    _signatures.gen_all_signatures(Path(args.wheel_path), "ops")
