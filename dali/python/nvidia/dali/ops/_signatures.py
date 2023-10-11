@@ -117,7 +117,7 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 # TODO(klecki): generate return type?
 def _gen_fn_signature(schema, schema_name, fn_name):
     return f"""
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)} -> Union[DataNode, List[DataNode]]:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
@@ -128,10 +128,10 @@ def _gen_ops_signature(schema, schema_name, cls_name):
 class {cls_name}:
     \"""{_docs._docstring_generator(schema_name)}
     \"""
-    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True, include_self=True)}:
+    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True, include_self=True)} -> None:
         ...
 
-    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True, include_self=True)}:
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True, include_self=True)} -> Union[DataNode, List[DataNode]]:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
