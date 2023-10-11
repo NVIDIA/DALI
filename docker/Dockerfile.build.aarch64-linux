@@ -25,7 +25,6 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     python3-distutils \
     autogen \
     zip \
-    python3.7 python3.7-dev python3.7-distutils \
     python3.8 python3.8-dev \
     python3.9 python3.9-dev python3.9-distutils \
     python3.10 python3.10-dev python3.10-distutils \
@@ -85,7 +84,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
-RUN export PYVERS="3.7.8 3.8.5 3.9.0 3.10.0 3.11.0" && \
+RUN export PYVERS="3.8.5 3.9.0 3.10.0 3.11.0" && \
     for PYVER in ${PYVERS}; do \
         cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
         rm -rf *.tgz && cd Python*                                                                     && \

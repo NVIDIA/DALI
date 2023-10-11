@@ -5,17 +5,17 @@ ARG DEPS_IMAGE_NAME
 # clean builder without source code inside
 FROM ${DEPS_IMAGE_NAME} as builder
 
-ARG PYVER=3.6
-ARG PYV=36
+ARG PYVER=3.8
+ARG PYV=38
 
 ENV PYVER=${PYVER} \
     PYV=${PYV} \
     PYTHONPATH=/opt/python/v \
     PYBIN=${PYTHONPATH}/bin \
     PYLIB=${PYTHONPATH}/lib \
-    PATH=/opt/python/cp36-cp36/bin:/opt/python/cp37-cp37m/bin:/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:${PYBIN}:/opt/python/cp312-cp312/bin:${PYBIN}:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LD_LIBRARY_PATH} \
-    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp36-cp36/lib:/opt/python/cp37-cp37m/lib:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LIBRARY_PATH}
+    PATH=/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:${PYBIN}:/opt/python/cp312-cp312/bin:${PYBIN}:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LIBRARY_PATH}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
