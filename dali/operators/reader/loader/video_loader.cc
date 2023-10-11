@@ -690,8 +690,9 @@ void VideoLoader::read_file() {
       break;
     } else if (dec_status == VidReqStatus::REQ_ERROR) {
       LOG_LINE << "Request failed" << std::endl;
-      DALI_FAIL("Detected variable frame rate video. The decoder returned frame that is past "
-                "the expected one");
+      DALI_FAIL(make_string("The decoder returned a frame that is past the expected one. ",
+                "The most likely cause is variable frame rate video. ",
+                "Filename: ", req.filename));
     }
   }
 
