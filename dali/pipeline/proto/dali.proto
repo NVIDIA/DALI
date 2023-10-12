@@ -115,15 +115,17 @@ message LoaderBaseStateSnapshot {
   optional int64 age = 11;
 }
 
-message FileReaderStateSnapshot {
-  message FileLoaderStateSnapshot {
-    message FileLoaderStateExtra {
-      optional int32 current_epoch = 1;
-    }
-    optional LoaderBaseStateSnapshot base_snapshot = 1;
-    optional FileLoaderStateExtra extra = 2;
-  }
-  optional FileLoaderStateSnapshot loader_state = 1;
+message LoaderStateSnapshot {
+  optional bytes base = 1;
+  optional bytes extra = 2;
+}
+
+message ReaderStateSnapshot {
+  optional LoaderStateSnapshot loader_state = 1;
+}
+
+message FileLabelLoaderStateSnapshot {
+  optional int32 current_epoch = 1;
 }
 
 message DummySnapshot {
