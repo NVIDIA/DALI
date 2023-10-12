@@ -34,7 +34,7 @@ class DLL_PUBLIC SnapshotSerializer {
 
   DLL_PUBLIC std::string Serialize(const std::vector<std::mt19937_64> &snapshot);
 
-  DLL_PUBLIC std::string Serialize(const LoaderStateSnapshot &snapshot);
+  DLL_PUBLIC std::string Serialize(const LoaderBaseStateSnapshot &snapshot);
 
   /**
    * @brief Deserializes string into an object.

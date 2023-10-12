@@ -86,21 +86,65 @@ std::vector<std::mt19937_64> SnapshotSerializer::Deserialize(const std::string &
   return DeserializeRNG<std::mt19937_64>(data);
 }
 
-std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot &snapshot) {
-  dali_proto::ReaderStateSnapshot proto_snapshot;
-  proto_snapshot.mutable_loader_state()->set_rng(SerializeToString(snapshot.rng));
-  proto_snapshot.mutable_loader_state()->set_current_epoch(snapshot.current_epoch);
+std::string SnapshotSerializer::Serialize(const LoaderBaseStateSnapshot &snapshot) {
+  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
+  
+  proto_snapshot.set_initial_buffer_filled(snapshot.initial_buffer_filled);
+  for (const auto &sample : snapshot.samples_in_buffer) {
+    proto_snapshot.add_samples_in_buffer(sample);
+  }
+
+  proto_snapshot.set_returned_sample_counter(snapshot.returned_sample_counter);
+  proto_snapshot.set_read_sample_counter(snapshot.read_sample_counter);
+  
+  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
+  for (const auto &shard : snapshot.shards) {
+    auto proto_shard = proto_snapshot.add_shards();
+    proto_shard->set_start(shard.start);
+    proto_shard->set_end(shard.end);
+  }
+  
+  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
+  proto_snapshot.set_last_sample_idx(snapshot.last_sample_idx);
+
+  proto_snapshot.set_rng(SerializeToString(snapshot.rng));
+  proto_snapshot.set_seed(snapshot.seed);
+
+  proto_snapshot.set_age(snapshot.age);
+  
   return proto_snapshot.SerializeAsString();
 }
 
 template<> DLL_PUBLIC
-LoaderStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
-  dali_proto::ReaderStateSnapshot proto_snapshot;
+LoaderBaseStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
+  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
   proto_snapshot.ParseFromString(data);
-  return LoaderStateSnapshot {
-    DeserializeFromString<std::default_random_engine>(proto_snapshot.loader_state().rng()),
-    proto_snapshot.loader_state().current_epoch(),
-  };
+  LoaderBaseStateSnapshot snapshot;
+
+  snapshot.initial_buffer_filled = proto_snapshot.initial_buffer_filled();
+  snapshot.samples_in_buffer.reserve(proto_snapshot.samples_in_buffer_size());
+  for (const auto &sample : proto_snapshot.samples_in_buffer()) {
+    snapshot.samples_in_buffer.push_back(sample);
+  }
+
+  snapshot.returned_sample_counter = proto_snapshot.returned_sample_counter();
+  snapshot.read_sample_counter = proto_snapshot.read_sample_counter();
+
+  snapshot.virtual_shard_id = proto_snapshot.virtual_shard_id();
+  snapshot.shards.reserve(proto_snapshot.shards_size());
+  for (const auto &shard : proto_snapshot.shards()) {
+    snapshot.shards.push_back({shard.start(), shard.end()});
+  }
+
+  snapshot.has_last_sample = proto_snapshot.has_last_sample();
+  snapshot.last_sample_idx = proto_snapshot.last_sample_idx();
+
+  snapshot.rng = DeserializeFromString<decltype(snapshot.rng)>(proto_snapshot.rng());
+  snapshot.seed = proto_snapshot.seed();
+
+  snapshot.age = proto_snapshot.age();
+
+  return snapshot;
 }
 
 }  // namespace dali

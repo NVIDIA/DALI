@@ -91,12 +91,39 @@ message RNGSnapshotCPU {
   repeated string rng = 1;
 }
 
-message ReaderStateSnapshot {
-  message LoaderStateSnapshot {
-    optional bytes rng = 1;
-    optional int32 current_epoch = 2;
+message LoaderBaseStateSnapshot {
+  message ShardBoundaries {
+    optional int64 start = 1;
+    optional int64 end = 2;
   }
-  optional LoaderStateSnapshot loader_state = 1;
+
+  optional bool initial_buffer_filled = 1;
+  repeated int64 samples_in_buffer = 2;
+
+  optional int64 returned_sample_counter = 3;
+  optional int64 read_sample_counter = 4;
+
+  optional int32 virtual_shard_id = 5;
+  repeated ShardBoundaries shards = 6;
+
+  optional bool has_last_sample = 7;
+  optional int64 last_sample_idx = 8;
+
+  optional bytes rng = 9;
+  optional int64 seed = 10;
+
+  optional int64 age = 11;
+}
+
+message FileReaderStateSnapshot {
+  message FileLoaderStateSnapshot {
+    message FileLoaderStateExtra {
+      optional int32 current_epoch = 1;
+    }
+    optional LoaderBaseStateSnapshot base_snapshot = 1;
+    optional FileLoaderStateExtra extra = 2;
+  }
+  optional FileLoaderStateSnapshot loader_state = 1;
 }
 
 message DummySnapshot {
