@@ -48,7 +48,7 @@ struct ShardBoundaries {
   Index end;
 };
 
-struct FullLoaderStateSnapshot {
+struct LoaderBaseStateSnapshot {
   bool initial_buffer_filled;
   std::vector<Index> samples_in_buffer;
 
@@ -65,8 +65,10 @@ struct FullLoaderStateSnapshot {
   Index seed;
 };
 
+template <typename ExtraSnapshotData>
 struct LoaderStateSnapshot {
-  FullLoaderStateSnapshot full_snapshot;
+  LoaderBaseStateSnapshot base_snapshot;
+  ExtraSnapshotData extra;
   Index age;
 };
 
@@ -79,11 +81,13 @@ struct LoaderStateSnapshot {
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
-          bool supports_checkpointing = false>
+          bool supports_checkpointing = false,
+          typename ExtraSnapshotData = std::nullptr_t>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
+  using Snapshot = LoaderStateSnapshot<ExtraSnapshotData>;
 
   struct IndexedLoadTargetSharedPtr {
     Index idx;
@@ -121,8 +125,7 @@ class Loader {
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
     last_sample_ptr_tmp = {0, nullptr};
-    SaveFullState(current_snapshot_.full_snapshot);
-    current_snapshot_.age = 0;
+    SaveSnapshot(current_snapshot_);
   }
 
   virtual ~Loader() {
@@ -165,13 +168,15 @@ class Loader {
   /**
    * @brief Returns snapshot of current state of the reader.
    */
-  LoaderStateSnapshot GetStateSnapshot() {
+  Snapshot GetStateSnapshot() {
+    DALI_ENFORCE(IsCheckpointingEnabled(),
+                 "Checkpointing was not enabled. Please make sure you set"
+                 " enable_checkpointing to True when creating the pipeline.");
     if constexpr (!supports_checkpointing) {
       DALI_FAIL("Checkpointing is not supported by this loader.");
     } else {
       if (current_snapshot_.age > max_full_checkpoint_age_) {
-        SaveFullState(current_snapshot_.full_snapshot);
-        current_snapshot_.age = 0;
+        SaveStateSnapshot(current_snapshot_);
       }
       return current_snapshot_;
     }
@@ -180,13 +185,23 @@ class Loader {
   /**
    * @brief Restores the loader's state from a snapshot.
    */
-  void RestoreStateFromSnapshot(const LoaderStateSnapshot& state) {
+  void RestoreStateFromSnapshot(const Snapshot& snapshot) {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
-    RestoreFullState(state.full_snapshot);
-    FastForward(state.age);
-    current_snapshot_ = state;
+    RestoreBase(snapshot.base_snapshot);
+    RestoreExtra(snapshot.extra);
+    FastForward(snapshot.age);
+    SaveStateSnapshot(snapshot);
+  }
+
+  void SaveStateSnapshot(Snapshot &snapshot) {
+    DALI_ENFORCE(IsCheckpointingEnabled(),
+                 "Checkpointing was not enabled. Please make sure you set"
+                 " enable_checkpointing to True when creating the pipeline.");
+    SaveBase(snapshot);
+    SaveExtra(snapshot);
+    snapshot.age = 0;
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -390,56 +405,57 @@ class Loader {
             current_index >= static_cast<Index>(start_index(shard_id_ + 1, num_shards_, Size())));
   }
 
-  inline void RestoreFullState(const FullLoaderStateSnapshot &state) {
-    initial_buffer_filled_ = state.initial_buffer_filled;
+  virtual void SaveExtra(ExtraSnapshotData &extra) const {}
+
+  virtual void RestoreExtra(const ExtraSnapshotData &extra) {}
+
+  inline void RestoreBase(const LoaderBaseStateSnapshot &snapshot) {
+    initial_buffer_filled_ = snapshot.initial_buffer_filled;
     sample_buffer_.clear();
-    if (state.initial_buffer_filled) {
-      sample_buffer_.reserve(state.samples_in_buffer.size());
-      for (const auto &sample_idx : state.samples_in_buffer) {
+    if (snapshot.initial_buffer_filled) {
+      sample_buffer_.reserve(snapshot.samples_in_buffer.size());
+      for (const auto &sample_idx : snapshot.samples_in_buffer) {
         sample_buffer_.push_back({sample_idx, nullptr});
       }
     }
 
-    returned_sample_counter_ = state.returned_sample_counter;
-    read_sample_counter_ = state.read_sample_counter;
+    returned_sample_counter_ = snapshot.returned_sample_counter;
+    read_sample_counter_ = snapshot.read_sample_counter;
     
-    virtual_shard_id_ = state.virtual_shard_id;
-    shards_ = {state.shards.begin(), state.shards.end()};
+    virtual_shard_id_ = snapshot.virtual_shard_id;
+    shards_ = {snapshot.shards.begin(), snapshot.shards.end()};
 
-    if (state.has_last_sample) {
-      last_sample_ptr_tmp = {state.last_sample_idx, nullptr};
+    if (snapshot.has_last_sample) {
+      last_sample_ptr_tmp = {snapshot.last_sample_idx, nullptr};
     }
     
-    e_ = state.rng;
-    seed_ = state.seed;
-
-    Reset(true);
-    Skip(state.read_sample_counter);
+    e_ = snapshot.rng;
+    seed_ = snapshot.seed;
   }
 
-  inline void SaveFullState(FullLoaderStateSnapshot &state) const {
-    state.initial_buffer_filled = initial_buffer_filled_;
-    state.samples_in_buffer.clear();
+  inline void SaveBase(LoaderBaseStateSnapshot &snapshot) const {
+    snapshot.initial_buffer_filled = initial_buffer_filled_;
+    snapshot.samples_in_buffer.clear();
     if (initial_buffer_filled_) {
-      state.samples_in_buffer.reserve(sample_buffer_.size());
+      snapshot.samples_in_buffer.reserve(sample_buffer_.size());
       for (const auto &sample : sample_buffer_) {
-        state.samples_in_buffer.push_back(sample.idx);
+        snapshot.samples_in_buffer.push_back(sample.idx);
       }
     }
 
-    state.returned_sample_counter = returned_sample_counter_;
-    state.read_sample_counter = read_sample_counter_;
+    snapshot.returned_sample_counter = returned_sample_counter_;
+    snapshot.read_sample_counter = read_sample_counter_;
     
-    state.virtual_shard_id = virtual_shard_id_;
-    state.shards = {shards_.begin(), shards_.end()};
+    snapshot.virtual_shard_id = virtual_shard_id_;
+    snapshot.shards = {shards_.begin(), shards_.end()};
 
     if (last_sample_ptr_tmp.ptr) {
-      state.has_last_sample = true;
-      state.last_sample_idx = last_sample_ptr_tmp.idx;
+      snapshot.has_last_sample = true;
+      snapshot.last_sample_idx = last_sample_ptr_tmp.idx;
     }
     
-    state.rng = e_;
-    state.seed = seed_;
+    snapshot.rng = e_;
+    snapshot.seed = seed_;
   }
 
   inline bool IsNextShardRelative(Index already_read, int virtual_shard_id) {
@@ -603,7 +619,7 @@ class Loader {
   // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_;
 
-  LoaderStateSnapshot current_snapshot_;
+  LoaderStateSnapshot<ExtraSnapshotData> current_snapshot_;
 };
 
 template<typename T, typename... Args>
