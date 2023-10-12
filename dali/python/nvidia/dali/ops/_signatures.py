@@ -26,12 +26,52 @@ from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _registry, _names, _docs
 from nvidia.dali.fn import _to_snake_case
+from nvidia.dali import types
 
-from nvidia.dali.data_node import DataNode as _DataNode
 
-# I don't want to format the parameter annotations by hand right now, so this is a hack, for it
-# to have no module and just be shown as DataNode
-_DataNode.__module__ = None
+# Inspect and typing know better how to format annotations. They allow of short versions
+# of anything from typing module and for builtins, but anything else gets a fully qualified
+# path and there is no customization. Also the formatting using the `repr` of the type is
+# driven by inspect.formatannotation (when we use the type directly) or by the internals of
+# typing classes like Union. So we just pretend, that we are from typing, and we want to
+# have our name as DataNode. This is not the DataNode you are looking for.
+
+
+def _create_annotation_placeholder(typename):
+    class _AnnotationPlaceholderMeta(type):
+        # We don't want <class 'typename'> when inspect calls inspect.formatannotation directly.
+        def __repr__(cls):
+            return typename
+
+    class _AnnotationPlaceholder(metaclass=_AnnotationPlaceholderMeta):
+        # typing uses those instead of repr
+        __name__ = typename
+        __qualname__ = typename
+        # only if you are part of `typing.` your path is hidden
+        __module__ = "typing"
+
+    return _AnnotationPlaceholder
+
+
+_DataNode = _create_annotation_placeholder("DataNode")
+_DALIDataType = _create_annotation_placeholder("DALIDataType")
+_DALIImageType = _create_annotation_placeholder("DALIImageType")
+_DALIInterpType = _create_annotation_placeholder("DALIInterpType")
+
+_enum_mapping = {
+    types.DALIDataType: _DALIDataType,
+    types.DALIImageType: _DALIImageType,
+    types.DALIInterpType: _DALIInterpType
+}
+
+# class _DataNodeMeta(type):
+#     def __repr__(cls):
+#         return "DataNode"
+
+# class _DataNode(metaclass=_DataNodeMeta):
+#     __name__ = "DataNode"
+#     __qualname__ = "DataNode"
+#     __module__ = "typing"
 
 _MAX_INPUT_SPELLED_OUT = 5
 
@@ -43,6 +83,8 @@ def _scalar_element_annotation(scalar_dtype):
     try:
         dummy_val = conv_fn(0)
         t = type(dummy_val)
+        if t in _enum_mapping:
+            return _enum_mapping[t]
         return t
     except:
         return Any
@@ -105,7 +147,9 @@ def _get_keyword_params(schema):
     param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
     return param_list
 
-def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False):
+
+def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
+                    data_node_return=True):
     param_list = []
     if include_self:
         # TODO(klecki): what kind of parameter is `self`?
@@ -116,30 +160,48 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema))
-    return inspect.Signature(param_list)
+    return_annotation = Union[_DataNode, List[_DataNode]] if data_node_return else None
+    return inspect.Signature(param_list, return_annotation=return_annotation)
 
-# TODO(klecki): generate return type?
+
+def inspect_repr_fixups(signature: str) -> str:
+    """Replace the weird quirks of printing the repr of signature.
+    We use signature object for type safety and additional validation, but the printing rules
+    are questionable in some cases. Python type hints advocate the usage of `None` instead of its
+    type, but printing a signature would insert NoneType (specifically replacing
+    Optional[Union[...]] with Union[..., None] and printing it as Union[..., NoneType]).
+    The NoneType doesn't exist as a `types` definition in some Pythons.
+
+    The second thing is, the nvidia.dali.types types show the original module in the printed hint,
+    and instead of swapping them to the magic placeholders, I just remove the qualified string.
+    TODO(klecki): Consider magic placeholders as used for DataNode.
+    """
+    return signature.replace("NoneType", "None")
+
+
 def _gen_fn_signature(schema, schema_name, fn_name):
-    return f"""
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)} -> Union[DataNode, List[DataNode]]:
+    return inspect_repr_fixups(f"""
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
-"""
+""")
 
 def _gen_ops_signature(schema, schema_name, cls_name):
-    return f"""
+    return inspect_repr_fixups(f"""
 class {cls_name}:
     \"""{_docs._docstring_generator(schema_name)}
     \"""
-    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True, include_self=True)} -> None:
+    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
+                                 include_self=True, data_node_return=False)}:
         ...
 
-    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True, include_self=True)} -> Union[DataNode, List[DataNode]]:
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                                 include_self=True)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
-"""
+""")
 
 
 _HEADER = """
@@ -161,6 +223,16 @@ from typing import Union, Optional
 from typing import List, Any
 
 from nvidia.dali.data_node import DataNode
+
+class DALIInterpType:
+    ...
+
+class DALIImageType:
+    ...
+
+class DALIDataType:
+    ...
+
 """
 
 
@@ -192,7 +264,7 @@ def gen_all_signatures(whl_path, api):
     whl_path = Path(whl_path)
     module_tree = _build_module_tree()
     module_to_file = {}
-    for schema_name in _registry._all_registered_ops():
+    for schema_name in sorted(_registry._all_registered_ops()):
         schema = _b.TryGetSchema(schema_name)
         if schema is None:
             continue
