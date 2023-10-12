@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 from inspect import Parameter, Signature
-import typing
 import os
 
 from pathlib import Path
@@ -29,15 +27,14 @@ from nvidia.dali.fn import _to_snake_case
 from nvidia.dali import types
 
 
-# Inspect and typing know better how to format annotations. They allow of short versions
-# of anything from typing module and for builtins, but anything else gets a fully qualified
-# path and there is no customization. Also the formatting using the `repr` of the type is
-# driven by inspect.formatannotation (when we use the type directly) or by the internals of
-# typing classes like Union. So we just pretend, that we are from typing, and we want to
-# have our name as DataNode. This is not the DataNode you are looking for.
-
-
 def _create_annotation_placeholder(typename):
+    # Inspect and typing know better how to format annotations. They allow of short versions
+    # of anything from typing module and for builtins, but anything else gets a fully qualified
+    # path and there is no customization. Also the formatting using the `repr` of the type is
+    # driven by inspect.formatannotation (when we use the type directly) or by the internals of
+    # typing classes like Union. So we just pretend, that we are from typing, and we want to
+    # have our name as DataNode. This is not the DataNode you are looking for.
+
     class _AnnotationPlaceholderMeta(type):
         # We don't want <class 'typename'> when inspect calls inspect.formatannotation directly.
         def __repr__(cls):
@@ -64,21 +61,12 @@ _enum_mapping = {
     types.DALIInterpType: _DALIInterpType
 }
 
-# class _DataNodeMeta(type):
-#     def __repr__(cls):
-#         return "DataNode"
-
-# class _DataNode(metaclass=_DataNodeMeta):
-#     __name__ = "DataNode"
-#     __qualname__ = "DataNode"
-#     __module__ = "typing"
-
 _MAX_INPUT_SPELLED_OUT = 5
 
 
 def _scalar_element_annotation(scalar_dtype):
-    # TODO(klecki): provide non-hacky implementation
-    # now we just abuse the conversion and find a type, doesn't work for TFRecord
+    # We already have function that converts a scalar constant/literal into the desired type,
+    # utilize the fact that they accept integer values and get the actual type.
     conv_fn = _types._known_types[scalar_dtype][1]
     try:
         dummy_val = conv_fn(0)
@@ -86,7 +74,8 @@ def _scalar_element_annotation(scalar_dtype):
         if t in _enum_mapping:
             return _enum_mapping[t]
         return t
-    except:
+    # This is tied to TFRecord implementation
+    except NotImplementedError:
         return Any
 
 
@@ -106,6 +95,14 @@ def _arg_type_annotation(arg_dtype):
 
 
 def _get_positional_input_param(schema, idx):
+    """Get the Parameter representing positional inputs at `idx`. Automatically mark it as
+    optional. The DataNode annotation currently hides the possibility of MIS.
+
+    The double underscore `__` prefix for argument name is an additional way to indicate
+    positional only arguments, as per MyPy docs. It is obeyed by the VSCode.
+
+    TODO(klecki): Constant promotions - ArrayLike? Also: Multiple Input Sets.
+    """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
     annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
@@ -116,7 +113,10 @@ def _get_positional_input_param(schema, idx):
         return Parameter(f"__input_{idx}", kind=Parameter.POSITIONAL_ONLY, default=default,
                          annotation=annotation)
 
+
 def _get_positional_input_params(schema):
+    """Get the list of positional only inputs to the operator.
+    """
     param_list = []
     if schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
         param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=_DataNode))
@@ -125,14 +125,17 @@ def _get_positional_input_params(schema):
             param_list.append(_get_positional_input_param(schema, i))
     return param_list
 
+
 def _get_keyword_params(schema):
+    """Get the list of annotated keyword Parameters to the operator.
+    """
     param_list = []
     for arg in schema.GetArgumentNames():
         if schema.IsDeprecatedArg(arg):
             # We don't put the deprecated args in the visible API
             continue
         arg_dtype = schema.GetArgumentType(arg)
-        scalar_type =  _arg_type_annotation(arg_dtype)
+        scalar_type = _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
         annotation = Union[_DataNode, scalar_type] if is_arg_input else scalar_type
@@ -150,6 +153,8 @@ def _get_keyword_params(schema):
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
                     data_node_return=True):
+    """Generate the Signature object for DALI operators based on the schema.
+    """
     param_list = []
     if include_self:
         # TODO(klecki): what kind of parameter is `self`?
@@ -161,7 +166,7 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema))
     return_annotation = Union[_DataNode, List[_DataNode]] if data_node_return else None
-    return inspect.Signature(param_list, return_annotation=return_annotation)
+    return Signature(param_list, return_annotation=return_annotation)
 
 
 def inspect_repr_fixups(signature: str) -> str:
@@ -171,15 +176,13 @@ def inspect_repr_fixups(signature: str) -> str:
     type, but printing a signature would insert NoneType (specifically replacing
     Optional[Union[...]] with Union[..., None] and printing it as Union[..., NoneType]).
     The NoneType doesn't exist as a `types` definition in some Pythons.
-
-    The second thing is, the nvidia.dali.types types show the original module in the printed hint,
-    and instead of swapping them to the magic placeholders, I just remove the qualified string.
-    TODO(klecki): Consider magic placeholders as used for DataNode.
     """
     return signature.replace("NoneType", "None")
 
 
 def _gen_fn_signature(schema, schema_name, fn_name):
+    """Write the stub of the fn API function with the docstring, for given operator.
+    """
     return inspect_repr_fixups(f"""
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
@@ -187,7 +190,11 @@ def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}
     ...
 """)
 
+
 def _gen_ops_signature(schema, schema_name, cls_name):
+    """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
+    operator.
+    """
     return inspect_repr_fixups(f"""
 class {cls_name}:
     \"""{_docs._docstring_generator(schema_name)}
@@ -204,6 +211,9 @@ class {cls_name}:
 """)
 
 
+# Preamble with license and helper imports for the stub file.
+# We need the placeholders for actual Python classes, as the ones that are exported from backend
+# don't seem to work with the intellisense.
 _HEADER = """
 # Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
@@ -237,6 +247,17 @@ class DALIDataType:
 
 
 def _build_module_tree():
+    """Build a tree of DALI submodules, starting with empty string as a root one, like:
+    {
+        "" : {
+            "decoders" : {},
+            "experimental": {
+                "readers": {}
+            }
+            "readers" : {},
+        }
+    }
+    """
     module_tree = {}
     processed = set()
     for schema_name in _registry._all_registered_ops():
@@ -257,11 +278,17 @@ def _build_module_tree():
     return module_tree
 
 
-# TODO(klecki): Generate the full hierarchy of submodules, each higher level module
-# needs to import all child modules as `from child_module import *` ?
-# or just use the `from . import child_module`  <- I think the latter!!!
-def gen_all_signatures(whl_path, api):
-    whl_path = Path(whl_path)
+def gen_all_signatures(nvidia_dali_path, api):
+    """Generate the signatures for "fn" or "ops" api.
+
+    Parameters
+    ----------
+    nvidia_dali_path : Path
+        The path to the wheel pre-packaging to the nvidia/dali directory.
+    api : str
+        "fn" or "ops"
+    """
+    nvidia_dali_path = Path(nvidia_dali_path)
     module_tree = _build_module_tree()
     module_to_file = {}
     for schema_name in sorted(_registry._all_registered_ops()):
@@ -270,12 +297,12 @@ def gen_all_signatures(whl_path, api):
             continue
         if schema.IsDocHidden() or schema.IsInternal():
             continue
-        dotted_name, module_nesting, op_name = _names._process_op_name(schema_name)
+        _, module_nesting, op_name = _names._process_op_name(schema_name)
         fn_name = _to_snake_case(op_name)
         module_path = Path("/".join(module_nesting))
 
         if module_path not in module_to_file:
-            file_path = whl_path / api / module_path / "__init__.pyi"
+            file_path = nvidia_dali_path / api / module_path / "__init__.pyi"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
@@ -295,9 +322,6 @@ def gen_all_signatures(whl_path, api):
             module_to_file[module_path].write(_gen_fn_signature(schema, schema_name, fn_name))
         else:
             module_to_file[module_path].write(_gen_ops_signature(schema, schema_name, op_name))
-
-        # print(f"Converting {module_path}: {op_name}/{fn_name}:")
-        # print(_call_signature(schema, include_kwargs=True, include_self=False))
 
     for _, f in module_to_file.items():
         f.close()
