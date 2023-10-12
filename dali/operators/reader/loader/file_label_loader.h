@@ -48,6 +48,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
                                                      FileLabelLoaderState> {
  public:
   using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing, FileLabelLoaderState>;
+
   explicit inline FileLabelLoaderBase(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)

@@ -183,7 +183,7 @@ DALI_SCHEMA(COCOReader)
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
-COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, false, FileLabelLoaderState>(spec) {
   DALI_ENFORCE(!skip_cached_images_, "COCOReader doesn't support `skip_cached_images` option");
   output_polygon_masks_ = OutPolygonMasksEnabled(spec);
   legacy_polygon_format_ = spec.HasArgument("masks") && spec.GetArgument<bool>("masks");

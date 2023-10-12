@@ -161,7 +161,7 @@ std::string SnapshotSerializer::Serialize(const LoaderBaseStateSnapshot &snapsho
 }
 
 template<>
-std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot<std::nullptr_t> &snapshot) {
+std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot<EmptyExtraSnapshotData> &snapshot) {
   return Serialize(snapshot.base);
 }
 
@@ -181,7 +181,7 @@ LoaderBaseStateSnapshot SnapshotSerializer::Deserialize(const std::string &data)
 }
 
 template<> DLL_PUBLIC
-LoaderStateSnapshot<std::nullptr_t> SnapshotSerializer::Deserialize(const std::string &data) {
+LoaderStateSnapshot<EmptyExtraSnapshotData> SnapshotSerializer::Deserialize(const std::string &data) {
   return {Deserialize<LoaderBaseStateSnapshot>(data), {}};
 }
 

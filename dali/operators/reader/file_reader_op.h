@@ -56,7 +56,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true, FileLabelLoaderState);
 };
 
 }  // namespace dali

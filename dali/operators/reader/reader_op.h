@@ -52,7 +52,7 @@ namespace dali {
  */
 template <typename Backend, typename LoadTarget,
           typename ParseTarget = LoadTarget, bool supports_checkpointing = false,
-          typename LoaderSnapshotExtra = std::nullptr_t>
+          typename LoaderSnapshotExtra = EmptyExtraSnapshotData>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
@@ -450,7 +450,7 @@ class DataReader : public Operator<Backend> {
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing, LoaderSnapshotExtra>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;

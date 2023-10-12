@@ -69,9 +69,12 @@ struct LoaderBaseStateSnapshot {
 
 template <typename ExtraSnapshotData>
 struct LoaderStateSnapshot {
+  using ExtraType = ExtraSnapshotData;
   LoaderBaseStateSnapshot base;
   ExtraSnapshotData extra;
 };
+
+struct EmptyExtraSnapshotData {};
 
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind
@@ -83,13 +86,12 @@ struct LoaderStateSnapshot {
  */
 template <typename Backend, typename LoadTarget,
           bool supports_checkpointing = false,
-          typename ExtraSnapshotData = std::nullptr_t>
+          typename ExtraSnapshotData = EmptyExtraSnapshotData>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
   using Snapshot = LoaderStateSnapshot<ExtraSnapshotData>;
-
   struct IndexedLoadTargetSharedPtr {
     Index idx;
     LoadTargetSharedPtr ptr;
@@ -193,7 +195,7 @@ class Loader {
     RestoreBase(snapshot.base);
     RestoreExtra(snapshot.extra);
     FastForward(snapshot.base.age);
-    SaveStateSnapshot(snapshot);
+    SaveStateSnapshot(current_snapshot_);
   }
 
   void SaveStateSnapshot(Snapshot &snapshot) {
