@@ -243,11 +243,12 @@ class Loader {
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         LoadTargetSharedPtr tensor_ptr = nullptr;
         if (!dry_run) {
-          tensor_ptr = LoadTargetSharedPtr(new LoadTarget,
-                           [this](LoadTarget* sample){
-                                      LoadTargetUniquePtr recycle_ptr(sample);
-                                      RecycleTensor(std::move(recycle_ptr));
-                                  });
+          tensor_ptr = LoadTargetSharedPtr(
+            new LoadTarget,
+            [this](LoadTarget* sample){
+              LoadTargetUniquePtr recycle_ptr(sample);
+              RecycleTensor(std::move(recycle_ptr));
+            });
           PrepareEmpty(*tensor_ptr);
           ReadSample(*tensor_ptr);
         }
@@ -295,12 +296,15 @@ class Loader {
       // being called by multiple consumer threads
       {
         std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-        DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-        tensor_ptr = {empty_tensors_.back().release(),
-                      [this](LoadTarget* sample){
-                        LoadTargetUniquePtr recycle_ptr(sample);
-                        RecycleTensor(std::move(recycle_ptr));
-                      }};
+        DALI_ENFORCE(empty_tensors_.size() > 0,
+                     "No empty tensors - did you forget to return them?");
+        tensor_ptr = {
+          empty_tensors_.back().release(),
+          [this](LoadTarget* sample){
+            LoadTargetUniquePtr recycle_ptr(sample);
+            RecycleTensor(std::move(recycle_ptr));
+          }
+        };
         empty_tensors_.pop_back();
       }
       ReadSample(*tensor_ptr);
@@ -345,6 +349,15 @@ class Loader {
       ReadSample(*tensor_ptr);
     }
     RecycleTensor(std::move(tensor_ptr));
+  }
+
+  /**
+   * @brief Resets the loader to the first sample.
+   * Like `Reset`, but shouldn't make any extra side-effects, i.e. calling `Rewind` 
+   * multiple times should be have the same effect as calling it once.
+  */
+  virtual void Rewind(bool wrap_to_shard) {
+    DALI_FAIL("Loader doesn't support rewinding, restoring from checkpoint is impossible");
   }
 
   void PrepareMetadata() {
@@ -518,7 +531,7 @@ class Loader {
     // We can't move backwards, so samples have to be read in order
     std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
 
-    Reset(true);
+    Rewind(stick_to_shard_);
 
     Index at = 0;
     LoadTargetSharedPtr last = nullptr;
@@ -531,11 +544,13 @@ class Loader {
       Skip(target->idx - at);
       at = target->idx;
 
-      LoadTargetSharedPtr tensor_ptr = {new LoadTarget,
-                           [this](LoadTarget* sample){
-                                      LoadTargetUniquePtr recycle_ptr(sample);
-                                      RecycleTensor(std::move(recycle_ptr));
-                            }};
+      LoadTargetSharedPtr tensor_ptr = {
+        new LoadTarget,
+        [this](LoadTarget* sample){
+          LoadTargetUniquePtr recycle_ptr(sample);
+          RecycleTensor(std::move(recycle_ptr));
+        }
+      };
       PrepareEmpty(*tensor_ptr);
       ReadSample(*tensor_ptr);
       last = tensor_ptr;
@@ -543,7 +558,7 @@ class Loader {
       at++;
     }
 
-    Reset(true);
+    Rewind(stick_to_shard_);
     Skip(read_sample_counter_);
   }
 

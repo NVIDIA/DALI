@@ -198,8 +198,16 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> 
     return size_;
   }
 
-  void Reset(bool wrap_to_shard) override {
+  void Skip(uint64_t n) override {
+    counter_ += n;
+  }
+
+  void Rewind(bool wrap_to_shard) override {
     counter_ = 0;
+  }
+
+  void Reset(bool wrap_to_shard) override {
+    Rewind(wrap_to_shard);
   }
 
   uint64_t ReadInt(bool is_new_batch, bool is_end_of_batch) {
