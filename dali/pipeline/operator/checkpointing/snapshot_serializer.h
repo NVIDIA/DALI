@@ -21,6 +21,8 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
+#include "dali/pipeline/dali.pb.h"
 
 namespace dali {
 
@@ -37,8 +39,18 @@ class DLL_PUBLIC SnapshotSerializer {
 
   DLL_PUBLIC std::string Serialize(const LoaderBaseStateSnapshot &snapshot);
 
-  template<typename T>
-  DLL_PUBLIC std::string Serialize(const LoaderStateSnapshot<T> &snapshot);
+  template <typename Extra>
+  DLL_PUBLIC std::string Serialize(const LoaderStateSnapshot<Extra> &snapshot) {
+    dali_proto::LoaderStateSnapshot proto_snapshot;
+    proto_snapshot.set_base(Serialize(snapshot.base));
+    proto_snapshot.set_extra(Serialize(snapshot.extra));
+    return proto_snapshot.SerializeAsString();
+  }
+
+  DLL_PUBLIC std::string Serialize(const EmptyExtraSnapshotData &snapshot);
+
+  DLL_PUBLIC std::string Serialize(const FileLabelLoaderState &snapshot);
+
 
   /**
    * @brief Deserializes string into an object.

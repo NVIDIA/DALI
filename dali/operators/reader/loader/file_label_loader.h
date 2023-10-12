@@ -227,7 +227,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     current_epoch_ = extra.current_epoch;
   }
 
-  void StoreExtra(FileLabelLoaderState &extra) override {
+  void SaveExtra(FileLabelLoaderState &extra) const override {
     extra.current_epoch = current_epoch_;
   }
 

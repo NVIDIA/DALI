@@ -527,7 +527,7 @@ class Loader {
         to_read.push_back(&sample);
       }
     }
-    
+
     // We can't move backwards, so samples have to be read in order
     std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
 
