@@ -67,7 +67,7 @@ set the following environment variables:
     directory.
   | The default is ``NO``.
 * | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
-  | The default is ``3.6``.
+  | The default is ``3.8``.
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package
   description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 * | CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo.

@@ -7,9 +7,9 @@ FROM ${TF_CUSTOM_OP_IMAGE}
 # TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu16 for manylinux2010 tagged TF pip artifacts
 # More info here: https://github.com/tensorflow/custom-op
 
-ARG PYVER=3.6
+ARG PYVER=3.8
 ENV PYVER=${PYVER}
-ARG PYV=36
+ARG PYV=38
 ENV PYV=${PYV}
 
 # Python 3.6 and 3.7 are not available in Ubuntu 14
