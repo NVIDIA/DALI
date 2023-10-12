@@ -63,13 +63,14 @@ struct LoaderBaseStateSnapshot {
 
   std::default_random_engine rng;
   Index seed;
+
+  Index age;
 };
 
 template <typename ExtraSnapshotData>
 struct LoaderStateSnapshot {
-  LoaderBaseStateSnapshot base_snapshot;
+  LoaderBaseStateSnapshot base;
   ExtraSnapshotData extra;
-  Index age;
 };
 
 /**
@@ -125,7 +126,6 @@ class Loader {
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
     last_sample_ptr_tmp = {0, nullptr};
-    SaveSnapshot(current_snapshot_);
   }
 
   virtual ~Loader() {
@@ -139,6 +139,7 @@ class Loader {
     if (!lazy_init_) {
       PrepareMetadata();
     }
+    SaveStateSnapshot(current_snapshot_);
   }
 
   virtual void PrepareEmpty(LoadTarget& tensor) {
@@ -175,7 +176,7 @@ class Loader {
     if constexpr (!supports_checkpointing) {
       DALI_FAIL("Checkpointing is not supported by this loader.");
     } else {
-      if (current_snapshot_.age > max_full_checkpoint_age_) {
+      if (current_snapshot_.base.age > max_full_checkpoint_age_) {
         SaveStateSnapshot(current_snapshot_);
       }
       return current_snapshot_;
@@ -189,9 +190,9 @@ class Loader {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
-    RestoreBase(snapshot.base_snapshot);
+    RestoreBase(snapshot.base);
     RestoreExtra(snapshot.extra);
-    FastForward(snapshot.age);
+    FastForward(snapshot.base.age);
     SaveStateSnapshot(snapshot);
   }
 
@@ -199,9 +200,8 @@ class Loader {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
-    SaveBase(snapshot);
-    SaveExtra(snapshot);
-    snapshot.age = 0;
+    SaveBase(snapshot.base);
+    SaveExtra(snapshot.extra);
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -269,7 +269,7 @@ class Loader {
     if (shards_.front().start == shards_.front().end) {
       if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
-        current_snapshot_.age++;
+        current_snapshot_.base.age++;
         return last_sample_ptr_tmp.ptr;
       }
 
@@ -311,7 +311,7 @@ class Loader {
 
     shards_.front().start++;
     returned_sample_counter_++;
-    current_snapshot_.age++;
+    current_snapshot_.base.age++;
     return sample.ptr;
   }
 
@@ -456,6 +456,8 @@ class Loader {
     
     snapshot.rng = e_;
     snapshot.seed = seed_;
+
+    snapshot.age = 0;
   }
 
   inline bool IsNextShardRelative(Index already_read, int virtual_shard_id) {

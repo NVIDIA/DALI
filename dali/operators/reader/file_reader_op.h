@@ -24,10 +24,10 @@
 
 namespace dali {
 
-class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
+class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true, FileLabelLoaderState> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true, FileLabelLoaderState>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
     this->SetInitialSnapshot();

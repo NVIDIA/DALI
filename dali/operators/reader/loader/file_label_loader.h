@@ -38,11 +38,16 @@ struct ImageLabelWrapper {
   int label;
 };
 
+struct FileLabelLoaderState {
+  int current_epoch;
+};
+
 template<bool supports_checkpointing>
 class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapper,
-                                                     supports_checkpointing> {
+                                                     supports_checkpointing,
+                                                     FileLabelLoaderState> {
  public:
-  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing>;
+  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing, FileLabelLoaderState>;
   explicit inline FileLabelLoaderBase(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
@@ -215,10 +220,6 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
     }
-  }
-
-  void RestoreStateImpl(const LoaderStateSnapshot &state) override {
-    current_epoch_ = state.current_epoch;
   }
 
   using Base::shard_id_;
