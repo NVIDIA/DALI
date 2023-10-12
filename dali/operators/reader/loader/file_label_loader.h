@@ -223,6 +223,14 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     }
   }
 
+  void RestoreExtra(const FileLabelLoaderState &extra) override {
+    current_epoch_ = extra.current_epoch;
+  }
+
+  void StoreExtra(FileLabelLoaderState &extra) override {
+    extra.current_epoch = current_epoch_;
+  }
+
   using Base::shard_id_;
   using Base::virtual_shard_id_;
   using Base::num_shards_;
