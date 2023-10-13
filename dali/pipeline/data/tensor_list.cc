@@ -1118,10 +1118,13 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
   }
   for (int i = 0; i < curr_num_tensors_; i++) {
     if (tensors_[i].nbytes() == 0) {
+      if (is_pinned() != tensors_[i].is_pinned() || order() != tensors_[i].order()) {
+        tensors_[i].reset();
+        tensors_[i].set_pinned(is_pinned());
+        tensors_[i].set_order(order());
+      }
       tensors_[i].set_type(type());
       tensors_[i].SetLayout(GetLayout());
-      tensors_[i].set_pinned(is_pinned());
-      tensors_[i].set_order(order());
       tensors_[i].set_device_id(device_id());
     }
     DALI_ENFORCE(type() == tensors_[i].type(),
