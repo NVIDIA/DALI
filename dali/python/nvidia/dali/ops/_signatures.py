@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from inspect import Parameter, Signature
+import ast
 import os
 
 from pathlib import Path
@@ -33,7 +34,7 @@ def _create_annotation_placeholder(typename):
     # path and there is no customization. Also the formatting using the `repr` of the type is
     # driven by inspect.formatannotation (when we use the type directly) or by the internals of
     # typing classes like Union. So we just pretend, that we are from typing, and we want to
-    # have our name as DataNode. This is not the DataNode you are looking for.
+    # have our name as `typename`.
 
     class _AnnotationPlaceholderMeta(type):
         # We don't want <class 'typename'> when inspect calls inspect.formatannotation directly.
@@ -47,10 +48,20 @@ def _create_annotation_placeholder(typename):
         # only if you are part of `typing.` your path is hidden
         __module__ = "typing"
 
+        def __init__(self, val):
+            self._val = val
+
+        # Work around the repr of enums, by replacing them with `__str__`
+        def __repr__(self):
+            return str(self._val)
+
     return _AnnotationPlaceholder
 
-
+# This is not the DataNode you are looking for.
 _DataNode = _create_annotation_placeholder("DataNode")
+
+# The placeholder for the DALI Enum types, as the bindings from backend don't play nice,
+# we need actual Python classes.
 _DALIDataType = _create_annotation_placeholder("DALIDataType")
 _DALIImageType = _create_annotation_placeholder("DALIImageType")
 _DALIInterpType = _create_annotation_placeholder("DALIInterpType")
@@ -135,16 +146,23 @@ def _get_keyword_params(schema):
             # We don't put the deprecated args in the visible API
             continue
         arg_dtype = schema.GetArgumentType(arg)
-        scalar_type = _arg_type_annotation(arg_dtype)
+        kw_annotation = _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        annotation = Union[_DataNode, scalar_type] if is_arg_input else scalar_type
+        annotation = Union[_DataNode, kw_annotation] if is_arg_input else kw_annotation
         if schema.IsArgumentOptional(arg):
             annotation = Optional[annotation]
 
-        # TODO(klecki): What to do with the defaults?
+        default = Parameter.empty
+        if schema.HasArgumentDefaultValue(arg):
+            default_value_string = schema.GetArgumentDefaultValueString(arg)
+            default_value = ast.literal_eval(default_value_string)
+            default = types._type_convert_value(arg_dtype, default_value)
+            if type(default) in _enum_mapping:
+                default = _enum_mapping[type(default)](default)
+
         param_list.append(
-            Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=Parameter.empty,
+            Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
                       annotation=annotation))
     # We always have the **kwargs
     param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
