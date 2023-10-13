@@ -342,17 +342,11 @@ class Loader {
    * @warning This generic implementation is very inefficient and should be overriden.
   */
   virtual void Skip(uint64_t n) {
-    LoadTargetUniquePtr tensor_ptr;
-    {
-      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors");
-      tensor_ptr = std::move(empty_tensors_.back());
-      empty_tensors_.pop_back();
-    }
+    auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+    PrepareEmpty(*tensor_ptr);
     for (uint64_t i = 0; i < n; i++) {
       ReadSample(*tensor_ptr);
     }
-    RecycleTensor(std::move(tensor_ptr));
   }
 
   /**
