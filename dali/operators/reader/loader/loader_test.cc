@@ -263,7 +263,7 @@ TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
 
 void TestLoaderCheckpointing(const std::unique_ptr<DummyCountingLoader> &loader, int n) {
   std::vector<uint64_t> reference;
-  std::vector<DummyCountingLoader::Snapshot> snapshots;
+  std::vector<LoaderStateSnapshot> snapshots;
   for (int i = 0; i < n; i++) {
     snapshots.push_back(loader->GetStateSnapshot());
     reference.push_back(loader->ReadInt(false, false));

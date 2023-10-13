@@ -51,12 +51,10 @@ namespace dali {
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
-          typename ParseTarget = LoadTarget, bool supports_checkpointing = false,
-          typename LoaderSnapshotExtra = EmptyExtraSnapshotData>
+          typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
-  using LoaderSnapshot = LoaderStateSnapshot<LoaderSnapshotExtra>;
 
   inline explicit DataReader(const OpSpec& spec)
       : Operator<Backend>(spec),
@@ -124,19 +122,19 @@ class DataReader : public Operator<Backend> {
       DALI_ENFORCE(checkpointing_,
                    "Cannot restore the checkpoint, because "
                    "checkpointing was not enabled.");
-      auto &snapshot = cpt.CheckpointState<LoaderSnapshot>();
+      auto &snapshot = cpt.CheckpointState<LoaderStateSnapshot>();
       loader_->RestoreStateFromSnapshot(snapshot);
       SetInitialSnapshot();
     }
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<LoaderSnapshot>();
-    return SnapshotSerializer().Serialize(state.base);
+    const auto &state = cpt.CheckpointState<LoaderStateSnapshot>();
+    return SnapshotSerializer().Serialize(state);
   }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    cpt.MutableCheckpointState() = SnapshotSerializer().Deserialize<LoaderSnapshot>(data);
+    cpt.MutableCheckpointState() = SnapshotSerializer().Deserialize<LoaderStateSnapshot>(data);
   }
 
   // Main prefetch work loop
@@ -305,9 +303,7 @@ class DataReader : public Operator<Backend> {
   }
 
   void SaveLoaderSnapshot() {
-    if (IsCheckpointingEnabled()) {
-      loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
-    }
+    loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
   }
 
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
@@ -438,7 +434,7 @@ class DataReader : public Operator<Backend> {
   bool consumer_cycle_;
   bool producer_cycle_;
   bool checkpointing_;
-  std::vector<std::optional<LoaderSnapshot>> loader_snapshot_queue_;
+  std::vector<std::optional<LoaderStateSnapshot>> loader_snapshot_queue_;
   int snapshot_consumer_;
   int snapshot_producer_;
   int device_id_;
@@ -450,7 +446,7 @@ class DataReader : public Operator<Backend> {
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing, LoaderSnapshotExtra>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;
@@ -472,20 +468,10 @@ class DataReader : public Operator<Backend> {
   using DataReader<Backend, LoadTarget, ParseTarget,                                            \
                    supports_checkpointing>::prefetched_batch_queue_;
 
-#define USE_READER_OPERATOR_MEMBERS_4(Backend, LoadTarget, ParseTarget, supports_checkpointing, \
-                                      LoaderSnapshotExtra)                                      \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing,                    \
-                   LoaderSnapshotExtra>::loader_;                                               \
-  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing,                    \
-                   LoaderSnapshotExtra>::parser_;                                               \
-  using DataReader<Backend, LoadTarget, ParseTarget,                                            \
-                   supports_checkpointing, LoaderSnapshotExtra>::prefetched_batch_queue_;
-
-#define GET_MACRO4(_1, _2, _3, _4, NAME, ...) NAME
+#define GET_MACRO3(_1, _2, _3, NAME, ...) NAME
 
 #define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
-  GET_MACRO4(__VA_ARGS__,                          \
-             USE_READER_OPERATOR_MEMBERS_4,        \
+  GET_MACRO3(__VA_ARGS__,                          \
              USE_READER_OPERATOR_MEMBERS_3,        \
              USE_READER_OPERATOR_MEMBERS_2,        \
              USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)

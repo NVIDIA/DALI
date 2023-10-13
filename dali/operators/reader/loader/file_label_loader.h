@@ -38,17 +38,11 @@ struct ImageLabelWrapper {
   int label;
 };
 
-struct FileLabelLoaderState {
-  int current_epoch;
-};
-
 template<bool supports_checkpointing>
 class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapper,
-                                                     supports_checkpointing,
-                                                     FileLabelLoaderState> {
+                                                     supports_checkpointing> {
  public:
-  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing, FileLabelLoaderState>;
-
+  using Base = Loader<CPUBackend, ImageLabelWrapper, supports_checkpointing>;
   explicit inline FileLabelLoaderBase(
     const OpSpec& spec,
     bool shuffle_after_epoch = false)
@@ -223,11 +217,11 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     }
   }
 
-  void RestoreExtra(const FileLabelLoaderState &extra) override {
+  void RestoreExtra(const ExtraSnapshotData &extra) override {
     current_epoch_ = extra.current_epoch;
   }
 
-  void SaveExtra(FileLabelLoaderState &extra) const override {
+  void SaveExtra(ExtraSnapshotData &extra) const override {
     extra.current_epoch = current_epoch_;
   }
 

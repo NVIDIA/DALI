@@ -29,13 +29,13 @@
 
 namespace dali {
 
-class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, false, FileLabelLoaderState> {
+class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
  public:
   explicit COCOReader(const OpSpec& spec);
   void RunImpl(SampleWorkspace &ws) override;
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, false, FileLabelLoaderState);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
 
  private:
   CocoLoader& LoaderImpl() { return dynamic_cast<CocoLoader&>(*loader_); }

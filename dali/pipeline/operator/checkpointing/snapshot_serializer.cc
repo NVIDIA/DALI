@@ -68,7 +68,72 @@ std::vector<T> DeserializeRNG(const std::string &data) {
   return snapshot;
 }
 
-LoaderBaseStateSnapshot FromProto(const dali_proto::LoaderBaseStateSnapshot &proto_snapshot) {
+}  // namespace
+
+std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937> &snapshot) {
+  return SerializeRNG(snapshot);
+}
+
+template<> DLL_PUBLIC
+std::vector<std::mt19937> SnapshotSerializer::Deserialize(const std::string &data) {
+  return DeserializeRNG<std::mt19937>(data);
+}
+
+std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937_64> &snapshot) {
+  return SerializeRNG(snapshot);
+}
+
+template<> DLL_PUBLIC
+std::vector<std::mt19937_64> SnapshotSerializer::Deserialize(const std::string &data) {
+  return DeserializeRNG<std::mt19937_64>(data);
+}
+
+std::string SnapshotSerializer::Serialize(const LoaderBaseStateSnapshot &snapshot) {
+  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
+  
+  proto_snapshot.set_initial_buffer_filled(snapshot.initial_buffer_filled);
+  for (const auto &sample : snapshot.samples_in_buffer) {
+    proto_snapshot.add_samples_in_buffer(sample);
+  }
+
+  proto_snapshot.set_returned_sample_counter(snapshot.returned_sample_counter);
+  proto_snapshot.set_read_sample_counter(snapshot.read_sample_counter);
+  
+  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
+  for (const auto &shard : snapshot.shards) {
+    auto proto_shard = proto_snapshot.add_shards();
+    proto_shard->set_start(shard.start);
+    proto_shard->set_end(shard.end);
+  }
+  
+  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
+  proto_snapshot.set_last_sample_idx(snapshot.last_sample_idx);
+
+  proto_snapshot.set_rng(SerializeToString(snapshot.rng));
+  proto_snapshot.set_seed(snapshot.seed);
+
+  proto_snapshot.set_age(snapshot.age);
+  
+  return proto_snapshot.SerializeAsString();
+}
+
+std::string SnapshotSerializer::Serialize(const ExtraSnapshotData &snapshot) {
+  dali_proto::ExtraSnapshotData proto_snapshot;
+  proto_snapshot.set_current_epoch(snapshot.current_epoch);
+  return proto_snapshot.SerializeAsString();
+}
+
+std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot &snapshot) {
+  dali_proto::LoaderStateSnapshot proto_snapshot;
+  proto_snapshot.set_base(Serialize(snapshot.base));
+  proto_snapshot.set_extra(Serialize(snapshot.extra));
+  return proto_snapshot.SerializeAsString();
+}
+
+template<> DLL_PUBLIC
+LoaderBaseStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
+  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
+  proto_snapshot.ParseFromString(data);
   LoaderBaseStateSnapshot snapshot;
 
   snapshot.initial_buffer_filled = proto_snapshot.initial_buffer_filled();
@@ -97,107 +162,21 @@ LoaderBaseStateSnapshot FromProto(const dali_proto::LoaderBaseStateSnapshot &pro
   return snapshot;
 }
 
-dali_proto::LoaderBaseStateSnapshot ToProto(const LoaderBaseStateSnapshot &snapshot) {
-  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
-  
-  proto_snapshot.set_initial_buffer_filled(snapshot.initial_buffer_filled);
-  for (const auto &sample : snapshot.samples_in_buffer) {
-    proto_snapshot.add_samples_in_buffer(sample);
-  }
-
-  proto_snapshot.set_returned_sample_counter(snapshot.returned_sample_counter);
-  proto_snapshot.set_read_sample_counter(snapshot.read_sample_counter);
-  
-  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
-  for (const auto &shard : snapshot.shards) {
-    auto proto_shard = proto_snapshot.add_shards();
-    proto_shard->set_start(shard.start);
-    proto_shard->set_end(shard.end);
-  }
-  
-  proto_snapshot.set_virtual_shard_id(snapshot.virtual_shard_id);
-  proto_snapshot.set_last_sample_idx(snapshot.last_sample_idx);
-
-  proto_snapshot.set_rng(SerializeToString(snapshot.rng));
-  proto_snapshot.set_seed(snapshot.seed);
-
-  proto_snapshot.set_age(snapshot.age);
-  
-  return proto_snapshot;
-}
-
-}  // namespace
-
-std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937> &snapshot) {
-  return SerializeRNG(snapshot);
-}
-
 template<> DLL_PUBLIC
-std::vector<std::mt19937> SnapshotSerializer::Deserialize(const std::string &data) {
-  return DeserializeRNG<std::mt19937>(data);
-}
-
-std::string SnapshotSerializer::Serialize(const std::vector<std::mt19937_64> &snapshot) {
-  return SerializeRNG(snapshot);
-}
-
-template<> DLL_PUBLIC
-std::vector<std::mt19937_64> SnapshotSerializer::Deserialize(const std::string &data) {
-  return DeserializeRNG<std::mt19937_64>(data);
-}
-
-std::string SnapshotSerializer::Serialize(const LoaderBaseStateSnapshot &snapshot) {
-  return ToProto(snapshot).SerializeAsString();
-}
-
-std::string SnapshotSerializer::Serialize(const EmptyExtraSnapshotData &snapshot) {
-  return {};
-}
-
-std::string SnapshotSerializer::Serialize(const FileLabelLoaderState &snapshot) {
-  dali_proto::FileLabelLoaderStateSnapshot proto_snapshot;
-  proto_snapshot.set_current_epoch(snapshot.current_epoch);
-  return proto_snapshot.SerializeAsString();
-}
-
-template<> DLL_PUBLIC
-LoaderBaseStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
-  dali_proto::LoaderBaseStateSnapshot proto_snapshot;
-  proto_snapshot.ParseFromString(data);
-  return FromProto(proto_snapshot);
-}
-
-template<> DLL_PUBLIC
-EmptyExtraSnapshotData SnapshotSerializer::Deserialize(const std::string &data) {
-  return {};
-}
-
-template<> DLL_PUBLIC
-LoaderStateSnapshot<EmptyExtraSnapshotData> SnapshotSerializer::Deserialize(const std::string &data) {
-  dali_proto::LoaderStateSnapshot proto_snapshot;
-  LoaderStateSnapshot<EmptyExtraSnapshotData> snapshot;
-  proto_snapshot.ParseFromString(data);
-  snapshot.base = Deserialize<LoaderBaseStateSnapshot>(proto_snapshot.base());
-  snapshot.extra = Deserialize<EmptyExtraSnapshotData>(proto_snapshot.extra());
-  return snapshot;
-}
-
-template<> DLL_PUBLIC
-FileLabelLoaderState SnapshotSerializer::Deserialize(const std::string &data) {
-  dali_proto::FileLabelLoaderStateSnapshot proto_snapshot;
+ExtraSnapshotData SnapshotSerializer::Deserialize(const std::string &data) {
+  dali_proto::ExtraSnapshotData proto_snapshot;
   proto_snapshot.ParseFromString(data);
   return {proto_snapshot.current_epoch()};
 }
 
 template<> DLL_PUBLIC
-LoaderStateSnapshot<FileLabelLoaderState> SnapshotSerializer::Deserialize(const std::string &data) {
+LoaderStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
   dali_proto::LoaderStateSnapshot proto_snapshot;
-  LoaderStateSnapshot<FileLabelLoaderState> snapshot;
+  LoaderStateSnapshot snapshot;
   proto_snapshot.ParseFromString(data);
   snapshot.base = Deserialize<LoaderBaseStateSnapshot>(proto_snapshot.base());
-  snapshot.extra = Deserialize<FileLabelLoaderState>(proto_snapshot.extra());
+  snapshot.extra = Deserialize<ExtraSnapshotData>(proto_snapshot.extra());
   return snapshot;
 }
-
 
 }  // namespace dali

@@ -115,6 +115,10 @@ message LoaderBaseStateSnapshot {
   optional int64 age = 11;
 }
 
+message ExtraSnapshotData {
+  optional int32 current_epoch = 1;
+}
+
 message LoaderStateSnapshot {
   optional bytes base = 1;
   optional bytes extra = 2;
@@ -122,10 +126,6 @@ message LoaderStateSnapshot {
 
 message ReaderStateSnapshot {
   optional LoaderStateSnapshot loader_state = 1;
-}
-
-message FileLabelLoaderStateSnapshot {
-  optional int32 current_epoch = 1;
 }
 
 message DummySnapshot {

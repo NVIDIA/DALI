@@ -67,14 +67,17 @@ struct LoaderBaseStateSnapshot {
   Index age;
 };
 
-template <typename ExtraSnapshotData>
+struct ExtraSnapshotData {
+  int current_epoch;
+};
+
+// TODO(skarpinski) Make this a template to allow loader-specific extra data
+// template <typename ExtraSnapshotData>
 struct LoaderStateSnapshot {
   using ExtraType = ExtraSnapshotData;
   LoaderBaseStateSnapshot base;
   ExtraSnapshotData extra;
 };
-
-struct EmptyExtraSnapshotData {};
 
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind
@@ -85,13 +88,12 @@ struct EmptyExtraSnapshotData {};
  * @tparam supports_checkpointing A marker for checkpointing support.
  */
 template <typename Backend, typename LoadTarget,
-          bool supports_checkpointing = false,
-          typename ExtraSnapshotData = EmptyExtraSnapshotData>
+          bool supports_checkpointing = false>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
-  using Snapshot = LoaderStateSnapshot<ExtraSnapshotData>;
+
   struct IndexedLoadTargetSharedPtr {
     Index idx;
     LoadTargetSharedPtr ptr;
@@ -169,7 +171,7 @@ class Loader {
   /**
    * @brief Returns snapshot of current state of the reader.
    */
-  Snapshot GetStateSnapshot() {
+  LoaderStateSnapshot GetStateSnapshot() {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
@@ -186,7 +188,7 @@ class Loader {
   /**
    * @brief Restores the loader's state from a snapshot.
    */
-  void RestoreStateFromSnapshot(const Snapshot& snapshot) {
+  void RestoreStateFromSnapshot(const LoaderStateSnapshot& snapshot) {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
@@ -196,7 +198,7 @@ class Loader {
     SaveStateSnapshot(current_snapshot_);
   }
 
-  void SaveStateSnapshot(Snapshot &snapshot) {
+  void SaveStateSnapshot(LoaderStateSnapshot &snapshot) {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
@@ -639,7 +641,7 @@ class Loader {
   // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_ = 0;
 
-  LoaderStateSnapshot<ExtraSnapshotData> current_snapshot_;
+  LoaderStateSnapshot current_snapshot_;
 };
 
 template<typename T, typename... Args>
