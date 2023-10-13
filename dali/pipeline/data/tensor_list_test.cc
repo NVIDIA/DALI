@@ -1987,6 +1987,9 @@ TEST_F(TensorListVariableBatchSizeTest, UpdatePropertiesFromSamples) {
   t.set_pinned(true);
   t.Resize(19, DALI_FLOAT);
   tv.UpdatePropertiesFromSamples(false);
+  // check if after calling UpdatePropertiesFromSamples even empty samples in TL have consistent
+  // metadata with the the whole TL
+  tv.SetSample(1, tv.tensor_handle(2));
 }
 
 

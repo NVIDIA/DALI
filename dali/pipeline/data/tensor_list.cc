@@ -1104,7 +1104,7 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
   DALI_ENFORCE(curr_num_tensors_ > 0,
                "Unexpected empty output of per-sample operator. Internal DALI error.");
   for (int i = 0; i < curr_num_tensors_; i++) {
-    // if tensor is empty it can be uninitialized so we don't really care about its properties
+    // if tensor is empty it can be uninitialized, so find the initialized one
     if (tensors_[i].nbytes() == 0 && i != curr_num_tensors_ - 1) continue;
     type_ = tensors_[i].type_info();
     sample_dim_ = tensors_[i].shape().sample_dim();
@@ -1117,6 +1117,13 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
     break;
   }
   for (int i = 0; i < curr_num_tensors_; i++) {
+    if (tensors_[i].nbytes() == 0) {
+      tensors_[i].set_type(type());
+      tensors_[i].SetLayout(GetLayout());
+      tensors_[i].set_pinned(is_pinned());
+      tensors_[i].set_order(order());
+      tensors_[i].set_device_id(device_id());
+    }
     DALI_ENFORCE(type() == tensors_[i].type(),
                  make_string("Samples must have the same type, expected: ", type(),
                              " got: ", tensors_[i].type(), " at ", i, "."));
@@ -1126,8 +1133,6 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
     DALI_ENFORCE(GetLayout() == tensors_[i].GetLayout(),
                  make_string("Samples must have the same layout, expected: ", GetLayout(),
                              " got: ", tensors_[i].GetLayout(), " at ", i, "."));
-    // if tensor is empty, its pinned status, order and device_id is rather irrelevant
-    if (tensors_[i].nbytes() == 0) continue;
     DALI_ENFORCE(is_pinned() == tensors_[i].is_pinned(),
                  make_string("Samples must have the same pinned status, expected: ", is_pinned(),
                              " got: ", tensors_[i].is_pinned(), " at ", i, "."));
