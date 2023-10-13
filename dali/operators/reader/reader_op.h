@@ -97,7 +97,9 @@ class DataReader : public Operator<Backend> {
     for (int i = 0; i < max_batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
     }
-    SaveLoaderSnapshot();
+    if (IsCheckpointingEnabled()) {
+      SaveLoaderSnapshot();
+    }
   }
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {

@@ -141,7 +141,9 @@ class Loader {
     if (!lazy_init_) {
       PrepareMetadata();
     }
-    SaveStateSnapshot(current_snapshot_);
+    if (IsCheckpointingEnabled()) {
+      SaveStateSnapshot(current_snapshot_);
+    }
   }
 
   virtual void PrepareEmpty(LoadTarget& tensor) {
