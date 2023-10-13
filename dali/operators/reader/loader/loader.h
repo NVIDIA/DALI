@@ -229,6 +229,8 @@ class Loader {
       ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
     }
     ReadMissingSamples();
+    Rewind(stick_to_shard_);
+    Skip(read_sample_counter_);
   }
 
   // Get a random read sample
@@ -559,9 +561,6 @@ class Loader {
       target->ptr = std::move(tensor_ptr);
       at++;
     }
-
-    Rewind(stick_to_shard_);
-    Skip(read_sample_counter_);
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
@@ -625,9 +624,6 @@ class Loader {
   bool checkpointing_;
   // A new full checkpoint will be saved when current gets older than `max_full_checkpoint_age_` 
   int max_full_checkpoint_age_;
-  // The epoch number the next returned sample belongs to,
-  // tracked only if checkpointing is enabled
-  int consumer_epoch_ = 0;
   // Batch size
   int max_batch_size_;
   // Number of data shards that were actually read by the reader
