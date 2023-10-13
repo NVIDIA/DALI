@@ -1103,14 +1103,19 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
   // assume that the curr_num_tensors_ is valid
   DALI_ENFORCE(curr_num_tensors_ > 0,
                "Unexpected empty output of per-sample operator. Internal DALI error.");
-  type_ = tensors_[0].type_info();
-  sample_dim_ = tensors_[0].shape().sample_dim();
-  shape_.resize(curr_num_tensors_, sample_dim_);
-  layout_ = tensors_[0].GetMeta().GetLayout();
-  pinned_ = tensors_[0].is_pinned();
-  order_ = tensors_[0].order();
-  device_ = tensors_[0].device_id();
-  contiguous_buffer_.set_order(order_);
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    // if tensor is empty it can be uninitialized so we don't really care about its properties
+    if (tensors_[i].nbytes() == 0 && i != curr_num_tensors_ - 1) continue;
+    type_ = tensors_[i].type_info();
+    sample_dim_ = tensors_[i].shape().sample_dim();
+    shape_.resize(curr_num_tensors_, sample_dim_);
+    layout_ = tensors_[i].GetMeta().GetLayout();
+    pinned_ = tensors_[i].is_pinned();
+    order_ = tensors_[i].order();
+    device_ = tensors_[i].device_id();
+    contiguous_buffer_.set_order(order_);
+    break;
+  }
   for (int i = 0; i < curr_num_tensors_; i++) {
     DALI_ENFORCE(type() == tensors_[i].type(),
                  make_string("Samples must have the same type, expected: ", type(),
@@ -1121,6 +1126,8 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
     DALI_ENFORCE(GetLayout() == tensors_[i].GetLayout(),
                  make_string("Samples must have the same layout, expected: ", GetLayout(),
                              " got: ", tensors_[i].GetLayout(), " at ", i, "."));
+    // if tensor is empty, its pinned status, order and device_id is rather irrelevant
+    if (tensors_[i].nbytes() == 0) continue;
     DALI_ENFORCE(is_pinned() == tensors_[i].is_pinned(),
                  make_string("Samples must have the same pinned status, expected: ", is_pinned(),
                              " got: ", tensors_[i].is_pinned(), " at ", i, "."));

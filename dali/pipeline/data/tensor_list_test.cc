@@ -1980,6 +1980,15 @@ TEST_F(TensorListVariableBatchSizeTest, TlCopyWithResizeDown) {
   EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
 }
 
+TEST_F(TensorListVariableBatchSizeTest, UpdatePropertiesFromSamples) {
+  TensorList<CPUBackend> tv(3);
+  tv.set_type(DALI_FLOAT);
+  auto &t = tv.tensor_handle(0);
+  t.set_pinned(true);
+  t.Resize(19, DALI_FLOAT);
+  tv.UpdatePropertiesFromSamples(false);
+}
+
 
 }  // namespace test
 }  // namespace dali
