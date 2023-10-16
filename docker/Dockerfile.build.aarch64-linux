@@ -135,6 +135,7 @@ CMD WERROR=ON           \
     WITH_DYNAMIC_NVJPEG=ON\
     WITH_DYNAMIC_CUFFT=ON\
     WITH_DYNAMIC_NPP=ON \
+    NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0} \
     WHL_PLATFORM_NAME=manylinux2014_aarch64            \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
     EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
