@@ -289,7 +289,7 @@ _HEADER = """
 # limitations under the License.
 
 from typing import Union, Optional
-from typing import List, Any
+from typing import Tuple, List, Any
 
 from nvidia.dali.data_node import DataNode
 

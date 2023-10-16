@@ -44,7 +44,8 @@ copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/find_dali.cmake" "${PROJECT_BINARY_DIR}/dali/cmake")
 
-IF (NOT ${CMAKE_CROSSCOMPILING})
+if(NOT ${CMAKE_CROSSCOMPILING})
+  # Prepate PYTHONPATH targetting the pre-packed wheel produced in this build
   set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
   if($ENV{PYTHONPATH})
     set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
@@ -54,9 +55,21 @@ IF (NOT ${CMAKE_CROSSCOMPILING})
 
   add_custom_target(dali_python_generate_stubs ALL DEPENDS dali_python)
 
+  # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
+  # backend from the current build.
   add_custom_command(
     TARGET dali_python_generate_stubs
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
   )
+
+  # Format the bindings, so they are somewhat readable.
+  if (${FORMAT_PYTHON_STUB_FILES})
+    add_custom_target(dali_python_format_stubs ALL DEPENDS dali_python dali_python_generate_stubs)
+    add_custom_command(
+      TARGET dali_python_format_stubs
+      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+      COMMAND find dali/python/nvidia/dali -name '*.pyi' -print0 | xargs -0 yapf --in-place --verbose --parallel --style "${PROJECT_SOURCE_DIR}/.style.yapf"
+    )
+  endif()
 endif()
