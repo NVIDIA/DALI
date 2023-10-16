@@ -31,6 +31,10 @@ test_autograph() {
     ${python_new_invoke_test} -s auto_aug
 }
 
+test_typing() {
+    ${python_new_invoke_test} -s typing
+}
+
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
     ${python_new_invoke_test} -A '!slow,pytorch' -s checkpointing
@@ -44,6 +48,7 @@ test_no_fw() {
     test_py_with_framework
     test_py
     test_autograph
+    test_typing
     test_checkpointing
 }
 

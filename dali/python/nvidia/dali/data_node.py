@@ -74,7 +74,7 @@ class DataNode(object):
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
-    def gpu(self):
+    def gpu(self) -> DataNode:
         from nvidia.dali import _conditionals
 
         if _conditionals.conditionals_enabled():

@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 
 from typing import Union, Optional
-from typing import List, Any
+from typing import List, Tuple, Any
 
 from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
@@ -101,7 +101,8 @@ def _arg_type_annotation(arg_dtype):
     if arg_dtype in _types._vector_types:
         scalar_dtype = _types._vector_types[arg_dtype]
         scalar_annotation = _scalar_element_annotation(scalar_dtype)
-        return Union[List[scalar_annotation], scalar_annotation]
+        # DALI allows tuples and lists as a "sequence" parameter
+        return Union[List[scalar_annotation], Tuple[scalar_annotation, ...], scalar_annotation]
     return _scalar_element_annotation(arg_dtype)
 
 
@@ -116,6 +117,7 @@ def _get_positional_input_param(schema, idx):
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
+    # TODO(klecki): Check if we actually can pass None as input.
     annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
@@ -151,6 +153,9 @@ def _get_keyword_params(schema):
 
         annotation = Union[_DataNode, kw_annotation] if is_arg_input else kw_annotation
         if schema.IsArgumentOptional(arg):
+            # In DALI arguments can always accept optional, and the propagation of such argument
+            # is skipped. Passing None is equivalent to not providing the argument at all,
+            # and is typically resolved to the default value (but can have special meaning).
             annotation = Optional[annotation]
 
         default = Parameter.empty
@@ -166,8 +171,9 @@ def _get_keyword_params(schema):
         param_list.append(
             Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
                       annotation=annotation))
-    # We always have the **kwargs
-    param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
+    # We always have the **kwargs, but what if we don't use it? - we will get warnings about
+    # wrong arguments
+    # param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
     return param_list
 
 
