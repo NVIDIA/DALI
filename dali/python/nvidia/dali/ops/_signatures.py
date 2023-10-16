@@ -57,6 +57,7 @@ def _create_annotation_placeholder(typename):
 
     return _AnnotationPlaceholder
 
+
 # This is not the DataNode you are looking for.
 _DataNode = _create_annotation_placeholder("DataNode")
 

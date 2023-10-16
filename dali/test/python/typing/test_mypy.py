@@ -14,6 +14,7 @@
 
 from mypy import api
 
+
 def test_rn50():
     normal_report, error_report, exit_status = api.run(
         ["--check-untyped-defs", "typing/typing_rn50.py"])

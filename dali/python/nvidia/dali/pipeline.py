@@ -1598,6 +1598,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
             po = (pipe_outputs, )
         pipe.set_outputs(*po)
 
+
 # Based on: https://mypy.readthedocs.io/en/stable/generics.html#decorator-factories
 # Tuple[DataNode, ...] is considered a variable length tuple of uniform DataNode contents
 # Bare decorator usage

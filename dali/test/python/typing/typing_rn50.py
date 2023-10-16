@@ -22,6 +22,7 @@ from test_utils import get_dali_extra_path
 
 _test_root = Path(get_dali_extra_path())
 
+
 # TODO(klecki): It would be nice, if we could actually have those without defaults
 @pipeline_def(batch_size=10, device_id=0, num_threads=4)
 def rn50_pipe():
@@ -36,6 +37,7 @@ def rn50_pipe():
                                           mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                           std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return normalized, label.gpu()
+
 
 pipe = rn50_pipe()
 pipe.build()
