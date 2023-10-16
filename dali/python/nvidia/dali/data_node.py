@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=no-member
+# Delay the evaluation of annotations, so we can use the current class as return type
+# for its methods: https://peps.python.org/pep-0563/ (Postponed annotations)
+from __future__ import annotations
 
+# pylint: disable=no-member
 import sys
+
 from ._utils.hacks import not_iterable
 
 
@@ -81,83 +85,83 @@ class DataNode(object):
             return transferred_node
         return DataNode(self.name, "gpu", self.source)
 
-    def __add__(self, other):
+    def __add__(self, other) -> DataNode:
         return _arithm_op("add", self, other)
 
-    def __radd__(self, other):
+    def __radd__(self, other) -> DataNode:
         return _arithm_op("add", other, self)
 
-    def __sub__(self, other):
+    def __sub__(self, other) -> DataNode:
         return _arithm_op("sub", self, other)
 
-    def __rsub__(self, other):
+    def __rsub__(self, other) -> DataNode:
         return _arithm_op("sub", other, self)
 
-    def __mul__(self, other):
+    def __mul__(self, other) -> DataNode:
         return _arithm_op("mul", self, other)
 
-    def __rmul__(self, other):
+    def __rmul__(self, other) -> DataNode:
         return _arithm_op("mul", other, self)
 
-    def __pow__(self, other):
+    def __pow__(self, other) -> DataNode:
         return _arithm_op("pow", self, other)
 
-    def __rpow__(self, other):
+    def __rpow__(self, other) -> DataNode:
         return _arithm_op("pow", other, self)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other) -> DataNode:
         return _arithm_op("fdiv", self, other)
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other) -> DataNode:
         return _arithm_op("fdiv", other, self)
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other) -> DataNode:
         return _arithm_op("div", self, other)
 
-    def __rfloordiv__(self, other):
+    def __rfloordiv__(self, other) -> DataNode:
         return _arithm_op("div", other, self)
 
-    def __neg__(self):
+    def __neg__(self) -> DataNode:
         return _arithm_op("minus", self)
 
     # Short-circuitng the execution, unary + is basically a no-op
-    def __pos__(self):
+    def __pos__(self) -> DataNode:
         return self
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> DataNode:
         return _arithm_op("eq", self, other)
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> DataNode:
         return _arithm_op("neq", self, other)
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> DataNode:
         return _arithm_op("lt", self, other)
 
-    def __le__(self, other):
+    def __le__(self, other) -> DataNode:
         return _arithm_op("leq", self, other)
 
-    def __gt__(self, other):
+    def __gt__(self, other) -> DataNode:
         return _arithm_op("gt", self, other)
 
-    def __ge__(self, other):
+    def __ge__(self, other) -> DataNode:
         return _arithm_op("geq", self, other)
 
-    def __and__(self, other):
+    def __and__(self, other) -> DataNode:
         return _arithm_op("bitand", self, other)
 
-    def __rand__(self, other):
+    def __rand__(self, other) -> DataNode:
         return _arithm_op("bitand", other, self)
 
-    def __or__(self, other):
+    def __or__(self, other) -> DataNode:
         return _arithm_op("bitor", self, other)
 
-    def __ror__(self, other):
+    def __ror__(self, other) -> DataNode:
         return _arithm_op("bitor", other, self)
 
-    def __xor__(self, other):
+    def __xor__(self, other) -> DataNode:
         return _arithm_op("bitxor", self, other)
 
-    def __rxor__(self, other):
+    def __rxor__(self, other) -> DataNode:
         return _arithm_op("bitxor", other, self)
 
     def __bool__(self):
@@ -170,7 +174,7 @@ class DataNode(object):
             " documentation. Bool conversion can be achieved with the `cast` operator."
         )
 
-    def __getitem__(self, val):
+    def __getitem__(self, val) -> DataNode:
         idxs = []
         new_axes = []
         new_axis_names = []

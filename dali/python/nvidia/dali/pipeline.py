@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=no-member
-from typing import List
+from typing import Any, List, Tuple, Callable, Optional, Union, overload
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
@@ -1598,8 +1598,26 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
             po = (pipe_outputs, )
         pipe.set_outputs(*po)
 
+# Based on: https://mypy.readthedocs.io/en/stable/generics.html#decorator-factories
+# Tuple[DataNode, ...] is considered a variable length tuple of uniform DataNode contents
+# Bare decorator usage
+@overload
+def pipeline_def(
+        __func: Callable[..., Union[DataNode, Tuple[DataNode, ...]]]) -> Callable[..., Pipeline]:
+    ...
 
-def pipeline_def(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
+
+# Decorator with arguments
+@overload
+def pipeline_def(
+    *, enable_conditionals: bool = False, **pipeline_kwargs
+) -> Callable[[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]], Callable[..., Pipeline]]:
+    ...
+
+
+# Implementation
+def pipeline_def(fn: Optional[Callable[..., Any]] = None, *, enable_conditionals: bool = False,
+                 **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
