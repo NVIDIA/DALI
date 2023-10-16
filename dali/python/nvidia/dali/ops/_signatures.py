@@ -160,6 +160,8 @@ def _get_keyword_params(schema):
             default = types._type_convert_value(arg_dtype, default_value)
             if type(default) in _enum_mapping:
                 default = _enum_mapping[type(default)](default)
+        elif schema.IsArgumentOptional(arg):
+            default = None
 
         param_list.append(
             Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
@@ -183,7 +185,23 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema))
-    return_annotation = Union[_DataNode, List[_DataNode]] if data_node_return else None
+
+    if data_node_return:
+        if schema.HasOutputFn():
+            return_annotation = Union[_DataNode, List[_DataNode], None]
+        else:
+            # Call it with a dummy spec, as we don't have Output function
+            num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
+            if num_regular_output == 0:
+                return_annotation = None
+            elif num_regular_output == 1:
+                return_annotation = _DataNode
+            else:
+                # Here we could utilize the fact, that the tuple has known length, but we can't
+                # as DALI operators return a list
+                return_annotation = List[_DataNode]
+    else:
+        return_annotation = None
     return Signature(param_list, return_annotation=return_annotation)
 
 
