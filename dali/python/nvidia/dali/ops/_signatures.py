@@ -177,6 +177,21 @@ def _get_keyword_params(schema):
     return param_list
 
 
+def _get_implicit_keyword_params(schema):
+    """All operators have some additional kwargs, that are not listed in schema, but are
+    implicitly used by DALI.
+    """
+    return [
+        # TODO(klecki): The default for `device`` is dependant on the input placement (and API).
+        Parameter(name="device", kind=Parameter.KEYWORD_ONLY, default=None,
+                  annotation=Optional[str]),
+        # We need None for instead of Parameter.empty
+        Parameter(name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]),
+        #    Parameter(name="seed", kind=Parameter.KEYWORD_ONLY, default=Parameter.empty,
+        #              annotation=Optional[int]),
+    ]
+
+
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
                     data_node_return=True):
     """Generate the Signature object for DALI operators based on the schema.
@@ -191,6 +206,7 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema))
+        param_list.extend(_get_implicit_keyword_params(schema))
 
     if data_node_return:
         if schema.HasOutputFn():
