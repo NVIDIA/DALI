@@ -1,7 +1,8 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages='jupyter matplotlib<3.5.3 mxnet'
+# to be run inside a MXNet container - so don't need to list it here as a pip package dependency
+pip_packages='jupyter matplotlib<3.5.3'
 target_dir=./docs/examples/
 
 do_once() {

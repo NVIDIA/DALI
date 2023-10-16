@@ -155,11 +155,18 @@ void CheckContiguousTensor(const TStrides &strides, int num_strides,
   DALI_ENFORCE(num_strides == num_extents,
     "There should be exactly as many strides as there are extents in array shape.");
   int64_t stride_from_shape = element_size;
+  int64_t stride_from_shape_collapsed = 1;
+  int64_t last_non_one_dim = 1;
   for (int i = num_strides - 1; i >= 0; i--) {
-    DALI_ENFORCE(strides[i] == stride_from_shape,
+    DALI_ENFORCE(strides[i] == stride_from_shape || strides[i] == stride_from_shape_collapsed,
         make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
         " whereas densely packed data of this shape would have a stride ", stride_from_shape));
     stride_from_shape *= shape[i];
+    // for shapes [1, 1, 5] leading dimensions may not contribute to
+    if (shape[i] != 1) {
+      stride_from_shape_collapsed *= last_non_one_dim;
+      last_non_one_dim = shape[i];
+    }
   }
 }
 
