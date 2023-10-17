@@ -42,9 +42,9 @@ def test_rn50_pipe():
     pipe = rn50_pipe()
     pipe.build()
     imgs, labels = pipe.run()
-    assert isinstance(imgs, tensors.TensorListGPU) == True
-    assert imgs.dtype == types.DALIDataType.FLOAT16
-    assert isinstance(labels, tensors.TensorListGPU) == True
+    assert isinstance(imgs, tensors.TensorListGPU)
+    assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
+    assert isinstance(labels, tensors.TensorListGPU)
 
 
 @pipeline_def(batch_size=10, device_id=0, num_threads=4)
@@ -69,10 +69,9 @@ def test_rn50_ops_pipe():
     pipe = rn50_ops_pipe()
     pipe.build()
     imgs, labels = pipe.run()
-    assert isinstance(imgs, tensors.TensorListGPU) == True
-    assert imgs.dtype == types.DALIDataType.FLOAT16
-    assert isinstance(labels, tensors.TensorListGPU) == True
-
+    assert isinstance(imgs, tensors.TensorListGPU)
+    assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
+    assert isinstance(labels, tensors.TensorListGPU)
 
 
 @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
@@ -92,6 +91,6 @@ def test_cond_pipe():
     pipe = cond_pipe()
     pipe.build()
     imgs, labels = pipe.run()
-    assert isinstance(imgs, tensors.TensorListGPU) == True
-    assert imgs.dtype == types.DALIDataType.UINT8
-    assert isinstance(labels, tensors.TensorListGPU) == True
+    assert isinstance(imgs, tensors.TensorListGPU)
+    assert imgs.dtype == types.DALIDataType.UINT8  # noqa: E721
+    assert isinstance(labels, tensors.TensorListGPU)
