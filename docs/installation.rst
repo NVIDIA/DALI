@@ -64,13 +64,25 @@ Execute the following command to install the latest DALI for specified CUDA vers
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda110
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-cuda110
 
 * for CUDA 12.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda120
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-cuda120
 
 .. note::
 
@@ -93,14 +105,25 @@ which will be built against the currently installed version of TensorFlow:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-tf-plugin-cuda110
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda110
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-tf-plugin-cuda110
 
 * for CUDA 12.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-tf-plugin-cuda120
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda120
 
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-tf-plugin-cuda120
 
 Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
 
