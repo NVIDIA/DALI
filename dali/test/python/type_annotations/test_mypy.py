@@ -15,22 +15,8 @@
 from mypy import api
 
 
-def test_rn50():
+def test_mypy():
     normal_report, error_report, exit_status = api.run(
-        ["--check-untyped-defs", "typing/typing_rn50.py"])
-
-    assert exit_status == 0, normal_report
-
-
-def test_rn50_ops():
-    normal_report, error_report, exit_status = api.run(
-        ["--check-untyped-defs", "typing/typing_rn50_ops.py"])
-
-    assert exit_status == 0, normal_report
-
-
-def test_conditional():
-    normal_report, error_report, exit_status = api.run(
-        ["--check-untyped-defs", "typing/typing_conditional.py"])
+        ["--check-untyped-defs", "type_annotations/test_typing_pipelines.py"])
 
     assert exit_status == 0, normal_report

@@ -31,8 +31,8 @@ test_autograph() {
     ${python_new_invoke_test} -s auto_aug
 }
 
-test_typing() {
-    ${python_new_invoke_test} -s typing
+test_type_annotations() {
+    ${python_new_invoke_test} -s type_annotations
 }
 
 test_pytorch() {
@@ -48,7 +48,7 @@ test_no_fw() {
     test_py_with_framework
     test_py
     test_autograph
-    test_typing
+    test_type_annotations
     test_checkpointing
 }
 
