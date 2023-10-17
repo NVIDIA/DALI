@@ -305,14 +305,7 @@ from typing import Sequence, Any
 
 from nvidia.dali.data_node import DataNode
 
-class DALIDataType:
-    ...
-
-class DALIImageType:
-    ...
-
-class DALIInterpType:
-    ...
+from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 """
 
