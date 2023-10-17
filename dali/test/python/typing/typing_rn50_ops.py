@@ -29,8 +29,8 @@ def rn50_pipe():
                               name="FileReader")
     Decoder = ops.decoders.Image(device="mixed")
     Rng = ops.random.CoinFlip(probability=0.5)
-    Rrc = ops.RandomResizedCrop(size=[224, 224])
-    Cmn = ops.CropMirrorNormalize(mirror=Rng(), dtype=types.DALIDataType.FLOAT16,
+    Rrc = ops.RandomResizedCrop(device="gpu", size=[224, 224])
+    Cmn = ops.CropMirrorNormalize(mirror=Rng(), device="gpu", dtype=types.DALIDataType.FLOAT16,
                                   output_layout="HWC", crop=(224, 244),
                                   mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                   std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
