@@ -203,8 +203,25 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
 
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
-                    data_node_return=True, all_args_optional=False):
-    """Generate the Signature object for DALI operators based on the schema.
+                    data_node_return=True, all_args_optional=False) -> Signature:
+    """Generate a Signature for given schema.
+
+    Parameters
+    ----------
+    schema : OpSchema
+        Schema for the operator.
+    include_inputs : bool, optional
+        If positional inputs should be included in the signature, by default True
+    include_kwargs : bool, optional
+        If keyword arguments should be included in the signature, by default True
+    include_self : bool, optional
+        Prepend `self` as first positional argument in the signature, by default False
+    data_node_return : bool, optional
+        If the signature should have a return annotation or return None (for ops class __init__),
+        by default True
+    all_args_optional : bool, optional
+        Make all keyword arguments optional, even if they are not - needed by the ops API, where
+        the argument can be specified in either __init__ or __call__, by default False
     """
     param_list = []
     if include_self:
