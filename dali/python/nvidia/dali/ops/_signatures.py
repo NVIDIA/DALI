@@ -141,7 +141,7 @@ def _get_positional_input_params(schema):
     return param_list
 
 
-def _get_keyword_params(schema):
+def _get_keyword_params(schema, all_args_optional=False):
     """Get the list of annotated keyword Parameters to the operator.
     """
     param_list = []
@@ -170,19 +170,29 @@ def _get_keyword_params(schema):
         elif schema.IsArgumentOptional(arg):
             default = None
 
+        # Workaround for `ops` API where keyword args can be specified in either one of __init__
+        # and __call__, so we can't make them mandatory anywhere.
+        if all_args_optional:
+            annotation = Optional[annotation]
+            if default == Parameter.empty:
+                default = None
+
         param_list.append(
             Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
                       annotation=annotation))
+
+
     # We omit the **kwargs, as we already specified all possible parameters:
     # param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
     # We could add it, but it would behave as catch all.
     return param_list
 
 
-def _get_implicit_keyword_params(schema):
+def _get_implicit_keyword_params(schema, all_args_optional=False):
     """All operators have some additional kwargs, that are not listed in schema, but are
     implicitly used by DALI.
     """
+    _ = all_args_optional
     return [
         # TODO(klecki): The default for `device`` is dependant on the input placement (and API).
         Parameter(name="device", kind=Parameter.KEYWORD_ONLY, default=None,
@@ -193,7 +203,7 @@ def _get_implicit_keyword_params(schema):
 
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
-                    data_node_return=True):
+                    data_node_return=True, all_args_optional=False):
     """Generate the Signature object for DALI operators based on the schema.
     """
     param_list = []
@@ -205,8 +215,8 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
         param_list.extend(_get_positional_input_params(schema))
 
     if include_kwargs:
-        param_list.extend(_get_keyword_params(schema))
-        param_list.extend(_get_implicit_keyword_params(schema))
+        param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
+        param_list.extend(_get_implicit_keyword_params(schema, all_args_optional=all_args_optional))
 
     if data_node_return:
         if schema.HasOutputFn():
@@ -259,11 +269,12 @@ class {cls_name}:
     \"""{_docs._docstring_generator(schema_name)}
     \"""
     def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
-                                 include_self=True, data_node_return=False)}:
+                                 include_self=True, data_node_return=False,
+                                 all_args_optional=True)}:
         ...
 
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
-                                 include_self=True)}:
+                                 include_self=True, all_args_optional=True)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
@@ -344,6 +355,7 @@ def _get_op(api_module, full_qualified_name: List[str]):
     op = api_module
     for elem in full_qualified_name:
         op = getattr(op, elem)
+    return op
 
 
 def gen_all_signatures(nvidia_dali_path, api):
