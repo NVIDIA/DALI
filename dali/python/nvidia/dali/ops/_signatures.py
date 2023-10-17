@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 
 from typing import Union, Optional
-from typing import List, Tuple, Any
+from typing import Sequence, Any
 
 from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
@@ -103,7 +103,7 @@ def _arg_type_annotation(arg_dtype):
         scalar_dtype = _types._vector_types[arg_dtype]
         scalar_annotation = _scalar_element_annotation(scalar_dtype)
         # DALI allows tuples and lists as a "sequence" parameter
-        return Union[List[scalar_annotation], Tuple[scalar_annotation, ...], scalar_annotation]
+        return Union[Sequence[scalar_annotation], scalar_annotation]
     return _scalar_element_annotation(arg_dtype)
 
 
@@ -172,9 +172,9 @@ def _get_keyword_params(schema):
         param_list.append(
             Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
                       annotation=annotation))
-    # We always have the **kwargs, but what if we don't use it? - we will get warnings about
-    # wrong arguments
+    # We omit the **kwargs, as we already specified all possible parameters:
     # param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
+    # We could add it, but it would behave as catch all.
     return param_list
 
 
@@ -186,10 +186,8 @@ def _get_implicit_keyword_params(schema):
         # TODO(klecki): The default for `device`` is dependant on the input placement (and API).
         Parameter(name="device", kind=Parameter.KEYWORD_ONLY, default=None,
                   annotation=Optional[str]),
-        # We need None for instead of Parameter.empty
+        # The name is truly optional
         Parameter(name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]),
-        #    Parameter(name="seed", kind=Parameter.KEYWORD_ONLY, default=Parameter.empty,
-        #              annotation=Optional[int]),
     ]
 
 
@@ -211,7 +209,8 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 
     if data_node_return:
         if schema.HasOutputFn():
-            return_annotation = Union[_DataNode, List[_DataNode], None]
+            # Dynamic number of outputs, not known at "compile time"
+            return_annotation = Union[_DataNode, Sequence[_DataNode], None]
         else:
             # Call it with a dummy spec, as we don't have Output function
             num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
@@ -222,7 +221,7 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
             else:
                 # Here we could utilize the fact, that the tuple has known length, but we can't
                 # as DALI operators return a list
-                return_annotation = List[_DataNode]
+                return_annotation = Sequence[_DataNode]
     else:
         return_annotation = None
     return Signature(param_list, return_annotation=return_annotation)
@@ -289,17 +288,19 @@ _HEADER = """
 # limitations under the License.
 
 from typing import Union, Optional
-from typing import Tuple, List, Any
+from typing import Sequence, Any
 
 from nvidia.dali.data_node import DataNode
 
-class DALIInterpType:
+from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
+
+class DALIDataType:
     ...
 
 class DALIImageType:
     ...
 
-class DALIDataType:
+class DALIInterpType:
     ...
 
 """
