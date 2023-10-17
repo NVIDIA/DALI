@@ -99,6 +99,7 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     schema_name = "PythonFunction"
+    _generated = False
     _registry.register_cpu_op('PythonFunction')
     _registry.register_gpu_op('PythonFunction')
 
@@ -216,6 +217,7 @@ class PythonFunction(PythonFunctionBase):
 
 class DLTensorPythonFunction(PythonFunctionBase):
     schema_name = "DLTensorPythonFunction"
+    _generated = False
     _registry.register_cpu_op('DLTensorPythonFunction')
     _registry.register_gpu_op('DLTensorPythonFunction')
 
