@@ -76,6 +76,19 @@ _enum_mapping = {
 _MAX_INPUT_SPELLED_OUT = 5
 
 
+# TODO(klecki): Propagate type hints for those functions
+# Those operators have custom Python code, so the annotations are done in-place for the
+# wrappers rather than via automatic generation.
+_manual_definitions = [
+    "ExternalSource",
+    "TFRecordReader",
+    "readers__TFRecord",
+    "PythonFunction",
+    "DLTensorPythonFunction",
+    "NumbaFunction",
+]
+
+
 def _scalar_element_annotation(scalar_dtype):
     # We already have function that converts a scalar constant/literal into the desired type,
     # utilize the fact that they accept integer values and get the actual type.
@@ -352,6 +365,8 @@ def gen_all_signatures(nvidia_dali_path, api):
     module_tree = _build_module_tree()
     module_to_file = {}
     for schema_name in sorted(_registry._all_registered_ops()):
+        if schema_name in _manual_definitions:
+            continue
         schema = _b.TryGetSchema(schema_name)
         if schema is None:
             continue
