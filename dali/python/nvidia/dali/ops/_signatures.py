@@ -181,7 +181,6 @@ def _get_keyword_params(schema, all_args_optional=False):
             Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
                       annotation=annotation))
 
-
     # We omit the **kwargs, as we already specified all possible parameters:
     # param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
     # We could add it, but it would behave as catch all.
