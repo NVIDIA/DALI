@@ -23,7 +23,6 @@ from test_utils import get_dali_extra_path
 _test_root = Path(get_dali_extra_path())
 
 
-# TODO(klecki): It would be nice, if we could actually have those without defaults
 @pipeline_def(batch_size=10, device_id=0, num_threads=4)
 def rn50_pipe():
     enc, label = fn.readers.file(

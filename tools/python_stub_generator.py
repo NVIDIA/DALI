@@ -21,9 +21,10 @@ from nvidia.dali.ops import _signatures
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Produces .pyi stub files for nvidia.dali.fn and nvidia.dali.ops modules')
-    # TODO, it's a path to build/dali/python/nvidia/dali
-    parser.add_argument('--wheel_path', type=str,
-                        help='Path to the wheel directory before packaging.')
+    parser.add_argument(
+        '--wheel_path', type=str,
+        help=('Path to the `nvidia/dali/` directory inside the wheel, before packaging,'
+              ' for example: "/opt/dali/build/dali/python/nvidia/dali".'))
     args = parser.parse_args()
 
     print(f"Generating signatures for {args.wheel_path=}")
