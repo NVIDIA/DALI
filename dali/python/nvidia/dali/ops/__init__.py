@@ -561,6 +561,7 @@ def python_op_factory(name, schema_name=None):
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
+    Operator._generated = True  # The class was generated using python_op_factory
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 

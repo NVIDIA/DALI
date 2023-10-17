@@ -19,20 +19,21 @@ import os
 from pathlib import Path
 
 from typing import Union, Optional
-from typing import Sequence, Any
+from typing import Sequence, List, Any
 
 from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _registry, _names, _docs
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali import types
+from nvidia.dali import ops, fn
 
 
 def _create_annotation_placeholder(typename):
-    # Inspect and typing know better how to format annotations. They allow of short versions
-    # of anything from typing module and for builtins, but anything else gets a fully qualified
-    # path and there is no customization. Also the formatting using the `repr` of the type is
-    # driven by inspect.formatannotation (when we use the type directly) or by the internals of
+    # Inspect and typing know better how to format annotations. They produce short representations
+    # of types that are builtins or belonging to typing module, but anything else gets a fully
+    # qualified path and there is no customization. Also the formatting using the `repr` of the type
+    # is driven by inspect.formatannotation (when we use the type directly) or by the internals of
     # typing classes like Union. So we just pretend, that we are from typing, and we want to
     # have our name as `typename`.
 
@@ -73,20 +74,7 @@ _enum_mapping = {
     types.DALIInterpType: _DALIInterpType
 }
 
-_MAX_INPUT_SPELLED_OUT = 5
-
-
-# TODO(klecki): Propagate type hints for those functions
-# Those operators have custom Python code, so the annotations are done in-place for the
-# wrappers rather than via automatic generation.
-_manual_definitions = [
-    "ExternalSource",
-    "TFRecordReader",
-    "readers__TFRecord",
-    "PythonFunction",
-    "DLTensorPythonFunction",
-    "NumbaFunction",
-]
+_MAX_INPUT_SPELLED_OUT = 10
 
 
 def _scalar_element_annotation(scalar_dtype):
@@ -145,7 +133,7 @@ def _get_positional_input_params(schema):
     """Get the list of positional only inputs to the operator.
     """
     param_list = []
-    if schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
+    if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
         param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=_DataNode))
     else:
         for i in range(schema.MaxNumInput()):
@@ -342,6 +330,22 @@ def _build_module_tree():
     return module_tree
 
 
+def _get_op(api_module, full_qualified_name: List[str]):
+    """Resolve the operator function/class from the api_module: ops or fn,
+    by accessing the fully qualified name.
+
+    Parameters
+    ----------
+    api_module : module
+        fn or orps
+    full_qualified_name : List[str]
+        For example ["readers", "File"]
+    """
+    op = api_module
+    for elem in full_qualified_name:
+        op = getattr(op, elem)
+
+
 def gen_all_signatures(nvidia_dali_path, api):
     """Generate the signatures for "fn" or "ops" api.
 
@@ -356,8 +360,6 @@ def gen_all_signatures(nvidia_dali_path, api):
     module_tree = _build_module_tree()
     module_to_file = {}
     for schema_name in sorted(_registry._all_registered_ops()):
-        if schema_name in _manual_definitions:
-            continue
         schema = _b.TryGetSchema(schema_name)
         if schema is None:
             continue
@@ -365,8 +367,17 @@ def gen_all_signatures(nvidia_dali_path, api):
             continue
         _, module_nesting, op_name = _names._process_op_name(schema_name)
         fn_name = _to_snake_case(op_name)
-        module_path = Path("/".join(module_nesting))
 
+        if api == "fn":
+            op = _get_op(fn, module_nesting + [fn_name])
+        else:
+            op = _get_op(ops, module_nesting + [op_name])
+
+        # We generate the bindings only for dynamically generated API entities
+        if not getattr(op, "_generated", False):
+            continue
+
+        module_path = Path("/".join(module_nesting))
         if module_path not in module_to_file:
             file_path = nvidia_dali_path / api / module_path / "__init__.pyi"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
