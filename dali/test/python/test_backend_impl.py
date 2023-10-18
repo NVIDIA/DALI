@@ -49,6 +49,14 @@ def test_create_tensor():
     assert_array_equal(arr, np.array(tensor))
 
 
+def test_create_tensor_and_make_it_release_memory():
+    arr = np.random.rand(3, 5, 6)
+    tensor = TensorCPU(arr, "NHWC")
+    assert_array_equal(arr, np.array(tensor))
+    arr = None
+    tensor = None
+
+
 def test_create_tensorlist():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
