@@ -196,13 +196,16 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     Reset(true);
   }
 
-  void Reset(bool wrap_to_shard) override {
+  void Rewind(bool wrap_to_shard) override {
     if (wrap_to_shard) {
       current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
+  }
 
+  void Reset(bool wrap_to_shard) override {
+    Rewind(wrap_to_shard);
     current_epoch_++;
 
     if (shuffle_after_epoch_) {

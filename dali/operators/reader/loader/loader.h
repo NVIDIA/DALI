@@ -49,6 +49,7 @@ DLL_PUBLIC Index num_samples(const size_t shard_num,
 struct LoaderStateSnapshot {
   std::default_random_engine rng;
   int current_epoch;
+  Index age;
 };
 
 /**
@@ -98,6 +99,7 @@ class Loader {
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
+    last_sample_ptr_tmp = {0, nullptr};
   }
 
   virtual ~Loader() {
@@ -110,6 +112,9 @@ class Loader {
   void Init() {
     if (!lazy_init_) {
       PrepareMetadata();
+    }
+    if (IsCheckpointingEnabled()) {
+       SaveStateSnapshot(current_snapshot_);
     }
   }
 
@@ -147,29 +152,16 @@ class Loader {
   }
 
   /**
-   * @brief If called when the loader moves to a new shard (i.e. at the end of an epoch),
-   *        returns the current state of the reader. Fails otherwise, as checkpointing
-   *        in the middle of an epoch is not supported for now.
+   * @brief Returns snapshot of current state of the reader.
    */
   LoaderStateSnapshot GetStateSnapshot() {
+    DALI_ENFORCE(IsCheckpointingEnabled(),
+                 "Checkpointing was not enabled. Please make sure you set"
+                 " enable_checkpointing to True when creating the pipeline.");
     if constexpr (!supports_checkpointing) {
       DALI_FAIL("Checkpointing is not supported by this loader.");
     } else {
-      DALI_ENFORCE(IsCheckpointingEnabled(),
-                   "Checkpointing was not enabled. Please make sure you set"
-                   " enable_checkpointing to True when creating the pipeline.");
-      // TODO(ktokarski) Currently, the file reader can only save its
-      // state at the start of an epoch
-      DALI_ENFORCE(IsEpochDepleted(),
-                   "Currently, checkpointing is supported only between the epochs");
-      // TODO(mstaniewski): support pad_last_batch=false
-      DALI_ENFORCE(pad_last_batch_,
-                   "Currently, checkpointing is only supported with pad_last_batch=true");
-      LoaderStateSnapshot snapshot;
-      snapshot.rng = e_;
-      snapshot.current_epoch = consumer_epoch_;
-      SaveStateImpl(snapshot);
-      return snapshot;
+      return current_snapshot_;
     }
   }
 
@@ -185,10 +177,21 @@ class Loader {
     if (!stick_to_shard_)
       virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
 
+    // Clean up Loader's state
+    sample_buffer_.clear();
+    initial_buffer_filled_ = false;
+    shards_.clear();
+    read_sample_counter_ = 0;
+    returned_sample_counter_ = 0;
+
     RestoreStateImpl(state);
 
     // Re-run reset
     Reset(true);
+    
+    SaveStateSnapshot(current_snapshot_);
+
+    FastForward(state.age);
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -212,6 +215,8 @@ class Loader {
       ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
     }
     ReadMissingSamples();
+    Rewind(true);
+    Skip(read_sample_counter_);
   }
 
   // Get a random read sample
@@ -257,10 +262,14 @@ class Loader {
     if (shards_.front().start == shards_.front().end) {
       if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
+        current_snapshot_.age++;
         if (IsCheckpointingEnabled() && !ShouldPadBatch(is_end_of_batch)) {
           // If the checkpointing is enabled, the epoch is depleted and the next
           // batch will contain samples from the next epoch - increment the epoch number.
           consumer_epoch_++;
+          if (IsEpochDepleted()) {
+            SaveStateSnapshot(current_snapshot_);
+          }
         }
         return last_sample_ptr_tmp.ptr;
       }
@@ -306,11 +315,13 @@ class Loader {
 
     shards_.front().start++;
     returned_sample_counter_++;
+    current_snapshot_.age++;
 
     if (IsCheckpointingEnabled() && IsEpochDepleted() && !ShouldPadBatch(is_end_of_batch)) {
       // If the checkpointing is enabled, the epoch is depleted and the next
       // batch will contain samples from the next epoch - increment the epoch number.
       consumer_epoch_++;
+      SaveStateSnapshot(current_snapshot_);
     }
 
     return sample.ptr;
@@ -333,17 +344,11 @@ class Loader {
    * @warning This generic implementation is very inefficient and should be overriden.
   */
   virtual void Skip(uint64_t n) {
-    LoadTargetUniquePtr tensor_ptr;
-    {
-      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors");
-      tensor_ptr = std::move(empty_tensors_.back());
-      empty_tensors_.pop_back();
-    }
+    auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+    PrepareEmpty(*tensor_ptr);
     for (uint64_t i = 0; i < n; i++) {
       ReadSample(*tensor_ptr);
     }
-    RecycleTensor(std::move(tensor_ptr));
   }
 
   /**
@@ -444,6 +449,13 @@ class Loader {
       shards_.push_back({curr_elms, curr_elms});
     }
   }
+
+  void SaveStateSnapshot(LoaderStateSnapshot &snapshot) const {
+    snapshot.rng = e_;
+    snapshot.current_epoch = consumer_epoch_;
+    snapshot.age = 0;
+  }
+
 
   bool ShouldSkipImage(const ImageCache::ImageKey& key) {
     if (!skip_cached_images_)
@@ -589,6 +601,8 @@ class Loader {
   bool initial_buffer_filled_ = false;
   // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_ = 0;
+
+  LoaderStateSnapshot current_snapshot_;
 };
 
 template<typename T, typename... Args>

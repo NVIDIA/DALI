@@ -95,6 +95,7 @@ message ReaderStateSnapshot {
   message LoaderStateSnapshot {
     optional bytes rng = 1;
     optional int32 current_epoch = 2;
+    optional int32 age = 3;
   }
   optional LoaderStateSnapshot loader_state = 1;
 }

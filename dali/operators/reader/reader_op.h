@@ -97,7 +97,9 @@ class DataReader : public Operator<Backend> {
     for (int i = 0; i < max_batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
     }
-    SaveLoaderSnapshot();
+    if (IsCheckpointingEnabled()) {
+      SaveLoaderSnapshot();
+    }
   }
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
@@ -123,8 +125,24 @@ class DataReader : public Operator<Backend> {
                    "Cannot restore the checkpoint, because "
                    "checkpointing was not enabled.");
       auto &snapshot = cpt.CheckpointState<LoaderStateSnapshot>();
+
+      StopPrefetchThread();
+      for (auto &batch : prefetched_batch_queue_) {
+        batch.clear();
+      }
+
       loader_->RestoreStateFromSnapshot(snapshot);
+      curr_batch_consumer_ = 0;
+      curr_batch_producer_ = 0;
+      consumer_cycle_ = false;
+      producer_cycle_ = false;
+      snapshot_consumer_ = 0;
+      snapshot_producer_ = 0;
+
       SetInitialSnapshot();
+
+      StartPrefetchThread();
+      ConsumerWait();
     }
   }
 
@@ -159,6 +177,7 @@ class DataReader : public Operator<Backend> {
     std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
     // if thread hasn't been started yet, start it
     if (prefetch_thread_.joinable()) return;
+    finished_ = false;
     prefetch_thread_ = std::thread(&DataReader::PrefetchWorker, this);
   }
 
@@ -303,15 +322,7 @@ class DataReader : public Operator<Backend> {
   }
 
   void SaveLoaderSnapshot() {
-    if (IsCheckpointingEnabled()) {
-      if (!loader_->IsEpochDepleted()) {
-        // TODO(ktokarski) Currently, the loader cannot save its state in the middle
-        // of the epoch, so we put None in the queue instead.
-        loader_snapshot_queue_[snapshot_producer_] = {};
-      } else {
-        loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
-      }
-    }
+    loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
   }
 
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
