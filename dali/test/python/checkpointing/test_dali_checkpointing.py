@@ -145,11 +145,14 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
         (1, 8, 0, 2, False, True, False),
         (1, 8, 1, 2, False, True, False),
         (1, 8, 3, 4, False, True, False),
-        (2, 11, 2, 5, False, True, False)
+        (2, 11, 2, 5, False, True, False),
+        (5, 3, 0, 1, True, False, False, 4),
+        (2, 10, 0, 2, True, False, False, 5),
+        (4, 256, 2, 4, False, False, True, 6),
 )
 def test_file_reader(
         num_epochs, batch_size, shard_id, num_shards,
-        random_shuffle, shuffle_after_epoch, stick_to_shard):
+        random_shuffle, shuffle_after_epoch, stick_to_shard, iters_into_epoch=None):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
@@ -186,10 +189,13 @@ def test_file_reader(
         (1, 8, 0, 2, False, True, False),
         (1, 8, 1, 2, False, True, False),
         (1, 8, 3, 4, False, True, False),
+        (1, 3, 0, 1, True, False, False, 1),
+        (5, 10, 0, 2, True, False, False, 2),
+        (3, 64, 3, 4, False, False, True, 3),
 )
 def test_file_reader_pytorch(
         num_epochs, batch_size, shard_id, num_shards,
-        random_shuffle, shuffle_after_epoch, stick_to_shard):
+        random_shuffle, shuffle_after_epoch, stick_to_shard, iters_into_epoch=None):
 
     from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
@@ -211,9 +217,13 @@ def test_file_reader_pytorch(
 
     iter = DALIGenericIterator(p, ['data', 'labels'], auto_reset=True,
                                reader_name="Reader")
-    for _ in range(num_epochs):
-        for _ in iter:
-            pass
+    for epoch in range(num_epochs):
+        for i, _ in enumerate(iter):
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
+
+            
 
     restored = pipeline(checkpoint=iter.checkpoints()[0])
     restored.build()
