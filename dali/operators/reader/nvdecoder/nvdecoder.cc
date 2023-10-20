@@ -336,42 +336,54 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     req_ready_ = VidReqStatus::REQ_IN_PROGRESS;
   }
 
-  if (current_recv_.count <= 0) {
-    if (recv_queue_.empty()) {
-      LOG_LINE << "Ditching frame " << frame << " since "
-               << "the receive queue is empty." << std::endl;
+  while (1) {
+    if (current_recv_.count <= 0) {
+      if (recv_queue_.empty()) {
+        LOG_LINE << "Ditching frame " << frame << " since "
+                << "the receive queue is empty." << std::endl;
+        return kNvcuvid_success;
+      }
+      LOG_LINE << "Moving on to next request, " << recv_queue_.size()
+                  << " reqs left" << std::endl;
+      current_recv_ = recv_queue_.pop();
+      frame =  av_rescale_q(disp_info->timestamp,
+                            nv_time_base_, current_recv_.frame_base);
+    }
+
+    if (stop_) return kNvcuvid_failure;
+
+    if (current_recv_.count <= 0) {
+      // a new req with count <= 0 probably means we are finishing
+      // up and should just ditch this frame
+      LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
       return kNvcuvid_success;
     }
-    LOG_LINE << "Moving on to next request, " << recv_queue_.size()
-                << " reqs left" << std::endl;
-    current_recv_ = recv_queue_.pop();
-    frame =  av_rescale_q(disp_info->timestamp,
-                          nv_time_base_, current_recv_.frame_base);
-  }
 
-  if (stop_) return kNvcuvid_failure;
+    if (frame < current_recv_.frame) {
+      // TODO(spanev) This definitely needs better error handling...
+      // Add exception? Directly or after countdown treshold?
+      LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
+                  << "frame " << current_recv_.frame << std::endl;
+      return kNvcuvid_success;
+    } else if  (frame > current_recv_.frame) {
+      LOG_LINE << "Receive frame " << frame << " that is over the expected "
+               << "frame " << current_recv_.frame
+               << "\e[1mGoing ahead with empty frame " << frame
+               << " wanted count: " << current_recv_.count
+               << "\e[0m" << std::endl;
 
-  if (current_recv_.count <= 0) {
-    // a new req with count <= 0 probably means we are finishing
-    // up and should just ditch this frame
-    LOG_LINE << "Ditching frame " << frame << "since current_recv_.count <= 0" << std::endl;
-    return kNvcuvid_success;
-  }
+      current_recv_.frame += current_recv_.stride;
+      current_recv_.count -= current_recv_.stride;
 
-  if (frame < current_recv_.frame) {
-    // TODO(spanev) This definitely needs better error handling...
-    // Add exception? Directly or after countdown treshold?
-    LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
-                << "frame " << current_recv_.frame << std::endl;
-    return kNvcuvid_success;
-  } else if  (frame > current_recv_.frame) {
-    LOG_LINE << "Receive frame " << frame << " that is pas the exptected "
-                << "frame " << current_recv_.frame << std::endl;
-    req_ready_ = VidReqStatus::REQ_ERROR;
-    stop_ = true;
-    // Main thread is waiting on frame_queue_
-    frame_queue_.shutdown();
-    return kNvcuvid_failure;
+      // push empty if we are past the expected one and check if the one we have now
+      // matches the next frame
+      frame_queue_.push(nullptr);
+      if (current_recv_.count <= 0) {
+        req_ready_ = VidReqStatus::REQ_READY;
+      }
+      continue;
+    }
+    break;
   }
 
   LOG_LINE << "\e[1mGoing ahead with frame " << frame
@@ -425,13 +437,27 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
 
       auto* frame_disp_info = frame_queue_.pop();
       if (stop_) break;
-      auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
-      sequence.timestamps.push_back(frame_disp_info->timestamp * av_q2d(
-            nv_time_base_));
-      if (stop_) break;
-      convert_frame(frame, sequence, i);
-      // synchronize before MappedFrame is destroyed and cuvidUnmapVideoFrame is called
-      CUDA_CALL(cudaStreamSynchronize(stream_));
+      if (frame_disp_info) {
+        auto frame = MappedFrame{frame_disp_info, decoder_, stream_};
+        sequence.timestamps.push_back(frame_disp_info->timestamp * av_q2d(
+              nv_time_base_));
+        if (stop_) break;
+        convert_frame(frame, sequence, i);
+        // synchronize before MappedFrame is destroyed and cuvidUnmapVideoFrame is called
+        CUDA_CALL(cudaStreamSynchronize(stream_));
+      } else {
+        LOG_LINE << "Padding empty frame " << i << std::endl;
+        sequence.timestamps.push_back(-1);
+        auto data_size = i * volume(sequence.frame_shape());
+        auto pad_size = volume(sequence.frame_shape()) *
+                        dali::TypeTable::GetTypeInfo(sequence.dtype).size();
+        TYPE_SWITCH(dtype_, type2id, OutputType, NVDECODER_SUPPORTED_TYPES, (
+          cudaMemsetAsync(sequence.sequence.mutable_data<OutputType>() + data_size, 0, pad_size,
+                          stream_);
+        ), DALI_FAIL(make_string("Not supported output type:", dtype_, // NOLINT
+            "Only DALI_UINT8 and DALI_FLOAT are supported as the decoder outputs.")););
+        CUDA_CALL(cudaStreamSynchronize(stream_));
+      }
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
