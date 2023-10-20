@@ -19,6 +19,8 @@ import time
 from nvidia.dali.pipeline import pipeline_def
 import random
 import numpy as np
+import os
+from nvidia.dali.auto_aug import auto_augment
 
 parser = argparse.ArgumentParser(description='DALI HW decoder benchmark')
 parser.add_argument('-b', dest='batch_size', help='batch size', default=1, type=int)
@@ -35,7 +37,8 @@ input_files_arg = parser.add_mutually_exclusive_group()
 input_files_arg.add_argument('-i', dest='images_dir', help='images dir')
 input_files_arg.add_argument('--image_list', dest='image_list', nargs='+', default=[],
                              help='List of images used for the benchmark.')
-parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50', 'efficientnet_inference'],
+parser.add_argument('-p', dest='pipeline', choices=['decoder', 'rn50', 'efficientnet_inference',
+                                                    'vit'],
                     help='pipeline to test', default='decoder',
                     type=str)
 parser.add_argument('--width_hint', dest='width_hint', default=0, type=int)
@@ -140,6 +143,78 @@ def create_input_tensor(batch_size, file_list):
     return np.stack(arrays)
 
 
+def non_image_preprocessing(raw_text):
+    return np.array([int(bytes(raw_text).decode('utf-8'))])
+
+
+@pipeline_def(batch_size=args.batch_size,
+              num_threads=args.num_threads,
+              device_id=args.device_id,
+              seed=0)
+def vit_pipeline(is_training=False, image_shape=(384, 384, 3), num_classes=1000):
+    files_paths = [os.path.join(args.images_dir, f) for f in os.listdir(
+        args.images_dir)]
+
+    img, clss = fn.readers.webdataset(
+        paths=files_paths,
+        index_paths=None,
+        ext=['jpg', 'cls'],
+        missing_component_behavior='error',
+        random_shuffle=False,
+        shard_id=0,
+        num_shards=1,
+        pad_last_batch=False if is_training else True,
+        name='webdataset_reader')
+
+    use_gpu = args.device == 'gpu'
+    labels = fn.python_function(clss, function=non_image_preprocessing, num_outputs=1)
+    if use_gpu:
+        labels = labels.gpu()
+    labels = fn.one_hot(labels, num_classes=num_classes)
+
+    device = 'mixed' if use_gpu else 'cpu'
+    img = fn.decoders.image(img, device=device, output_type=types.RGB,
+                            hw_decoder_load=args.hw_load,
+                            preallocate_width_hint=args.width_hint,
+                            preallocate_height_hint=args.height_hint)
+
+    if is_training:
+        img = fn.random_resized_crop(img, size=image_shape[:-1])
+        img = fn.flip(img, depthwise=0, horizontal=fn.random.coin_flip())
+
+        # color jitter
+        brightness = fn.random.uniform(range=[0.6, 1.4])
+        contrast = fn.random.uniform(range=[0.6, 1.4])
+        saturation = fn.random.uniform(range=[0.6, 1.4])
+        hue = fn.random.uniform(range=[0.9, 1.1])
+        img = fn.color_twist(
+            img,
+            brightness=brightness,
+            contrast=contrast,
+            hue=hue,
+            saturation=saturation)
+
+        # auto-augment
+        # `shape` controls the magnitude of the translation operations
+        img = auto_augment.auto_augment_image_net(img)
+    else:
+        img = fn.resize(img, size=image_shape[:-1])
+
+    # normalize
+    # https://github.com/NVIDIA/DALI/issues/4469
+    mean = np.asarray([0.485, 0.456, 0.406])[None, None, :]
+    std = np.asarray([0.229, 0.224, 0.225])[None, None, :]
+    scale = 1 / 255.
+    img = fn.normalize(
+        img,
+        mean=mean / scale,
+        stddev=std,
+        scale=scale,
+        dtype=types.FLOAT)
+
+    return img, labels
+
+
 pipes = []
 if args.pipeline == 'decoder':
     for i in range(args.gpu_num):
@@ -150,6 +225,9 @@ elif args.pipeline == 'rn50':
 elif args.pipeline == 'efficientnet_inference':
     for i in range(args.gpu_num):
         pipes.append(EfficientnetInferencePipeline(device_id=i + args.device_id))
+elif args.pipeline == 'vit':
+    for i in range(args.gpu_num):
+        pipes.append(vit_pipeline(device_id=i + args.device_id))
 else:
     raise RuntimeError('Unsupported pipeline')
 for p in pipes:
