@@ -14,6 +14,8 @@
 
 from pathlib import Path
 
+import numpy as np
+
 from nvidia.dali import fn, ops
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import types, tensors
@@ -94,3 +96,19 @@ def test_cond_pipe():
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.UINT8  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
+
+@pipeline_def(batch_size=10, device_id=0, num_threads=4)
+def es_pipe():
+    single_output = fn.external_source(source=lambda: np.array([0]), batch=False)
+    fist_output, second_output = fn.external_source(source=lambda: (np.array([1]), np.array([2])),
+                                                    num_outputs=2, batch=False)
+    return single_output, fist_output, second_output
+
+
+def test_es_pipe():
+    pipe = es_pipe()
+    pipe.build()
+    out0, out1, out2 = pipe.run()
+    assert np.array_equal(np.array(out0.as_tensor()), np.full((10, 1), 0))
+    assert np.array_equal(np.array(out1.as_tensor()), np.full((10, 1), 1))
+    assert np.array_equal(np.array(out2.as_tensor()), np.full((10, 1), 2))

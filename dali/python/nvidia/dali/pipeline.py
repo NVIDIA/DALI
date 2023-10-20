@@ -18,6 +18,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
+from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
@@ -1082,7 +1083,8 @@ Parameters
             return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
         return self.prefetch_queue_depth <= 1
 
-    def run(self, **pipeline_inputs):
+    def run(self,
+            **pipeline_inputs) -> Tuple[Union[tensors.TensorListCPU, tensors.TensorListGPU], ...]:
         """
         Run the pipeline and return the result.
 
@@ -1126,7 +1128,7 @@ Parameters
 
         Returns
         -------
-            A list of `TensorList` objects for respective pipeline outputs
+            A tuple of `TensorList` objects for respective pipeline outputs
         """
         if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
             raise RuntimeError(f"""
