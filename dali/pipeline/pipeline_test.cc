@@ -752,6 +752,8 @@ TEST(PipelineTest, InputsListing) {
           .AddInput("ZINPUT", "cpu")
           .AddOutput("OUTPUT", "cpu"), "first_op");
 
+  pipe.Build({{"AINPUT0", "cpu"}, {"AINPUT1", "cpu"}, {"OUTPUT", "cpu"}});
+
   ASSERT_EQ(pipe.num_inputs(), 3);
   ASSERT_EQ(pipe.input_name(0), "AINPUT0");
   ASSERT_EQ(pipe.input_name(1), "AINPUT1");
@@ -766,17 +768,96 @@ TEST(PipelineTest, InputDetails) {
 
   pipe.Build({{"INPUT", "cpu"}, {"INPUT2", "gpu"}, {"INPUT3", "cpu"}});
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT"), 3);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT"), DALI_UINT32);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT"), 3);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT"), DALI_UINT32);
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT2"), 4);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT2"), DALI_FLOAT16);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT2"), 4);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT2"), DALI_FLOAT16);
 
-  ASSERT_EQ(pipe.GetInputLayout("INPUT3"), "");
-  ASSERT_EQ(pipe.GetInputNdim("INPUT3"), -1);
-  ASSERT_EQ(pipe.GetInputDtype("INPUT3"), DALI_NO_TYPE);
+  EXPECT_EQ(pipe.GetInputLayout("INPUT3"), "");
+  EXPECT_EQ(pipe.GetInputNdim("INPUT3"), -1);
+  EXPECT_EQ(pipe.GetInputDtype("INPUT3"), DALI_NO_TYPE);
 }
 
+class DummyInputOperator: public InputOperator<CPUBackend> {
+ public:
+  explicit DummyInputOperator(const OpSpec &spec) : InputOperator<CPUBackend>(spec) {}
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    TensorList<CPUBackend> input;
+    std::optional<std::string> data_id;
+    ForwardCurrentData(input, data_id, ws.GetThreadPool());
+
+    int data = input.tensor<int>(0)[0];
+    auto &out0 = ws.Output<CPUBackend>(0);
+    auto &out1 = ws.Output<CPUBackend>(1);
+    auto out_shape = TensorListShape<-1>(1);
+    out_shape.set_tensor_shape(0, {1});
+
+    out0.Resize(out_shape, DALIDataType::DALI_FLOAT);
+    out0.mutable_tensor<float>(0)[0] = static_cast<float>(data) * 0.5;
+
+    out1.Resize(out_shape, DALIDataType::DALI_INT32);
+    out1.mutable_tensor<int>(0)[0] = data;
+  }
+
+  const TensorLayout &in_layout() const override {
+    return in_layout_;
+  }
+
+  int in_ndim() const override {
+    return 1;
+  }
+
+  DALIDataType in_dtype() const override {
+    return DALIDataType::DALI_INT32;
+  }
+
+  TensorLayout in_layout_{};
+};
+
+DALI_REGISTER_OPERATOR(DummyInputOperator, DummyInputOperator, CPU);
+
+DALI_SCHEMA(DummyInputOperator)
+  .DocStr("DummyInputOperator")
+  .DisallowInstanceGrouping()
+  .NumInput(0)
+  .NumOutput(2);
+
+TEST(PipelineTest, MultiOutputInputOp) {
+  Pipeline pipe(1, 1, 0);
+  pipe.AddOperator(OpSpec("DummyInputOperator")
+    .AddArg("blocking", true)
+    .AddArg("no_copy", false)
+    .AddOutput("out0", "cpu")
+    .AddOutput("out1", "cpu"), "DummyInput");
+
+  pipe.Build({{"out0", "cpu"}, {"out1", "cpu"}});
+  int input = 3;
+  TensorList<CPUBackend> inp;
+  TensorListShape<1> inp_shape(1);
+  inp_shape.set_tensor_shape(0, {1});
+  inp.Resize(inp_shape, DALIDataType::DALI_INT32);
+  inp.mutable_tensor<int>(0)[0] = input;
+  pipe.SetExternalInput("DummyInput", inp);
+
+  pipe.RunCPU();
+  pipe.RunGPU();
+  Workspace ws;
+  pipe.Outputs(&ws);
+
+  auto &out0  = ws.Output<CPUBackend>(0);
+  ASSERT_EQ(out0.type(), DALIDataType::DALI_FLOAT);
+  ASSERT_EQ(out0.tensor<float>(0)[0], static_cast<float>(input) * 0.5f);
+
+  auto &out1  = ws.Output<CPUBackend>(1);
+  ASSERT_EQ(out1.type(), DALIDataType::DALI_INT32);
+  ASSERT_EQ(out1.tensor<int>(0)[0], input);
+}
 }  // namespace dali

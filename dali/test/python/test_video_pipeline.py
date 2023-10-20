@@ -65,12 +65,14 @@ class VideoPipe(Pipeline):
 
 class VideoPipeList(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1,
-                 file_list_frame_num=True, file_list_include_preceding_frame=False):
+                 file_list_frame_num=True, file_list_include_preceding_frame=False,
+                 skip_vfr_check=False):
         super().__init__(batch_size, num_threads=2, device_id=device_id)
         self.input = ops.readers.Video(
             device="gpu", file_list=data, sequence_length=sequence_length, step=step,
             stride=stride, file_list_frame_num=file_list_frame_num,
-            file_list_include_preceding_frame=file_list_include_preceding_frame)
+            file_list_include_preceding_frame=file_list_include_preceding_frame,
+            skip_vfr_check=skip_vfr_check)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -196,6 +198,30 @@ def test_file_list_starts_ends_videopipeline():
     ]
     for r in ranges:
         yield _test_file_list_starts_videopipeline, r[0], r[1]
+
+
+def test_source_info():
+    files = []
+    for cont in video_types:
+        path = os.path.join(video_containers_data_root, cont)
+        files += [path + '/' + f for f in os.listdir(path)]
+    files = sorted(files)
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    for f in files:
+        list_file.write("{} {} {} {}\n".format(f, 0, 0, 1))
+    list_file.close()
+
+    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1,
+                         skip_vfr_check=True)
+    pipe.build()
+    samples_read = 0
+    while samples_read < len(files):
+        o = pipe.run()
+        for idx, t in enumerate(o[0]):
+            assert t.source_info() == files[(samples_read + idx) % len(files)]
+        samples_read += BATCH_SIZE
+
+    os.remove(list_file.name)
 
 
 def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_frame):
@@ -473,3 +499,33 @@ def test_pad_sequence():
 
     assert sampl_idx == padded_sampl
     assert ts_index == last_sample_frame_count
+
+
+def test_10bit_vid_reconfigure():
+    batch_size = 1
+    sequence_length = 5
+    iter = 5
+    filenames = [
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p.mp4'),
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p_10b.mp4')
+             ]
+    filenames2 = [
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p_10b.mp4'),
+             os.path.join(video_data_root, 'hevc', 'sintel_trailer-720p.mp4')
+            ]
+
+    @pipeline_def(device_id=0)
+    def video_decoder_pipeline():
+        a = fn.readers.video(filenames=filenames, sequence_length=sequence_length, device="gpu",
+                             random_shuffle=True, seed=1234)
+        b = fn.readers.video(filenames=filenames2, sequence_length=sequence_length, device="gpu",
+                             random_shuffle=True, seed=1234)
+        return a, b
+    pipe = video_decoder_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    pipe.build()
+    for _ in range(iter):
+        (a, b) = pipe.run()
+        a = a.as_cpu().as_array()
+        b = b.as_cpu().as_array()
+        absdiff = np.abs(a.astype(int) - b.astype(int))
+        assert np.mean(absdiff) < 2, f'error is {np.mean(absdiff)}'

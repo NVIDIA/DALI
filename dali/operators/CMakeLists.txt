@@ -93,15 +93,15 @@ if (BUILD_NVML)
   target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvml>")
 endif(BUILD_NVML)
 
-if (BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+if (BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
   target_link_libraries(dali_operators PRIVATE dynlink_nvjpeg)
   target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
-endif(BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+endif(BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
 
-if (WITH_DYNAMIC_CUDA_TOOLKIT)
+if (WITH_DYNAMIC_NPP)
   target_link_libraries(dali_operators PRIVATE dynlink_npp)
   target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
-endif(WITH_DYNAMIC_CUDA_TOOLKIT)
+endif(WITH_DYNAMIC_NPP)
 
 if (BUILD_CUFILE)
   target_link_libraries(dali_operators PRIVATE dynlink_cufile)
@@ -122,17 +122,19 @@ if (BUILD_TEST)
   add_executable(dali_operator_test
     ${DALI_OPERATOR_TEST_SRCS}
     ${DALI_ROOT}/dali/test/dali_test_config.cc
-    ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc)
+    ${DALI_ROOT}/dali/test/dali_operator_test_utils.cc
+    ${DALI_ROOT}/dali/test/operators/passthrough_with_trace.cc
+    ${DALI_ROOT}/dali/test/operators/identity_input.cc)
 
   target_link_libraries(dali_operator_test PUBLIC dali_operators)
   target_link_libraries(dali_operator_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   if (BUILD_NVML)
     target_link_libraries(dali_operator_test PRIVATE dynlink_nvml)
   endif(BUILD_NVML)
-  if (WITH_DYNAMIC_CUDA_TOOLKIT)
+  if (WITH_DYNAMIC_NPP)
     target_link_libraries(dali_operator_test PRIVATE dynlink_npp)
     target_link_libraries(dali_operator_test PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
-  endif(WITH_DYNAMIC_CUDA_TOOLKIT)
+  endif(WITH_DYNAMIC_NPP)
   if (BUILD_CUFILE)
     target_link_libraries(dali_operator_test PRIVATE dynlink_cufile)
   endif()

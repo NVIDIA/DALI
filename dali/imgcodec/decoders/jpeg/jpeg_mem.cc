@@ -96,8 +96,9 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   // if empty image, return
   if (datasize == 0 || srcdata == nullptr) return nullptr;
 
-  // Declare temporary buffer pointer here so that we can free on error paths
+  // Declare buffers here so that we can free on error paths
   std::unique_ptr<JSAMPLE[]> temp;
+  std::unique_ptr<uint8[]> dstdata;
   JSAMPLE *tempdata = nullptr;
 
   // Initialize libjpeg structures to have a memory source
@@ -229,8 +230,6 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   argball->height_ = target_output_height;
   argball->stride_ = stride;
 
-
-  std::unique_ptr<uint8[]> dstdata;
 #if !defined(LIBJPEG_TURBO_VERSION)
   if (flags.crop)
     dstdata.reset(new JSAMPLE[stride * target_output_height]);

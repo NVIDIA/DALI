@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/mm/detail/util.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/core/mm/with_upstream.h"
 #include "dali/core/small_vector.h"
 
 namespace dali {
@@ -77,7 +78,7 @@ class monotonic_buffer_resource : public memory_resource<Kind> {
 
 template <typename Kind,
           typename Upstream = mm::memory_resource<Kind>,
-          bool host_impl = detail::is_host_accessible<Kind>>
+          bool host_impl = is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**
@@ -90,7 +91,7 @@ class monotonic_memory_resource;
  */
 template <typename Kind, typename Upstream>
 class monotonic_memory_resource<Kind, Upstream, true>
-  : public memory_resource<Kind> {
+  : public memory_resource<Kind>, public with_upstream<Kind> {
  public:
   explicit monotonic_memory_resource(Upstream *upstream,
                                      size_t first_block_size = 1024)
@@ -117,7 +118,7 @@ class monotonic_memory_resource<Kind, Upstream, true>
     std::swap(curr_block_, other.curr_block_);
   }
 
-  Upstream *get_upstream() const noexcept { return upstream_; }
+  Upstream *upstream() const override { return upstream_; }
 
   ~monotonic_memory_resource() {
     free_all();
@@ -198,7 +199,7 @@ class monotonic_memory_resource<Kind, Upstream, true>
  */
 template <typename Kind, typename Upstream>
 class monotonic_memory_resource<Kind, Upstream, false>
-: public memory_resource<Kind> {
+: public memory_resource<Kind>, public with_upstream<Kind> {
  public:
   explicit monotonic_memory_resource(Upstream *upstream,
                                      size_t first_block_size = 1024)
@@ -241,8 +242,7 @@ class monotonic_memory_resource<Kind, Upstream, false>
     next_block_size_ = first_block_size_;
   }
 
-  Upstream *get_upstream() const { return upstream_; }
-
+  Upstream *upstream() const override { return upstream_; }
 
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {

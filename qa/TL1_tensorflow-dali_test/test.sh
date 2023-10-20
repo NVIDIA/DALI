@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages='horovod==0.26.1'
+pip_packages='horovod==0.28.1'
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -58,7 +58,7 @@ do_once() {
     export HOROVOD_WITHOUT_PYTORCH=1
     # horovod is added to `pip_packages` so it can be preloaded, but install it here when
     # TF is already available and we can set env variables
-    install_pip_pkg "pip install --force-reinstall horovod==0.26.1 -f /pip-packages"
+    install_pip_pkg "pip install --force-reinstall horovod==0.28.1 -f /pip-packages"
 
     for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
     do

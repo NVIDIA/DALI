@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "2.1.4" %}
+{% set build_version = "2.1.5.1" %}
 
   package:
     name: jpeg-turbo
@@ -20,7 +20,7 @@
 
   source:
     git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 2.1.4
+    git_rev: 2.1.5.1
 
   build:
     number: 0

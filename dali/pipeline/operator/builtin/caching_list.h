@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,6 +62,8 @@ class CachingList {
     assert(!full_data_.empty());  // Can't pop from an empty list
     std::list<T> tmp;
     tmp.splice(tmp.begin(), full_data_, full_data_.begin());
+    if (tmp.begin() == prophet_)
+      prophet_ = full_data_.begin();
     return tmp;
   }
 
@@ -106,21 +108,25 @@ class CachingList {
   const T &PeekProphet() {
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
-              "Attempted to peek element that doesn't exist. Add more elements to CachingList "
-              "before calling PeekProphet. Even the prophet can't see outside the event horizon.");
+              "Attempted to peek the data batch that doesn't exist. Add more elements to the DALI"
+              " input operator.");
     return *prophet_;
   }
 
 
   void AdvanceProphet() {
-    if (prophet_ == full_data_.end())
+    if (!CanProphetAdvance())
       throw std::out_of_range(
-              "Attempted to step over the last element in the list. This operation is forbidden. "
-              "Add more elements to CachingList before calling AdvanceProphet.");
+              "Attempted to move to the data batch that doesn't exist. Add more elements to"
+              " the DALI input operator.");
     apprentice_ = prophet_++;
     resurrect_prophet_ = prophet_ == full_data_.end();
   }
 
+
+  bool CanProphetAdvance() {
+    return prophet_ != full_data_.end();
+  }
 
  private:
   std::list<T> full_data_;

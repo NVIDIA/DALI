@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@
 #include <malloc.h>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/detail/align.h"
+#include "dali/core/device_guard.h"
 
 namespace dali {
 namespace mm {
@@ -56,9 +58,25 @@ class malloc_memory_resource : public host_memory_resource {
  * @brief A memory resource that directly calls cudaMalloc and cudaFree.
  */
 class cuda_malloc_memory_resource : public device_async_resource {
+ public:
+  /**
+   * @param device_id The device identifier. If it's negative, then the resource
+   *                  will use the current resource _in every call to allocate_,
+   *                  - that's in contrast to checking the active device at construction.
+   */
+  explicit cuda_malloc_memory_resource(int device_id = -1) : device_id_(device_id) {
+  }
+
+  static cuda_malloc_memory_resource &instance() {
+    static cuda_malloc_memory_resource inst;
+    return inst;
+  }
+
+ private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
+    DeviceGuard dg(device_id_);
     void *mem = nullptr;
     if (alignment > 256)
       throw dali::CUDABadAlloc();
@@ -84,11 +102,7 @@ class cuda_malloc_memory_resource : public device_async_resource {
     return dynamic_cast<const cuda_malloc_memory_resource*>(&other) != nullptr;
   }
 
- public:
-  static cuda_malloc_memory_resource &instance() {
-    static cuda_malloc_memory_resource inst;
-    return inst;
-  }
+  int device_id_ = -1;
 };
 
 
@@ -188,8 +202,35 @@ class managed_malloc_memory_resource : public managed_async_resource {
   }
 };
 
+#if CUDA_VERSION >= 11020
+
+class DLL_PUBLIC cuda_malloc_async_memory_resource
+: public mm::async_memory_resource<mm::memory_kind::device> {
+ public:
+  cuda_malloc_async_memory_resource() : cuda_malloc_async_memory_resource(-1) {}
+
+  explicit cuda_malloc_async_memory_resource(int device_id);
+
+  static bool is_supported(int device_id = -1);
+
+  int device_id() const noexcept { return device_id_; }
+
+ private:
+  void *do_allocate(size_t size, size_t alignment) override;
+
+  void do_deallocate(void *ptr, size_t size, size_t alignment) override;
+
+  void *do_allocate_async(size_t size, size_t alignment, stream_view stream) override;
+
+  void do_deallocate_async(void *ptr, size_t size, size_t alignment, stream_view stream) override;
+
+  int device_id_;
+  CUDAStreamLease dummy_host_stream_;
+};
+
+#endif
+
 }  // namespace mm
 }  // namespace dali
-
 
 #endif  // DALI_CORE_MM_MALLOC_RESOURCE_H_

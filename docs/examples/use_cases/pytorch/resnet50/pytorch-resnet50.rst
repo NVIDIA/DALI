@@ -13,7 +13,7 @@ To run use the following commands
 
    ln -s /path/to/train/jpeg/ train
    ln -s /path/to/validation/jpeg/ val
-   python -m torch.distributed.launch --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --opt-level O2 ./
+   torchrun --nproc_per_node=NUM_GPUS main.py -a resnet50 --dali_cpu --b 128 --loss-scale 128.0 --workers 4 --lr=0.4 --fp16-mode ./
 
 Requirements
 ------------
@@ -70,4 +70,5 @@ Usage
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
    --dali_cpu                  use CPU based pipeline for DALI, for heavy GPU networks it may work better, for IO bottlenecked one like RN18 GPU default should be faster
-   --opt-level                 how much of the training script uses FP16 arithmethic, from O0 - full FP32, 01 - official mixed precision, O2 - almost pure FP16 but may not work in all cases
+   --disable_dali              turns off DALI and switches to the native PyTorch data processing
+   --fp16-mode                 enables mixed precision mode

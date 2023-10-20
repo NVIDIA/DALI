@@ -19,8 +19,6 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |googletest|_   | |googletestver|_    | |googletestlic|_    |
 +-----------------+---------------------+---------------------+
-| |libcudacxx|_   | |libcudacxxver|_    | |libcudacxxlic|_    |
-+-----------------+---------------------+---------------------+
 | |pybind11|_     | |pybind11ver|_      | |pybind11lic|_      |
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
@@ -28,15 +26,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.7.1
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.7.1
+.. |benchmarkver| replace:: 1.8.3
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.8.3
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.80.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.78.0
+.. |preprocessorver| replace:: 1.83.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.83.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
@@ -49,15 +47,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.10.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.10.0
+.. |cutlassver| replace:: 3.2.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.2.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.7
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.7
+.. |dlpackver| replace:: 0.8
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.8
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
@@ -70,28 +68,21 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
-.. |googletestver| replace:: 1.12.1
-.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.12.1
+.. |googletestver| replace:: 1.14.0
+.. _googletestver: https://github.com/google/googletest/releases/tag/v1.14.0
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
-.. |libcudacxx| replace:: libcu++
-.. _libcudacxx: https://github.com/mzient/libcudacxx.git
-.. |libcudacxxver| replace:: Custom fork (Aug 30, 2021)
-.. _libcudacxxver: https://github.com/mzient/libcudacxx/tree/863f11a16cced8b7aacfc639dacb419843a300e8
-.. |libcudacxxlic| replace:: Apache License v2.0 with LLVM Exceptions
-.. _libcudacxxlic: https://github.com/mzient/libcudacxx/blob/main/LICENSE.TXT
-
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.10.1
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.10.1
+.. |pybind11ver| replace:: 2.11.1
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.11.1
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Dec 1, 2022)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/80b6d1c83402a5785c486603c5611923159d0894
+.. |rapidjsonver| replace:: Top-of-tree (Sep 28, 2023)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/f9d53419e912910fd8fa57d5705fa41425428c35
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt

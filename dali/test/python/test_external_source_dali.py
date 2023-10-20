@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
 from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
+from numpy.random import default_rng
 
 
 def build_src_pipe(device, layout=None):
@@ -417,6 +418,15 @@ def test_layout_changing():
     src_pipe.run()
 
 
+def test_layout_set_as_arg():
+    src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
+    src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))])
+    out, = src_pipe.run()
+    assert out.layout() == "H"
+
+
 def _test_partially_utilized_external_source_warning(usage_mask, source_type):
     np_rng = np.random.default_rng(12345)
     max_batch_size = 8
@@ -581,3 +591,227 @@ def test_empty_es():
         pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         pipe.build()
         pipe.run()
+
+
+def to_tensor_list_gpu(data):
+    @pipeline_def(batch_size=len(data), num_threads=4, device_id=0, prefetch_queue_depth=1)
+    def convert_pipe():
+        return fn.external_source(source=[data], device="gpu")
+    pipe = convert_pipe()
+    pipe.build()
+    out, = pipe.run()
+    return out
+
+
+def test_repeat_last():
+    @pipeline_def
+    def pipeline():
+        cpu = fn.external_source(name="es_cpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu", no_copy=True)
+        return cpu, gpu
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=1)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+        np.array([6666], dtype=np.int32)
+    ]
+    data1_gpu = to_tensor_list_gpu(data1)
+    data2_gpu = to_tensor_list_gpu(data2)
+    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es_gpu", data1_gpu)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_cpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_gpu", data2_gpu)
+    a, b = pipe.run()
+    check_batch(a, data2)
+    check_batch(b, data2)
+
+    pipe.feed_input("es_cpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data2)
+
+
+def test_repeat_last_queue():
+    @pipeline_def
+    def pipeline():
+        cpu = fn.external_source(name="es_cpu", repeat_last=True)
+        gpu = fn.external_source(name="es_gpu", repeat_last=True, device="gpu")
+        return cpu, gpu
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+        np.array([6666], dtype=np.int32)
+    ]
+    data3 = data1
+
+    pipe.feed_input("es_cpu", data1)
+    pipe.feed_input("es_gpu", data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+    a, b = pipe.run()
+    check_batch(a, data1)
+    check_batch(b, data1)
+
+    pipe.feed_input("es_cpu", data2)
+    a, b = pipe.run()
+    check_batch(a, data1)  # <- still the old value
+    check_batch(b, data1)
+
+    pipe.feed_input("es_gpu", data3)
+    a, b = pipe.run()
+    check_batch(a, data2)  # <- new value visible
+    check_batch(b, data1)  # <- still old
+
+    pipe.feed_input("es_cpu", data3)
+    a, b = pipe.run()
+    check_batch(a, data2)  # <- still 2, the most recent change not visible
+    check_batch(b, data3)  # <- new
+
+
+def _check_repeat_last_var_batch(device):
+    @pipeline_def
+    def pipeline():
+        es = fn.external_source(name="es", repeat_last=True, device=device)
+        u = fn.random.uniform(range=(0, 0.01))
+        return es, u
+
+    pipe = pipeline(batch_size=4, num_threads=4, device_id=0, prefetch_queue_depth=2)
+    pipe.build()
+    data1 = [
+        np.array([1], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        np.array([42], dtype=np.int32),
+        np.array([666], dtype=np.int32)
+    ]
+    data2 = [
+        np.array([11], dtype=np.int32),
+        np.array([33], dtype=np.int32),
+        np.array([422], dtype=np.int32),
+    ]
+    pipe.feed_input("es", data1)
+
+    a, b = pipe.run()
+    check_batch(a, data1)
+    assert len(b) == len(data1)
+
+    a, b = pipe.run()
+    check_batch(a, data1)
+    assert len(b) == len(data1)
+
+    pipe.feed_input("es", data2)
+    a, b = pipe.run()
+    check_batch(a, data1)  # <- still the old value
+    assert len(b) == len(data1)
+
+    a, b = pipe.run()  # <- new value visible
+    check_batch(a, data2)
+    assert len(b) == len(data2)
+
+    pipe.feed_input("es", data1)
+    a, b = pipe.run()
+    check_batch(a, data2)  # <- still 2, the most recent change not visible
+    assert len(b) == len(data2)
+
+    a, b = pipe.run()  # <- new value visible
+    check_batch(a, data1)
+    assert len(b) == len(data1)
+
+
+def test_repeat_last_var_batch():
+    for device in ['cpu', 'gpu']:
+        yield _check_repeat_last_var_batch, device
+
+
+def _check_blocking(device):
+    batch_size = 5
+    prefetch_queue_depth = 10
+
+    @pipeline_def
+    def test_pipeline():
+        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
+                                  device=device)
+        return data
+
+    rng = default_rng()
+    data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+
+    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
+                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    pipe.feed_input("test_source", data_to_feed)
+
+    for _ in range(5):
+        out = pipe.run()[0].as_tensor()
+        if device == "gpu":
+            out = out.as_cpu()
+        assert np.all(np.equal(np.array(out), data_to_feed))
+        data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+        pipe.feed_input("test_source", data_to_feed)
+
+    # make sure that the pipeline is not waiting for data preventing it from being deleted
+    for _ in range(prefetch_queue_depth):
+        pipe.feed_input("test_source", data_to_feed)
+
+
+def test_blocking():
+    for device in ['cpu', 'gpu']:
+        yield _check_blocking, device
+
+
+def _blocking_destructor(device):
+    batch_size = 5
+    prefetch_queue_depth = 5
+
+    @pipeline_def
+    def test_pipeline():
+        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
+                                  device=device)
+        return data
+
+    rng = default_rng()
+    data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
+
+    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
+                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    # feed one input to pipeline can return something
+    pipe.feed_input("test_source", data_to_feed)
+
+    # should not hang
+    _ = pipe.run()
+
+
+def test_blocking_destructor():
+    for device in ['cpu', 'gpu']:
+        yield _blocking_destructor, device

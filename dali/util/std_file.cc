@@ -33,7 +33,6 @@ StdFileStream::~StdFileStream() {
   Close();
 }
 
-
 void StdFileStream::Close() {
   if (fp_ != nullptr) {
     std::fclose(fp_);

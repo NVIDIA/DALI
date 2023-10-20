@@ -1,0 +1,12 @@
+ARG TOOLKIT_BASE_IMAGE=ubuntu:20.04
+FROM ${TOOLKIT_BASE_IMAGE} as cuda
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && apt install -y libxml2 curl perl gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.1.1/local_installers/cuda_12.1.1_530.30.02_linux_sbsa.run && \
+    chmod +x cuda_*.run && \
+    ./cuda_*.run --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_*.run;

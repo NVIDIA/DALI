@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <tuple>
 #include <utility>
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/with_upstream.h"
 
 namespace dali {
 namespace mm {
@@ -32,13 +33,18 @@ memory_resource<Kind> &GetResourceInterface(const memory_resource<Kind> &);
 template <typename Kind>
 async_memory_resource<Kind> &GetResourceInterface(const async_memory_resource<Kind> &);
 
+template <typename Kind>
+Kind GetInterfaceKind(const memory_resource<Kind> &);
+
+template <typename What>
+using memory_kind_of = decltype(GetInterfaceKind(std::declval<What>()));
+
 template <typename Resource>
 using resource_interface_t = std::remove_reference_t<
     decltype(GetResourceInterface(std::declval<Resource>()))>;
 
-
 template <typename Interface, typename Resource, typename...Extra>
-class CompositeResourceBase : public Interface {
+class CompositeResourceBase : public Interface, public with_upstream<memory_kind_of<Interface>> {
  public:
   using memory_kind = typename Resource::memory_kind;
   CompositeResourceBase() = default;
@@ -49,6 +55,10 @@ class CompositeResourceBase : public Interface {
   : extra{std::forward<ExtraArgs>(extra)...}
   , resource(std::move(resource)) {
     static_assert(sizeof...(ExtraArgs) == sizeof...(Extra), "Incorrect number of extra values");
+  }
+
+  Resource *upstream() const override {
+    return resource.get();
   }
 
  protected:

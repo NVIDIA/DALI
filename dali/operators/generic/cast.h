@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 #include "dali/core/convert.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -28,10 +28,10 @@ namespace dali {
   double)
 
 template <typename Backend>
-class Cast : public Operator<Backend> {
+class Cast : public StatelessOperator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     if (spec.name() == "Cast") {
       dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
       if (dtype_arg_ == DALI_NO_TYPE) {
@@ -53,7 +53,7 @@ class Cast : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
-    DALIDataType out_type = is_cast_like_ ?  ws.Input<Backend>(1).type() : dtype_arg_;
+    DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = out_type;

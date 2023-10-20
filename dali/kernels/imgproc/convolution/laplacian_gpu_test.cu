@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
 #include "dali/kernels/imgproc/convolution/laplacian_gpu.cuh"
 #include "dali/kernels/imgproc/convolution/laplacian_test.h"
-#include "dali/kernels/scratch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 
@@ -197,9 +197,7 @@ struct LaplacianGpuTest : public ::testing::Test {
         auto out_view = TensorView<StorageCPU, Out, sample_ndim>{
             baseline_out_[sample_idx].data + stride * elem_idx, elem_shape};
         // Copy context so that the kernel instance can modify scratchpad
-        ScratchpadAllocator scratch_alloc;
-        scratch_alloc.Reserve(req.scratch_sizes);
-        auto scratchpad = scratch_alloc.GetScratchpad();
+        DynamicScratchpad scratchpad;
         ctx_cpu.scratchpad = &scratchpad;
         kernel_cpu.Run(ctx_cpu, out_view, in_view, windows, scales);
       }
@@ -218,9 +216,7 @@ struct LaplacianGpuTest : public ::testing::Test {
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, win_sizes_);
 
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
+    DynamicScratchpad scratchpad;
     ctx_gpu.scratchpad = &scratchpad;
     kernel_gpu.Run(ctx_gpu, out_, in_, windows_, scale_spans_);
 

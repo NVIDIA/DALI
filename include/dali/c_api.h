@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,12 +30,7 @@ extern "C" {
  * @note Beware, the C API is just C-like API for handling some mangling issues and
  * it can throw exceptions.
  */
-typedef struct {
-  void *pipe;
-  void *ws;
-  void *batch_size_map;     /// @see batch_size_map_t
-  cudaStream_t copy_stream;  /// Stream to perform copy operations on
-} daliPipelineHandle;
+typedef struct DALIPipeline *daliPipelineHandle;
 
 typedef enum {
   CPU = 0,
@@ -121,6 +116,34 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *
                                    int enable_memory_stats);
 
 /**
+ * Create a DALI Pipeline, using a pipeline that has been serialized beforehand.
+ *
+ * @param pipe_handle Pipeline handle.
+ * @param serialized_pipeline Serialized pipeline.
+ * @param length Length of the serialized pipeline string.
+ * @param max_batch_size Maximum batch size.
+ * @param num_threads Number of CPU threads which this pipeline uses.
+ * @param device_id ID of the GPU device which this pipeline uses.
+ * @param pipelined_execution If != 0, this pipeline will execute in Pipeline mode.
+ * @param async_execution If != 0, this pipeline will execute asynchronously.
+ * @param separated_execution If != 0, this pipeline will have different depths
+ *                            of the CPU and GPU prefetching queues.
+ * @param prefetch_queue_depth Depth of the prefetching queue.
+ *                             If `separated_execution != 0`, this value is ignored.
+ * @param cpu_prefetch_queue_depth Depth of the prefetching queue in the CPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param gpu_prefetch_queue_depth Depth of the prefetching queue in the GPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param enable_memory_stats Enable memory stats.
+ */
+DLL_PUBLIC void
+daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id, int pipelined_execution,
+                    int async_execution, int separated_execution, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats);
+
+/**
  * Convenient overload. Use it, if the Pipeline should inherit its parameters
  * from serialized pipeline.
  */
@@ -191,6 +214,22 @@ DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
                                               int batch_size);
+
+/**
+ * Set the data_id for the upcoming call to `daliSetExternalInput*(...)`.
+ *
+ * The operator_name accepts the name of an input operator. Input operators are the operators,
+ * that can work with `daliSetExternalInput*(...)` functions, e.g. fn.external_source or
+ * fn.inputs.video.
+ *
+ * @param operator_name The name of the input operator to be fed.
+ * @param data_id data_id which will be assigned during upcoming `daliSetExternalInput*(...)` call.
+ */
+DLL_PUBLIC void
+daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
+                           const char *data_id);
+
+
 /** @} */
 
 /**
@@ -483,6 +522,46 @@ DLL_PUBLIC const char *daliGetOutputName(daliPipelineHandle *pipe_handle, int id
  */
 DLL_PUBLIC device_type_t daliGetOutputDevice(daliPipelineHandle *pipe_handle, int id);
 
+
+/**
+ * @name Operator traces
+ * @{
+ */
+/**
+ * Checks, if given operator produced a trace with given name.
+ *
+ * In case the name of non-existing operator is provided,
+ * the behaviour of this function is undefined.
+ *
+ * @return 0, if the trace with given name does not exist.
+ */
+DLL_PUBLIC int daliHasOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                                    const char *trace_name);
+
+/**
+ * Returns the traces of the given operator in the DALI Pipeline.
+ *
+ * Operator Traces is a communication mechanism with particular operators in the pipeline. For
+ * more information @see operator_trace_map_t.
+ *
+ * User does not own the returned value. In a situation, when changing of this value is necessary,
+ * user shall copy it to his own memory. The lifetime of this value ends, when the
+ * daliOutputRelease() is called.
+ *
+ * User shall check, if the trace with given name exists (@see daliHasOperatorTrace). In case the
+ * name of non-existing operator or non-existing trace is provided, the behaviour of this function
+ * is undefined.
+ *
+ * @param operator_name Name of the operator, which trace shall be returned.
+ * @param trace_name Name of the requested trace.
+ * @return Operator trace.
+ */
+DLL_PUBLIC const char *
+daliGetOperatorTrace(daliPipelineHandle *pipe_handle, const char *operator_name,
+                     const char *trace_name);
+/** @} */
+
+
 /**
  * @brief Copy the output batch stored at position `output_idx` in the pipeline.
  * @remarks If the pipeline output is TensorList then it needs to be dense
@@ -542,14 +621,14 @@ DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
  *  @param reader_name Name of the reader to query
  *  @param meta Pointer to metadata to be filled by the function
  */
-DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle* pipe_handle, const char *reader_name,
+DLL_PUBLIC void daliGetReaderMetadata(daliPipelineHandle *pipe_handle, const char *reader_name,
                                       daliReaderMetadata* meta);
 
 /**
  * @brief Returns the backend of the operator with a given \p operator_name
  * @param operator_name Name of the operator to query
  */
-DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle *pipe_handle,
                                                  const char *operator_name);
 
 /**
@@ -560,7 +639,7 @@ DLL_PUBLIC dali_backend_t daliGetOperatorBackend(daliPipelineHandle* pipe_handle
  *  @param operator_meta_num Pointer to the variable which will tell how many meta entries
  *                           (operators) have been files
  */
-DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
+DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle *pipe_handle,
                                         daliExecutorMetadata **operator_meta,
                                         size_t *operator_meta_num);
 
@@ -572,6 +651,47 @@ DLL_PUBLIC void daliGetExecutorMetadata(daliPipelineHandle* pipe_handle,
  */
 DLL_PUBLIC void daliFreeExecutorMetadata(daliExecutorMetadata *operator_meta,
                                          size_t operator_meta_num);
+
+/**
+ * @brief Frees unused memory from memory pools.
+ *
+ * The function frees memory from all devices and host pinned memory.
+ * Memory blocks that are still (even partially) used are not freed.
+ */
+DLL_PUBLIC void daliReleaseUnusedMemory();
+
+/**
+ * @brief Preallocates device memory
+ *
+ * The function ensures that after the call, the amount of memory given in `bytes` can be
+ * allocated from the pool (without further requests to the OS).
+ *
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
+ * @param device_id The ordinal number of the device to allocate the memory on. If negative,
+ *                  the current device as indicated by cudaGetDevice is used.
+ *
+ * @return Zero, if the allocation was successful, otherwise nonzero
+ */
+DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
+
+/**
+ * @brief Preallocates host pinned memory
+ *
+ * The function ensures that after the call, the amount of memory given in `bytes` can be
+ * allocated from the pool (without further requests to the OS).
+ *
+ * The function works by allocating and then freeing the requested number of bytes.
+ * Any outstanding allocations are not taken into account - that is, the peak amount
+ * of memory allocated will be the sum of pre-existing allocation and the amount given
+ * in `bytes`.
+ *
+ * @return Zero, if the allocation was successful, otherwise nonzero
+ */
+DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
 
 #ifdef __cplusplus
 }

@@ -7,9 +7,9 @@ FROM ${TF_CUSTOM_OP_IMAGE}
 # TF_CUSTOM_OP_IMAGE=tensorflow/tensorflow:custom-op-gpu-ubuntu16 for manylinux2010 tagged TF pip artifacts
 # More info here: https://github.com/tensorflow/custom-op
 
-ARG PYVER=3.6
+ARG PYVER=3.8
 ENV PYVER=${PYVER}
-ARG PYV=36
+ARG PYV=38
 ENV PYV=${PYV}
 
 # Python 3.6 and 3.7 are not available in Ubuntu 14
@@ -34,11 +34,25 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         cd Python-3.7.2 && \
         ./configure --enable-optimizations && \
         make -j8 build_all && \
-        make -j8 altinstall; \
+        make -j8 altinstall && \
+        cd .. && \
+        rm -rf Python-3.7.2; \
+    elif [ "${PYVER}" = "3.8" ]; then \
+        apt-get install -y --no-install-recommends libffi-dev && \
+        wget https://www.python.org/ftp/python/3.8.16/Python-3.8.16.tar.xz && \
+        tar -xf Python-3.8.16.tar.xz && \
+        cd Python-3.8.16 && \
+        ./configure --enable-optimizations --prefix=/usr && \
+        make -j8 build_all && \
+        make -j8 altinstall && \
+        cd .. && \
+        rm -rf Python-3.8.16; \
     else \
         if [ $(apt-cache search python$PYVER | wc -l) -eq 0 ]; then \
             apt-get install software-properties-common -y --no-install-recommends && \
+            mv /usr/bin/python3 /usr/bin/python3_bak && ln -s /usr/bin/python3.5 /usr/bin/python3 && \
             add-apt-repository ppa:deadsnakes/ppa -y && \
+            mv /usr/bin/python3_bak /usr/bin/python3 && \
             apt-get update; \
         fi && \
         curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,10 +71,9 @@ class _DaliBaseIterator(object):
                 one pipeline inside the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards, and
+                Name of the reader which will be queried for the shard size, number of shards, and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It allows `last_batch_policy` to be
-                PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
+                samples that iterator needs to deal with. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
@@ -203,6 +202,25 @@ class _DaliBaseIterator(object):
         self._ever_scheduled = False
         self._ever_consumed = False
 
+        self._enable_checkpointing = self._pipes[0]._enable_checkpointing
+        for p in self._pipes:
+            if p._enable_checkpointing != self._enable_checkpointing:
+                raise ValueError(
+                    "All wrapped pipelines must have the same value for `enable_checkpointing`.")
+
+        if self._enable_checkpointing:
+            # Note: currently, checkpointing is not supported with last_batch_padded=False.
+            # It is verified in FileReader, where this assumption is needed.
+            # Adding this assertion here lead to problem when reader was not used in the pipeline.
+
+            if self._last_batch_policy == LastBatchPolicy.DROP:
+                raise NotImplementedError(
+                    "Currently, checkpointing is not supported with last_batch_policy=DROP")
+
+            # Precompute the initial checkpoints, to prevent any problems
+            # related to the `prepare_first_batch` flag.
+            self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
+
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)
         shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num)
@@ -215,7 +233,9 @@ class _DaliBaseIterator(object):
             readers_meta = [p.reader_meta(self._reader_name) for p in self._pipes]
 
             def err_msg_gen(err_msg):
-                'Reader Operator should have the same {} in all the pipelines.'.format(err_msg)
+                return 'Reader Operator should have the same {} in all the pipelines.'.format(
+                    err_msg
+                )
 
             def check_equality_and_get(input_meta, name, err_msg):
                 assert np.all(np.equal([meta[name] for meta in input_meta], input_meta[0][name])), \
@@ -330,22 +350,43 @@ class _DaliBaseIterator(object):
                     p.release_outputs()
                 p.schedule_run()
 
-    def _advance_and_check_drop_last(self):
+    def _advance_and_check_drop_last(self, dry_run=False, end_iteration=True):
         """
         Checks whether the current batch is not fully filled and whether it should be dropped.
+
+        It could be dry run without changing the iterator state and not raising StopIteration
         """
         # check if for given initial count in any GPU with the current value of the samples read
         # if we read one more batch would we overflow
+        counter = self._counter
+        should_end = False
         if self._reader_name:
-            self._counter += self.batch_size
+            counter += self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
-                if np.any(self._counter_per_gpu + self._counter > self._shard_sizes_per_gpu):
-                    self._end_iteration()
+                should_end = np.any(self._counter_per_gpu + counter > self._shard_sizes_per_gpu)
         else:
-            self._counter += self._num_gpus * self.batch_size
+            counter += self._num_gpus * self.batch_size
             if self._last_batch_policy == LastBatchPolicy.DROP:
-                if self._counter > self._size:
-                    self._end_iteration()
+                should_end = counter > self._size
+
+        if not dry_run:
+            self._counter = counter
+            if should_end and end_iteration:
+                self._end_iteration()
+
+        return should_end
+
+    def checkpoints(self):
+        """
+        Returns the current checkpoints of the pipelines.
+        Can only be called between the epochs (or before the first epoch).
+        """
+        if not self._enable_checkpointing:
+            raise ValueError("Cannot access checkpoints with checkpointing disabled")
+        if not self._ever_consumed:
+            return self._initial_checkpoints
+        else:
+            return [p.checkpoint() for p in self._pipes]
 
     def reset(self):
         """
@@ -353,6 +394,19 @@ class _DaliBaseIterator(object):
         DALI iterators do not support resetting before the end of the epoch
         and will ignore such request.
         """
+        # in the case of the DROP policy the user who runs DALI, based on the iterator length,
+        # can assume there is no more data in the pipeline where there still is the last,
+        # incomplete batch, we need to extract from the pipeline and drop before rising
+        # StopIteration indicating the pipeline is depleted. Here we first check if that
+        # is the case, and if so we run the pipeline and drop the last batch
+        if self._last_batch_policy == LastBatchPolicy.DROP:
+            should_end = self._advance_and_check_drop_last(dry_run=True, end_iteration=False)
+            already_ended = self._size > 0 and self._counter >= self._size
+            if should_end and not already_ended:
+                self._get_outputs()
+                self._schedule_runs()
+                self._advance_and_check_drop_last(end_iteration=False)
+
         if self._counter >= self._size or self._size < 0:
             if self._last_batch_policy == LastBatchPolicy.FILL and not self._last_batch_padded:
                 if self._reader_name:
@@ -376,7 +430,7 @@ class _DaliBaseIterator(object):
             # advance to the next shard
             if self._reader_name:
                 if not self._is_stick_to_shard:
-                    # move shards id for wrapped pipeliens
+                    # move shards id for wrapped pipelines
                     self._shards_id = (self._shards_id + 1) % self._shards_num
                 # revaluate _size
                 if self._last_batch_policy == LastBatchPolicy.FILL and not self._last_batch_padded:
@@ -386,7 +440,7 @@ class _DaliBaseIterator(object):
                     # check how many samples we need to reach from each shard in next epoch
                     # per each GPU taking into account already read
                     read_in_next_epoch = self._shard_sizes_per_gpu - self._counter_per_gpu
-                    # get the maximmum number of samples and round it up to full batch sizes
+                    # get the maximum number of samples and round it up to full batch sizes
                     self._size = math.ceil(max(read_in_next_epoch) / self.batch_size) * \
                         self.batch_size
                     # in case some epoch is skipped because we have read ahead in this epoch so

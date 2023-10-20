@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,8 +37,9 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
-#include "dali/pipeline/operator/builtin/split_merge.h"
+#include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -77,12 +78,21 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
+  DLL_PUBLIC virtual void EnableCheckpointing(bool checkpointing = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
+  DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
+  DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
   virtual void PruneUnusedGraphNodes() = 0;
+
+  /**
+   * @brief Returns true if conditionals are used in the executed graph, @see DetectConditionals().
+   * Valid after Build().
+   */
+  virtual bool HasConditionals() const = 0;
 
   template <typename T>
   friend class ExecutorTest;
@@ -108,7 +118,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
-        enable_memory_stats_(false) {
+        enable_memory_stats_(false), checkpointing_(false) {
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
@@ -118,6 +128,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   DLL_PUBLIC void EnableMemoryStats(bool enable_memory_stats = false) override {
     enable_memory_stats_ = enable_memory_stats;
+  }
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = false) override {
+    checkpointing_ = checkpointing;
   }
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
   DLL_PUBLIC void Init() override {}
@@ -136,10 +149,26 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   DISABLE_COPY_MOVE_ASSIGN(Executor);
 
+  /**
+   * Returns the checkpoint corresponding to the pipeline state at the end of last epoch.
+   *
+   * Should only be used after the last output of this epoch was consumed, and before consuming
+   * outputs from the next epoch.
+  */
+  DLL_PUBLIC Checkpoint& GetCurrentCheckpoint() override;
+
+  /**
+   * Restores states of operators.
+   *
+   * Can only be used when the executor is not running.
+  */
+  DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt) override;
+
  protected:
-  DLL_PUBLIC void RunCPUImpl();
-  DLL_PUBLIC void RunMixedImpl();
-  DLL_PUBLIC void RunGPUImpl();
+  DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
+  DLL_PUBLIC void RunMixedImpl(size_t iteration_id);
+  DLL_PUBLIC void RunGPUImpl(size_t iteration_id);
+  DLL_PUBLIC void ShareOutputsImpl(Workspace *ws, size_t iteration_id);
   DLL_PUBLIC void SyncDevice();
 
   template <typename T>
@@ -243,6 +272,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void PruneUnusedGraphNodes() override;
 
+  bool HasConditionals() const override;
+
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
 
   virtual void SetupOutputInfo(OpGraph &graph);
@@ -343,8 +374,18 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   WorkspacePolicy ws_policy_;
 
+  std::vector<IterationData> iteration_data_;
+  size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
+  size_t output_iteration_id_ = 0;
+
+  // true iff the graph that is executed contains if statements, set by DetectConditionals()
+  bool has_conditionals_ = false;
+
+  bool checkpointing_;
+  int checkpointing_epoch_size_ = 0;
+
  private:
-  void RunHelper(OpNode &op_node, Workspace &ws);
+  void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
   void RethrowError() const {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
@@ -368,9 +409,83 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
+  /**
+   * @brief Traverses the Graph to check if there is a _conditional.split with _if_stmt argument
+   * specified, indicating that the `if` statement was used and the graph is operating in
+   * conditional mode (enable_conditionals=True).
+   *
+   * TODO(klecki): Consider adding a specific callback to Pipeline so the frontend can indicate
+   * it directly.
+   */
+  void DetectConditionals();
+
   int InferBatchSize(const std::vector<BatchSizeProvider *> &batch_size_providers) const;
 
   void PreRun();
+
+  /**
+   * Calculates, what shall be the size of the iteration_data_ vector. This size will vary
+   * depending on the type of the Executor used.
+   * @return The size of iteration_data_ vector.
+   */
+  virtual size_t CalcIterationDataSize() const;
+
+  /**
+   * Initializes structures that track the iteration data.
+   */
+  void InitIterationData();
+
+
+  /**
+   * Assigns IDs of all operators to the Workspaces that are associated with those operators.
+   */
+  template<OpType op_type>
+  void AssignOperatorInstanceNames() {
+    static_assert(std::is_same_v<WorkspacePolicy, AOT_WS_Policy<QueuePolicy>>,
+                  "Only AOT Policy shall be used.");
+    if constexpr (std::is_same_v<QueuePolicy, SeparateQueuePolicy>) {
+      for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+        for (int mxd = 0; mxd < queue_sizes_.gpu_size; mxd++) {
+          for (int gpu = 0; gpu < queue_sizes_.gpu_size; gpu++) {
+            for (int op = 0; op < graph_->NumOp(op_type); op++) {
+              OpNode &op_node = graph_->Node(op_type, op);
+              auto &ws = ws_policy_.template GetWorkspace<op_type>(
+                      QueueIdxs(cpu, mxd, gpu), *graph_, op_node);
+              ws.SetOperatorInstanceName(op_node.instance_name);
+            }
+          }
+        }
+      }
+    } else if constexpr (std::is_same_v<QueuePolicy, UniformQueuePolicy>) {  // NOLINT
+      for (int cpu = 0; cpu < queue_sizes_.cpu_size; cpu++) {
+        for (int op = 0; op < graph_->NumOp(op_type); op++) {
+          OpNode &op_node = graph_->Node(op_type, op);
+          auto &ws = ws_policy_.template GetWorkspace<op_type>(QueueIdxs(cpu), *graph_, op_node);
+          ws.SetOperatorInstanceName(op_node.instance_name);
+        }
+      }
+    } else {
+      assert(false);  // This shouldn't be reached
+    }
+  }
+
+  void InitCheckpointing();
+
+  /**
+   * @brief Create a checkpoint for the OpNode in the given iteration
+   *        and save it in iteration data.
+  */
+  void CreateCheckpoint(const OpNode &op_node, int iteration_id, AccessOrder order);
+
+  /**
+   * @brief Create initial checkpoints for the whole pipeline.
+  */
+  void CreateInitialCheckpoints();
+
+  /**
+   * Returns the iteration data for given iteration ID and stage.
+   */
+  virtual IterationData& GetCurrentIterationData(size_t iteration_id);
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -442,8 +557,16 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   SetupOutputQueuesForGraph();
 
   DiscoverBatchSizeProviders();
-}
+  DetectConditionals();
 
+  InitIterationData();
+
+  AssignOperatorInstanceNames<OpType::CPU>();
+  AssignOperatorInstanceNames<OpType::MIXED>();
+  AssignOperatorInstanceNames<OpType::GPU>();
+
+  InitCheckpointing();
+}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
@@ -458,61 +581,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Outputs(Workspace *ws) {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(Workspace *ws) {
-  DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  DeviceGuard g(device_id_);
-  ws->Clear();
-
-  if (exec_error_ || QueuePolicy::IsStopSignaled())
-    RethrowError();
-
-  auto output_idx = QueuePolicy::UseOutputIdxs();
-
-  if (exec_error_ || QueuePolicy::IsStopSignaled())
-    RethrowError();
-
-  // We need to fill the output workspace with pointers to appropriate output buffers.
-  for (size_t i = 0; i < pipeline_outputs_.size(); i++) {
-    auto out_tensor_id = pipeline_outputs_[i];
-    auto &out_tensor = graph_->Tensor(out_tensor_id);
-    auto op_type = graph_->Node(out_tensor.producer.node).op_type;
-    auto storage_dev = out_tensor.producer.storage_device;
-    VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
-    (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
-      (
-        auto &queue = get_queue<op_type_static, storage_dev_static>(
-            tensor_to_store_queue_[out_tensor_id]);
-        auto stage_output_idx = output_idx[op_type_static];
-        ws->AddOutput(queue[stage_output_idx]);
-      ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
-    ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
-  }
-
-  // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
-  for (int i = 0; i < ws->NumOutput(); i++) {
-    const char *error_msg =
-        "DALI internal error: all outputs from the Pipeline must be contiguous after being "
-        "processed by MakeContiguous operator.";
-    if (ws->OutputIsType<CPUBackend>(i)) {
-      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);
-    } else {
-      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(), error_msg);
-    }
-  }
-
-  // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
-  // If the output event list is not empty, it means that there are outputs on GPU that we
-  // have to wait for.
-  AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
-
-  if (!mixed_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::MIXED];
-    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
-  }
-  if (!gpu_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::GPU];
-    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
-  }
+  ShareOutputsImpl(ws, output_iteration_id_++);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -665,8 +734,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
   // The inputs of mixed ops are potentially used for H2D copies...
   for (int i = 0; i < graph.NumOp(OpType::MIXED); i++) {
     auto &node = graph.Node(OpType::MIXED, i);
-    if (node.spec.name().find("decoders__") == 0)
-      continue;  // don't pin inputs to decoders
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful

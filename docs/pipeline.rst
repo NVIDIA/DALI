@@ -129,23 +129,78 @@ to the previous one::
 
     pipe = my_pipe(my_source)
 
-.. autoclass:: Pipeline
-   :members:
-   :special-members: __enter__, __exit__
 
+.. _pipeline_decorator:
 
 Pipeline Decorator
 ------------------
 .. autodecorator:: pipeline_def
 
 
+.. _conditional_execution:
+
+Conditional Execution
+---------------------
+
+DALI allows to execute operators conditionally for selected samples within the batch using
+``if`` statements. To enable this feature use the
+:py:func:`@pipeline_def <nvidia.dali.pipeline_def>` decorator to define the pipeline and
+set ``enable_conditionals`` to ``True``.
+
+Every ``if`` statement that have a :meth:`~nvidia.dali.pipeline.DataNode` as a condition
+will be recognized as DALI conditional statement.
+
+For example, this pipeline rotates each image with probability of 25% by a random angle between
+10 and 30 degrees::
+
+    @pipeline_def(enable_conditionals=True)
+    def random_rotate():
+        jpegs, _ = fn.readers.file(device="cpu", file_root=images_dir)
+        images = fn.decoders.image(jpegs, device="mixed")
+        do_rotate = fn.random.coin_flip(probability=0.25, dtype=DALIDataType.BOOL)
+        if do_rotate:
+            result = fn.rotate(images, angle=fn.random.uniform(range=(10, 30)), fill_value=0)
+        else:
+            result = images
+        return result
+
+The semantics of DALI conditionals can be understood as if the code processed one sample at a time.
+
+The condition must be represented by scalar samples - that is have a 0-d shape. It can be either
+boolean or any numerical type supported by DALI - in the latter case, non-zero values are considered
+True and zero values considered False, in accordance with typical Python semantics.
+
+Additionally, logical expressions ``and``, ``or``, and ``not`` can be used on
+:meth:`~nvidia.dali.pipeline.DataNode`. The first two are restricted to boolean inputs, ``not``
+allows the same input types as ``if`` statement condition. Logical expression follow the
+shortcutting rules when they are evaluated.
+
+You can read more in the `conditional tutorial <examples/general/conditionals.html>`_.
+
+.. _pipeline_class:
+
+Pipeline class
+--------------
+
+.. autoclass:: Pipeline
+   :members:
+   :special-members: __enter__, __exit__
+
 DataNode
 --------
 .. autoclass:: nvidia.dali.pipeline.DataNode
    :members:
 
+Experimental Pipeline Features
+------------------------------
+Some additional experimental features can be enabled via the special variant of the pipeline
+decorator.
+
+.. autodecorator:: nvidia.dali.pipeline.experimental.pipeline_def
+
+
 Pipeline Debug Mode (experimental)
-----------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
 experimental variant ``@nvidia.dali.pipeline.experimental.pipeline_def`` and setting parameter
@@ -175,7 +230,7 @@ Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI 
         ...
 
 Notice
-^^^^^^
+~~~~~~
 
 * Seed generation in debug mode works differently than in standard mode (it is deterministic but
   different). If you want to achieve the same results in debug mode as in standard mode initialize

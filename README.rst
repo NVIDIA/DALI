@@ -1,12 +1,11 @@
 |License|  |Documentation|
-|LGTM Python badge|
 
 NVIDIA DALI
 ===========
 .. overview-begin-marker-do-not-remove
 
-The NVIDIA Data Loading Library (DALI) is a library for data loading and
-pre-processing to accelerate deep learning applications. It provides a
+The NVIDIA Data Loading Library (DALI) is a GPU-accelerated library for data loading
+and pre-processing to accelerate deep learning applications. It provides a
 collection of highly optimized building blocks for loading and processing
 image, video and audio data. It can be used as a portable drop-in replacement
 for built in data loaders and data iterators in popular deep learning frameworks.
@@ -31,32 +30,34 @@ can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
     :align: center
     :alt: DALI Diagram
 
-DALI in action::
+DALI in action:
+
+.. code-block:: python
 
   from nvidia.dali.pipeline import pipeline_def
   import nvidia.dali.types as types
   import nvidia.dali.fn as fn
   from nvidia.dali.plugin.pytorch import DALIGenericIterator
   import os
-  
+
   # To run with different data, see documentation of nvidia.dali.fn.readers.file
   # points to https://github.com/NVIDIA/DALI_extra
   data_root_dir = os.environ['DALI_EXTRA_PATH']
   images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
-  
-  
+
+
   def loss_func(pred, y):
       pass
-  
-  
+
+
   def model(x):
       pass
-  
-  
+
+
   def backward(loss, model):
       pass
-  
-  
+
+
   @pipeline_def(num_threads=4, device_id=0)
   def get_dali_pipeline():
       images, labels = fn.readers.file(
@@ -74,15 +75,15 @@ DALI in action::
           std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
           mirror=fn.random.coin_flip())
       return images, labels
-  
-  
+
+
   train_data = DALIGenericIterator(
       [get_dali_pipeline(batch_size=16)],
       ['data', 'label'],
       reader_name='Reader'
   )
-  
-  
+
+
   for i, data in enumerate(train_data):
       x, y = data[0]['data'], data[0]['label']
       pred = model(x)
@@ -94,7 +95,7 @@ Highlights
 ----------
 - Easy-to-use functional style Python API.
 - Multiple data formats support - LMDB, RecordIO, TFRecord, COCO, JPEG, JPEG 2000, WAV, FLAC, OGG, H.264, VP9 and HEVC.
-- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle.
+- Portable across popular deep learning frameworks: TensorFlow, PyTorch, MXNet, PaddlePaddle, JAX.
 - Supports CPU and GPU execution.
 - Scalable across multiple GPUs.
 - Flexible graphs let developers create custom pipelines.
@@ -120,29 +121,36 @@ Highlights
 DALI Roadmap
 ------------
 
-|dali-roadmap-link|_ a high-level overview of our 2022 plan. You should be aware that this
+|dali-roadmap-link|_ a high-level overview of our 2023 plan. You should be aware that this
 roadmap may change at any time and the order below does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
 
 .. |dali-roadmap-link| replace:: The following issue represents
-.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/3774
+.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/4578
 
 ----
 
 Installing DALI
 ---------------
 
-To install the latest DALI release for the latest CUDA version (11.x)::
+To install the latest DALI release for the latest CUDA version (12.x)::
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
 
-DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
-(versions 18.07 and later).
+DALI requires `NVIDIA driver <https://www.nvidia.com/drivers>`_ supporting the appropriate CUDA version.
+In case of DALI based on CUDA 12, it requires `CUDA Toolkit <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_
+to be installed.
+
+DALI comes preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`_,
+`PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`_,
+`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_,
+and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`_
+containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),
-please refer to the |docs_install|_.
+and specific requirements please refer to the |docs_install|_.
 
 To build DALI from source, please refer to the |dali_compile|_.
 
@@ -167,7 +175,7 @@ directory.
 depending on your version.
 
 .. |dali_start| replace:: Getting Started
-.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting%20started.html
+.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting_started.html
 .. |dali_examples| replace:: Examples and Tutorials
 .. _dali_examples: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/index.html
 .. |release-doc| replace:: Latest Release Documentation
@@ -180,6 +188,8 @@ depending on your version.
 Additional Resources
 --------------------
 
+- GPU Technology Conference 2023; **Developer Breakout: Accelerating Enterprise Workflows With Triton Server and DALI**; Brandon Tuttle: |breakoutDALITRITON|_.
+- GPU Technology Conference 2023; **GPU-Accelerating End-to-End Geospatial Workflows**; Kevin Green: |talkGeospatial2023|_.
 - GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś: |talkAdvanced2022|_.
 - GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao: |talkIntro2022|_.
 - GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha: |event2021|_.
@@ -207,10 +217,13 @@ Additional Resources
 .. |event2021| replace:: event
 .. _event2021: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/
 .. |talkIntro2022| replace:: event
-.. _talkIntro2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM
+.. _talkIntro2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41443/
 .. |talkAdvanced2022| replace:: event
-.. _talkAdvanced2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG
-
+.. _talkAdvanced2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/
+.. |talkGeospatial2023| replace:: event
+.. _talkGeospatial2023: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51796/
+.. |breakoutDALITRITON| replace:: event
+.. _breakoutDALITRITON: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-se52140/
 ----
 
 Contributing to DALI
@@ -251,7 +264,3 @@ Simon Layton, Andrei Ivanov and Serge Panev.
 
 .. |Documentation| image:: https://img.shields.io/badge/NVIDIA%20DALI-documentation-brightgreen.svg?longCache=true
    :target: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
-
-.. |LGTM Python badge| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/DALI.svg?logo=lgtm&logoWidth=18
-   :target: https://lgtm.com/projects/g/NVIDIA/DALI/context:python
-   :alt: Language grade: Python

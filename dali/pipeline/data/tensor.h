@@ -402,14 +402,14 @@ class Tensor : public Buffer<Backend> {
     return true;
   }
 
-  Tensor<Backend>(const Tensor<Backend>&) = delete;
-  Tensor<Backend>& operator=(const Tensor<Backend>&) = delete;
+  Tensor(const Tensor&) = delete;
+  Tensor& operator=(const Tensor&) = delete;
 
-  Tensor<Backend>(Tensor<Backend> &&t) noexcept {
+  Tensor(Tensor &&t) noexcept {
     *this = std::move(t);
   }
 
-  Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
+  Tensor& operator=(Tensor &&t) noexcept {
     if (&t != this) {
       shape_ = std::exchange(t.shape_, {0});
       meta_ = std::exchange(t.meta_, {});

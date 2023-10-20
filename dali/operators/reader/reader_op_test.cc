@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <chrono>
 #include <cstdio>
+#include <fstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -24,6 +25,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/operators/reader/reader_op.h"
+#include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
 #include "dali/test/dali_test.h"
@@ -78,7 +80,7 @@ class DummyDataReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   bool Prefetch() override {
     for (int i = 0; i < Operator::batch_size_; ++i) {
       printf("new tensor %d\n", i);
-      auto *t = loader_->ReadOne(false);
+      auto *t = loader_->ReadOne(false, false);
       prefetched_batch_.push_back(t);
     }
     return true;
@@ -471,6 +473,284 @@ TEST(ReaderTestSimple, CheckNumSamples) {
   ASSERT_EQ(num_samples(1, 10), 10 / 1);
   ASSERT_EQ(num_samples(2, 10), 10 / 2);
   ASSERT_EQ(num_samples(3, 10), static_cast<Index>(std::ceil(10 * 1.0 / 3)));
+}
+
+class FileReaderTest : public DALITest {
+ public:
+  void SetUp() override {
+    constexpr int filecount = 16;
+
+    for (int i = 0; i < filecount; i++) {
+      std::string path = make_string("/tmp/dali_test_file_", to_string(i));
+      filepaths_.push_back(path);
+
+      // write a single byte to the file
+      std::ofstream f(path);
+      f << (uint8_t) i;
+    }
+  }
+
+  void TearDown() override {
+    for (const auto &path : filepaths_) {
+      int ret = std::remove(path.data());
+      DALI_ENFORCE(ret == 0,
+                   make_string("Failed to remove the file: ", path, ". Error code: ", ret));
+    }
+  }
+
+  std::vector<std::string> filepaths_;
+
+  OpSpec MakeOpSpec() {
+      // Currently, only pad_last_batch=true is supported.
+      return OpSpec("FileReader")
+            .AddOutput("data_out", "cpu")
+            .AddOutput("labels", "cpu")
+            .AddArg("files", filepaths_)
+            .AddArg("pad_last_batch", true);
+  }
+
+  void BuildPipeline(Pipeline &pipe) {
+    std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
+    pipe.Build(outputs);
+  }
+
+  std::vector<uint8_t> RunEpoch(Pipeline &pipe, int batch_size,
+                                int num_shards = 1, bool stick_to_shard = false) {
+    std::vector<uint8_t> result;
+    int samples_per_shard = (filepaths_.size() + num_shards - 1) / num_shards;
+    int batches_per_shard = (samples_per_shard + batch_size - 1) / batch_size;
+    for (int it = 0; it < batches_per_shard; it++) {
+      pipe.RunCPU();
+      pipe.RunGPU();
+      pipe.Outputs(&ws_);
+
+      auto shape = ws_.Output<CPUBackend>(0).AsTensor().shape();
+      for (int nr = 0; nr < shape[0]; nr++)
+        result.push_back(ws_.Output<CPUBackend>(0).tensor<uint8_t>(0)[nr]);
+    }
+    return result;
+  }
+
+  std::pair<vector<uint8_t>, Checkpoint> CheckpointEpoch(Pipeline &pipe, int batch_size,
+                                                           int epoch_nr, int num_shards = 1,
+                                                           bool stick_to_shard = false) {
+    auto cpt = pipe.GetCheckpoint();
+    auto node = pipe.GetOperatorNode("file_reader");
+    auto &op_cpt = cpt.GetOpCheckpoint(node->id);
+    EXPECT_EQ(op_cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
+    return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
+  }
+
+ protected:
+  Workspace ws_;
+};
+
+TEST_F(FileReaderTest, SimpleCheckpointing) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 4;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("prefetch_queue_depth", 20)
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingRandomShuffle) {
+  constexpr int batch_size = 7;
+  constexpr int epochs = 8;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("random_shuffle", true)
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingShuffleAfterEpoch) {
+  constexpr int batch_size = 5;
+  constexpr int epochs = 8;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("shuffle_after_epoch", true)
+        .AddArg("prefetch_queue_depth", 9)
+        .AddArg("initial_fill", 10), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingMultipleShards) {
+  constexpr int batch_size = 5;
+  constexpr int epochs = 8;
+  constexpr int num_shards = 5;
+
+  auto prepare_pipeline = [this, num_shards](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("shard_id", 2)
+        .AddArg("num_shards", num_shards)
+        .AddArg("prefetch_queue_depth", 11)
+        .AddArg("initial_fill", 20), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i, num_shards);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size, num_shards), results[i]);
+  }
+}
+
+TEST_F(FileReaderTest, CheckpointingStickStoShard) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 8;
+  constexpr int num_shards = 3;
+
+  auto prepare_pipeline = [this, num_shards](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("stick_to_shard", true)
+        .AddArg("shard_id", 1)
+        .AddArg("num_shards", num_shards)
+        .AddArg("initial_fill", 5), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i, num_shards, true);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline fresh_pipe(batch_size, 1, 0);
+    prepare_pipeline(fresh_pipe);
+    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+    EXPECT_EQ(RunEpoch(fresh_pipe, batch_size, num_shards, true), results[i]);
+  }
+}
+
+
+TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
+  constexpr int batch_size = 3;
+  constexpr int epochs = 4;
+
+  auto prepare_pipeline = [this](Pipeline &pipe) {
+    pipe.EnableCheckpointing();
+    pipe.AddOperator(
+        MakeOpSpec()
+        .AddArg("shuffle_after_epoch", true)
+        .AddArg("prefetch_queue_depth", 2)
+        .AddArg("initial_fill", 3), "file_reader");
+    BuildPipeline(pipe);
+  };
+
+  Pipeline pipe(batch_size, 1, 0);
+  prepare_pipeline(pipe);
+  std::vector<std::vector<uint8_t>> results;
+  std::vector<Checkpoint> checkpoints;
+  for (int i = 0; i < epochs; i++) {
+    auto [res, cpt] = CheckpointEpoch(pipe, batch_size, i);
+    results.push_back(res);
+    checkpoints.push_back(cpt);
+  }
+
+  for (int i = 0; i < epochs; i++) {
+    Pipeline intermediate_pipe(batch_size, 1, 0);
+    prepare_pipeline(intermediate_pipe);
+    intermediate_pipe.RestoreFromCheckpoint(checkpoints[i]);
+
+    std::vector<Checkpoint> cpts_after_resume;
+    for (int j = 0; i + j < epochs; j++) {
+      auto [res, cpt] = CheckpointEpoch(intermediate_pipe, batch_size, i + j);
+      EXPECT_EQ(res, results[i + j]);
+      cpts_after_resume.push_back(cpt);
+    }
+
+    for (int j = 0; i + j < epochs; j++) {
+      Pipeline fresh_pipe(batch_size, 1, 0);
+      prepare_pipeline(fresh_pipe);
+      fresh_pipe.RestoreFromCheckpoint(cpts_after_resume[j]);
+      EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i + j]);
+    }
+  }
 }
 
 };  // namespace dali

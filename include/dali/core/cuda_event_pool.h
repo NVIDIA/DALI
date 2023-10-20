@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <utility>
 #include "dali/core/cuda_event.h"
 #include "dali/core/spinlock.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
@@ -80,7 +81,7 @@ class DLL_PUBLIC CUDAEventPool {
 
   EventEntry *unused_ = nullptr;
 
-  vector<EventEntry *> dev_events_;
+  std::vector<EventEntry *> dev_events_;
   spinlock lock_;
 
   static EventEntry *Pop(EventEntry *&head) {

@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +41,10 @@ build:
    - BUILD_NVOF
    - BUILD_NVDEC
    - BUILD_NVML
+   - WITH_DYNAMIC_CUDA_TOOLKIT
+   - WITH_DYNAMIC_NVJPEG
+   - WITH_DYNAMIC_CUFFT
+   - WITH_DYNAMIC_NPP
    - VERBOSE_LOGS
    - WERROR
    - BUILD_WITH_ASAN
@@ -65,15 +69,13 @@ requirements:
     - make
     - patchelf
     - python-clang
+    - git-lfs
   host:
     - python
     - future
     - protobuf
     - libprotobuf-static
     - libjpeg-turbo
-    - tensorflow-gpu =2.6.2
-    - tensorflow-estimator =2.6.2
-    - tensorboard
     - dali-opencv
     - dali-ffmpeg
     - lmdb
@@ -86,13 +88,13 @@ requirements:
     - libwebp-base
     - openjpeg
     - cfitsio
+    - astunparse >=1.6.0
+    - gast >=0.3.3
+    - dm-tree >=0.1.8
   run:
     - python
     - future
     - libjpeg-turbo
-    - tensorflow-gpu =2.6.2
-    - tensorflow-estimator =2.6.2
-    - tensorboard
     - lmdb
     - libtiff
     - libsndfile
@@ -100,5 +102,13 @@ requirements:
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
+    # libprotobuf-static we link statically depends on libabseil so add protobuf here as a runtime
+    # dependency to install the right version on the libabseil (as protobuf depends on
+    # libprotobuf-static and a newer version of libprotobuf-static may be available than
+    # the protobuf was build with)
+    - protobuf
     - openjpeg
     - cfitsio
+    - astunparse >=1.6.0
+    - gast >=0.3.3
+    - dm-tree >=0.1.8

@@ -6,33 +6,49 @@ Prerequisites
 
 .. |driver link| replace:: **NVIDIA Driver**
 .. _driver link: https://www.nvidia.com/drivers
-.. |cuda link| replace:: **NVIDIA CUDA 10.0**
+.. |cuda link| replace:: **NVIDIA CUDA 11.0**
 .. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |mxnet link| replace:: **MXNet 1.3**
+.. |cuda toolkit link| replace:: **CUDA Toolkit**
+.. _cuda toolkit link: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
+.. |cuda link| replace:: **NVIDIA CUDA 11.0**
+.. _cuda link: https://developer.nvidia.com/cuda-downloads
+.. |mxnet link| replace:: **MXNet**
 .. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **PyTorch 0.4**
+.. |pytorch link| replace:: **PyTorch**
 .. _pytorch link: https://pytorch.org
-.. |tf link| replace:: **TensorFlow 1.7**
+.. |tf link| replace:: **TensorFlow**
 .. _tf link: https://www.tensorflow.org
+.. |pddl link| replace:: **PaddlePaddle**
+.. _pddl link: https://www.paddlepaddle.org.cn
+.. |jax link| replace:: **JAX**
+.. _jax link: https://jax.readthedocs.io/en/latest/index.html
 .. |compatibility link| replace:: enhanced CUDA compatibility guide
 .. _compatibility link : https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases
 
 1. Linux x64.
-2. |driver link|_ supporting `CUDA 10.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e., 410.48 or later driver releases).
-3. (Optional) One or more of the following deep learning frameworks:
+2. |driver link|_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e. 450.80.02 or later driver releases).
+3. |cuda toolkit link|_ - for DALI based on CUDA 12, the toolkit is linked dynamically and it is required to be installed. For CUDA 11 builds it is optional.
+4. [Optional] One or more of the following deep learning frameworks:
 
-  - |mxnet link|_ ``mxnet-cu100`` or later.
-  - |pytorch link|_ or later.
-  - |tf link|_ or later.
+  - |mxnet link|_
+  - |pytorch link|_
+  - |tf link|_
+  - |pddl link|_
+  - |jax link|_
 
 
 DALI in NGC Containers
 ----------------------
 
-DALI is preinstalled in the TensorFlow, PyTorch, and MXNet containers in versions 18.07 and
-later on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
+DALI is preinstalled in the `TensorFlow <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tensorflow>`_,
+`PyTorch <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch>`_,
+`NVIDIA Optimized Deep Learning Framework, powered by Apache MXNet <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/mxnet>`_,
+and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlepaddle>`_
+containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 ----
+
+.. _pip wheels:
 
 pip - Official Releases
 -----------------------
@@ -48,13 +64,25 @@ Execute the following command to install the latest DALI for specified CUDA vers
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda110
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-cuda110
 
 * for CUDA 12.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-cuda120
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-cuda120
 
 .. note::
 
@@ -77,14 +105,25 @@ which will be built against the currently installed version of TensorFlow:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-tf-plugin-cuda110
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda110
+
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-tf-plugin-cuda110
 
 * for CUDA 12.0:
 
 .. code-block:: bash
 
-   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-tf-plugin-cuda120
+   pip install --extra-index-url https://pypi.nvidia.com --upgrade nvidia-dali-tf-plugin-cuda120
 
+or just
+
+.. code-block:: bash
+
+   pip install nvidia-dali-tf-plugin-cuda120
 
 Installing this package will install ``nvidia-dali-cudaXXX`` and its dependencies, if they are not already installed. The package ``tensorflow-gpu`` must be installed before attempting to install ``nvidia-dali-tf-plugin-cudaXXX``.
 

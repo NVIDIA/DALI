@@ -106,7 +106,13 @@ equivalent to passing a full-range slice to all trailing dimensions::
 Strided slices
 ~~~~~~~~~~~~~~
 
-Indexing with a custom step is not implemented.
+Striding in the positive and negative direction can also be achieved with the same
+semantics as numpy arrays. This can be done over multiple dimensions.
+
+    reversed = array[::-1]
+    every_second = array[::2]
+    every_second_reversed = array[::-2]
+    quater_resolution = image[::2, ::2]
 
 Adding dimensions
 ~~~~~~~~~~~~~~~~~

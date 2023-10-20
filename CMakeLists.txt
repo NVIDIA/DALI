@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.18)
 
 # allow usage of check_symbol_exists() macro
 include(CheckCXXSymbolExists)
@@ -40,6 +40,12 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
 option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraires dynamically (NPP, nvJPEG, cuFFT)" OFF)
+cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
+                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
@@ -77,6 +83,9 @@ cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+
+cmake_dependent_option(BUILD_CVCUDA "Build with CV-CUDA" ON
+                       "NOT STATIC_LIBS" OFF)  # Built from thirdparty sources; doesn't support static libs build
 
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
@@ -150,7 +159,7 @@ cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-obj
 
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
-option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build conifguration" OFF)
+option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build configuration" OFF)
 
 cmake_dependent_option(DALI_CLANG_ONLY "Compile DALI using only Clang. Suitable only for developement."
     OFF "CMAKE_CXX_COMPILER_ID STREQUAL Clang" OFF)
@@ -167,8 +176,16 @@ if (NOT CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
       which requires setting Clang as C and CXX compilers and leaving nvcc as CUDA compiler.")
 endif()
 
-# ; creates a list here
-set (PYTHON_VERSIONS "3.6;3.7;3.8;3.9;3.10")
+if (NOT BUILD_PYTHON AND PYTHON_VERSIONS)
+  message(WARNING "The BUILD_PYTHON option is set to off and the PYTHON_VERSIONS variable is
+          provided. The latter will be ignored.")
+elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "")
+  set(PYTHON_VERSIONS "3.8;3.9;3.10;3.11")
+endif ()
+
+if (BUILD_PYTHON)
+  message(STATUS "Building DALI for Python versions: ${PYTHON_VERSIONS}")
+endif ()
 
 if (STATIC_LIBS)
   message (STATUS "Building static libraries")
@@ -195,6 +212,44 @@ message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 # Cmake path
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
+# Discover what architectures does nvcc support
+if (DALI_CLANG_ONLY)
+  set(USED_CUDA_COMPILER ${CMAKE_CXX_COMPILER})
+else()
+  set(USED_CUDA_COMPILER ${CMAKE_CUDA_COMPILER})
+endif()
+
+
+message(STATUS "CUDA .cu files compiler: ${USED_CUDA_COMPILER}")
+
+CUDA_find_supported_arch_values(CUDA_supported_archs ${USED_CUDA_COMPILER} ${CUDA_known_archs})
+message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
+
+set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
+list(SORT CUDA_TARGET_ARCHS_SORTED)
+CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_TARGET_ARCHS_SORTED})
+message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
+if (NOT CUDA_targeted_archs)
+  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
+      " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
+endif()
+
+
+# Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
+if (DALI_CLANG_ONLY)
+  CUDA_get_gencode_args(CUDA_gencode_flags_clang ${USED_CUDA_COMPILER} ${CUDA_targeted_archs})
+  message(STATUS "Generated gencode flags for clang: ${CUDA_gencode_flags_clang}")
+  CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
+  message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
+endif()
+
+CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
+message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+
+
 # Dependencies
 if(${ARCH} MATCHES "aarch64-linux")
   message("Target set to aarch64-linux")
@@ -217,15 +272,19 @@ propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_CFITSIO)
+propagate_option(BUILD_CVCUDA)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_FFMPEG)
 propagate_option(BUILD_NVCOMP)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)
-propagate_option(WITH_DYNAMIC_CUDA_TOOLKIT)
+propagate_option(WITH_DYNAMIC_NVJPEG)
+propagate_option(WITH_DYNAMIC_CUFFT)
+propagate_option(WITH_DYNAMIC_NPP)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 
@@ -254,11 +313,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_CUDA_STANDARD 14)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 17)
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-free-nonheap-object -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-free-nonheap-object -Wno-unused-variable -Wno-unused-function -Wno-strict-overflow -fno-strict-aliasing -fPIC -fvisibility=hidden")
 
 if (WERROR)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
@@ -340,49 +398,13 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas")
 endif()
 
-# Discover what architectures does nvcc support
-if (DALI_CLANG_ONLY)
-  set(USED_CUDA_COMPILER ${CMAKE_CXX_COMPILER})
-else()
-  set(USED_CUDA_COMPILER ${CMAKE_CUDA_COMPILER})
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
 
-
-message(STATUS "CUDA .cu files compiler: ${USED_CUDA_COMPILER}")
-
-CUDA_find_supported_arch_values(CUDA_supported_archs ${USED_CUDA_COMPILER} ${CUDA_known_archs})
-message(STATUS "CUDA supported archs: ${CUDA_supported_archs}")
-
-set(CUDA_TARGET_ARCHS_SORTED ${CUDA_TARGET_ARCHS})
-list(SORT CUDA_TARGET_ARCHS_SORTED)
-CUDA_find_supported_arch_values(CUDA_targeted_archs ${USED_CUDA_COMPILER} ${CUDA_TARGET_ARCHS_SORTED})
-message(STATUS "CUDA targeted archs: ${CUDA_targeted_archs}")
-if (NOT CUDA_targeted_archs)
-  message(FATAL_ERROR "None of the provided CUDA architectures ({${CUDA_TARGET_ARCHS}})"
-      " is supported by ${USED_CUDA_COMPILER}, use one or more of: ${CUDA_supported_archs}")
-endif()
-
-
-# Add gpu-arch and toolkit flags for clang when compiling cuda (if used)
-if (DALI_CLANG_ONLY)
-  CUDA_get_gencode_args(CUDA_gencode_flags_clang ${USED_CUDA_COMPILER} ${CUDA_targeted_archs})
-  message(STATUS "Generated gencode flags for clang: ${CUDA_gencode_flags_clang}")
-  CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
-  message(STATUS "Used CUDA toolkit: ${CUDA_TOOLKIT_PATH_VAR}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version --cuda-path=${CUDA_TOOLKIT_PATH_VAR} ${CUDA_gencode_flags_clang}")
-endif()
-
-# Add ptx & bin flags for cuda compiler (nvcc)
-if(USE_CMAKE_CUDA_ARCHITECTURES)
-  CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
-  message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
-else()
-  CUDA_get_gencode_args(CUDA_gencode_flags_nvcc ${CMAKE_CUDA_COMPILER} ${CUDA_targeted_archs})
-  message(STATUS "Generated gencode flags: ${CUDA_gencode_flags_nvcc}")
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags_nvcc}")
-endif()
-
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Include directories
 include_directories(

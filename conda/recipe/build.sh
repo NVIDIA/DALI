@@ -32,8 +32,8 @@ fi
 ln -s $CC $BUILD_PREFIX/bin/gcc
 ln -s $CXX $BUILD_PREFIX/bin/g++
 
-# Force -std=c++14 in CXXFLAGS
-export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++14}
+# Force -std=c++17 in CXXFLAGS
+export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
 
 # For some reason `aligned_alloc` is present when we use compiler version 5.4.x
 # Adding NO_ALIGNED_ALLOC definition for cutt
@@ -87,8 +87,12 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}                      \
+      -DBUILD_CVCUDA=${BUILD_CVCUDA:-ON}                  \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
+      -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}     \
+      -DWITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}       \
+      -DWITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}           \
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \
@@ -114,6 +118,8 @@ DEPS_LIST=(
     "$PREFIX/lib/libavfilter.so.8"
     "$PREFIX/lib/libavutil.so.57"
     "$PREFIX/lib/libswscale.so.6"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
 )
 
 DEPS_SONAME=(
@@ -122,6 +128,8 @@ DEPS_SONAME=(
     "libavfilter.so.8"
     "libavutil.so.57"
     "libswscale.so.6"
+    "libcvcuda.so.0"
+    "libnvcv_types.so.0"
 )
 
 if [ "$BUILD_NVCOMP" = "ON" ]; then
@@ -174,6 +182,7 @@ echo "Patched DT_SONAMEs"
 
 patch_hashed_names() {
     local sofile=$1
+    local patch_cmd=""
     needed_so_files=$(patchelf --print-needed $sofile)
     for ((j=0;j<${#original[@]};++j)); do
         origname=${original[j]}
@@ -185,10 +194,14 @@ patch_hashed_names() {
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
                 echo "patching $sofile entry $origname to $patchedname"
-                patchelf --replace-needed $origname $patchedname $sofile
+                patch_cmd="$patch_cmd --replace-needed $origname $patchedname"
             fi
         fi
     done
+    if [ -n "$patch_cmd" ]; then
+        echo "running $patch_cmd on $sofile"
+        patchelf $patch_cmd $sofile
+    fi
 }
 echo "Patching to fix the so names to the hashed names..."
 # get list of files to iterate over
@@ -222,18 +235,6 @@ $PYTHON -m pip install --no-deps --ignore-installed -v dali/python
 export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
 DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
 echo "DALI_PATH is ${DALI_PATH}"
-pushd $SRC_DIR/dali_tf_plugin/
-mkdir -p dali_tf_sdist_build
-cd dali_tf_sdist_build
-
-cmake .. \
-      -DCUDA_VERSION:STRING="${CUDA_VERSION}" \
-      -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR} \
-      -DTIMESTAMP=${DALI_TIMESTAMP} \
-      -DGIT_SHA=${GIT_SHA}
-make -j install
-$PYTHON -m pip install --no-deps --ignore-installed .
-popd
 
 # Move tfrecord2idx to host env so it can be found at runtime
 cp $SRC_DIR/tools/tfrecord2idx $PREFIX/bin

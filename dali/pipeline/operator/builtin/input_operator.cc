@@ -25,7 +25,7 @@ A base for any operator that forwards in-memory data to DALI pipeline.)doc")
                 .AddOptionalArg("blocking", R"code(
 If ``True``, this operator will block until the data is available (e.g. by calling ``feed_input``).
 If ``False``, the operator will raise an error, if the data is not available.
-)code", true)
+)code", false)
                 .AddOptionalArg("no_copy", R"code(
 Determines whether DALI should copy the buffer when ``feed_input`` is called.
 
@@ -48,6 +48,7 @@ and bandwidth.
 
 template<>
 void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+                                                   std::optional<std::string> &target_data_id,
                                                    ThreadPool &thread_pool) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
@@ -55,6 +56,8 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
     tensor_list_elm = tl_data_.PopFront();
     state_.pop_front();
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     const auto &shapes = tensor_list_elm.front()->shape();
@@ -83,8 +86,9 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
 
 
 template<>
-void
-InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream) {
+void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+                                                   std::optional<std::string> &target_data_id,
+                                                   cudaStream_t stream) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   InputSourceState state_info;
@@ -103,6 +107,8 @@ InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cu
   if (!state_info.no_copy || state_info.copied_shared_data) {
     CUDA_CALL(cudaStreamWaitEvent(stream, *internal_copy_to_storage.front(), 0));
   }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
 
   std::swap(target, *tensor_list_elm.front());
   target.set_order(stream, false);
@@ -114,5 +120,68 @@ InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cu
     RecycleBuffer(tensor_list_elm);
   }
 }
+
+
+template<>
+void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+                                                     std::optional<std::string> &target_data_id,
+                                                     cudaStream_t stream) {
+  std::list<uptr_tl_type> tensor_list_elm;
+  InputSourceState state_info;
+  {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    tensor_list_elm = tl_data_.PopFront();
+    state_info = state_.front();
+    state_.pop_front();
+  }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
+
+  target.Copy(*tensor_list_elm.front(), stream);
+
+  tensor_list_elm.front()->set_order(internal_copy_order_);
+
+  RecycleBuffer(tensor_list_elm);
+}
+
+
+template<>
+void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+                                                     std::optional<std::string> &target_data_id,
+                                                     ThreadPool &thread_pool) {
+  std::list<uptr_tl_type> tensor_list_elm;
+  {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    tensor_list_elm = tl_data_.PopFront();
+    state_.pop_front();
+  }
+  target_data_id = std::move(tensor_list_elm.front().data_id);
+  tensor_list_elm.front().data_id = std::nullopt;
+  // if the output is pinned and input not it needs to be copied
+  if (target.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
+    const auto &shapes = tensor_list_elm.front()->shape();
+    auto curr_batch_size = shapes.num_samples();
+    target.Resize(shapes, tensor_list_elm.front()->type());
+
+    // as we copy element by element and the output is contiguous we need to set layout
+    // for the whole output not each element(view)
+    target.SetLayout(tensor_list_elm.front()->GetLayout());
+
+    for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
+      thread_pool.AddWork(
+              [&target, sample_id, &tensor_list_elm](int tid) {
+                  target.CopySample(sample_id, *tensor_list_elm.front(), sample_id,
+                                    AccessOrder::host());
+              },
+              shapes.tensor_size(sample_id));
+    }
+    thread_pool.RunAll();
+  } else {
+    // swap output with tensor_list_elm content
+    std::swap(target, *tensor_list_elm.front());
+  }
+  RecycleBuffer(tensor_list_elm);
+}
+
 
 }  // namespace dali

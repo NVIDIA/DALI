@@ -22,7 +22,7 @@
 namespace dali {
 
 template <>
-Flip<GPUBackend>::Flip(const OpSpec &spec) : Operator<GPUBackend>(spec) {}
+Flip<GPUBackend>::Flip(const OpSpec &spec) : StatelessOperator<GPUBackend>(spec) {}
 
 void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &input,
                const std::vector<int32> &depthwise, const std::vector<int32> &horizontal,

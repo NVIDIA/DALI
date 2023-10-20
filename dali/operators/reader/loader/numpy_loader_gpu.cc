@@ -27,23 +27,21 @@ void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
 }
 
 void NumpyFileWrapperGPU::Reopen() {
-  file_stream = CUFileStream::Open(filename, read_ahead, false);
+  file_stream_ = CUFileStream::Open(filename, read_ahead, false);
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   numpy::HeaderData header;
   bool ret = cache.GetFromCache(filename, header);
   try {
-    if (ret) {
-      file_stream->SeekRead(header.data_offset);
-    } else {
-      numpy::ParseHeader(header, file_stream.get());
+    if (!ret) {
+      numpy::ParseHeader(header, file_stream_.get());
       cache.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what() + ". File: " + filename);
   }
-
+  file_stream_->SeekRead(header.data_offset);
 
   type = header.type();
   shape = header.shape;
@@ -53,7 +51,7 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
 
 void NumpyFileWrapperGPU::ReadRawChunk(void* buffer, size_t bytes,
                                        Index buffer_offset, Index file_offset) {
-  file_stream->ReadAtGPU(static_cast<uint8_t *>(buffer),
+  file_stream_->ReadAtGPU(static_cast<uint8_t *>(buffer),
                          bytes, buffer_offset, file_offset);
 }
 

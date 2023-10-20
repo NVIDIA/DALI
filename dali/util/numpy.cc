@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,17 @@
 #include "dali/util/numpy.h"
 #include <string>
 #include <vector>
+#include <memory>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/util/odirect_file.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace numpy {
 
 const TypeInfo &TypeFromNumpyStr(const std::string &format) {
+  if (format == "b1") return TypeTable::GetTypeInfo<bool>();
   if (format == "u1") return TypeTable::GetTypeInfo<uint8_t>();
   if (format == "u2") return TypeTable::GetTypeInfo<uint16_t>();
   if (format == "u4") return TypeTable::GetTypeInfo<uint32_t>();
@@ -33,7 +37,7 @@ const TypeInfo &TypeFromNumpyStr(const std::string &format) {
   if (format == "f2") return TypeTable::GetTypeInfo<float16>();
   if (format == "f4") return TypeTable::GetTypeInfo<float>();
   if (format == "f8") return TypeTable::GetTypeInfo<double>();
-  DALI_FAIL("Unknown Numpy type string");
+  DALI_FAIL(make_string("Unknown Numpy type string: ", format));
 }
 
 inline void SkipSpaces(const char*& ptr) {
@@ -154,6 +158,93 @@ void ParseHeaderContents(HeaderData& target, const std::string &header) {
   }
 }
 
+void CheckNpyVersion(char *token) {
+  int api_version = token[6];
+  if (api_version != 1) {
+    static std::once_flag unrecognized_version;
+    std::call_once(unrecognized_version, [&]() {
+      std::string actual_version =
+          (api_version == 2 || api_version == 3) ? "higher" : "unrecognized";
+      DALI_WARN(make_string(
+          "Expected file in NPY file format version 1. The provided file uses ", actual_version,
+          " version. Please note, DALI does not support structured NumPy arrays."));
+    });
+  }
+}
+
+uint16_t GetHeaderLen(char *data) {
+  std::string header = std::string(data);
+  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
+               "File is not a numpy file.");
+
+  // extract header length
+  uint16_t header_len = 0;
+  memcpy(&header_len, &data[8], 2);
+  DALI_ENFORCE((header_len + 10) % 16 == 0,
+               "Error extracting header length.");
+  return header_len;
+}
+
+void ParseHeaderItself(HeaderData &parsed_header, char *data, size_t header_len) {
+  auto header = std::string(data);
+  DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
+  int64 offset = 6 + 1 + 1 + 2;
+  offset += header_len;
+
+  ParseHeaderContents(parsed_header, header);
+  parsed_header.data_offset = offset;
+}
+
+void ParseODirectHeader(HeaderData &parsed_header, InputStream *src, size_t o_direct_alignm,
+                        size_t o_direct_read_len_alignm) {
+  const size_t token_len = 6 + 1 + 1 + 2;
+  size_t token_read_len = align_up(token_len + 1, o_direct_read_len_alignm);
+  auto token_mem =
+      mm::alloc_raw_shared<char, mm::memory_kind::host>(token_read_len, o_direct_alignm);
+  char *token = token_mem.get();
+  auto file = dynamic_cast<ODirectFileStream *>(src);
+  DALI_ENFORCE(
+      file,
+      "Could not read the numpy file header: expected file stream opened with O_DIRECT flag.");
+  int64_t nread = file->ReadAt(token, token_read_len, 0);
+  DALI_ENFORCE(nread <= static_cast<Index>(token_read_len) &&
+                   nread >= static_cast<Index>(std::min(src->Size(), token_read_len)),
+               make_string("Can not read header: ",
+                           static_cast<Index>(std::min(src->Size(), token_read_len)), " <= ", nread,
+                           " <= ", token_read_len));
+  auto char_tmp = token[token_len];
+  token[token_len] = '\0';
+
+  CheckNpyVersion(token);
+  auto header_len = GetHeaderLen(token);
+
+  // The header_len can have up to 2**16 - 1 bytes. We do not support V2 headers
+  // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
+  // arrays (where dtype can be different for each column and the columns have arbitrary names).
+  // Parsing such a dtype in the header will fail.
+  // https://numpy.org/neps/nep-0001-npy-format.html
+  size_t aligned_token_header_len =
+      align_up(token_len + header_len + 1, std::max(o_direct_alignm, o_direct_read_len_alignm));
+  // if header_len goes beyond the previously allocated and read memory reallocate and read again
+  // otherwise reuse
+  if (token_read_len != aligned_token_header_len) {
+    token_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_token_header_len,
+                                                                  o_direct_alignm);
+    nread = file->ReadAt(token_mem.get(), aligned_token_header_len, 0);
+    DALI_ENFORCE(nread <= static_cast<Index>(aligned_token_header_len) &&
+                     nread >= static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
+                 make_string("Can not read header: ",
+                             static_cast<Index>(std::min(src->Size(), aligned_token_header_len)),
+                             " <= ", nread, " <= ", aligned_token_header_len));
+  } else {
+    // restore overriden character
+    token[token_len] = char_tmp;
+  }
+  char *header = token_mem.get() + token_len;
+  header[header_len] = '\0';
+  ParseHeaderItself(parsed_header, header, header_len);
+}
+
 void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   // check if the file is actually a numpy file
   SmallVector<char, 128> token;
@@ -161,34 +252,23 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   DALI_ENFORCE(nread == 10, "Can not read header.");
   token[nread] = '\0';
 
-  // check if heqder is too short
-  std::string header = std::string(token.data());
-  DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
-               "File is not a numpy file.");
-
-  // extract header length
-  uint16_t header_len = 0;
-  memcpy(&header_len, &token[8], 2);
-  DALI_ENFORCE((header_len + 10) % 16 == 0,
-               "Error extracting header length.");
+  CheckNpyVersion(token.data());
+  auto header_len = GetHeaderLen(token.data());
 
   // read header: the offset is a magic number
   int64 offset = 6 + 1 + 1 + 2;
-  // the header_len can be 4GiB according to the NPYv2 file format
-  // specification: https://numpy.org/neps/nep-0001-npy-format.html
-  // while this allocation could be sizable, it is performed on the host.
+  // The header_len can have up to 2**16 - 1 bytes. We do not support V2 headers
+  // (with up to 4GB - 4 byte header len), as those are used by numpy to save structured
+  // arrays (where dtype can be different for each column and the columns have arbitrary names).
+  // Parsing such a dtype in the header will fail.
+  // https://numpy.org/neps/nep-0001-npy-format.html
   token.resize(header_len+1);
   src->SeekRead(offset);
   nread = src->Read(token.data(), header_len);
-  DALI_ENFORCE(nread == header_len, "Can not read header.");
+  DALI_ENFORCE(nread == static_cast<Index>(header_len), "Can not read header.");
   token[header_len] = '\0';
-  header = std::string(token.data());
-  DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
-  offset += header_len;
-  src->SeekRead(offset);  // michalz: Why isn't it done when actually reading the payload?
 
-  ParseHeaderContents(parsed_header, header);
-  parsed_header.data_offset = offset;
+  ParseHeaderItself(parsed_header, token.data(), header_len);
 }
 
 void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input) {

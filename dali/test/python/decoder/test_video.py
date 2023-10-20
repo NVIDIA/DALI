@@ -158,6 +158,8 @@ def test_multi_gpu_video(device):
 
     def input_gen(batch_size):
         filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+        # test overflow of frame_buffer_
+        filenames.append(f'{get_dali_extra_path()}/db/video/cfr_test.mp4')
         filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
         filenames = filter(lambda filename: 'hevc' not in filename, filenames)
         filenames = cycle(filenames)
@@ -183,3 +185,35 @@ def test_multi_gpu_video(device):
     for _ in range(iters):
         video_pipeline_0.run()
         video_pipeline_1.run()
+
+
+@params('cpu', 'gpu')
+def test_source_info(device):
+    filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+    # filter out HEVC because some GPUs do not support it
+    filenames = filter(lambda filename: 'hevc' not in filename, filenames)
+    # mpeg4 is not yet supported in the CPU operator itself
+    filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
+
+    files = list(filenames)
+
+    @pipeline_def
+    def test_pipeline():
+        videos = fn.experimental.readers.video(
+            device=device,
+            filenames=files,
+            sequence_length=1,
+            step=10000000,  # make sure that each video has only one valid sequence
+            )
+        return videos
+
+    batch_size = 4
+    p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    p.build()
+
+    samples_read = 0
+    while samples_read < len(files):
+        o = p.run()
+        for idx, t in enumerate(o[0]):
+            assert t.source_info() == files[(samples_read + idx) % len(files)]
+        samples_read += batch_size

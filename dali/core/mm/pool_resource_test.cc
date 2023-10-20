@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ void TestPoolResource(int num_iter) {
   {
     auto opt = default_host_pool_opts();
     opt.max_upstream_alignment = 32;  // force the use of overaligned upstream allocations
-    pool_resource_base<memory_kind::host, FreeList, detail::dummy_lock>
+    pool_resource<memory_kind::host, FreeList, detail::dummy_lock>
       pool(&upstream, opt);
     std::mt19937_64 rng(12345);
     std::bernoulli_distribution is_free(0.4);
@@ -47,6 +47,8 @@ void TestPoolResource(int num_iter) {
     std::vector<allocation> allocs;
 
     for (int i = 0; i < num_iter; i++) {
+      if (i == num_iter / 2)
+        pool.release_unused();
       if (is_free(rng) && !allocs.empty()) {
         auto idx = rng() % allocs.size();
         allocation a = allocs[idx];
@@ -97,7 +99,7 @@ TEST(MMPoolResource, ReturnToUpstream) {
   }
   test_device_resource upstream;
   {
-    pool_resource_base<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
+    pool_resource<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
       pool(&upstream);
     size_t size = 1<<28;  // 256M
     for (;;) {

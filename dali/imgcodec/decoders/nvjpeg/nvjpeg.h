@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,10 @@ namespace imgcodec {
 
 class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params);
+  explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, std::any> &params);
+
+  using BatchParallelDecoderImpl::CanDecode;
+  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override;
 
   // NvjpegDecoderInstance has to operate on its own thread pool instead of the
   // one passed by the DecodeContext. Overriding thread pool pointer caried in
@@ -56,8 +59,8 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
   ~NvJpegDecoderInstance();
 
-  bool SetParam(const char *name, const any &value) override;
-  any GetParam(const char *name) const override;
+  bool SetParam(const char *name, const std::any &value) override;
+  std::any GetParam(const char *name) const override;
 
  private:
   nvjpegHandle_t nvjpeg_handle_;
@@ -67,6 +70,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   size_t host_memory_padding_ = 0;
   nvjpegDevAllocator_t device_allocator_;
   nvjpegPinnedAllocator_t pinned_allocator_;
+  bool use_jpeg_fancy_upsampling_ = false;
 
   struct DecoderData {
     nvjpegJpegDecoder_t decoder = nullptr;
@@ -134,7 +138,7 @@ class NvJpegDecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance>
-  Create(int device_id, const std::map<std::string, any> &params = {}) const override {
+  Create(int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<NvJpegDecoderInstance>(device_id, params);
   }
 };

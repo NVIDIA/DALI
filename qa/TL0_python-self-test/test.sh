@@ -8,6 +8,10 @@ pushd ../TL0_python-self-test-readers-decoders
 bash -e ./test.sh
 popd
 
-pushd ../TL0_python-self-test-operators
+pushd ../TL0_python-self-test-operators_1
+bash -e ./test.sh
+popd
+
+pushd ../TL0_python-self-test-operators_2
 bash -e ./test.sh
 popd

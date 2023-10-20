@@ -63,7 +63,7 @@ def test_dlpack_tensor_list_gpu_to_cpu():
 
 
 def check_dlpack_types_gpu(t):
-    arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cuda", dtype=t)
+    arr = torch.tensor([[0.39, 1.5], [1.5, 0.33]], device="cuda", dtype=t)
     tensor = TensorGPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype,
                                          size=tensor.shape())
@@ -72,7 +72,9 @@ def check_dlpack_types_gpu(t):
 
 def test_dlpack_interface_types():
     for t in [
-            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            # the more recent PyTorch doesn't support
+            # torch.bool,
+            torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
             torch.float64, torch.float32, torch.float16
     ]:
         yield check_dlpack_types_gpu, t
@@ -147,7 +149,7 @@ def test_tensor_list_gpu_from_dlpack():
 
 
 def check_dlpack_types_cpu(t):
-    arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cpu", dtype=t)
+    arr = torch.tensor([[0.39, 1.5], [1.5, 0.33]], device="cpu", dtype=t)
     tensor = TensorCPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype,
                                          size=tensor.shape())
@@ -156,7 +158,9 @@ def check_dlpack_types_cpu(t):
 
 def test_dlpack_interface_types_cpu():
     for t in [
-            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            # the more recent PyTorch doesn't support
+            # torch.bool,
+            torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
             torch.float64, torch.float32
     ]:
         yield check_dlpack_types_cpu, t

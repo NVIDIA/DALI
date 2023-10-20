@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,9 +45,9 @@ def test_tensorlist_getitem_gpu():
     tensorlist = pipe.run()[0]
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist[0]) != cp.ndarray
-    assert type(tensorlist[0]) == TensorGPU
-    assert type(tensorlist[-3]) == TensorGPU
+    assert type(tensorlist[0]) is not cp.ndarray
+    assert type(tensorlist[0]) is TensorGPU
+    assert type(tensorlist[-3]) is TensorGPU
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="TensorListCPU index out of range"):
         tensorlist[len(tensorlist)]
@@ -84,7 +84,7 @@ def test_cuda_array_interface_tensor_gpu():
     pipe.build()
     tensor_list = pipe.run()[0]
     assert tensor_list[0].__cuda_array_interface__['data'][0] == tensor_list[0].data_ptr()
-    assert tensor_list[0].__cuda_array_interface__['data'][1] is True
+    assert not tensor_list[0].__cuda_array_interface__['data'][1]
     assert np.array_equal(tensor_list[0].__cuda_array_interface__['shape'], tensor_list[0].shape())
     type_str = tensor_list[0].__cuda_array_interface__['typestr']
     dtype = types.to_numpy_type(tensor_list[0].dtype)
@@ -331,3 +331,13 @@ def test_tensor_from_tensor_list_gpu():
         out += ts
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4,), i // 3))
+
+
+def test_tensor_expose_dlpack_capsule():
+    arr = cp.arange(20)
+    tensor = TensorGPU(arr, "NHWC")
+
+    capsule = tensor._expose_dlpack_capsule()
+    arr_from_dlpack = cp.from_dlpack(capsule)
+
+    assert cp.array_equal(arr, arr_from_dlpack)

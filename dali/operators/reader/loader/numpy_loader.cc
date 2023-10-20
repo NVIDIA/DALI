@@ -70,49 +70,46 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   }
 
   auto path = filesystem::join_path(file_root_, filename);
-  auto current_file = FileStream::Open(path, read_ahead_, !copy_read_data_);
+  auto current_file = FileStream::Open(path, read_ahead_, !copy_read_data_, use_o_direct_);
 
   // read the header
   numpy::HeaderData header;
   auto ret = header_cache_.GetFromCache(filename, header);
   try {
-    if (ret) {
-      current_file->SeekRead(header.data_offset);
-    } else {
-      numpy::ParseHeader(header, current_file.get());
+    if (!ret) {
+      if (use_o_direct_) {
+        numpy::ParseODirectHeader(header, current_file.get(), o_direct_alignm_,
+                                  o_direct_read_len_alignm_);
+      } else {
+        numpy::ParseHeader(header, current_file.get());
+      }
       header_cache_.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what() + ". File: " + filename);
   }
+  current_file->SeekRead(header.data_offset);
 
   Index nbytes = header.nbytes();
+  target.shape = header.shape;
+  target.type = header.type();
+  target.meta = meta;
+  target.data_offset = header.data_offset;
+  target.nbytes = nbytes;
+  target.filename = std::move(path);
 
   if (copy_read_data_) {
-    if (target.data.shares_data()) {
-      target.data.Reset();
-    }
-    target.data.Resize(header.shape, header.type());
-    // copy the image
-    Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()),
-                                    nbytes);
-    DALI_ENFORCE(ret == nbytes, make_string("Failed to read file: ", filename));
+    target.current_file = std::move(current_file);
   } else {
     auto p = current_file->Get(nbytes);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
     target.data.ShareData(p, nbytes, false, {nbytes}, header.type(), CPU_ONLY_DEVICE_ID);
     target.data.Resize(header.shape, header.type());
+    // close the file handle
+    current_file->Close();
   }
-
-  // close the file handle
-  current_file->Close();
-
-  // set metadata
   target.data.SetMeta(meta);
-
-  // set file path
-  target.filename = std::move(path);
 
   // set meta
   target.fortran_order = header.fortran_order;

@@ -15,6 +15,7 @@
 # Get all the source files and dump test files
 
 add_subdirectory(builtin)
+add_subdirectory(checkpointing)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_SRCS PARENT_SCOPE)

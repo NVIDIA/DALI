@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,6 +114,22 @@ using DynamicScratchpadImpl = DynamicScratchpadImplT<
 
 }  // namespace detail
 
+/**
+ * @brief A dynamically allocated scratchpad
+ *
+ * A dynamic scratchpad dynamically allocates temporary buffers for each memory kind.
+ * The memory used grows indefinitely and is freed once the object is destroyed (e.g. goes out
+ * of scope). This means that instances of DynamicScratchpad MUST NOT be kept alive indefinitely,
+ * e.g. as class members, because it will constitute an UNDETECTABLE functional MEMORY LEAK (the
+ * buffers will be still reachable and will be freed when the scratchpad is destroyed, so memory
+ * sanitizers won't complain).
+ * Instead, a DynamicScratchpad should be declared as a local / temporary variable.
+ *
+ * The memory allocation and deallocation follows the specified access order (stream or host).
+ * Device memory is allocated and deallocated in order specified in `device_order`.
+ * Pinned memory is, by default, allocated in host order and deallocated in the same order as the
+ * one used for device memory. These orders, however, can be specified explicitly.
+ */
 class DynamicScratchpad
   : public Scratchpad
   , private detail::DynamicScratchpadImpl {
@@ -194,9 +210,9 @@ class DynamicScratchpad
       return nullptr;  // do not initialize the resource in case of 0-sized allocation
 
     auto &r = resource<Kind>();
-    if (!r.get_upstream()) {
+    if (!r.upstream()) {
       InitResource(type_tag<Kind>());
-      assert(r.get_upstream() != nullptr);
+      assert(r.upstream() != nullptr);
     }
     return r.allocate(bytes, alignment);
   }

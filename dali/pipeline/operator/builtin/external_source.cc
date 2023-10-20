@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,13 @@
 
 namespace dali {
 
-template <>
+template<>
 void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
-  ForwardCurrentData(output, thread_pool);
+  ForwardCurrentData(output, data_id_, thread_pool);
+  output.SetLayout(layout_);
+  SetDepletedOperatorTrace(ws, !(repeats_last_ || HasDataInQueue()));
 }
 
 
@@ -30,7 +32,9 @@ template<>
 void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-  ForwardCurrentData(output, stream_used);
+  ForwardCurrentData(output, data_id_, stream_used);
+  output.SetLayout(layout_);
+  SetDepletedOperatorTrace(ws, !(repeats_last_ || HasDataInQueue()));
 }
 
 
@@ -66,6 +70,8 @@ of dimensions in the layout.
 Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr)
                 .AddOptionalArg<TensorLayout>("layout",
                                               "If provided, sets the layout of the data.", nullptr)
+                .AddOptionalArg("repeat_last", R"(If set, the last batch is re-fed when running
+the operator and no new data was provided since the previous run.)", false)
                 .AddParent("InputOperatorBase");
 
 

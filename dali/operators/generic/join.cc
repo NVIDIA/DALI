@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,7 +78,8 @@ bool TensorJoin<Backend, new_axis>::SetupImpl(
         input_i.type() == dtype && input_i.shape().sample_dim() == ndim,
         make_string(
             "All inputs must have the same type and number of dimensions.\ninput #0: ", dtype, ", ",
-            ndim, "-D\n", "\ninput #", i, ": ", input_i.type(), ", ", ndim, "-D."));
+            ndim, "-D\n", "\ninput #", i, ": ", input_i.type(), ", ",
+            input_i.shape().sample_dim(), "-D."));
   }
 
   GetInputLayout(ws);

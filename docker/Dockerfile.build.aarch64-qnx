@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl -O https://bootstrap.pypa.io/get-pip.py; \
     fi && python get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang && pip install libclang && \
+    pip install clang==14.0 && pip install libclang==14.0.1 && \
     rm -rf /root/.cache/pip/
 
 COPY --from=qnx_cuda_tools /qnx /qnx
@@ -75,7 +75,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     cd /tmp/dali_deps                                                                              && \
     git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
     git submodule init                                                                             && \
-    git submodule update --depth 1 --recursive                                                     && \
+    git submodule update --depth 1 --init --recursive                                              && \
     export CC_COMP=aarch64-unknown-nto-qnx7.0.0-gcc                                                && \
     export CXX_COMP=aarch64-unknown-nto-qnx7.0.0-g++                                               && \
     export INSTALL_PREFIX="/usr/aarch64-unknown-nto-qnx/aarch64le"                                 && \
@@ -129,11 +129,15 @@ CMD cmake                \
   -DBUILD_NVCOMP=OFF     \
   -DBUILD_NVJPEG=OFF     \
   -DBUILD_NVJPEG2K=OFF   \
+  -DBUILD_CVCUDA=OFF     \
   -DBUILD_NVOF=OFF       \
   -DBUILD_NVDEC=OFF      \
   -DBUILD_NVML=OFF       \
   -DBUILD_CUFILE=OFF     \
   -DVERBOSE_LOGS=OFF     \
   -DWITH_DYNAMIC_CUDA_TOOLKIT=ON\
+  -DWITH_DYNAMIC_NVJPEG=ON\
+  -DWITH_DYNAMIC_CUFFT=ON\
+  -DWITH_DYNAMIC_NPP=ON  \
   .. &&                  \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

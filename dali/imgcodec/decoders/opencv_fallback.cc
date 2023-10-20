@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/imgcodec/registry.h"
+#include "dali/imgcodec/parsers/jpeg.h"
 
 namespace dali {
 namespace imgcodec {
@@ -123,6 +124,23 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
       Convert(out, layout, out_format, in, layout, in_format, roi, orientation);
+    } else {
+      JpegParser jpeg_parser{};
+      if (jpeg_parser.CanParse(in)) {
+        auto ext_info = jpeg_parser.GetExtendedInfo(in);
+        std::array<uint8_t, 2> sof3_marker = {0xff, 0xc3};
+        if (ext_info.sof_marker == sof3_marker) {
+          res.exception = std::make_exception_ptr(
+            std::runtime_error(
+              make_string(
+                "Failed to decode a JPEG lossless (SOF-3) sample: ", in->SourceInfo(), ".\n"
+                "Support for lossless is currently very limited:\n"
+                "- Only number of components <= 2\n"
+                "- Only predictor value 1\n"
+                "- Only \"mixed\" backend\n"
+                "If you used the \"cpu\" backend, please try the \"mixed\" one instead\n")));
+        }
+      }
     }
   } catch (...) {
     res.exception = std::current_exception();

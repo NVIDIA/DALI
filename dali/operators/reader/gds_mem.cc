@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ class GDSMemoryPool : public mm::memory_resource<mm::memory_kind::device> {
     return opt;
   }
   GDSRegisteredResource upstream_;
-  mm::pool_resource_base<mm::memory_kind::device,
+  mm::pool_resource<mm::memory_kind::device,
                          mm::coalescing_free_tree,
                          spinlock> pool_;
 };

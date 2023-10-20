@@ -4,8 +4,8 @@ usage="ENV1=VAL1 ENV2=VAL2 [...] $(basename "$0") [-h] -- this is simple, one cl
 a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
-PYVER=[default 3.6, required only by Run image]
-CUDA_VERSION=[default 12.0, accepts also 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7 and 11.8]
+PYVER=[default 3.8, required only by Run image]
+CUDA_VERSION=[default 12.1, accepts also 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8 and 12.0]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
@@ -38,18 +38,18 @@ shift $((OPTIND - 1))
 
 #########Set Me###############
 export ARCH=${ARCH:-x86_64}
-export PYVER=${PYVER:-3.6}
+export PYVER=${PYVER:-3.8}
 export PYV=${PYVER/./}
-export CUDA_VERSION=${CUDA_VERSION:-12.0}
+export CUDA_VERSION=${CUDA_VERSION:-12.2}
 export CUDA_VER=${CUDA_VERSION//./}
 
 if [ "${CUDA_VERSION%%\.*}" ]
 then
   if [ $CUDA_VER != "110" ] && [ $CUDA_VER != "111" ] && [ $CUDA_VER != "112" ] && [ $CUDA_VER != "113" ] && \
      [ $CUDA_VER != "114" ] && [ $CUDA_VER != "115" ] && [ $CUDA_VER != "116" ] && [ $CUDA_VER != "117" ] && [ $CUDA_VER != "118" ] && \
-     [ $CUDA_VER != "120" ]
+     [ $CUDA_VER != "120" ] && [ $CUDA_VER != "121" ] && [ $CUDA_VER != "122" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8 and 12.0 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 11.0, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 12.0, 12.1 and 12.2 are supported"
       exit 1
   fi
 else
@@ -161,6 +161,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_PROTOBUF=${BUILD_PROTOBUF}          \
                                         BUILD_NVJPEG=${BUILD_NVJPEG}              \
                                         BUILD_NVJPEG2K=${BUILD_NVJPEG2K}          \
+                                        BUILD_CVCUDA=${BUILD_CVCUDA}              \
                                         BUILD_LIBTIFF=${BUILD_LIBTIFF}            \
                                         BUILD_NVOF=${BUILD_NVOF}                  \
                                         BUILD_NVDEC=${BUILD_NVDEC}                \
@@ -173,12 +174,16 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_NVCOMP=${BUILD_NVCOMP}              \
                                         LINK_DRIVER=${LINK_DRIVER}                \
                                         WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
+                                        WITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON} \
+                                        WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON} \
+                                        WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}  \
                                         STRIP_BINARY=${STRIP_BINARY}              \
                                         VERBOSE_LOGS=${VERBOSE_LOGS}              \
                                         WERROR=${WERROR}                          \
                                         BUILD_WITH_ASAN=${BUILD_WITH_ASAN}        \
                                         BUILD_WITH_LSAN=${BUILD_WITH_LSAN}        \
                                         BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN}      \
+                                        PYTHON_VERSIONS=${PYTHON_VERSIONS}        \
                                         NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}        \
                                         GIT_SHA=${GIT_SHA}                        \
                                         DALI_TIMESTAMP=${DALI_TIMESTAMP}          \
@@ -205,6 +210,7 @@ else
                                    --build-arg "BUILD_PROTOBUF=${BUILD_PROTOBUF}"          \
                                    --build-arg "BUILD_NVJPEG=${BUILD_NVJPEG}"              \
                                    --build-arg "BUILD_NVJPEG2K=${BUILD_NVJPEG2K}"          \
+                                   --build-arg "BUILD_CVCUDA=${BUILD_CVCUDA}"              \
                                    --build-arg "BUILD_LIBTIFF=${BUILD_LIBTIFF}"            \
                                    --build-arg "BUILD_NVOF=${BUILD_NVOF}"                  \
                                    --build-arg "BUILD_NVDEC=${BUILD_NVDEC}"                \
@@ -216,12 +222,16 @@ else
                                    --build-arg "BUILD_NVCOMP=${BUILD_NVCOMP}"              \
                                    --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
                                    --build-arg "WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT}"\
+                                   --build-arg "WITH_DYNAMIC_NVJPEG"=${WITH_DYNAMIC_NVJPEG:-ON} \
+                                   --build-arg "WITH_DYNAMIC_CUFFT"=${WITH_DYNAMIC_CUFFT:-ON} \
+                                   --build-arg "WITH_DYNAMIC_NPP"=${WITH_DYNAMIC_NPP:-ON}  \
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
                                    --build-arg "VERBOSE_LOGS=${VERBOSE_LOGS}"              \
                                    --build-arg "WERROR=${WERROR}"                          \
                                    --build-arg "BUILD_WITH_ASAN=${BUILD_WITH_ASAN}"        \
                                    --build-arg "BUILD_WITH_LSAN=${BUILD_WITH_LSAN}"        \
                                    --build-arg "BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN}"      \
+                                   --build-arg "PYTHON_VERSIONS=${PYTHON_VERSIONS}"    \
                                    --build-arg "NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID}"        \
                                    --build-arg "GIT_SHA=${GIT_SHA}"                        \
                                    --build-arg "DALI_TIMESTAMP=${DALI_TIMESTAMP}"          \

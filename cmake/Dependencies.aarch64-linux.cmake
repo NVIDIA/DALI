@@ -29,7 +29,7 @@ CUDA_find_library(CUDART_LIB cudart_static)
 list(APPEND DALI_EXCLUDES libcudart_static.a)
 
 # NVIDIA NPPC library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_NPP)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
   CUDA_find_library(CUDA_nppig_LIBRARY nppig_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
@@ -42,7 +42,7 @@ if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
 endif ()
 
 # cuFFT library
-if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
+if (NOT WITH_DYNAMIC_CUFFT)
   CUDA_find_library(CUDA_cufft_LIBRARY cufft_static)
   list(APPEND DALI_EXCLUDES libcufft_static.a)
 endif ()
@@ -75,6 +75,9 @@ include(cmake/Dependencies.common.cmake)
 ##################################################################
 set(Protobuf_CROSS YES)
 set(Protobuf_USE_STATIC_LIBS YES)
+# deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
+# then use Protobuf to utilize our FindProtobuf.cmake to discover the rest
+find_package(protobuf REQUIRED CONFIG)
 find_package(Protobuf 2.0 REQUIRED)
 if(${Protobuf_VERSION} VERSION_LESS "3.0")
   message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
@@ -85,9 +88,14 @@ else()
 endif()
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
+list(APPEND DALI_LIBS protobuf::libprotobuf)
 
 set(DALI_SYSTEM_LIBS rt pthread m dl)
 list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
 
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)
+# find all the libraries that protobuf::libprotobuf depends on
+get_link_libraries(PROTO_LIB_DEPS protobuf::libprotobuf)
+# libutf8_validity.a is a result of a generator expression, add it manually as it is
+# hard/impossible to learn its name during the configuration phase
+list(APPEND DALI_EXCLUDES ${PROTO_LIB_DEPS} libutf8_validity.a)

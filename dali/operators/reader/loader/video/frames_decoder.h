@@ -198,6 +198,10 @@ class DLL_PUBLIC FramesDecoder {
 
   virtual ~FramesDecoder() = default;
 
+  std::string Filename() {
+    return filename_.has_value() ? filename_.value() : "memory file";
+  }
+
  protected:
   std::unique_ptr<AvState> av_state_;
 
@@ -258,10 +262,6 @@ class DLL_PUBLIC FramesDecoder {
   bool IsFormatSeekable();
 
   void CountFrames(AvState *av_state);
-
-  std::string Filename() {
-    return filename_.has_value() ? filename_.value() : "memory file";
-  }
 
   std::string CodecName() {
     return av_state_->codec_ ? av_state_->codec_->name :

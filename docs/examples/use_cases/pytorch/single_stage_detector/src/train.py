@@ -3,7 +3,7 @@ import torch
 import time
 
 
-def train_loop(model, loss_func, epoch, optim, train_loader, iteration, logger, args):
+def train_loop(model, loss_func, scaler, epoch, optim, train_loader, iteration, logger, args):
     for nbatch, data in enumerate(train_loader):
         if args.data_pipeline == 'no_dali':
             (img, _, img_size, bbox, label) = data
@@ -19,32 +19,28 @@ def train_loop(model, loss_func, epoch, optim, train_loader, iteration, logger, 
         boxes_in_batch = len(label.nonzero())
 
         if boxes_in_batch != 0:
-            ploc, plabel = model(img)
-            ploc, plabel = ploc.float(), plabel.float()
+            with torch.cuda.amp.autocast(enabled=args.fp16_mode):
+                ploc, plabel = model(img)
+                ploc, plabel = ploc.float(), plabel.float()
 
-            trans_bbox = bbox.transpose(1, 2).contiguous().cuda()
+                trans_bbox = bbox.transpose(1, 2).contiguous().cuda()
 
-            label = label.cuda()
-            gloc = Variable(trans_bbox, requires_grad=False)
-            glabel = Variable(label, requires_grad=False)
+                label = label.cuda()
+                gloc = Variable(trans_bbox, requires_grad=False)
+                glabel = Variable(label, requires_grad=False)
 
-            loss = loss_func(ploc, plabel, gloc, glabel)
+                loss = loss_func(ploc, plabel, gloc, glabel)
 
+            scaler.scale(loss).backward()
             logger.update_iter(epoch, iteration, loss.item())
 
-            if args.fp16:
-                if args.amp:
-                    with optim.scale_loss(loss) as scale_loss:
-                        scale_loss.backward()
-                else:
-                    optim.backward(loss)
-            else:
-                loss.backward()
 
         if args.warmup is not None:
             warmup(optim, args.warmup, iteration, args.learning_rate)
 
-        optim.step()
+
+        scaler.step(optim)
+        scaler.update()
         optim.zero_grad()
         iteration += 1
 

@@ -51,7 +51,7 @@ struct NumpyFileWrapperGPU {
   DALIMeta meta;
   int source_sample_idx = -1;
 
-  std::unique_ptr<CUFileStream> file_stream;
+  std::unique_ptr<CUFileStream> file_stream_;
   bool read_ahead = false;
 
   void ReadHeader(detail::NumpyHeaderCache &cache);

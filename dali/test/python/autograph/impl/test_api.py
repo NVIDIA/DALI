@@ -47,8 +47,6 @@ from nvidia.dali._autograph.utils import ag_logging
 # from nvidia.dali._autograph.utils.all_utils import custom_constant
 
 
-api.initialize_autograph()
-
 global_n = 2
 
 DEFAULT_RECURSIVE = converter.ConversionOptions(recursive=True)
@@ -65,6 +63,18 @@ def custom_constant(val):
 
 
 class ApiTest(unittest.TestCase):
+
+  @classmethod
+  def setUpClass(cls):
+    cls._transpiler_bkp = api._TRANSPILER
+    cls._conversion_rules_bkp = api.config.CONVERSION_RULES
+    api._TRANSPILER = None
+    api.initialize_autograph()
+
+  @classmethod
+  def tearDownClass(cls):
+    api._TRANSPILER = cls._transpiler_bkp
+    api.config.CONVERSION_RULES = cls._conversion_rules_bkp
 
   def evaluate(self, x):
     return x

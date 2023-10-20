@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,17 @@ def is_mulit_gpu():
     return is_mulit_gpu_var
 
 
+def get_device_memory_info(device_id=0):
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        return pynvml.nvmlDeviceGetMemoryInfo(handle)
+    except ModuleNotFoundError:
+        print("Python bindings for NVML not found")
+        return None
+
+
 def get_dali_extra_path():
     try:
         dali_extra_path = os.environ['DALI_EXTRA_PATH']
@@ -65,6 +76,7 @@ np = None
 assert_array_equal = None
 assert_allclose = None
 cp = None
+absdiff_checked = False
 
 
 def import_numpy():
@@ -115,6 +127,55 @@ def get_gpu_num():
     out_list = out_str[0].split('\n')
     out_list = [elm for elm in out_list if len(elm) > 0]
     return len(out_list)
+
+
+def _get_absdiff(left, right):
+
+    def make_unsigned(dtype):
+        if not np.issubdtype(dtype, np.signedinteger):
+            return dtype
+        return {
+            np.dtype(np.int8): np.uint8,
+            np.dtype(np.int16): np.uint16,
+            np.dtype(np.int32): np.uint32,
+            np.dtype(np.int64): np.uint64,
+        }[dtype]
+
+    # np.abs of diff doesn't handle overflow for unsigned types
+    absdiff = np.maximum(left, right) - np.minimum(left, right)
+    # max - min can overflow for signed types, wrap them up
+    absdiff = absdiff.astype(make_unsigned(absdiff.dtype))
+    return absdiff
+
+
+def _check_absdiff():
+    """
+    In principle, overflow on signed int is UB (that we relied on so far anyway).
+    The following one-time check aims to verify the overflow wraps as expected.
+    """
+    for i in range(-128, 127):
+        for j in range(-128, 127):
+            left = np.array([i, i], dtype=np.int8)
+            right = np.array([j, j], dtype=np.int8)
+            diff = _get_absdiff(left, right)
+            expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+    for i in range(0, 255):
+        for j in range(0, 255):
+            left = np.array([i, i], dtype=np.uint8)
+            right = np.array([j, j], dtype=np.uint8)
+            diff = _get_absdiff(left, right)
+            expected_diff = np.array([abs(i - j), abs(i - j)], dtype=np.uint8)
+            assert np.array_equal(diff, expected_diff), f"{diff} {expected_diff} {i} {j}"
+
+
+def get_absdiff(left, right):
+    # Make sanity checks, in particular, if wrapping signed integers works as expected
+    global absdiff_checked
+    if not absdiff_checked:
+        absdiff_checked = True
+        _check_absdiff()
+    return _get_absdiff(left, right)
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
@@ -187,10 +248,12 @@ def check_batch(batch1, batch2, batch_size=None,
             "Size mismatch {} != {}".format(left.size, right.size)
         if left.size != 0:
             try:
-                # abs doesn't handle overflow for uint8, so get minimal value of a-b and b-a
-                diff1 = np.abs(left - right)
-                diff2 = np.abs(right - left)
-                absdiff = np.minimum(diff2, diff1)
+                # Do the difference calculation on a type that allows subtraction
+                if left.dtype == bool:
+                    left = left.astype(int)
+                if right.dtype == bool:
+                    right = right.astype(int)
+                absdiff = get_absdiff(left, right)
                 err = np.mean(absdiff)
                 max_err = np.max(absdiff)
                 min_err = np.min(absdiff)
@@ -381,6 +444,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
             out = out.as_cpu()
         for i in range(len(out)):
             if not np.array_equal(out[i], ref[i]):
+                print("Mismatch at sample", i)
                 print("Out: ", out.at(i))
                 print("Ref: ", ref[i])
             assert np.array_equal(out[i], ref[i])
@@ -511,7 +575,7 @@ def read_file_bin(filename):
     return np.fromfile(filename, dtype='uint8')
 
 
-def filter_files(dirpath, suffix):
+def filter_files(dirpath, suffix, exclude_subdirs=[]):
     """
     Read all file names recursively from a directory and filter those, which end with given suffix
     :param dirpath: Path to directory, from which the file names will be read
@@ -520,6 +584,9 @@ def filter_files(dirpath, suffix):
     """
     fnames = []
     for dir_name, subdir_list, file_list in os.walk(dirpath):
+        for d in exclude_subdirs:
+            if d in subdir_list:
+                subdir_list.remove(d)
         flist = filter(lambda fname: fname.endswith(suffix), file_list)
         flist = map(lambda fname: os.path.join(dir_name, fname), flist)
         fnames.extend(flist)
@@ -557,7 +624,8 @@ def to_array(dali_out):
     return np.array(dali_out)
 
 
-def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
+def module_functions(cls, prefix="", remove_prefix="", check_non_module=False,
+                     allowed_private_modules=[]):
     res = []
     if hasattr(cls, '_schema_name'):
         prefix = prefix.replace(remove_prefix, "")
@@ -569,9 +637,12 @@ def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
         res.append(prefix + cls.__name__)
     elif check_non_module or inspect.ismodule(cls):
         for c_name, c in inspect.getmembers(cls):
-            if not c_name.startswith("_") and c_name not in sys.builtin_module_names:
+            def public_or_allowed(c_name):
+                return not c_name.startswith("_") or c_name in allowed_private_modules
+            if public_or_allowed(c_name) and c_name not in sys.builtin_module_names:
                 res += module_functions(c, cls.__name__, remove_prefix=remove_prefix,
-                                        check_non_module=check_non_module)
+                                        check_non_module=check_non_module,
+                                        allowed_private_modules=allowed_private_modules)
     return res
 
 

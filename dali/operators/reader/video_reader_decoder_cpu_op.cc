@@ -29,6 +29,7 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   auto &video_output = ws.Output<CPUBackend>(0);
 
   video_output.Copy(sample.data_);
+  video_output.SetSourceInfo(sample.data_.GetSourceInfo());
 
   if (has_labels_) {
     auto &label_output = ws.Output<CPUBackend>(1);

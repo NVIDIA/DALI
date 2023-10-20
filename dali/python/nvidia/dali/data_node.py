@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ from ._utils.hacks import not_iterable
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
+
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
@@ -27,7 +28,6 @@ def _arithm_op(*args, **kwargs):
 
 
 class _NewAxis:
-
     def __init__(self, name=None):
         if name is not None:
             if not isinstance(name, str):
@@ -71,6 +71,14 @@ class DataNode(object):
     # of a tensor, we keep the source argument the same so that
     # the pipeline can backtrack through the user-defined graph
     def gpu(self):
+        from nvidia.dali import _conditionals
+
+        if _conditionals.conditionals_enabled():
+            # Treat it the same way as regular operator would behave
+            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
+            transferred_node = DataNode(self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(transferred_node, [self])
+            return transferred_node
         return DataNode(self.name, "gpu", self.source)
 
     def __add__(self, other):
@@ -154,12 +162,13 @@ class DataNode(object):
 
     def __bool__(self):
         raise TypeError(
-            "\"DataNode\" is a symbolic representation of TensorList used for defining"
-            " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
-            " in regular Python context. Bool conversion in Pipeline can be achieved"
-            " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-            " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
-            " section of DALI documentation.")
+            '"DataNode" was used in conditional context - it might have been used in truth'
+            " evaluation for `if` statement, logical expression or cast to a boolean."
+            " To use conditional execution via `if` statements you need to specify"
+            " `enable_conditionals=True` in `@nvidia.dali.pipeline_def` decorator."
+            " You can read more about conditional execution in specific section of the Pipeline"
+            " documentation. Bool conversion can be achieved with the `cast` operator."
+        )
 
     def __getitem__(self, val):
         idxs = []
@@ -172,22 +181,19 @@ class DataNode(object):
                 idxs.append((None, None, None, None))
                 return True
             elif isinstance(idx, slice):
-                if idx.step is not None and idx.step != 1:
-                    raise NotImplementedError("Slicing with non-unit step is not implemented.")
-                idxs.append((None, idx.start, idx.stop, None))
+                idxs.append((None, idx.start, idx.stop, idx.step))
                 return True
-            elif isinstance(idx, _NewAxis):
+            if isinstance(idx, _NewAxis):
                 new_axes.append(dim)
                 if idx.name is not None:
                     new_axis_names.append(idx.name)
                 return True
-            elif idx is Ellipsis:
+            if idx is Ellipsis:
                 raise NotImplementedError("Ellipsis in indexing is not implemented")
-            elif isinstance(idx, (float, str)):
+            if isinstance(idx, (float, str)):
                 raise TypeError("Invalid type for an index: ", type)
-            else:
-                idxs.append((idx, None, None, None))
-                return False
+            idxs.append((idx, None, None, None))
+            return False
 
         if not isinstance(val, tuple):
             val = (val, )
@@ -215,6 +221,7 @@ class DataNode(object):
                 slice_args["step_%i" % i] = step
 
         import nvidia.dali.fn
+
         if len(slice_args) == 0:
             # No true slicing arguments - only full range : and dali.newaxis.
             # We need to ensure there are enough dimensions in the input for the number of
@@ -227,6 +234,7 @@ class DataNode(object):
                 sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
         else:
             sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
+
         if len(new_axes) == 0:
             return sliced
         else:

@@ -38,3 +38,8 @@ def test_double_decorated_functions():
 def test_improper_decorated_function():
     from autoserialize_test import improper_decorated_function
     invoke_autoserialize(improper_decorated_function, serialized_filename)
+
+
+def test_custom_module():
+    from autoserialize_test import custom_module_inside
+    invoke_autoserialize(custom_module_inside, serialized_filename)

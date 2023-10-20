@@ -182,7 +182,7 @@ function(CUDA_find_library_stub out_path lib_name)
 endfunction()
 
 function(CUDA_remove_toolkit_include_dirs include_dirs)
-  if (NOT ${CMAKE_CUDA_TOOLKIT_ROOT})
+  if (NOT CMAKE_CUDA_TOOLKIT_ROOT)
     CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
   else()
     set(CUDA_TOOLKIT_PATH_VAR ${CMAKE_CUDA_TOOLKIT_ROOT})

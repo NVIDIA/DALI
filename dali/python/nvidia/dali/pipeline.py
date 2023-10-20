@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,14 @@
 # limitations under the License.
 
 # pylint: disable=no-member
+from typing import List
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
+from nvidia.dali import _conditionals
 from threading import local as tls
 from . import data_node as _data_node
 import functools
@@ -108,6 +110,29 @@ Parameters
 `enable_memory_stats`: bool, optional, default = 1
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
+`enable_checkpointing`: bool, optional, default = 0
+    If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
+    method returns serialized state of the pipeline. The same pipeline can be later rebuilt
+    with the serialized state passed as the `checkpoint` parameter to resume running
+    from the saved epoch.
+
+    .. warning::
+        This is an experimental feature. The API may change without notice. Checkpoints
+        created with this DALI version may not be compatible with the future releases.
+        Currently, some operators do not support checkpointing. The state of the pipeline
+        can be saved at the beginning of an epoch only.
+
+`checkpoint`: str, optional, default = None
+    Serialized checkpoint, received from ``checkpoint`` method.
+    When pipeline is built, it's state is restored from the `checkpoint` and the pipeline
+    resumes execution from the saved epoch.
+
+    .. warning::
+        This is an experimental feature. The API may change without notice. Checkpoints
+        created with this DALI version may not be compatible with the future releases.
+        Currently, some operators do not support checkpointing. The state of the pipeline
+        can be saved at the beginning of an epoch only.
+
 `py_num_workers`: int, optional, default = 1
     The number of Python workers that will process ``ExternalSource`` callbacks.
     The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
@@ -188,6 +213,8 @@ Parameters
                  default_cuda_stream_priority=0,
                  *,
                  enable_memory_stats=False,
+                 enable_checkpointing=False,
+                 checkpoint=None,
                  py_num_workers=1,
                  py_start_method="fork",
                  py_callback_pickler=None,
@@ -241,6 +268,8 @@ Parameters
         self._parallel_input_callbacks = None
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
+        self._enable_checkpointing = enable_checkpointing
+        self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
@@ -252,6 +281,8 @@ Parameters
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+        self._conditionals_enabled = False
+        self._condition_stack = None
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -643,7 +674,7 @@ Parameters
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
-                outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+                outputs[i] = nvidia.dali.ops._instantiate_constant_node(outputs[i], "cpu")
             elif contains_nested_datanode(outputs[i]):
                 raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
                                 "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
@@ -659,40 +690,7 @@ Parameters
 
             _data_node._check(outputs[i])
 
-        # Backtrack to construct the graph
-        op_ids = set()
-        edges = deque(list(outputs) + self._sinks)
-        ops = []
-        while edges:
-            current_edge = edges.popleft()
-            source_op = current_edge.source
-            if source_op is None:
-                raise RuntimeError("Pipeline encountered an Edge with no source op.")
-
-            # To make sure we don't double count ops in
-            # the case that they produce more than one
-            # output, we keep track of the unique op ids
-            # for each op we encounter and only add the
-            # op if we have not already
-            if source_op.id not in op_ids:
-                op_ids.add(source_op.id)
-                source_op.check_args()
-                ops.append(source_op)
-            else:
-                # If the op was already added, we need to
-                # change its position to the top of the list.
-                # This ensures topological ordering of ops
-                # when adding to the backend pipeline
-                ops.remove(source_op)
-                ops.append(source_op)
-            for edge in source_op.inputs:
-                if isinstance(edge, list):
-                    for e in edge:
-                        edges.append(e)
-                else:
-                    edges.append(edge)
-        ops.reverse()
-        self._ops = ops
+        self._ops = _collect_ops(list(outputs) + self._sinks)
         self._graph_outputs = outputs
         self._setup_input_callbacks()
         self._disable_pruned_external_source_instances()
@@ -738,6 +736,7 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
+        self._pipe.EnableCheckpointing(self._enable_checkpointing)
 
         # Add the ops to the graph and build the backend
         related_logical_id = {}
@@ -828,23 +827,15 @@ Parameters
         if not self._py_pool_started:
             self._start_py_workers()
 
-    def build(self, define_graph=None):
+    def _restore_state_from_checkpoint(self):
+        if self._checkpoint is not None:
+            self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+
+    def build(self):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
         Framework-specific plugins handle this step automatically.
-
-        Parameters
-        ----------
-        define_graph : callable
-            If specified, this function will be used instead of member :meth:`define_graph`.
-            This parameter must not be set, if the pipeline outputs are specified with
-            :meth:`set_outputs` or if the :meth:`start_py_workers` is used.
-
-            .. note::
-
-                This method of defining the processing graph cannot be used with parallel
-                ``ExternalSource``.
         """
         if self._built:
             return
@@ -859,6 +850,7 @@ Parameters
         self._setup_pipe_pool_dependency()
 
         self._pipe.Build(self._generate_build_args())
+        self._restore_state_from_checkpoint()
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -886,6 +878,9 @@ Parameters
 
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by ``feed_input``. See ``cuda_stream`` parameter for details.
+
+        In order to avoid stalls, the data should be provided ahead of time `prefetch_queue_depth`
+        times.
 
         Parameters
         ----------
@@ -1077,8 +1072,19 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.Outputs()
 
-    def run(self):
-        """Run the pipeline and return the result.
+    def _are_pipeline_inputs_possible(self):
+        """
+        Returns True if using pipeline_inputs argument in .run() function is possible.
+        """
+        if not self.exec_pipelined:
+            return True
+        if self.exec_separated:
+            return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
+        return self.prefetch_queue_depth <= 1
+
+    def run(self, **pipeline_inputs):
+        """
+        Run the pipeline and return the result.
 
         If the pipeline was created with `exec_pipelined` option set to `True`,
         this function will also start prefetching the next iteration for
@@ -1087,9 +1093,54 @@ Parameters
         :meth:`share_outputs` and
         :meth:`release_outputs`
 
-        :return:
+        Parameters
+        ----------
+        pipeline_inputs :
+            Optional argument that can be used to provide inputs to DALI.
+            When DALI has any input operators defined (e.g. fn.external_source), you can provide the
+            inputs to those using named arguments in this function. The assumption is that
+            DALI pipeline has them defined and named properly::
+
+                @pipeline_def
+                def my_pipe():
+                    inp = fn.external_source(name="my_inp")
+                    return inp
+
+            With the example pipeline above, you can provide ``"my_inp"`` input into the
+            :meth:`run()` function::
+
+                p = my_pipe(prefetch_queue_depth=1, ...)
+                p.build()
+                p.run(my_inp=np.random((2,3,2)))
+
+            Such keyword argument specified in the :meth:`run()` function has to have a
+            corresponding input operator node declared in DALI pipeline.
+
+            As always when working with DALI, the value passed to the keyword argument has to
+            denote a whole batch of data.
+
+            Please note, that using this feature requires setting either ``prefetch_queue_depth=1``
+            or ``exec_pipelined=False`` in DALI Pipeline constructor.
+
+            This feature can be considered as a syntactic sugar over :meth:`feed_input` function.
+
+        Returns
+        -------
             A list of `TensorList` objects for respective pipeline outputs
         """
+        if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
+            raise RuntimeError(f"""
+                When using pipeline_inputs named arguments, either
+                `prefetch_queue_depth` in Pipeline constructor shall be set to 1 (for both devices)
+                or `exec_pipelined` shall be set to False.
+                Received: prefetch_queue_depth={self.prefetch_queue_depth},
+                exec_pipelined={self.exec_pipelined}.
+                Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline
+                constructor properly or provide inputs to DALI Pipeline via another mean
+                (e.g. `feed_input` function or `source` argument in the `fn.external_source`
+                operator.)""")
+        for inp_name, inp_value in pipeline_inputs.items():
+            self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
             self.schedule_run()
             return self.outputs()
@@ -1187,7 +1238,7 @@ Parameters
         """Serialize the pipeline to a Protobuf string.
 
         Additionally, you can pass file name, so that serialized pipeline will be written there.
-        The file contents will be overwritten
+        The file contents will be overwritten.
 
         Parameters
         ----------
@@ -1196,7 +1247,7 @@ Parameters
                 This parameter must not be set, if the pipeline outputs are specified with
                 :meth:`set_outputs`.
         filename : str
-                File, from where serialized pipeline will be writeen.
+                The file that the serialized pipeline will be written to.
         kwargs : dict
                 Refer to Pipeline constructor for full list of arguments.
         """
@@ -1267,8 +1318,10 @@ Parameters
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
+        pipeline._pipe.EnableCheckpointing(pipeline._enable_checkpointing)
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
+        pipeline._restore_state_from_checkpoint()
         pipeline._built = True
         pipeline._deserialized = True
         pipeline._max_batch_size = kw.get("batch_size", -1)
@@ -1306,8 +1359,10 @@ Parameters
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
+        self._pipe.EnableCheckpointing(self._enable_checkpointing)
         self._backend_prepared = True
         self._pipe.Build()
+        self._restore_state_from_checkpoint()
         self._built = True
         self._deserialized = True
 
@@ -1329,6 +1384,32 @@ Parameters
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
+
+    def checkpoint(self, filename=None):
+        """Returns the pipeline's state as a serialized Protobuf string.
+
+        Additionally, if, `filename` is specified, the serialized checkpoint will be
+        written to the specified file. The file contents will be overwritten.
+
+        The same pipeline can be rebuilt with the saved checkpoint passed as a `checkpoint`
+        parameter to resume execution from the saved epoch.
+
+        .. warning::
+            This is an experimental feature. The API may change without notice. Checkpoints
+            created with this DALI version may not be compatible with the future releases.
+            Currently, some operators do not support checkpointing. The state of the pipeline
+            can be saved at the beginning of an epoch only.
+
+        Parameters
+        ----------
+        filename : str
+                The file that the serialized pipeline will be written to.
+        """
+        ret = self._pipe.SerializedCheckpoint()
+        if filename is not None:
+            with open(filename, 'wb') as checkpoint_file:
+                checkpoint_file.write(ret)
+        return ret
 
     def set_outputs(self, *output_data_nodes):
         """Set the outputs of the pipeline.
@@ -1411,6 +1492,10 @@ def _discriminate_args(func, **func_kwargs):
     if 'debug' not in func_argspec.args and 'debug' not in func_argspec.kwonlyargs:
         func_kwargs.pop('debug', False)
 
+    if ('enable_conditionals' not in func_argspec.args
+            and 'enable_conditionals' not in func_argspec.kwonlyargs):
+        func_kwargs.pop('enable_conditionals', False)
+
     ctor_args = {}
     fn_args = {}
 
@@ -1436,7 +1521,85 @@ def _discriminate_args(func, **func_kwargs):
     return ctor_args, fn_args
 
 
-def pipeline_def(fn=None, **pipeline_kwargs):
+def _regroup_args(func, pipeline_def_kwargs, fn_call_kwargs):
+    """Regroup arguments that are directed into Pipeline object construction (Pipeline kwargs)
+    and those that are passed into pipeline definition function (Function kwargs).
+
+    Parameters
+    ----------
+    func : Callable
+        The pipeline definition function that is decorated.
+    pipeline_def_kwargs : Dict
+        Kwargs passed to the @pipeline_def
+    fn_call_kwargs : Dict
+        Kwargs passed when invoking the decorated function
+
+    Returns
+    -------
+    (Dict, Dict)
+        Pipeline kwargs, Function kwargs
+    """
+    ctor_args, fn_kwargs = _discriminate_args(func, **fn_call_kwargs)
+    pipeline_kwargs = {**pipeline_def_kwargs, **ctor_args}  # Merge and overwrite dict
+    return pipeline_kwargs, fn_kwargs
+
+
+def _preprocess_pipe_func(func, conditionals_on):
+    """Transform the pipeline definition function if the conditionals are enabled
+    """
+    if conditionals_on:
+        return _conditionals._autograph.to_graph(func)
+    else:
+        return func
+
+
+def _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs):
+    """Based on the conditional mode status, preprocess the pipeline object before the graph
+    is created.
+    """
+    if conditionals_on:
+        # We push and pop manually to be compatible with _PipelineDebug
+        try:
+            Pipeline.push_current(pipe)
+            pipe._conditionals_enabled = True
+            pipe._condition_stack = _conditionals._ConditionStack()
+            # Add all parameters to the pipeline as "know" nodes in the top scope.
+            for arg in args:
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+            for _, arg in fn_kwargs.items():
+                if isinstance(arg, DataNode):
+                    _conditionals.register_data_nodes(arg)
+        finally:
+            Pipeline.pop_current()
+
+
+def _generate_graph(pipe, func, fn_args, fn_kwargs):
+    """Build the graph provided by pipeline definition in `func` within the `pipe`.
+
+    Parameters
+    ----------
+    pipe : Pipeline
+        Target pipeline object
+    func : Callable
+        The pipeline definition that is decorated
+    fn_args : List
+        Positional arguments to `func`
+    fn_kwargs : Dict
+        Kwargs to `func`
+    """
+    with pipe:
+        pipe_outputs = func(*fn_args, **fn_kwargs)
+        if isinstance(pipe_outputs, tuple):
+            po = pipe_outputs
+        elif pipe_outputs is None:
+            po = ()
+        else:
+            po = (pipe_outputs, )
+        pipe.set_outputs(*po)
+
+
+def pipeline_def(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
     """
     Decorator that converts a graph definition function into a DALI pipeline factory.
 
@@ -1509,23 +1672,27 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
         pipe = my_pipe(batch_size=42, num_threads=3)
         ...
+
+    Keyword args
+    ------------
+
+    enable_conditionals : bool, optional
+        Enable support for conditional execution of DALI operators using ``if`` statements
+        in the pipeline definition, by default False.
     """
 
     def actual_decorator(func):
 
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
-            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
-            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
-            with pipe:
-                pipe_outputs = func(*args, **fn_kwargs)
-                if isinstance(pipe_outputs, tuple):
-                    po = pipe_outputs
-                elif pipe_outputs is None:
-                    po = ()
-                else:
-                    po = (pipe_outputs, )
-                pipe.set_outputs(*po)
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
+
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            pipe = Pipeline(**pipeline_args)
+            _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
+
+            _generate_graph(pipe, pipe_func, args, fn_kwargs)
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
@@ -1535,7 +1702,80 @@ def pipeline_def(fn=None, **pipeline_kwargs):
     return actual_decorator(fn) if fn else actual_decorator
 
 
-def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
+def _collect_ops(output_nodes):
+    """
+    Traverses the pipeline graph starting from the outputs to collect all reachable operators.
+    Returns the list of operators topologically sorted, so that operators that contribute
+    as inputs to another operator go first.
+    """
+
+    def get_source_op(edge: DataNode):
+        source_op = edge.source
+        if source_op is None:
+            raise RuntimeError("Pipeline encountered an Edge with no source op.")
+        return source_op
+
+    def get_op_input_edges(op) -> List[DataNode]:
+        for inp in op.inputs:
+            if isinstance(inp, list):
+                yield from inp
+            else:
+                yield inp
+
+    def get_op_outputs_num():
+        # BSF traverse the graph first to learn, for each reachable operator in the graph,
+        # how many data-nodes/edges the operator contributes to
+        # (i.e. the number of outputs of the operator instance)
+        op_outputs_num = {}
+        edges = deque(output_nodes)
+        while edges:
+            current_edge = edges.popleft()
+            source_op = get_source_op(current_edge)
+            if source_op.id in op_outputs_num:
+                op_outputs_num[source_op.id] += 1
+            else:
+                op_outputs_num[source_op.id] = 1
+                source_op.check_args()
+                edges.extend(get_op_input_edges(source_op))
+        return op_outputs_num
+
+    ops = []
+    edges = deque(output_nodes)
+    op_total_outputs_num = get_op_outputs_num()
+    op_visited_outputs_num = {op_id: 0 for op_id in op_total_outputs_num}
+    while edges:
+        current_edge = edges.popleft()
+        source_op = get_source_op(current_edge)
+        op_visited_outputs_num[source_op.id] += 1
+        # Actually visit the operator only when all the nodes it contributes to
+        # were already processed
+        if op_visited_outputs_num[source_op.id] == op_total_outputs_num[source_op.id]:
+            ops.append(source_op)
+            edges.extend(get_op_input_edges(source_op))
+    ops.reverse()
+    return ops
+
+
+def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline_kwargs):
+    """Variant of :meth:`@pipeline_def <nvidia.dali.pipeline_def>` decorator that enables additional
+    experimental features. It has the same API as its non-experimental variant with the addition of
+    the keyword arguments listed below.
+
+    Keyword args
+    ------------
+    debug : bool, optional
+        Enable pipeline debug mode - allowing for step-by-step execution and intermediate data
+        inspection of the pipeline definition, by default False.
+
+        .. note::
+            This mode is intended only for debugging purposes - the pipeline performance will be
+            significantly worse than the non-debug mode.
+
+    .. note::
+
+        The features enabled by this decorator are experimental. The API may change and the
+        functionality may be limited.
+    """
     from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug = pipeline_kwargs.pop('debug', False)
 
@@ -1544,21 +1784,21 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             debug_mode_on = kwargs.get('debug', pipeline_debug)
-            ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
-            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
+            conditionals_on = kwargs.get('enable_conditionals', enable_conditionals)
+
+            pipe_func = _preprocess_pipe_func(func, conditionals_on)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             if debug_mode_on:
-                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs), **pipeline_args)
+                pipe = _PipelineDebug(functools.partial(pipe_func, *args, **fn_kwargs),
+                                      **pipeline_args)
             else:
                 pipe = Pipeline(**pipeline_args)
-                with pipe:
-                    pipe_outputs = func(*args, **fn_kwargs)
-                    if isinstance(pipe_outputs, tuple):
-                        po = pipe_outputs
-                    elif pipe_outputs is None:
-                        po = ()
-                    else:
-                        po = (pipe_outputs, )
-                    pipe.set_outputs(*po)
+
+            _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
+
+            if not debug_mode_on:
+                _generate_graph(pipe, pipe_func, args, fn_kwargs)
+
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`

@@ -102,12 +102,12 @@ If a file list is not provided, this argument is required.)code",
 
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
+  .AddOptionalArg("include_iscrowd",
+      R"code(If set to True annotations marked as ``iscrowd=1`` are included as well.)code",
+      true)
   .AddOptionalArg("polygon_masks",
       R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
-``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
-
-.. warning::
-    Currently objects with ``iscrowd=1`` annotations are skipped.)code",
+``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.)code",
       false)
   .AddOptionalArg("masks", R"code(Enable polygon masks.)code", false)
   .DeprecateArg("masks", false,
@@ -268,6 +268,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   auto labels_span = loader_impl.labels(image_idx);
   std::set<int> labels(labels_span.data(),
                        labels_span.data() + labels_span.size());
+  memset(mask, 0, h * w * sizeof(int));
   if (!labels.size()) {
     return;
   }
@@ -397,7 +398,6 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   }
 
   // Decode final pixelwise masks encoded via RLE
-  memset(mask, 0, h * w * sizeof(int));
   int x = 0, y = 0;
   for (uint i = 0; i < A.m; i++)
     for (uint j = 0; j < A.cnts[i]; j++) {

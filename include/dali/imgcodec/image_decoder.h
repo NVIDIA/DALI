@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
  public:
   ImageDecoder(int device_id,
                bool lazy_init,
-               const std::map<std::string, any> &params = {})
+               const std::map<std::string, std::any> &params = {})
   : ImageDecoder(
       device_id,
       lazy_init,
@@ -60,7 +60,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
    */
   ImageDecoder(int device_id,
                bool lazy_init,
-               const std::map<std::string, any> &params,
+               const std::map<std::string, std::any> &params,
                std::function<bool(ImageDecoderFactory *)> decoder_filter);
 
   ~ImageDecoder();
@@ -173,14 +173,14 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
    * If the value is incorrect for one of the decoders, but that decoder has not yet
    * been constructed, an error may be thrown at a later time, when the decoder is instantiated.
    */
-  bool SetParam(const char *key, const any &value) override;
+  bool SetParam(const char *key, const std::any &value) override;
 
-  int SetParams(const std::map<std::string, any> &params) override;
+  int SetParams(const std::map<std::string, std::any> &params) override;
 
   /**
    * @brief Gets a value previously passed to `SetParam` with the given key.
    */
-  any GetParam(const char *key) const override;
+  std::any GetParam(const char *key) const override;
 
  private:
   struct ScheduledWork;
@@ -219,7 +219,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
                    cudaStream_t stream);
 
   int device_id_ = CPU_ONLY_DEVICE_ID;
-  std::map<std::string, any> params_;
+  std::map<std::string, std::any> params_;
   std::map<const ImageDecoderFactory*, std::unique_ptr<DecoderWorker>> workers_;
   std::multimap<const ImageFormat*, ImageDecoderFactory*> filtered_;
   struct TempImageSource {

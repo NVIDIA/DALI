@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
                            SmallVector<float, 3> in_lo, SmallVector<float, 3> in_hi,
                            bool adjust_roi, bool empty_input, int ndim,
                            ResizeMode mode = ResizeMode::Stretch, const float *max_size = nullptr,
-                           RoundFn size_round_fn = round_int) {
+                           span<const float> alignment = {}, RoundFn size_round_fn = round_int) {
   assert(static_cast<int>(requested_size.size()) == ndim);
   assert(static_cast<int>(in_lo.size()) == ndim);
   assert(static_cast<int>(in_hi.size()) == ndim);
@@ -103,8 +103,10 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
       // and real output size instead.
       adjustment = clamp(adjustment, -10.0, 10.0);
 
-      // keep center of the ROI - adjust the edges
-      double center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
+      // Alignment 0 aligns the ROI start, alignment 0.5 aligns the center of the ROI, alignment 1.0
+      // aligns the end of the ROI
+      double alignment_val = alignment.empty() ? 0.5f : alignment[d];
+      double center = (1.0 - alignment_val) * params.src_lo[d] + alignment_val * params.src_hi[d];
 
       // clamp to more-or-less sane interval to avoid arithmetic problems downstream
       params.src_lo[d] = clamp(center + (params.src_lo[d] - center) * adjustment, -1e+9, 1e+9);

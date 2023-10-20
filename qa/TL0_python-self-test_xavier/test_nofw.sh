@@ -1,7 +1,11 @@
 #!/bin/bash -e
 # used pip packages
-# due to https://github.com/numpy/numpy/issues/18131 we cannot use 1.19.5
-pip_packages='${python_test_runner_package} dataclasses numpy>=1.17,<=1.19.4 opencv-python pillow psutil'
+# don't gather deps for xavier test
+if [ -z "$gather_pip_packages" ]
+then
+  # due to https://github.com/numpy/numpy/issues/18131 we cannot use 1.19.5
+  pip_packages='${python_test_runner_package} dataclasses numpy>=1.20 opencv-python pillow psutil astropy'
+fi
 
 target_dir=./dali/test/python
 

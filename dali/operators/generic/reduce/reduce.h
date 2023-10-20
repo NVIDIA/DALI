@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,64 +18,27 @@
 #include <vector>
 #include <algorithm>
 
-#include "dali/pipeline/operator/operator.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
+#include "dali/kernels/reduce/reductions.h"
+#include "dali/operators/generic/reduce/layout_util.h"
+#include "dali/operators/util/axes_utils.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
 namespace dali {
-namespace detail {
-
-class AxesHelper {
- public:
-  explicit inline AxesHelper(const OpSpec &spec) {
-    has_axes_arg_ = spec.TryGetRepeatedArgument(axes_, "axes");
-    has_axis_names_arg_ = spec.TryGetArgument(axis_names_, "axis_names");
-    has_empty_axes_arg_ =
-      (has_axes_arg_ && axes_.empty()) || (has_axis_names_arg_ && axis_names_.empty());
-
-    DALI_ENFORCE(!has_axes_arg_ || !has_axis_names_arg_,
-      "Arguments `axes` and `axis_names` are mutually exclusive");
-  }
-
-  void PrepareAxes(const TensorLayout &layout, int sample_dim) {
-    if (has_axis_names_arg_) {
-      axes_ = GetDimIndices(layout, axis_names_).to_vector();
-      return;
-    }
-
-    if (!has_axes_arg_) {
-      axes_.resize(sample_dim);
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
-
-    // checks range and duplicates
-    kernels::reduce_impl::CheckAxes(make_cspan(axes_), sample_dim);
-    // adjusts negative indices to positive range
-    kernels::reduce_impl::AdjustAxes(make_span(axes_), sample_dim);
-  }
-
-  bool has_axes_arg_;
-  bool has_axis_names_arg_;
-  bool has_empty_axes_arg_;
-  SmallVector<int, 6> axes_;
-  TensorLayout axis_names_;
-};
-
-}  // namespace detail
 
 template <
   template <typename T, typename R> class ReductionType,
   typename Backend,
   template <template <typename X, typename Y> class RType, typename BType> class ImplType>
-class Reduce : public Operator<Backend>, detail::AxesHelper {
+class Reduce : public StatelessOperator<Backend>, AxesHelper {
  public:
   explicit inline Reduce(const OpSpec &spec) :
-      Operator<Backend>(spec),
+      StatelessOperator<Backend>(spec),
       AxesHelper(spec),
       keep_dims_(spec.GetArgument<bool>("keep_dims")) {
     spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
@@ -109,6 +72,9 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
 
   void RunImpl(Workspace &ws) override {
     auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
+    auto &input = ws.Input<Backend>(0);
+    auto &output = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(output, input, make_span(axes_), keep_dims_);
     reduce_impl.RunImplImpl(ws);
   }
 

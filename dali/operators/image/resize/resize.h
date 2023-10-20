@@ -22,7 +22,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/operators/image/resize/resize_crop_mirror.h"
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/resize_attr.h"
@@ -37,7 +37,7 @@ namespace detail {
 }  // namespace detail
 
 template <typename Backend>
-class Resize : public Operator<Backend>
+class Resize : public StatelessOperator<Backend>
              , protected ResizeBase<Backend> {
  public:
   explicit Resize(const OpSpec &spec);

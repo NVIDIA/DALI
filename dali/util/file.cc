@@ -17,11 +17,12 @@
 #include "dali/util/file.h"
 #include "dali/util/mmaped_file.h"
 #include "dali/util/std_file.h"
+#include "dali/util/odirect_file.h"
 
 namespace dali {
 
 std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_ahead,
-                                             bool use_mmap) {
+                                             bool use_mmap, bool use_odirect) {
   std::string processed_uri;
 
   if (uri.find("file://") == 0) {
@@ -32,6 +33,8 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_a
 
   if (use_mmap) {
     return std::unique_ptr<FileStream>(new MmapedFileStream(processed_uri, read_ahead));
+  } else if (use_odirect) {
+    return std::unique_ptr<FileStream>(new ODirectFileStream(processed_uri));
   } else {
     return std::unique_ptr<FileStream>(new StdFileStream(processed_uri));
   }

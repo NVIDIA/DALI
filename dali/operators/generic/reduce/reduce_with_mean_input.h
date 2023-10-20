@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,15 @@
 #include <vector>
 #include <algorithm>
 
-#include "dali/pipeline/operator/operator.h"
-#include "dali/operators/generic/reduce/reduce.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_cpu.h"
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
+#include "dali/kernels/reduce/reductions.h"
+#include "dali/operators/generic/reduce/reduce.h"
+#include "dali/operators/util/axes_utils.h"
+#include "dali/pipeline/operator/operator.h"
+
 
 #define REDUCE_WITH_MEAN_INPUT_TYPES ( \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)
@@ -33,7 +35,7 @@ namespace dali {
 template <
   template <typename T, typename R, typename S> class ReductionType,
   typename Backend>
-class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
+class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
     Operator<Backend>(spec),
@@ -80,6 +82,9 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
       REDUCE_WITH_MEAN_INPUT_TYPES,
       (this->template RunTyped<float, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));))
+
+    auto& out = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(out, in, make_span(axes_), keep_dims_);
   }
 
   template <typename OutputType, typename InputType>

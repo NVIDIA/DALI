@@ -168,11 +168,11 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
-                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
-                the reader's configuration
+                samples that iterator needs to deal with. It automatically sets
+                `last_batch_padded` accordingly to match
+                the reader's configuration.
     data_layout : str, optional, default = 'NCHW'
                 Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
@@ -471,11 +471,10 @@ class DALIClassificationIterator(DALIGenericIterator):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
-                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
-                the reader's configuration
+                samples that iterator needs to deal with. It automatically sets
+                `last_batch_padded` accordingly to match the reader's configuration.
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
@@ -611,11 +610,10 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
-                Name of the reader which will be queried to the shard size, number of shards and
+                Name of the reader which will be queried for the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
-                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
-                the reader's configuration
+                samples that iterator needs to deal with. It automatically sets
+                `last_batch_padded` accordingly to match the reader's configuration.
     output_types : list of str, optional, default = None
                 List of tags indicating whether the pipeline(s) output batch is
                 uniform (all the samples have the same size) or not. Batch output marked

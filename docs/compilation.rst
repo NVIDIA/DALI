@@ -38,11 +38,11 @@ Building Python Wheel
 Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If needed,
 set the following environment variables:
 
-* | CUDA_VERSION - CUDA toolkit version (11.8 and 12.0 are officially supported, 11.0,
-    11.1, 11.2, 11.4, 11.5, 11.6 and 11.7 are deprecated and may not work).
-  | The default is ``12.0``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
+* | CUDA_VERSION - CUDA toolkit version (11.8 and 12.2 are officially supported, 11.0,
+    11.1, 11.2, 11.4, 11.5, 11.6, 11.7, 12.0 and 12.1 are deprecated and may not work).
+  | The default is ``12.2``. Thanks to CUDA extended compatibility mode, CUDA 11.1, 11.2, 11.3, 11.4
     11.5, 11.6, 11.7 and 11.8 wheels are named as CUDA 11.0 because it can work with the CUDA 11.0 R450.x driver
-    family. Same applies to CUDA 12.0. Please update to the latest recommended driver version in that family.
+    family. Same applies to CUDA 12.x. Please update to the latest recommended driver version in that family.
   | If the value of the CUDA_VERSION is prefixed with `.` then any value ``.XX.Y`` can be passed,
     the supported version check is suppressed, and the user needs to make sure that
     Dockerfile.cudaXXY.deps is present in the `docker/` directory.
@@ -67,7 +67,7 @@ set the following environment variables:
     directory.
   | The default is ``NO``.
 * | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
-  | The default is ``3.6``.
+  | The default is ``3.8``.
 * DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package
   description, i.e. `nightly` will result in the `nvidia-dali-nightly`
 * | CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo.
@@ -387,8 +387,8 @@ To run with sanitizers enabled issue:
   LD_LIBRARY_PATH=. ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
   LD_PRELOAD=PATH_TO_LIB_ASAN/libasan.so.X PATH_TO_LIB_STDC/libstdc++.so.STDC_VERSION*PATH_TO_BINARY*
 
-  Where X depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
-  and libasan.4. Any earlier version may not work.
+  Where X depends on used compiler version, for example GCC 10.x uses 6. Tested with GCC 10.2.1, CUDA 12.0
+  and libasan.6. Any earlier version may not work.
 
   STDC_VERSION used by the system. Usually 6.
 
@@ -415,6 +415,7 @@ Following CMake parameters could be helpful in setting the right paths:
 * libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
 * protobuf options can be obtained from |protobuf_cmake link|_
 
+.. _jetson build:
 
 Cross-compiling for aarch64 Jetson Linux (Docker)
 -------------------------------------------------

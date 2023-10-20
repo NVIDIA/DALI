@@ -27,6 +27,7 @@ void VideoSampleGpu::Decode() {
   data_.Resize(
     shape,
     DALIDataType::DALI_UINT8);
+  data_.SetSourceInfo(video_file_->Filename());
 
   for (int i = 0; i < sequence_len_; ++i) {
     int frame_id = span_->start_ + i * span_->stride_;

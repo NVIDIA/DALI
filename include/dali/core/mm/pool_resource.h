@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 #include <mutex>
 #include <condition_variable>
 #include "dali/core/mm/memory_resource.h"
+#include "dali/core/mm/pool_resource_base.h"
+#include "dali/core/mm/with_upstream.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/device_guard.h"
@@ -85,18 +87,20 @@ constexpr pool_options default_pool_opts<memory_kind::host>() noexcept {
 }
 
 template <typename Kind, class FreeList, class LockType>
-class pool_resource_base : public memory_resource<Kind> {
+class pool_resource : public memory_resource<Kind>,
+                      public pool_resource_base<Kind>,
+                      public with_upstream<Kind> {
  public:
-  explicit pool_resource_base(memory_resource<Kind> *upstream = nullptr,
+  explicit pool_resource(memory_resource<Kind> *upstream = nullptr,
                               const pool_options &opt = default_pool_opts<Kind>())
   : upstream_(upstream), options_(opt) {
      next_block_size_ = opt.min_block_size;
   }
 
-  pool_resource_base(const pool_resource_base &) = delete;
-  pool_resource_base(pool_resource_base &&) = delete;
+  pool_resource(const pool_resource &) = delete;
+  pool_resource(pool_resource &&) = delete;
 
-  ~pool_resource_base() {
+  ~pool_resource() {
     free_all();
   }
 
@@ -121,7 +125,7 @@ class pool_resource_base : public memory_resource<Kind> {
    * the size or alignment requirements is not found, the function returns
    * nullptr withoug allocating from upstream.
    */
-  void *try_allocate_from_free(size_t bytes, size_t alignment) {
+  void *try_allocate_from_free(size_t bytes, size_t alignment) override {
     if (!bytes)
       return nullptr;
 
@@ -131,8 +135,23 @@ class pool_resource_base : public memory_resource<Kind> {
     }
   }
 
+  memory_resource<Kind> *upstream() const override {
+    return upstream_;
+  }
+
   constexpr const pool_options &options() const noexcept {
     return options_;
+  }
+
+  /**
+   * @brief Releases unused memory to the upstream resource
+   *
+   * If there are completely free upstream blocks, they are returned to upstream.
+   * Partially used blocks remain allocated.
+   */
+  void release_unused() override {
+    upstream_lock_guard uguard(upstream_lock_);
+    release_unused_impl(true);
   }
 
  protected:
@@ -172,6 +191,8 @@ class pool_resource_base : public memory_resource<Kind> {
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+    if (static_cast<ssize_t>(bytes) < 0)
+      throw std::bad_alloc();
     lock_guard guard(lock_);
     free_list_.put(ptr, bytes);
   }
@@ -192,6 +213,7 @@ class pool_resource_base : public memory_resource<Kind> {
     for (;;) {
       try {
         new_block = upstream_->allocate(blk_size, alignment);
+        assert(new_block);
         break;
       } catch (const std::bad_alloc &) {
         if (!options_.try_smaller_on_failure)
@@ -207,29 +229,8 @@ class pool_resource_base : public memory_resource<Kind> {
           // (the free list covers them completely), we can try to return them
           // to the upstream, with the hope that it will reorganize and succeed in
           // the subsequent allocation attempt.
-          int blocks_freed = 0;
-          SmallVector<bool, 32> removed;
-          removed.resize(blocks_.size(), false);
-          {
-            lock_guard guard(lock_);
-            for (int i = 0; i < static_cast<int>(blocks_.size()); i++) {
-              UpstreamBlock blk = blocks_[i];
-              removed[i] = free_list_.remove_if_in_list(blk.ptr, blk.bytes);
-              if (removed[i])
-                blocks_freed++;
-            }
-          }
-
-          if (!blocks_freed)
-            throw;  // we freed nothing, so there's no point in retrying to allocate
-
-          for (int i = blocks_.size() - 1; i >= 0; i--) {
-            if (removed[i]) {
-              UpstreamBlock blk = blocks_[i];
-              upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
-              blocks_.erase_at(i);
-            }
-          }
+          if (!release_unused_impl())
+            throw;
           // mark that we've tried, so we can fail fast the next time
           tried_return_to_upstream = true;
         }
@@ -247,6 +248,47 @@ class pool_resource_base : public memory_resource<Kind> {
       throw;
     }
     return new_block;
+  }
+
+  int release_unused_impl(bool shrink_next_block_size = false) {
+    // go over blocks and find ones that are completely covered by free regions
+    // - we can free such blocks.
+    int blocks_freed = 0;
+    SmallVector<bool, 32> removed;
+    removed.resize(blocks_.size(), false);
+    {
+      lock_guard guard(lock_);
+      for (int i = 0; i < static_cast<int>(blocks_.size()); i++) {
+        UpstreamBlock blk = blocks_[i];
+        removed[i] = free_list_.remove_if_in_list(blk.ptr, blk.bytes);
+        if (removed[i])
+          blocks_freed++;
+      }
+    }
+
+    if (!blocks_freed)
+      return 0;  // nothing to free
+
+    // Go backwards, so we free in reverse order of allocation from upstream.
+    for (int i = blocks_.size() - 1; i >= 0; i--) {
+      if (removed[i]) {
+        UpstreamBlock blk = blocks_[i];
+        upstream_->deallocate(blk.ptr, blk.bytes, blk.alignment);
+        blocks_.erase_at(i);
+      }
+    }
+    if (shrink_next_block_size) {
+      if (blocks_.empty()) {
+        next_block_size_ = options_.min_block_size;
+      } else {
+        next_block_size_ = blocks_.back().bytes;
+        // next_block_size() uses the previous value of next_block_size_ and modifies it
+        // - this will behave now as if the last remaining block was the most recently allocated
+        next_block_size(0);
+      }
+    }
+
+    return blocks_freed;
   }
 
   size_t next_block_size(size_t upcoming_allocation_size) {
@@ -291,7 +333,7 @@ class pool_resource_base : public memory_resource<Kind> {
 namespace detail {
 
 template <typename Kind, class FreeList, class LockType>
-struct can_merge<pool_resource_base<Kind, FreeList, LockType>> : can_merge<FreeList> {};
+struct can_merge<pool_resource<Kind, FreeList, LockType>> : can_merge<FreeList> {};
 
 }  // namespace detail
 

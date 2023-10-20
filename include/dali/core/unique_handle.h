@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020, 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 #define DALI_CORE_UNIQUE_HANDLE_H_
 
 #include <utility>
-#include "dali/core/common.h"
 
 namespace dali {
 

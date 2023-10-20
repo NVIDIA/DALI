@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,14 +44,24 @@ void ForEachThread(ThreadPool &tp, Func &&func) {
   int n = tp.NumThreads();
   std::atomic_int pending{n};
   for (int i = 0; i < n; i++) {
-    tp.AddWork([&](int tid) noexcept {
-      func(tid);
+    tp.AddWork([&](int tid) {
+      std::exception_ptr err{nullptr};
+      try {
+        func(tid);
+      } catch (...) {
+        // If there's any error we catch it and rethrow only after the number
+        // of pending tasks is properly updated and the threads unblocked.
+        err = std::current_exception();
+      }
+
+      std::unique_lock lock(m);
       if (--pending == 0) {
         cv.notify_all();
       } else {
-        std::unique_lock lock(m);
         cv.wait(lock, [&]() { return pending == 0; });
       }
+      if (err)  // if there's an error, we can rethrow it now
+        std::rethrow_exception(err);
     });
   }
   tp.RunAll(true);

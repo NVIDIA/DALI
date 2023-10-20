@@ -243,6 +243,16 @@ class BasePackage():
         """
         return ""
 
+    def get_links_index(self, cuda_version):
+        """Gets a url with direct links to artifacts for pip for given cuda version.
+
+            Parameters
+            ----------
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        return ""
+
 
 class PlainPackage(BasePackage):
     """Class describing a simple package with a key/name and a list of versions.
@@ -291,7 +301,7 @@ class CudaPackage(BasePackage):
 
     def get_all_versions(self, cuda_version):
         cuda_version = self.max_cuda_version(cuda_version)
-        return self.filter_versions(self.versions[cuda_version])
+        return self.filter_versions(self.versions.get(cuda_version, []))
 
     def max_cuda_version(self, cuda_version):
         """Gets a compatible, available cuda version to one asked for.
@@ -325,13 +335,16 @@ class CudaPackageExtraIndex(CudaPackage):
             If it includes `{cuda_v}` it is replaced by the cuda_version when queried
         `extra_index`: str, optional, default = ""
             Extra url used as pep 503 compatible repository to obtain listed packages
+        `links_index`: str, optional, default = ""
+            A URL or path to an html file with direct links to archives
     """
-    def __init__(self, key, versions, name=None, extra_index=""):
+    def __init__(self, key, versions, name=None, extra_index="", links_index=""):
         super(CudaPackageExtraIndex, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
             raise TypeError("versions argument should be a dictionary"
                             " {cuda_version_str : list_of_versions}")
         self.extra_index = extra_index
+        self.links_index = links_index
 
     def get_extra_index(self, cuda_version):
         """Gets a extra url index for pip for a given cuda version.
@@ -343,6 +356,17 @@ class CudaPackageExtraIndex(CudaPackage):
         """
         cuda_version = self.max_cuda_version(cuda_version)
         return self.extra_index.format(cuda_v=cuda_version)
+
+    def get_links_index(self, cuda_version):
+        """Gets a url with direct links to artifacts for pip for given cuda version.
+
+            Parameters
+            ----------
+            `cuda_version`: str
+                Cuda version used for this query
+        """
+        cuda_version = self.max_cuda_version(cuda_version)
+        return self.links_index.format(cuda_v=cuda_version)
 
 
 class CudaHttpPackage(CudaPackage):
@@ -439,53 +463,45 @@ class CudaHttpPackage(CudaPackage):
 
 
 all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
-                PlainPackage("opencv-python", [PckgVer("4.5.1.48", dependencies=["numpy<1.24"])]),
+                PlainPackage("opencv-python", [PckgVer("4.5.4.60", dependencies=["numpy<1.24"])]),
                 CudaPackage("cupy",
-                            {"100": [PckgVer("8.6.0", dependencies=["numpy<1.24"])],
-                             "110": [PckgVer("8.6.0", dependencies=["numpy<1.24"])],
-                             "111": [PckgVer("8.6.0", dependencies=["numpy<1.24"])]},
+                            {"113": [PckgVer("10.0.0", python_min_ver="3.8",
+                                             dependencies=["numpy<1.24"])]},
                             "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                            {"100": [PckgVer("1.9.0", dependencies=["numpy<1.24"])],
-                             "110": [PckgVer("1.9.1", dependencies=["numpy<1.24"])],
-                             "111": [PckgVer("1.9.1", dependencies=["numpy<1.24"])]},
+                            {"113": [PckgVer("1.9.1", dependencies=["numpy<1.24"])]},
                             "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
-                            {"100": [
-                                PckgVer("1.15.5", python_max_ver="3.7",
-                                        dependencies=["protobuf<4", "numpy<1.24"]),
-                                PckgVer("2.3.4", python_max_ver="3.8",
-                                        dependencies=["protobuf<4", "numpy<1.24"])],
-                             "110": [
-                                PckgVer("2.10.1", python_min_ver="3.7",
-                                        dependencies=["protobuf<4", "numpy<1.24"]),
-                                PckgVer("2.11.0", python_min_ver="3.7",
-                                        dependencies=["protobuf<4", "numpy<1.24"]),
-                                PckgVer("1.15.5+nv22.11", python_min_ver="3.8",
-                                        python_max_ver="3.8", alias="nvidia-tensorflow",
-                                        dependencies=["protobuf<4", "numpy<1.24"])]}),
+                            {"110": [
+                                PckgVer("2.12.1", python_min_ver="3.8", alias="tensorflow",
+                                        dependencies=["protobuf<4", "numpy<1.24",
+                                                      "urllib3<2.0", "typing_extensions<4.6"]),
+                                PckgVer("2.13.0", python_min_ver="3.8", alias="tensorflow",
+                                        dependencies=["protobuf<4", "numpy<1.24",
+                                                      "urllib3<2.0", "typing_extensions<4.6"])]}),
                 CudaPackageExtraIndex("torch",
-                                      {"101": [PckgVer("1.8.0", dependencies=["numpy<1.24"])],
-                                       "111": [PckgVer("1.8.0", dependencies=["numpy<1.24"])]},
+                                      {"113": [PckgVer("1.11.0", python_min_ver="3.8",
+                                                       dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("torchvision",
-                                      {"101": [PckgVer("0.9.0", dependencies=["numpy<1.24"])],
-                                       "111": [PckgVer("0.9.0", dependencies=["numpy<1.24"])]},
+                                      {"113": [PckgVer("0.12.0", python_min_ver="3.8",
+                                                       dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
-                CudaPackage("paddlepaddle-gpu",
-                            {"100": [
-                                PckgVer("2.2.0", dependencies=["protobuf<4", "numpy<1.24"])],
-                             "110": [
-                                PckgVer("2.2.0", dependencies=["protobuf<4", "numpy<1.24"])]}),
+                CudaPackageExtraIndex("paddlepaddle-gpu",
+                                      {"110": [PckgVer("2.4.1.post117",
+                                                       dependencies=["protobuf<4", "numpy<1.24"])]},
+                                      links_index="https://www.paddlepaddle.org.cn/"
+                                                  "whl/linux/mkl/avx/stable.html"),
+                CudaPackageExtraIndex("jax",  # name used in our test script, see the mxnet case
+                                      {"113": [PckgVer("0.4.13", python_min_ver="3.8",
+                                                       dependencies=["jaxlib"])]},
+                                      # name used during installation
+                                      name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
+                                      links_index=("https://storage.googleapis.com/"
+                                                   "jax-releases/jax_cuda_releases.html")),
                 CudaPackage("numba",
-                            {"100": [
-                                PckgVer("0.55.2", python_min_ver="3.7",
-                                        dependencies=["numpy<1.24"]),
-                                PckgVer("0.53.1", python_max_ver="3.6")],
-                             "110": [
-                                PckgVer("0.56.0", python_min_ver="3.7",
-                                        dependencies=["numpy<1.24"]),
-                                PckgVer("0.53.1", python_max_ver="3.6")]})
+                            {"110": [PckgVer("0.57.0", python_min_ver="3.8",
+                                             dependencies=["numpy<1.24"])]})
                 ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
@@ -505,6 +521,9 @@ parser.add_argument('--use', '-u', dest='use', default=[],
                     help="provide only packages from this list", nargs='*')
 parser.add_argument('--extra_index', '-e', dest='extra_index',
                     help="return relevant extra indices list for pip", action='store_true',
+                    default=False)
+parser.add_argument('--links_index', '-k', dest='links_index',
+                    help="return relevant link indices list for pip", action='store_true',
                     default=False)
 args = parser.parse_args()
 
@@ -564,9 +583,17 @@ def get_install_string(idx, packages, cuda_version):
     return " ".join(ret)
 
 
-def get_extra_indices(idx, packages, cuda_version):
+def get_extra_indices(packages, cuda_version):
     """Get all extra indices for given packages"""
     ret = for_all_pckg(packages, lambda pckg: pckg.get_extra_index(cuda_version),
+                       add_additional_packages=False)
+    # add all remaining used packages with default versions
+    return " ".join(ret)
+
+
+def get_links_indices(packages, cuda_version):
+    """Get all urls with direct links for given packages"""
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_links_index(cuda_version),
                        add_additional_packages=False)
     # add all remaining used packages with default versions
     return " ".join(ret)
@@ -585,7 +612,9 @@ def main():
     elif args.install >= 0:
         print(get_install_string(args.install, args.use, args.cuda))
     elif args.extra_index:
-        print(get_extra_indices(args.install, args.use, args.cuda))
+        print(get_extra_indices(args.use, args.cuda))
+    elif args.links_index:
+        print(get_links_indices(args.use, args.cuda))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,12 @@ class DLL_PUBLIC JpegParser : public ImageParser {
  public:
   ImageInfo GetInfo(ImageSource *encoded) const override;
   bool CanParse(ImageSource *encoded) const override;
+
+  struct ExtendedImageInfo {
+    ImageInfo img_info;
+    std::array<uint8_t, 2> sof_marker;
+  };
+  ExtendedImageInfo GetExtendedInfo(ImageSource *encoded) const;
 };
 
 }  // namespace imgcodec

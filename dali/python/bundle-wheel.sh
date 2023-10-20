@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,11 +106,11 @@ make_wheel_record() {
 DEPS_LIST=(
     "${DEPS_PATH}/lib64/libjpeg.so.62"
     "${DEPS_PATH}/lib/libjpeg.so.62"
-    "${DEPS_PATH}/lib/libavformat.so.59"
-    "${DEPS_PATH}/lib/libavcodec.so.59"
-    "${DEPS_PATH}/lib/libavfilter.so.8"
-    "${DEPS_PATH}/lib/libavutil.so.57"
-    "${DEPS_PATH}/lib/libswscale.so.6"
+    "${DEPS_PATH}/lib/libavformat.so.60"
+    "${DEPS_PATH}/lib/libavcodec.so.60"
+    "${DEPS_PATH}/lib/libavfilter.so.9"
+    "${DEPS_PATH}/lib/libavutil.so.58"
+    "${DEPS_PATH}/lib/libswscale.so.7"
     "${DEPS_PATH}/lib/libtiff.so.6"
     "${DEPS_PATH}/lib/libsndfile.so.1"
     "${DEPS_PATH}/lib/libFLAC.so.12"
@@ -122,6 +122,11 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
     "${DEPS_PATH}/lib/libcfitsio.so.4"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
+    # cvcuda adds _d suffix to lib names for debug builds
+    "lib/libcvcuda_d.so.0"
+    "lib/libnvcv_types_d.so.0"
 )
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
@@ -171,6 +176,11 @@ copy_and_patch() {
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
 
+    if [[ "$STRIP_DEBUG" != "NO" ]]; then
+        echo "Stripping $patchedpath from debug info"
+        strip_so $TMPDIR/$patchedpath
+    fi
+
     echo "Patching DT_SONAME field in $patchedpath"
     patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
 }
@@ -186,6 +196,7 @@ pushd $TMPDIR
 
 patch_hashed_names() {
     local sofile=$1
+    local patch_cmd=""
     needed_so_files=$(patchelf --print-needed $sofile)
     for ((j=0;j<${#original[@]};++j)); do
         origname=${original[j]}
@@ -197,10 +208,14 @@ patch_hashed_names() {
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
                 echo "patching $sofile entry $origname to $patchedname"
-                patchelf --replace-needed $origname $patchedname $sofile
+                patch_cmd="$patch_cmd --replace-needed $origname $patchedname"
             fi
         fi
     done
+    if [ -n "$patch_cmd" ]; then
+        echo "running $patch_cmd on $sofile"
+        patchelf $patch_cmd $sofile
+    fi
 }
 echo "Patching to fix the so names to the hashed names..."
 # get list of files to iterate over

@@ -37,7 +37,8 @@ if(NVJPEG_FOUND)
   endif()
 
   set(CMAKE_REQUIRED_INCLUDES_OLD ${CMAKE_REQUIRED_INCLUDES_OLD})
-  set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+  list(APPEND CMAKE_REQUIRED_INCLUDES "${NVJPEG_INCLUDE_DIR}")
+  list(APPEND CMAKE_REQUIRED_INCLUDES "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
   set(CMAKE_REQUIRED_LIBRARIES_OLD ${CMAKE_REQUIRED_LIBRARIES})
   foreach(DIR ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
     list(APPEND CMAKE_REQUIRED_LIBRARIES "-L${DIR}")
@@ -48,6 +49,14 @@ if(NVJPEG_FOUND)
   check_cxx_symbol_exists("nvjpegBufferPinnedCreate" "nvjpeg.h" NVJPEG_DECOUPLED_API)
   check_cxx_symbol_exists("nvjpegDecodeBatchedPreAllocate" "nvjpeg.h" NVJPEG_PREALLOCATE_API)
 
+  include(CheckCXXSourceCompiles)
+  check_cxx_source_compiles(
+          "#include <nvjpeg.h>
+          int main(){
+            return NVJPEG_BACKEND_LOSSLESS_JPEG != 6;
+          }"
+          NVJPEG_LOSSLESS_SUPPORTED)
+
   set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
   set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_OLD})
 
@@ -57,6 +66,11 @@ if(NVJPEG_FOUND)
     message("nvJPEG is using new API")
   else()
     message(FATAL_ERROR "nvjpegBufferPinnedCreate is required but not present in the available version of nvJPEG")
+  endif()
+  if (NVJPEG_LOSSLESS_SUPPORTED)
+    message("nvJPEG lossless supported")
+  else()
+    message("nvJPEG lossless NOT supported")
   endif()
 else()
   message("nvJPEG NOT found")

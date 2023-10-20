@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,9 +150,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
 }
 
 Pipeline::~Pipeline() {
-  DeviceGuard dg(device_id_);
-  if (executor_)
-    executor_->Shutdown();
+  Shutdown();
   graph_ = {};
 }
 
@@ -367,9 +365,6 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // store updated spec
   AddToOpSpecs(inst_name, spec, logical_id);
-  if (spec.name() == "ExternalSource") {
-    ext_input_names_.insert(inst_name);
-  }
   return logical_id;
 }
 
@@ -455,6 +450,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
                   num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
                   default_cuda_stream_priority_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
+  executor_->EnableCheckpointing(checkpointing_);
   executor_->Init();
 
   // Creating the graph
@@ -545,6 +541,10 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   // Load the final graph into the executor
   executor_->Build(&graph_, outputs);
+
+  DiscoverInputOperators();
+  repeat_last_.FindNodes(graph_);
+
   built_ = true;
 }
 
@@ -568,6 +568,8 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
 void Pipeline::RunCPU() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
+  repeat_last_.Refeed<CPUBackend>(*this);
+  repeat_last_.Refeed<GPUBackend>(*this);
   executor_->RunCPU();
 }
 
@@ -674,6 +676,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   spec->AddArg("max_batch_size", max_batch_size_)
     .AddArg("num_threads", num_threads_)
     .AddArg("device_id", device_id_)
+    .AddArg("checkpointing", checkpointing_)
     .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
@@ -766,6 +769,15 @@ OpNode * Pipeline::GetOperatorNode(const std::string& name) {
   return &(graph_.Node(name));
 }
 
+const OpNode *Pipeline::GetInputOperatorNode(const std::string& name) {
+  for (auto &[op_name, node] : input_operators_) {
+    if (op_name == name) {
+      return node;
+    }
+  }
+  DALI_FAIL(make_string("Could not find an input operator with name \"", name, "\""));
+}
+
 std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   std::map<std::string, ReaderMeta> ret;
   for (Index i = 0; i < graph_.NumOp(); ++i) {
@@ -790,63 +802,85 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
-const TensorLayout& Pipeline::GetInputLayout(const std::string &name) {
+
+const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->layout();
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_layout();
+    }
+  } else if (node->op_type == OpType::MIXED) {
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_layout();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->layout();
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_layout();
     }
   }
-  DALI_FAIL(make_string("Could not find an external input named \"", name, "\"."));
+  DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
 }
+
 
 int Pipeline::GetInputNdim(const std::string &name) {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputNdim()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->ndim();
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_ndim();
+    }
+  } else if (node->op_type == OpType::MIXED) {
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_ndim();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->ndim();
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_ndim();
     }
   }
-  DALI_FAIL(make_string("Could not find an external input named \"", name, "\"."));
+  DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
 }
 
+
 DALIDataType Pipeline::GetInputDtype(const std::string &name) {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputDtype()\".");
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->dtype();
+    const auto *in_op = dynamic_cast<InputOperator<CPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_dtype();
+    }
+  } else if (node->op_type == OpType::MIXED) {
+    const auto *in_op = dynamic_cast<InputOperator<MixedBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_dtype();
     }
   } else if (node->op_type == OpType::GPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      return es_ptr->dtype();
+    const auto *in_op = dynamic_cast<InputOperator<GPUBackend> *>(node->op.get());
+    if (in_op) {
+      return in_op->in_dtype();
     }
   }
-  DALI_FAIL(make_string("Could not find an external input named \"", name, "\"."));
+  DALI_FAIL(make_string("Could not find an input operator named \"", name, "\"."));
 }
 
 const std::string &Pipeline::input_name(int n) const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"input_name(int)\".");
   DALI_ENFORCE(n >= 0,
-               make_string("Id of an external source must be a non-negative integer. Got: ", n));
-  DALI_ENFORCE(static_cast<size_t>(n) < ext_input_names_.size(),
-               make_string("Trying to fetch the name of the external input with id=", n,
+               make_string("Id of an input operator must be a non-negative integer. Got: ", n));
+  DALI_ENFORCE(static_cast<size_t>(n) < input_operators_.size(),
+               make_string("Trying to fetch the name of an input operator with id=", n,
                            " while the id has to be smaller than ", num_inputs(), "."));
-  auto it = ext_input_names_.begin();
+  auto it = input_operators_.begin();
   std::advance(it, n);
-  return *it;
+  return it->first;
 }
 
 const std::string &Pipeline::output_name(int id) const {
@@ -873,9 +907,22 @@ int Pipeline::output_ndim(int id) const {
   return output_descs_[id].ndim;
 }
 
-int Pipeline::num_inputs() const {
-  return ext_input_names_.size();
+
+static bool is_input_operator(const OpNode &op_node) {
+  return (op_node.op_type == OpType::CPU &&
+          dynamic_cast<InputOperator<CPUBackend> *>(op_node.op.get())) ||
+         (op_node.op_type == OpType::MIXED &&
+          dynamic_cast<InputOperator<MixedBackend> *>(op_node.op.get())) ||
+         (op_node.op_type == OpType::GPU &&
+          dynamic_cast<InputOperator<GPUBackend> *>(op_node.op.get()));
 }
+
+
+int Pipeline::num_inputs() const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_inputs()\".");
+  return input_operators_.size();
+}
+
 
 int Pipeline::num_outputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
@@ -907,6 +954,37 @@ int Pipeline::GetNextInternalLogicalId() {
 bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
   dali_proto::PipelineDef def;
   return DeserializePipeline(serialized_pipeline, def);
+}
+
+void Pipeline::Shutdown() {
+  DeviceGuard dg(device_id_);
+  auto& op_nodes = graph_.GetOpNodes();
+  for (auto & node : op_nodes) {
+    if (!is_input_operator(node)) continue;
+    OperatorBase *op_ptr = &(const_cast<dali::OpNode*>(&node)->InstantiateOperator());
+    switch (node.op_type) {
+      case OpType::CPU: {
+        auto *cpu_op_ptr = dynamic_cast<InputOperator<CPUBackend> *>(op_ptr);
+        assert(cpu_op_ptr);
+        cpu_op_ptr->BreakWaiting();
+      } break;
+      case OpType::MIXED: {
+        auto *mixed_op_ptr = dynamic_cast<InputOperator<MixedBackend> *>(op_ptr);
+        assert(mixed_op_ptr);
+        mixed_op_ptr->BreakWaiting();
+      } break;
+      case OpType::GPU: {
+        auto *gpu_op_ptr = dynamic_cast<InputOperator<GPUBackend> *>(op_ptr);
+        assert(gpu_op_ptr);
+        gpu_op_ptr->BreakWaiting();
+      } break;
+      default:
+        assert(false);  // This shouldn't happen.
+    }
+  }
+
+  if (executor_)
+    executor_->Shutdown();
 }
 
 std::tuple<OpSpec, std::string, std::string> Pipeline::PrepareMakeContiguousNode(
@@ -975,6 +1053,37 @@ std::string Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &i
     meta.has_make_contiguous_gpu = true;
   }
   return output_name_and_device;
+}
+
+
+void Pipeline::DiscoverInputOperators() {
+  auto& op_nodes = graph_.GetOpNodes();
+  for (const auto & node : op_nodes) {
+    if (is_input_operator(node)) {
+      input_operators_.insert(std::make_pair(node.instance_name, &node));
+    }
+  }
+}
+
+
+void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
+  for (const auto &node : graph.GetOpNodes()) {
+    if (node.spec.name() != "ExternalSource")
+      continue;
+
+    bool repeat_last = false;
+    if (!node.spec.TryGetArgument(repeat_last, "repeat_last") || !repeat_last)
+      continue;
+
+    if (node.op_type == OpType::GPU)
+      gpu_nodes_[node.instance_name] = { &node };
+    else if (node.op_type == OpType::CPU)
+      cpu_nodes_[node.instance_name] = { &node };
+    else if (node.op_type == OpType::MIXED)
+      mixed_nodes_[node.instance_name] = { &node };
+    else
+      assert(!"Unexpected backend for an ExternalSource node.");
+  }
 }
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,41 @@ from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorCPU, TensorListCPU, TensorListGPU
 from nvidia.dali.backend_impl import types as types_
+import nvidia.dali as dali
 
 from nose_utils import assert_raises
-from test_utils import dali_type_to_np, py_buffer_from_address
+from nose import SkipTest
+from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
+
+
+def test_preallocation():
+    dali.backend.PreallocateDeviceMemory(0, 0)  # initialize the context
+    dali.backend.ReleaseUnusedMemory()
+    mem_info = get_device_memory_info()
+    if mem_info is None:
+        raise SkipTest("Python bindings for NVML not found, skipping")
+    free_before_prealloc = mem_info.free
+    size = 256 << 20
+    dali.backend.PreallocateDeviceMemory(size, 0)
+    free_after_prealloc = get_device_memory_info().free
+    assert free_after_prealloc < free_before_prealloc  # check that something was allocated
+    dali.backend.ReleaseUnusedMemory()
+    free_after_release = get_device_memory_info().free
+    assert free_after_release > free_after_prealloc  # check that something was freed
 
 
 def test_create_tensor():
     arr = np.random.rand(3, 5, 6)
     tensor = TensorCPU(arr, "NHWC")
     assert_array_equal(arr, np.array(tensor))
+
+
+def test_create_tensor_and_make_it_release_memory():
+    arr = np.random.rand(3, 5, 6)
+    tensor = TensorCPU(arr, "NHWC")
+    assert_array_equal(arr, np.array(tensor))
+    arr = None
+    tensor = None
 
 
 def test_create_tensorlist():
@@ -64,10 +90,10 @@ def test_tensorlist_getitem_cpu():
     tensorlist = TensorListCPU(arr, "NHWC")
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist.at(0)) == np.ndarray
-    assert type(tensorlist[0]) != np.ndarray
-    assert type(tensorlist[0]) == TensorCPU
-    assert type(tensorlist[-3]) == TensorCPU
+    assert type(tensorlist.at(0)) is np.ndarray
+    assert type(tensorlist[0]) is not np.ndarray
+    assert type(tensorlist[0]) is TensorCPU
+    assert type(tensorlist[-3]) is TensorCPU
     assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
@@ -96,7 +122,7 @@ def test_array_interface_tensor_cpu():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")
     assert tensorlist[0].__array_interface__['data'][0] == tensorlist[0].data_ptr()
-    assert tensorlist[0].__array_interface__['data'][1]
+    assert not tensorlist[0].__array_interface__['data'][1]
     assert np.array_equal(tensorlist[0].__array_interface__['shape'], tensorlist[0].shape())
     assert np.dtype(tensorlist[0].__array_interface__['typestr']) == np.dtype(
         types.to_numpy_type(tensorlist[0].dtype))
@@ -327,3 +353,30 @@ def test_tensor_str_sample():
     t = TensorCPU(arr)
     params = [arr, 'DALIDataType.INT64', [16]]
     _test_str(t, params, _expected_tensor_str)
+
+
+def test_tensor_expose_dlpack_capsule():
+    # TODO(awolant): Numpy versions for Python 3.6 and 3.7 do not
+    # support from_dlpack. When we upgrade DLPack support for DALI
+    # this test needs to be changed.
+    if not hasattr(np, "from_dlpack"):
+        raise SkipTest("Test requires Numpy DLPack support.")
+
+    arr = np.arange(20)
+    tensor = TensorCPU(arr, "NHWC")
+
+    capsule = tensor._expose_dlpack_capsule()
+
+    # TODO(awolant): This adapter is required due to various implementations
+    # for DLPack interface. When we extend DLPack export support this should
+    # be removed.
+    class dlpack_interface_adapter:
+        def __init__(self, capsule):
+            self.capsule = capsule
+
+        def __dlpack__(self):
+            return self.capsule
+
+    arr_from_dlapck = np.from_dlpack(dlpack_interface_adapter(capsule))
+
+    assert np.array_equal(arr, arr_from_dlapck)

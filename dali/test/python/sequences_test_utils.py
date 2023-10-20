@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -388,7 +388,7 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
                     input_desc.name, input_desc.expandable_prefix,
                     device, input_desc.layout)
                 arg_data = ArgData(arg_desc, input_case.data)
-                yield _test_seq_input, num_iters, test_case.operator_fn, test_case.fixed_params,\
+                yield _test_seq_input, num_iters, test_case.operator_fn, test_case.fixed_params, \
                     test_case.input_params, arg_data, rng
 
 

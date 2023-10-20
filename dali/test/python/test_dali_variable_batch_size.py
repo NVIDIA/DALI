@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from functools import partial
 from nose.plugins.attrib import attr
 from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 import test_utils
@@ -99,6 +100,10 @@ def generate_data(max_batch_size, n_iter, sample_shape, lo=0., hi=1., dtype=np.f
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
         return list(ret)
+    elif np.issubdtype(dtype, bool):
+        assert isinstance(lo, bool)
+        assert isinstance(hi, bool)
+        return [np.random.choice(a=[lo, hi], size=(bs, ) + size_fn()) for bs in batch_sizes]
     else:
         raise RuntimeError(f"Invalid type argument: {dtype}")
 
@@ -274,7 +279,7 @@ ops_image_default_args = [
     fn.shapes,
     fn.sphere,
     fn.stack,
-    fn.water,
+    fn.water
 ]
 
 
@@ -298,6 +303,7 @@ ops_image_custom_args = [
     (fn.coord_transform, {'T': 2}),
     (fn.coord_transform, {'M': .5}),
     (fn.crop, {'crop': (5, 5)}),
+    (fn.experimental.equalize, {'devices': ['gpu']}),
     (fn.erase, {'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
                 'shape': [0.1], 'normalized_shape': True}),
     (fn.fast_resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
@@ -314,6 +320,7 @@ ops_image_custom_args = [
     (fn.per_frame, {'replace': True, 'devices': ['cpu']}),
     (fn.resize, {'resize_x': 50, 'resize_y': 50}),
     (fn.resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
+    (fn.experimental.tensor_resize, {'sizes': [50, 50], 'axes': [0, 1]}),
     (fn.rotate, {'angle': 25}),
     (fn.transpose, {'perm': [2, 0, 1]}),
     (fn.warp_affine, {'matrix': (.1, .9, 10, .8, -.2, -20)}),
@@ -333,7 +340,8 @@ ops_image_custom_args = [
         'run_fn': numba_set_all_values_to_255_batch,
         'setup_fn': numba_setup_out_shape
         }),
-    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]})
+    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]}),
+    (fn.experimental.median_blur, {'devices': ['gpu']})
 ]
 
 
@@ -906,9 +914,9 @@ def test_mfcc():
 
 
 @nottest
-def generate_decoders_data(data_dir, data_extension):
+def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
     # File reader won't work, so I need to load audio files into external_source manually
-    fnames = test_utils.filter_files(data_dir, data_extension)
+    fnames = test_utils.filter_files(data_dir, data_extension, exclude_subdirs=exclude_subdirs)
 
     nfiles = len(fnames)
     # TODO(janton): Workaround for audio data (not enough samples)
@@ -935,14 +943,16 @@ def generate_decoders_data(data_dir, data_extension):
 
 
 @nottest
-def test_decoders_check(pipeline_fn, data_dir, data_extension, devices=['cpu']):
-    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension)
+def test_decoders_check(pipeline_fn, data_dir, data_extension, devices=['cpu'], exclude_subdirs=[]):
+    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension,
+                                  exclude_subdirs=exclude_subdirs)
     check_pipeline(data, pipeline_fn=pipeline_fn, devices=devices)
 
 
 @nottest
-def test_decoders_run(pipeline_fn, data_dir, data_extension, devices=['cpu']):
-    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension)
+def test_decoders_run(pipeline_fn, data_dir, data_extension, devices=['cpu'], exclude_subdirs=[]):
+    data = generate_decoders_data(data_dir=data_dir, data_extension=data_extension,
+                                  exclude_subdirs=exclude_subdirs)
     run_pipeline(data, pipeline_fn=pipeline_fn, devices=devices)
 
 
@@ -1000,23 +1010,24 @@ def test_image_decoders():
         image_decoder_crop_pipe,
         image_decoder_slice_pipe,
     ]
-
     data_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'single')
+    # excluding paths that contain images that are not widely supported (by legacy and new decoders)
+    exclude_subdirs = ['jpeg_lossless']
     for ext in image_decoder_extensions:
         for pipe_template in image_decoder_pipes:
             pipe = partial(pipe_template, fn.decoders)
-            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
+            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed'], exclude_subdirs
             pipe = partial(pipe_template, fn.experimental.decoders)
-            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
+            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed'], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
-        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed'], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
-        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed'], exclude_subdirs
 
     pipe = partial(peek_image_shape_pipe, fn)
-    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu'], exclude_subdirs
     pipe = partial(peek_image_shape_pipe, fn.experimental)
-    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu'], exclude_subdirs
 
 
 def test_python_function():
@@ -1232,6 +1243,43 @@ def test_debayer():
     check_pipeline(batches, debayer_pipline, devices=['gpu'])
 
 
+def test_filter():
+
+    def filter_pipeline(max_batch_size, inputs, device):
+        batches = [list(zip(*batch)) for batch in inputs]
+        sample_batches = [list(inp_batch) for inp_batch, _, _ in batches]
+        filter_batches = [list(filt_batch) for _, filt_batch, _ in batches]
+        fill_value_bacthes = [list(fvs) for _, _, fvs in batches]
+
+        @pipeline_def
+        def pipeline():
+            samples = fn.external_source(source=sample_batches, layout="HWC")
+            filters = fn.external_source(source=filter_batches)
+            fill_values = fn.external_source(source=fill_value_bacthes)
+            return fn.experimental.filter(samples.gpu(), filters, fill_values, border="constant")
+
+        return pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        rng = np.random.default_rng(seed=101)
+        sample_shapes = [(300, 600, 3), (100, 100, 3), (500, 1024, 1), (40, 40, 20)]
+        filter_shapes = [(5, 7), (3, 3), (60, 2)]
+        j = 0
+        while True:
+            sample_shape = sample_shapes[j % len(sample_shapes)]
+            filter_shape = filter_shapes[j % len(filter_shapes)]
+            sample = np.uint8(rng.uniform(0, 255, sample_shape))
+            filter = np.float32(rng.uniform(0, 255, filter_shape))
+            yield sample, filter, np.array([rng.uniform(0, 255)], dtype=np.uint8)
+            j += 1
+
+    sample = sample_gen()
+    batches = [[next(sample) for _ in range(5)], [next(sample) for _ in range(13)],
+               [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, filter_pipeline, devices=['gpu'])
+
+
 def test_cast_like():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1255,7 +1303,71 @@ def test_cast_like():
     check_pipeline(input_data, pipeline_fn=pipe)
 
 
+def test_conditional():
+
+    def conditional_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_condition = fn.external_source(source=input_data, cycle=False, device=device)
+            variable_data = variable_condition + 42.0
+            if variable_condition:
+                other_variable_data = variable_condition + 100
+                output = variable_data + other_variable_data
+            else:
+                output = types.Constant(np.array(42.0), device="cpu")
+            logical_expr = variable_condition or not variable_condition
+            logical_expr2 = not variable_condition and variable_condition
+            return output, variable_condition, variable_data, logical_expr, logical_expr2
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=conditional_wrapper, devices=['cpu'])
+
+    def split_merge_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            variable_data = variable_pred + 42.0
+            true, false = fn._conditional.split(variable_data, predicate=variable_pred)
+            true = true + 10.0
+            merged = fn._conditional.merge(true, false, predicate=variable_pred)
+            return merged, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=split_merge_wrapper, devices=['cpu'])
+
+    def not_validate_wrapper(max_batch_size, input_data, device):
+
+        @experimental_pipeline_def(enable_conditionals=True, batch_size=max_batch_size,
+                                   num_threads=4, device_id=0)
+        def actual_pipe():
+            variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
+            negated = fn._conditional.not_(variable_pred)
+            validated = fn._conditional.validate_logical(variable_pred, expression_name="or",
+                                                         expression_side="right")
+            return negated, validated, variable_pred
+
+        return actual_pipe()
+
+    check_pipeline(
+        generate_data(31, 13, custom_shape_generator(), lo=False, hi=True, dtype=np.bool_),
+        pipeline_fn=not_validate_wrapper, devices=['cpu'])
+
+
 tested_methods = [
+    "_conditional.merge",
+    "_conditional.split",
+    "_conditional.not_",
+    "_conditional.validate_logical",
     "arithmetic_generic_op",
     "audio_decoder",
     "audio_resample",
@@ -1276,10 +1388,7 @@ tested_methods = [
     "coord_flip",
     "coord_transform",
     "copy",
-    "copy",
     "crop",
-    "crop",
-    "crop_mirror_normalize",
     "crop_mirror_normalize",
     "decoders.audio",
     "decoders.image",
@@ -1288,8 +1397,8 @@ tested_methods = [
     "decoders.image_slice",
     "dl_tensor_python_function",
     "dump_image",
+    "experimental.equalize",
     "element_extract",
-    "erase",
     "erase",
     "expand_dims",
     "experimental.debayer",
@@ -1298,14 +1407,14 @@ tested_methods = [
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
     "experimental.decoders.video",
+    "experimental.filter",
     "experimental.inflate",
+    "experimental.median_blur",
     "experimental.peek_image_shape",
     "experimental.remap",
     "external_source",
     "fast_resize_crop_mirror",
     "flip",
-    "flip",
-    "gaussian_blur",
     "gaussian_blur",
     "get_property",
     "grid_mask",
@@ -1356,7 +1465,6 @@ tested_methods = [
     "nonsilent_region",
     "normal_distribution",
     "normalize",
-    "normalize",
     "numba.fn.experimental.numba_function",
     "one_hot",
     "optical_flow",
@@ -1384,8 +1492,8 @@ tested_methods = [
     "reinterpret",
     "reshape",
     "resize",
-    "resize",
     "resize_crop_mirror",
+    "experimental.tensor_resize",
     "roi_random_crop",
     "rotate",
     "saturation",
@@ -1418,6 +1526,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "_conditional.hidden.*",
     "multi_paste",                   # ToDo - crashes
     "coco_reader",                   # readers do not support variable batch size yet
     "sequence_reader",               # readers do not support variable batch size yet
@@ -1446,11 +1555,13 @@ excluded_methods = [
                                      # batch_size varies and is tested in this operator's test.
     "experimental.readers.video",    # readers do not support variable batch size yet
     "experimental.audio_resample",   # Alias of audio_resample (already tested)
+    "experimental.readers.fits",     # readers do not support variable batch size yet
 ]
 
 
 def test_coverage():
-    methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
+    methods = module_functions(fn, remove_prefix="nvidia.dali.fn",
+                               allowed_private_modules=["_conditional"])
     methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join([
         "(^" + x.replace(".", "\\.").replace("*", ".*").replace("?", ".") + "$)"

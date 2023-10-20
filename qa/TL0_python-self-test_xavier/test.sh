@@ -1,2 +1,2 @@
 #!/bin/bash -e
-./test_nofw.sh
+bash -e ./test_nofw.sh

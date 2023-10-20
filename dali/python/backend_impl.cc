@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/os/shared_mem.h"
 #endif
 #include "dali/core/python_util.h"
+#include "dali/core/mm/default_resources.h"
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
 #include "dali/operators/reader/parser/tfrecord_parser.h"
@@ -120,7 +121,8 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   d["shape"] = py::tuple(py_shape<Backend>(t));
   // tuple of (raw_data_pointer, if_data_is_read_only)
   tup[0] = py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
-  tup[1] = true;
+  // if we make it readonly, it prevents us from sharing memory with PyTorch tensor
+  tup[1] = false;
   d["data"] = tup;
   if (std::is_same<Backend, GPUBackend>::value) {
     // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
@@ -441,6 +443,25 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def(
+      "_expose_dlpack_capsule",
+      [](Tensor<CPUBackend> &t) -> py::capsule {
+        SampleView<CPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
+
+        return TensorToDLPackView(sv, t.device_id());
+      },
+      R"code(
+      Exposes tensor data as DLPack compatible capsule.
+
+      Note:
+        This function does not implement full DLPack contract and
+      should not be used to export DALI CPU tensors to DLPack compatible
+      endpoints.
+
+      Warning:
+        As private this API may change without notice.
+      )code"
+    )
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
             "buffer info for tensor w/ invalid type.");
@@ -488,7 +509,13 @@ void ExposeTensor(py::module &m) {
           const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
-          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
+          // Use dynamically allocated memory so we can call deleter inside py::gil_scoped_acquire
+          // scope
+          py::buffer *buf_tmp = new py::buffer(b);
+          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = buf_tmp](void *) {
+             py::gil_scoped_acquire aqr;
+             delete buf_ref;
+          }),
                        bytes, is_pinned, i_shape, type.id(), device_id);
           t->SetLayout(layout);
           return t.release();
@@ -610,6 +637,25 @@ void ExposeTensor(py::module &m) {
       layout : str
             Layout of the data
       )code")
+    .def(
+      "_expose_dlpack_capsule",
+      [](Tensor<GPUBackend> &t) -> py::capsule {
+        SampleView<GPUBackend> sv{t.raw_mutable_data(), t.shape(), t.type()};
+
+        return TensorToDLPackView(sv, t.device_id());
+      },
+      R"code(
+      Exposes tensor data as DLPack compatible capsule.
+
+      Note:
+        This function does not implement full DLPack contract and
+      should not be used to export DALI GPU tensors to DLPack compatible
+      endpoints.
+
+      Warning:
+        As private this API may change without notice.
+      )code"
+    )
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -1424,6 +1470,35 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetHostBufferGrowthFactor", Buffer<CPUBackend>::GetGrowthFactor);
   m.def("GetDeviceBufferGrowthFactor", Buffer<GPUBackend>::GetGrowthFactor);
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
+
+  m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
+R"(Preallocate memory on given device
+
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
+)", "bytes"_a, "device_id"_a);
+  m.def("PreallocatePinnedMemory", mm::PreallocatePinnedMemory,
+R"(Preallocate non-pageable (pinned) host memory
+
+The function ensures that after the call, the amount of memory given in `bytes` can be
+allocated from the pool (without further requests to the OS).
+
+Calling this function while DALI pipelines are running is generally safe, but it should not be used
+to preallocate memory for a pipeline that's already running - this may result in a race
+for memory and possibly trigger out-of-memory error in the pipeline.
+)", "bytes"_a);
+
+  m.def("ReleaseUnusedMemory", mm::ReleaseUnusedMemory,
+R"(Frees unused blocks from memory pools.
+
+Only blocks that are completely free are released. The function frees the memory from all device
+pools as well as from the host pinned memory pool.
+
+This function is safe to use while DALI pipelines are running.)");
 }
 
 py::dict DeprecatedArgMetaToDict(const DeprecatedArgDef & meta) {
@@ -1518,6 +1593,15 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
+
+struct PyPipeline: public Pipeline {
+  using Pipeline::Pipeline;
+
+  ~PyPipeline() override {
+    py::gil_scoped_release interpreter_unlock{};
+    Shutdown();
+  }
+};
 
 PYBIND11_MODULE(backend_impl, m) {
   dali::InitOperatorsLib();
@@ -1697,14 +1781,14 @@ PYBIND11_MODULE(backend_impl, m) {
         });
 
   // Pipeline class
-  py::class_<Pipeline>(m, "Pipeline")
+  py::class_<Pipeline, PyPipeline>(m, "Pipeline")
     .def(py::init(
             [](int batch_size, int num_threads, int device_id, int64_t seed = -1,
                 bool pipelined_execution = true, int prefetch_queue_depth = 2,
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1,
                 int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                       batch_size, num_threads, device_id, seed, pipelined_execution,
                       prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
                       max_num_stream, default_cuda_stream_priority);
@@ -1729,7 +1813,7 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false, int max_num_stream = -1,
              int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
+              return std::make_unique<PyPipeline>(
                                serialized_pipe,
                                batch_size, num_threads, device_id, pipelined_execution,
                                prefetch_queue_depth, async_execution, bytes_per_sample_hint,
@@ -1762,7 +1846,7 @@ PYBIND11_MODULE(backend_impl, m) {
              }
              p->Build(build_args);
          })
-    .def("Build", [](Pipeline *p) { p->Build(); } )
+    .def("Build", [](Pipeline *p) { p->Build(); })
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
@@ -1775,6 +1859,19 @@ PYBIND11_MODULE(backend_impl, m) {
           p->EnableExecutorMemoryStats(enable_memory_stats);
         },
         "enable_memory_stats"_a = true)
+    .def("EnableCheckpointing",
+        [](Pipeline *p, bool checkpointing) {
+          p->EnableCheckpointing(checkpointing);
+        },
+        "checkpointing"_a = true)
+    .def("SerializedCheckpoint",
+        [](Pipeline *p) -> py::bytes {
+          return p->SerializedCheckpoint();
+          }, py::return_value_policy::take_ownership)
+    .def("RestoreFromSerializedCheckpoint",
+        [](Pipeline *p, const std::string &serialized_checkpoint) {
+          p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
+        })
     .def("executor_statistics",
         [](Pipeline *p) {
           auto ret = p->GetExecutorMeta();
@@ -1793,12 +1890,14 @@ PYBIND11_MODULE(backend_impl, m) {
           p->SetOutputDescs(out_desc);
         })
     .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
-    .def("RunGPU", &Pipeline::RunGPU)
+    .def("RunGPU", &Pipeline::RunGPU, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->Outputs(&ws);
-
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->Outputs(&ws);
+          }
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
             if (ws.OutputIsType<CPUBackend>(i)) {
@@ -1812,7 +1911,10 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("ShareOutputs",
         [](Pipeline *p) {
           Workspace ws;
-          p->ShareOutputs(&ws);
+          {
+            py::gil_scoped_release interpreter_unlock{};
+            p->ShareOutputs(&ws);
+          }
 
           py::tuple outs(ws.NumOutput());
           for (int i = 0; i < ws.NumOutput(); ++i) {
@@ -1824,10 +1926,7 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           return outs;
         }, py::return_value_policy::take_ownership)
-    .def("ReleaseOutputs",
-        [](Pipeline *p) {
-          p->ReleaseOutputs();
-        })
+    .def("ReleaseOutputs", &Pipeline::ReleaseOutputs, py::call_guard<py::gil_scoped_release>())
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
@@ -2051,7 +2150,11 @@ PYBIND11_MODULE(backend_impl, m) {
           auto meta = schema->DeprecatedArgMeta(arg_name);
           return DeprecatedArgMetaToDict(meta);
         })
-    .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts);
+    .def("GetSupportedLayouts", &OpSchema::GetSupportedLayouts)
+    .def("HasArgument",
+        [](OpSchema *schema, const std::string &arg_name) {
+          return schema->HasArgument(arg_name);
+        });
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

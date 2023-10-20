@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 
 namespace dali {
@@ -106,7 +107,7 @@ class DLL_PUBLIC Pipeline {
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
 
-  DLL_PUBLIC ~Pipeline();
+  virtual DLL_PUBLIC ~Pipeline();
 
   /**
    * @brief Creates a placeholder for an External Source operator with the given name
@@ -131,54 +132,55 @@ class DLL_PUBLIC Pipeline {
   }
 
 
-  template<typename T, typename OperatorBackend>
-  void
-  SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
-                      InputOperatorSettingMode in_op_setting_mode = {}) {
-    // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
-    // The StorageBackend is hidden under `T` type.
-    auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
-    DALI_ENFORCE(source != nullptr,
-                 "Input name '" + name + "' is not marked as an InputOperator.");
-    source->SetDataSource(tl, order, in_op_setting_mode);
+  template<typename TensorListBackend, typename OperatorBackend>
+  void SetDataSourceHelper(
+          const string &name, const TensorList<TensorListBackend> &tl,
+          std::optional<std::string> data_id, OperatorBase *op_ptr, AccessOrder order = {},
+          InputOperatorSettingMode in_op_setting_mode = {},
+          bool is_refeeding = false) {
+    if (is_refeeding ||
+        !repeat_last_.SetLast<OperatorBackend>(name, tl, data_id, order, in_op_setting_mode)) {
+      auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
+      DALI_ENFORCE(source != nullptr,
+                  "Input name '" + name + "' is not marked as an InputOperator.");
+      source->template SetDataSource<TensorListBackend>(tl, order, in_op_setting_mode,
+                                                        std::move(data_id));
+    }
   }
+
 
   /**
    * @brief Helper function for the SetExternalInput.
    * @tparam Backend CPUBackend or GPUBackend
-   * @tparam TL TensorList<> or vector<Tensor<>>
    * @param name name of the input
    * @param tl data
    * @param order synchronization order (CUDA stream or host)
    * @param ext_src_setting_mode Options passed to the External Source describing the behaviour
    *                        of setting the data.
    */
-  template<typename TL>
-  void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
-                              InputOperatorSettingMode ext_src_setting_mode = {}) {
-    bool is_cpu_node = true;
-    OpNodeId node_id;
+  template<typename Backend>
+  void SetExternalInputHelper(const string &name, const TensorList<Backend> &tl,
+                              std::optional<std::string> data_id, AccessOrder order = {},
+                              InputOperatorSettingMode ext_src_setting_mode = {},
+                              bool is_refeeding = false) {
+    auto *node = GetInputOperatorNode(name);
+    OperatorBase *op_ptr = node->op.get();
 
-    if (graph_.TensorExists(name + "_cpu")) {
-      node_id = graph_.TensorSourceID(name + "_cpu");
-      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::CPU,
-                   "Internal error setting external input data.");
-    } else if (graph_.TensorExists(name + "_gpu")) {
-      is_cpu_node = false;
-      node_id = graph_.TensorSourceID(name + "_gpu");
-      DALI_ENFORCE(graph_.NodeType(node_id) == OpType::GPU,
-                   "Internal error setting external input data.");
-    } else {
-      DALI_FAIL("Cannot find " + name + " tensor, it doesn't exists or was pruned as unused one.");
-    }
-
-    auto &node = graph_.Node(node_id);
-    OperatorBase *op_ptr = &node.InstantiateOperator();
-
-    if (is_cpu_node) {
-      SetDataSourceHelper<TL, CPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
-    } else {
-      SetDataSourceHelper<TL, GPUBackend>(name, tl, op_ptr, order, ext_src_setting_mode);
+    switch (node->op_type) {
+      case OpType::CPU:
+        SetDataSourceHelper<Backend, CPUBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                 ext_src_setting_mode, is_refeeding);
+        break;
+      case OpType::MIXED:
+        SetDataSourceHelper<Backend, MixedBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                   ext_src_setting_mode, is_refeeding);
+        break;
+      case OpType::GPU:
+        SetDataSourceHelper<Backend, GPUBackend>(name, tl, std::move(data_id), op_ptr, order,
+                                                 ext_src_setting_mode, is_refeeding);
+        break;
+      default:
+        assert(false);  // This shouldn't happen.
     }
   }
 
@@ -198,8 +200,11 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void
   SetExternalInput(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
                    bool sync = false, bool use_copy_kernel = false,
-                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT) {
-    SetExternalInputHelper(name, tl, order, {sync, use_copy_kernel, no_copy_mode});
+                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT,
+                   std::optional<std::string> data_id = std::nullopt) {
+    InputOperatorSettingMode mode{sync, use_copy_kernel, no_copy_mode};
+    // if SetLast succeeds, the data will be forcibly _shared_ (zero copy) upon Refeed
+    SetExternalInputHelper(name, tl, std::move(data_id), order, mode, false);
   }
 
 
@@ -245,6 +250,11 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
 
+  /**
+   * @brief Rreturns an input graph node with a given name
+   */
+  DLL_PUBLIC const OpNode *GetInputOperatorNode(const std::string &name);
+
   /** @{ */
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
@@ -280,13 +290,69 @@ class DLL_PUBLIC Pipeline {
    * @brief Set if the DALI pipeline should gather executor statistics of the operator ouput sizes
    *
    * @param enable_memory_stats If statistics should be gathered
-   * Usefull for `bytes_per_sample_hint` operator parameter.
+   * Useful for `bytes_per_sample_hint` operator parameter.
    */
   DLL_PUBLIC void EnableExecutorMemoryStats(bool enable_memory_stats = true) {
     enable_memory_stats_ = enable_memory_stats;
     if (executor_) {
       executor_->EnableMemoryStats(enable_memory_stats_);
     }
+  }
+
+  /**
+   * @brief Set if the DALI pipeline should create checkpoints between the epochs
+   *
+   * @param enable_memory_stats If checkpoints should be created
+   */
+  DLL_PUBLIC void EnableCheckpointing(bool checkpointing = true) {
+    checkpointing_ = checkpointing;
+    if (executor_) {
+      executor_->EnableCheckpointing(checkpointing_);
+    }
+  }
+
+  /**
+   * @brief Returns a serialized Checkpoint
+   */
+  DLL_PUBLIC string SerializedCheckpoint() const {
+    return GetCheckpoint().SerializeToProtobuf(graph_);
+  }
+
+  /**
+   * @brief Returns an unserialized Checkpoint
+  */
+  DLL_PUBLIC Checkpoint GetCheckpoint() const {
+    DALI_ENFORCE(executor_, "Pipeline must be built before it can produce a checkpoint. ");
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot save the checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    auto &cpt = executor_->GetCurrentCheckpoint();
+    // Make sure the checkpoint is accessible on host
+    cpt.SetOrder(AccessOrder::host());
+    return cpt;
+  }
+
+  /**
+   * @brief Restores pipeline state from a serialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+    DALI_ENFORCE(checkpointing_,
+                 "Cannot restore checkpoint. The `enable_checkpointing` was not "
+                 "specified when creating the pipeline");
+    Checkpoint cpt;
+    cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
+    RestoreFromCheckpoint(cpt);
+  }
+
+  /**
+   * @brief Restores pipeline state from an unserialized Checkpoint
+   *
+   * Should be called before building.
+  */
+  DLL_PUBLIC void RestoreFromCheckpoint(const Checkpoint &cpt) {
+    executor_->RestoreStateFromCheckpoint(cpt);
   }
 
   /**
@@ -474,6 +540,11 @@ class DLL_PUBLIC Pipeline {
    */
   static bool IsDeserializable(const std::string &serialized_pipeline);
 
+  /**
+   * @brief Shutdown the executor
+   */
+  DLL_PUBLIC void Shutdown();
+
   // For testing
   template <typename T>
   friend class PipelineTest;
@@ -587,6 +658,11 @@ class DLL_PUBLIC Pipeline {
                                     const std::string &input_dev, const std::string &device,
                                     const std::string &output_dev);
 
+  /**
+   * Traverses the Operator graph and collects all operators that are Input Operators.
+   */
+  void DiscoverInputOperators();
+
   const int MAX_SEEDS = 1024;
 
   bool built_;
@@ -602,6 +678,7 @@ class DLL_PUBLIC Pipeline {
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
   int original_seed_;
@@ -626,8 +703,95 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> ext_input_names_;
+  // input operators are sorted by names
+  std::map<std::string, const OpNode*> input_operators_;
+
+  /**
+   * @brief Handles repeating recent inputs for ExternalSource nodes with repeat_last flag on
+   *
+   * ExternalSource nodes can specify a repeat_last flag which works by re-submitting the most
+   * recently fed input in case where no new data was fed between calls to Pipeline::Run.
+   *
+   * This class maintains a list of such nodes, stores the most recently fed input and re-submits
+   * it if no new data was fed.
+   */
+  struct RepeatLastInputs {
+    void FindNodes(const OpGraph &graph);
+
+    template <typename OperatorBackend, typename DataBackend>
+    bool SetLast(const std::string &name, const TensorList<DataBackend> &data,
+                 const std::optional<std::string> &data_id,
+                 AccessOrder order,
+                 InputOperatorSettingMode ext_src_setting_mode) {
+      auto &nodes = GetNodes<OperatorBackend>();
+      auto it = nodes.find(name);
+      if (it == nodes.end())
+        return false;
+
+      auto &node = it->second;
+      auto &inp = dynamic_cast<InputOperator<OperatorBackend>&>(*node.op_node->op);
+
+      auto do_copy = [&]() {
+        node.last_input.Reset();
+        node.last_input.set_order(order);
+        node.last_input.Copy(data, order, ext_src_setting_mode.use_copy_kernel);
+        if (ext_src_setting_mode.sync)
+          AccessOrder::host().wait(order);
+      };
+
+      if constexpr (std::is_same_v<OperatorBackend, DataBackend>) {
+        if (inp.WouldCopy(ext_src_setting_mode.no_copy_mode)) {
+          do_copy();
+        } else {
+          node.last_input.ShareData(data);
+        }
+      } else {
+        do_copy();
+      }
+      node.data_id = data_id;
+
+      return true;
+    }
+
+    template <typename Backend>
+    void Refeed(Pipeline &owner);
+
+    template <typename Backend>
+    struct RepeatLastInput {
+      const OpNode *op_node = nullptr;
+      using InputBackend = std::conditional_t<std::is_same_v<Backend, MixedBackend>,
+                                             CPUBackend, Backend>;
+      TensorList<InputBackend> last_input;
+      std::optional<std::string> data_id;
+    };
+
+    std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
+    std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;
+    std::map<std::string, RepeatLastInput<MixedBackend>> mixed_nodes_;
+
+    template <typename Backend>
+    std::map<std::string, RepeatLastInput<Backend>> &GetNodes() {
+      if constexpr (std::is_same_v<Backend, CPUBackend>)
+        return cpu_nodes_;
+      else if constexpr (std::is_same_v<Backend, GPUBackend>)
+        return gpu_nodes_;
+      else
+        return mixed_nodes_;
+    }
+  };
+
+  RepeatLastInputs repeat_last_;
 };
+
+template <typename Backend>
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
+  auto &nodes = GetNodes<Backend>();
+  for (auto &[name, node] : nodes) {
+    owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
+      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+      true);
+  }
+}
 
 }  // namespace dali
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -136,6 +136,12 @@ the GPU implementation.
 
 According to the libjpeg-turbo documentation, decompression performance is improved by up to 14%
 with little reduction in quality.)code",
+      false)
+  .AddOptionalArg("jpeg_fancy_upsampling",
+      R"code(Make the ``mixed`` backend use the same chroma upsampling approach as the ``cpu`` one.
+
+The option corresponds to the `JPEG fancy upsampling` available in libjpegturbo or
+ImageMagick.)code",
       false)
   .AddOptionalArg("memory_stats",
       R"code(Applies **only** to the ``mixed`` backend type.
@@ -323,7 +329,10 @@ void ImgcodecHostDecoder::RunImpl(Workspace &ws) {
   auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
-      std::rethrow_exception(result.exception);
+      if (result.exception)
+        std::rethrow_exception(result.exception);
+      else
+        DALI_FAIL(make_string("Unknown error while decoding ", src_ptrs_[0]->SourceInfo()));
     }
   }
 }
@@ -357,7 +366,10 @@ void ImgcodecMixedDecoder::Run(Workspace &ws) {
   auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
-      std::rethrow_exception(result.exception);
+      if (result.exception)
+        std::rethrow_exception(result.exception);
+      else
+        DALI_FAIL(make_string("Unknown error while decoding ", src_ptrs_[0]->SourceInfo()));
     }
   }
 }

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1146,7 +1146,10 @@ def test_api_check1():
     pipe.build()
     pipe.run()
     for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs]:
-        with assert_raises(RuntimeError):
+        with assert_raises(
+                RuntimeError,
+                glob=("Mixing pipeline API type. Currently used: PipelineAPIType.BASIC,"
+                      " but trying to use PipelineAPIType.SCHEDULED")):
             method()
     # disable check
     pipe.enable_api_check(False)
@@ -1174,7 +1177,10 @@ def test_api_check2():
     pipe.release_outputs()
     pipe.schedule_run()
     pipe.outputs()
-    with assert_raises(RuntimeError):
+    with assert_raises(
+            RuntimeError,
+            glob=("Mixing pipeline API type. Currently used: PipelineAPIType.SCHEDULED,"
+                  " but trying to use PipelineAPIType.BASIC")):
         pipe.run()
     # disable check
     pipe.enable_api_check(False)

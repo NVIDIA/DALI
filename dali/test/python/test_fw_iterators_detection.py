@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import os
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
+from nose_utils import assert_raises
 
 DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
@@ -87,19 +88,19 @@ def test_paddle_pipeline_dynamic_shape():
 
 def test_api_fw_check1_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    test_api_fw_check1(PyTorchIterator, ['data', 'bboxes', 'label'])
+    yield from test_api_fw_check1(PyTorchIterator, ['data', 'bboxes', 'label'])
 
 
 def test_api_fw_check1_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    test_api_fw_check1(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
-                                       ('bboxes', MXNetIterator.LABEL_TAG),
-                                       ('label', MXNetIterator.LABEL_TAG)])
+    yield from test_api_fw_check1(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
+                                                  ('bboxes', MXNetIterator.LABEL_TAG),
+                                                  ('label', MXNetIterator.LABEL_TAG)])
 
 
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-    test_api_fw_check1(PaddleIterator, ['data', 'bboxes', 'label'])
+    yield from test_api_fw_check1(PaddleIterator, ['data', 'bboxes', 'label'])
 
 
 def test_api_fw_check1(iter_type, data_definition):
@@ -110,11 +111,11 @@ def test_api_fw_check1(iter_type, data_definition):
     train_loader.__next__()
     for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs,
                    pipe.run]:
-        try:
+        with assert_raises(
+                RuntimeError,
+                glob="Mixing pipeline API type. Currently used: PipelineAPIType.ITERATOR,"
+                " but trying to use PipelineAPIType.*"):
             method()
-            assert False
-        except RuntimeError:
-            pass
     # disable check
     pipe.enable_api_check(False)
     for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs,
@@ -128,19 +129,19 @@ def test_api_fw_check1(iter_type, data_definition):
 
 def test_api_fw_check2_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-    test_api_fw_check2(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
-                                       ('bboxes', MXNetIterator.LABEL_TAG),
-                                       ('label', MXNetIterator.LABEL_TAG)])
+    yield from test_api_fw_check2(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
+                                                  ('bboxes', MXNetIterator.LABEL_TAG),
+                                                  ('label', MXNetIterator.LABEL_TAG)])
 
 
 def test_api_fw_check2_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-    test_api_fw_check2(PyTorchIterator, ['data', 'bboxes', 'label'])
+    yield from test_api_fw_check2(PyTorchIterator, ['data', 'bboxes', 'label'])
 
 
 def test_api_fw_check2_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-    test_api_fw_check2(PaddleIterator, ['data', 'bboxes', 'label'])
+    yield from test_api_fw_check2(PaddleIterator, ['data', 'bboxes', 'label'])
 
 
 def test_api_fw_check2(iter_type, data_definition):
@@ -153,13 +154,13 @@ def test_api_fw_check2(iter_type, data_definition):
     pipe.release_outputs()
     pipe.schedule_run()
     pipe.outputs()
-    try:
+    with assert_raises(
+            RuntimeError,
+            glob=("Mixing pipeline API type. Currently used: PipelineAPIType.SCHEDULED,"
+                  " but trying to use PipelineAPIType.ITERATOR")):
         train_loader = iter_type([pipe], data_definition, EPOCH_SIZE, auto_reset=False,
                                  dynamic_shape=True)
         train_loader.__next__()
-        assert False
-    except RuntimeError:
-        assert True
     # disable check
     pipe.enable_api_check(False)
     try:

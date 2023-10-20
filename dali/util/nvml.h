@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -301,11 +301,9 @@ inline bool HasHwDecoder(int device_idx) {
     return false;
   }
   auto info = GetDeviceInfo(device_idx);
-  const int kAmpereComputeCapabilityMajor = 8;
-  const int kAmpereComputeCapabilityMinor = 0;
   return info.type == NVML_BRAND_TESLA &&
-         info.cap_major == kAmpereComputeCapabilityMajor &&
-         info.cap_minor == kAmpereComputeCapabilityMinor;
+         (info.cap_major == 8 || info.cap_major == 9) &&
+         info.cap_minor == 0;
 }
 
 /**

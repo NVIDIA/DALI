@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,19 +35,6 @@ std::string join(Args... args) {
   return make_string_delim('/', args...);
 }
 
-std::vector<uint8_t> read_file(const std::string &filename) {
-    std::ifstream stream(filename, std::ios::binary);
-    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
-}
-
-struct ImageBuffer {
-  std::vector<uint8_t> buffer;
-  ImageSource src;
-  explicit ImageBuffer(const std::string &filename)
-  : buffer(read_file(filename))
-  , src(ImageSource::FromHostMem(buffer.data(), buffer.size())) {}
-};
-
 const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
 const auto jpeg_image = join(img_dir, "134/site-1534685_1280.jpg");
@@ -70,16 +57,16 @@ TEST(LibJpegTurboDecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  std::map<string, any> params = { { "fast_idct", false } };
+  std::map<string, std::any> params = { { "fast_idct", false } };
   auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
-  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), false);
+  EXPECT_EQ(std::any_cast<bool>(decoder->GetParam("fast_idct")), false);
 
   decoder.reset();
   params = { { "fast_idct", true } };
   decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
-  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), true);
+  EXPECT_EQ(std::any_cast<bool>(decoder->GetParam("fast_idct")), true);
 }
 
 template<typename OutputType>

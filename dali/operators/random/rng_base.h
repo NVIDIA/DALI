@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@
 #define DALI_OPERATORS_RANDOM_RNG_BASE_H_
 
 #include <random>
+#include <string>
 #include <vector>
+
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/util/randomizer.cuh"
@@ -31,6 +34,39 @@ struct RNGBaseFields;
 
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public Operator<Backend> {
+ public:
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      cpt.MutableCheckpointState() = rng_;
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+    }
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      const auto &rng = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+      DALI_ENFORCE(rng.BatchSize() == max_batch_size_,
+                  "Provided checkpoint doesn't match the expected batch size. "
+                  "Perhaps the batch size setting changed? ");
+      rng_ = rng;
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+    }
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    const auto &state = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+    return SnapshotSerializer().Serialize(state.ToVector());
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    auto deserialized = SnapshotSerializer().Deserialize<std::vector<std::mt19937_64>>(data);
+    cpt.MutableCheckpointState() = BatchRNG<std::mt19937_64>::FromVector(deserialized);
+  }
+
  protected:
   explicit RNGBase(const OpSpec &spec)
       : Operator<Backend>(spec),

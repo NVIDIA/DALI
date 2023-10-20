@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace imgcodec {
 
 class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
  public:
-  explicit ImageDecoderImpl(int device_id, const std::map<std::string, any> &)
+  explicit ImageDecoderImpl(int device_id, const std::map<std::string, std::any> &)
   : device_id_(device_id) {}
 
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
@@ -88,15 +88,15 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     return ret;
   }
 
-  bool SetParam(const char*, const any &) override {
+  bool SetParam(const char*, const std::any &) override {
     return false;
   }
 
-  any GetParam(const char *key) const override {
+  std::any GetParam(const char *key) const override {
     return {};
   }
 
-  int SetParams(const std::map<std::string, any> &params) override {
+  int SetParams(const std::map<std::string, std::any> &params) override {
     int ret = 0;
     for (auto &[key, value] : params)
       ret += SetParam(key.c_str(), value);

@@ -52,7 +52,7 @@ void VideoReader::Prefetch() {
                                curr_tensor_list.type(), curr_tensor_list.device_id(),
                                curr_tensor_list.order());
     sample->sequence.set_device_id(curr_tensor_list.device_id());
-    sample->sequence.SetMeta(curr_tensor_list.GetMeta(data_idx));
+    curr_tensor_list.SetSourceInfo(data_idx, sample->sequence.GetSourceInfo());
     sample->read_sample_f();
     // data has been read, decouple sequence from the wrapped memory
     sample->sequence.Reset();

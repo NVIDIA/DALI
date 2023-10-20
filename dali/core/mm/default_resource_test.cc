@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dev_buffer.h"
+
+#include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/mm/with_upstream.h"
 
 namespace dali {
 namespace mm {
@@ -294,6 +297,233 @@ TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiGPU) {
   }
   EXPECT_THROW(GetDefaultDeviceResource(ndev), std::out_of_range);
   EXPECT_THROW(GetDefaultDeviceResource(ndev+100), std::out_of_range);
+}
+
+inline bool UseVMM() {
+  static const bool use_vmm = []() {
+    auto *res = mm::GetDefaultDeviceResource();
+    if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+      return dynamic_cast<mm::cuda_vm_resource*>(up->upstream()) != nullptr;
+    }
+    return false;
+  }();
+  return use_vmm;
+}
+
+template <typename Kind>
+mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
+  while (mr) {
+    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
+      return pool;
+    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+      mr = up->upstream();
+    } else {
+      break;
+    }
+  }
+  return nullptr;
+}
+
+static mm::cuda_vm_resource *GetVMMDefaultResource(int device_id = -1) {
+  auto *res = mm::GetDefaultDeviceResource(device_id);
+  if (auto *up = dynamic_cast<mm::with_upstream<mm::memory_kind::device> *>(res)) {
+    return dynamic_cast<mm::cuda_vm_resource*>(up->upstream());
+  }
+  return nullptr;
+}
+
+
+static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<ssize_t>::max()) {
+  auto *dev = mm::GetDefaultDeviceResource(0);
+  auto *pinned = mm::GetDefaultResource<mm::memory_kind::pinned>();
+
+  CUDA_CALL(cudaDeviceSynchronize());
+  mm::ReleaseUnusedMemory();
+
+  size_t free0 = 0;  // before allocation
+  size_t free1 = 0;  // after allocation
+  size_t free2 = 0;  // ReleaseUnused called before deallocation
+  size_t free3 = 0;  // ReleaseUnused called after deallocation
+  size_t total = 0;
+
+  CUDA_CALL(cudaMemGetInfo(&free0, &total));
+  ssize_t min_dev_size = 256;
+  ssize_t dev_size = std::min<ssize_t>(free0 - (64_z << 20), max_alloc_size);
+  ssize_t pinned_size = 256_z << 20;  // 256 MiB
+  ASSERT_GE(dev_size, min_dev_size);
+
+  mm::uptr<void> mem_dev;
+  while (dev_size >= min_dev_size) {
+    try {
+      mem_dev = mm::alloc_raw_unique<char>(dev, dev_size);
+      break;
+    } catch (const std::bad_alloc &) {
+      dev_size >>= 1;
+    }
+  }
+  ASSERT_NE(mem_dev, nullptr) << "Couldn't allocate any device memory - cannot continue testing";
+
+  mm::uptr<void> mem_pinned = mm::alloc_raw_unique<char>(pinned, pinned_size);
+  CUDA_CALL(cudaMemGetInfo(&free1, &total));
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free2, &total));
+  EXPECT_EQ(free2, free1) << "Nothing should have been released.";
+
+  mem_dev.reset();
+  mem_pinned.reset();
+
+  mm::ReleaseUnusedMemory();
+  CUDA_CALL(cudaMemGetInfo(&free3, &total));
+  EXPECT_GT(free3, free2);
+}
+
+TEST(MMDefaultResource, ReleaseUnusedBasic) {
+  cudaDeviceProp device_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
+  if (device_prop.integrated)
+    GTEST_SKIP() << "The memory usage on integrated GPUs cannot be reliably tracked.";
+
+  auto *res = mm::GetDefaultResource<mm::memory_kind::device>();
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool releasing of unused memory.";
+
+  ReleaseUnusedTestImpl(256 << 20);
+}
+
+TEST(MMDefaultResource, ReleaseUnusedMaxMem) {
+  if (!UseVMM())
+    GTEST_SKIP() << "Cannot reliably test ReleaseUnused with max mem usage without VMM support";
+
+  cudaDeviceProp device_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
+  if (device_prop.integrated)
+    GTEST_SKIP() << "The memory usage on integrated GPUs cannot be reliably tracked.";
+
+  ReleaseUnusedTestImpl();
+}
+
+// This can be run manually - it can still work, but it's not reliable when run
+// alongside other tests.
+TEST(MMDefaultResource, DISABLED_ReleaseUnusedMaxMem) {
+  ReleaseUnusedTestImpl();
+}
+
+TEST(MMDefaultResource, PreallocatePinnedMemory) {
+  mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
+
+  auto *res = mm::GetDefaultResource<mm::memory_kind::pinned>();
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool preallocation.";
+
+  size_t size = 64_uz << 20;  // 64 MiB
+  size_t alignment = alignof(std::max_align_t);  // default alignment
+  // Try to get increasing amount of memory from the pool until we can't
+  for (;; size <<= 1) {
+    void *mem = pool->try_allocate_from_free(size, alignment);
+    if (!mem)
+      break;
+    res->deallocate(mem, size, alignment);
+  }
+
+  std::cout << "Preallocating " << (size >> 20) << " MiB of pinned memory" << std::endl;
+
+  try {
+    // Try to preallocate the pool so we're able to get the requested amount
+    mm::PreallocatePinnedMemory(size);
+  } catch (const std::bad_alloc &) {
+    GTEST_SKIP() << "Not enough memory to test pool preallocation.";
+  }
+
+  void *mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
+                             "requested amount of memory from the pool.";
+
+  res->deallocate(mem, size, alignment);
+
+  mm::ReleaseUnusedMemory();
+}
+
+static void TestPreallocateDeviceMemory(bool multigpu) {
+  int device_id = multigpu ? 1 : 0;
+  DeviceGuard dg(device_id);
+  mm::ReleaseUnusedMemory();  // release any unused memory to check that we're really preallocating
+
+  CUDA_CALL(cudaSetDevice(0));
+
+  auto *res = mm::GetDefaultDeviceResource(device_id);
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool preallocation.";
+
+  size_t size = 64_uz << 20;  // 64 MiB
+  size_t alignment = alignof(std::max_align_t);  // default alignment
+  // Try to get increasing amount of memory from the pool until we can't
+  for (;; size <<= 1) {
+    void *mem = pool->try_allocate_from_free(size, alignment);
+    if (!mem)
+      break;
+    res->deallocate(mem, size, alignment);
+  }
+
+  std::cout << "Preallocating " << (size >> 20) << " MiB of memory on device "
+            << device_id << std::endl;
+
+  try {
+    // Try to preallocate the pool so we're able to get the requested amount
+    mm::PreallocateDeviceMemory(size, device_id);
+  } catch (const std::bad_alloc &) {
+    GTEST_SKIP() << "Not enough memory to test pool preallocation.";
+  }
+
+  void *mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_NE(mem, nullptr) << "Preallocation succeeded, so we should be able to get the "
+                             "requested amount of memory from the pool.";
+
+  auto *vm_res = GetVMMDefaultResource(device_id);
+  int prev_unmaps = 0;
+  if (vm_res) {
+    prev_unmaps = vm_res->get_stat().total_unmaps;
+    std::cout << "Unmaps (pre)  " << prev_unmaps << std::endl;
+  }
+
+  res->deallocate(mem, size, alignment);
+
+  mm::ReleaseUnusedMemory();
+
+  // Some memory should have been deallocated in ReleaseUnusedMemory, so now the
+  // allocation from the pool should fail again.
+  mem = pool->try_allocate_from_free(size, alignment);
+  EXPECT_EQ(mem, nullptr);
+  if (mem)
+    res->deallocate(mem, size, alignment);
+
+  if (vm_res) {
+    // some unmapping should have occurred
+    EXPECT_GT(vm_res->get_stat().total_unmaps, prev_unmaps);
+    std::cout << "Unmaps (post) " << vm_res->get_stat().total_unmaps << std::endl;
+  }
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory) {
+  for (int i = 0; i < 20; i++) {
+    cout << "Iteration " << i << endl;
+    TestPreallocateDeviceMemory(false);
+    if (HasFailure())
+      break;
+  }
+}
+
+TEST(MMDefaultResource, PreallocateDeviceMemory_MultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices >= 2) {
+    TestPreallocateDeviceMemory(true);
+  } else {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
 }
 
 }  // namespace test

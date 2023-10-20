@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@ add_subdirectory(jpeg)
 
 if (BUILD_NVJPEG)
     add_subdirectory(nvjpeg)
+
+    if (NVJPEG_LOSSLESS_SUPPORTED)
+        add_subdirectory(nvjpeg_lossless)
+    endif()
 endif()
 
 if (BUILD_LIBTIFF)

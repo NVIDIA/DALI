@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,12 +23,14 @@ import nvidia.dali.ops as _ops
 import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
+from nvidia.dali import _conditionals
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali._utils.external_source_impl import (
     get_callback_from_source as _get_callback_from_source,
     accepted_arg_count as _accepted_arg_count)
+from nvidia.dali.ops._operator_utils import (_build_input_sets, _repack_output_sets)
 
 
 class DataNodeDebug(_DataNode):
@@ -46,6 +48,13 @@ class DataNodeDebug(_DataNode):
     __repr__ = __str__
 
     def gpu(self):
+        if _conditionals.conditionals_enabled():
+            # Treat it the same way as regular operator would behave
+            [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
+            data = self_split._data._as_gpu() if self.device == "cpu" else self_split._data
+            gpu_node = DataNodeDebug(data, self_split.name, "gpu", self_split.source)
+            _conditionals.register_data_nodes(gpu_node, [self])
+            return gpu_node
         if self.device == 'gpu':
             return self
         return DataNodeDebug(self._data._as_gpu(), self.name, 'gpu', self.source)
@@ -247,42 +256,75 @@ class _ExternalSourceDebug:
 
 class _IterBatchInfo:
 
-    def __init__(self, size, source_context):
+    def __init__(self, size, source_context, non_uniform_batch=False):
+        """Track information about the batch size within the iteration.
+
+        Parameters
+        ----------
+        size : int
+            The size of the detected batch size to be maintained in this iteration
+        source_context
+            Source information about where the batch size was detected for better error reporting.
+        non_uniform_batch : bool, optional
+            Should be set to True if pure Split/Merge are used by hand and not as an implementation
+            of conditional operation. In that case there can be varying batch sizes within
+            the pipeline and we don't know how to track them, by default False
+        """
         self._size = size
         self._source_context = source_context
+        self._non_uniform_batch = non_uniform_batch
 
     @property
     def size(self):
+        # We are not tracking the batch size in case of maunal Split/Merge usage
+        if self._non_uniform_batch:
+            return -1
+        # If we are in conditional scope, try to get a DataNode, that will be a reference
+        # for the batch size with which to run the operators.
+        if _conditionals.conditionals_enabled():
+            cs = _conditionals.this_condition_stack()
+            batch = cs.scope_batch_size_tracker()
+            assert batch is None or isinstance(batch, DataNodeDebug), \
+                   "Conditionals in debug mode work only with DataNodeDebug"
+            if batch is not None:
+                return len(batch.get())
         return self._size
 
     def reset(self):
         self._size = -1
         self._source_context = None
 
+    def mark_non_uniform_batch(self):
+        """Mark the usage of Split operator that is not a part of the conditional statement
+        (the _if_stmt=True was not passed). It indicates that the batch tracking is no longer
+        possible as we cannot detect the conditional scopes.
+        """
+        self._non_uniform_batch = True
+
     def set_if_empty(self, size, context):
-        if self._size == -1:
-            self.__init__(size, context)
+        if self.size == -1:
+            self.__init__(size, context, self._non_uniform_batch)
             return True
         return False
 
     def check_input(self, other_size, other_context, op_name, input_idx):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+        if not self.set_if_empty(other_size, other_context) and self.size != other_size:
             raise RuntimeError(f"Batch size must be uniform across an iteration. "
                                f"Input {input_idx} for operator '{op_name}' has batch "
-                               f"size = {other_size}. Expected batch size = {self._size}"
+                               f"size = {other_size}. Expected batch size = {self.size}"
                                f"from:\n{self._source_context}")
 
     def check_external_source(self, other_size, other_context, output_idx=-1):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+        if not self.set_if_empty(other_size, other_context) and self.size != other_size:
             if self._source_context == other_context and output_idx > 0:
                 raise RuntimeError(
                     f"External source must return outputs with consistent batch size. "
                     f"Output {output_idx} has batch size = {other_size}, "
-                    f"previous batch size = {self._size}")
+                    f"previous batch size = {self.size}")
             else:
                 raise RuntimeError(
                     f"Batch size must be uniform across an iteration. External Source "
-                    f"operator returned batch size: {other_size}, expected: {self._size}.\n"
+                    f"operator returned batch size: {other_size}, expected: {self.size}.\n"
                     f"If you want to use variable batch size (that is different batch size in "
                     f"each iteration) you must call all the external source operators at the "
                     f"beginning of your debug pipeline, before other DALI operators. "
@@ -322,6 +364,12 @@ class _OperatorManager:
                     raise ValueError("All argument lists for Multiple Input Sets used "
                                      f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
+
+        if _conditionals.conditionals_enabled():
+            if input_set_len != -1:
+                raise ValueError("Multiple input sets are not supported with conditional"
+                                 " execution (when `enable_conditionals=True`).")
+
         self.expected_inputs_size = len(inputs)
 
         if 'device' not in self._init_args and len(inputs) > 0:
@@ -346,6 +394,12 @@ class _OperatorManager:
         for arg_name in self._call_args.keys():
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
+
+        if self.op_helper.schema_name == "_conditional__Split":
+            # TODO(klecki): Other than __repr__, there is no access to the OpSpec on Python side
+            # We need to check if this op is marked as `_if_stmt` or it is manually placed.
+            if "_if_stmt: True" not in repr(self.op_spec):
+                self._pipe._cur_iter_batch_info.mark_non_uniform_batch()
 
     def _separate_kwargs(self, kwargs):
         self._init_args = {}
@@ -374,12 +428,18 @@ class _OperatorManager:
 
         return data_nodes
 
-    def _pack_to_data_node_debug(self, data):
+    def _pack_to_data_node_debug(self, data, position=None):
         if isinstance(data, (list, tuple)):
-            return [self._pack_to_data_node_debug(elem) for elem in data]
+            return [self._pack_to_data_node_debug(elem, pos) for pos, elem in enumerate(data)]
+
+        def position_to_suffix(position):
+            if position is None:
+                return ""
+            else:
+                return f"[{position}]"
 
         return DataNodeDebug(data,
-                             self._op_name,
+                             self._op_name + position_to_suffix(position),
                              'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu',
                              self)
 
@@ -453,6 +513,9 @@ class _OperatorManager:
             for expected_elem, actual_elem in zip(expected_data, actual_data):
                 self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)
         else:
+            if len(actual_data) == 0:
+                # Skip the validation on empty batches
+                return
             if expected_data.layout() != actual_data.layout():
                 raise_err('layout', actual_data.layout(), expected_data.layout())
 
@@ -477,12 +540,39 @@ class _OperatorManager:
                 inputs[i] = _transform_data_to_tensorlist(
                     input, len(input), device_id=self._device_id)
 
-        return self.op_helper._build_input_sets(inputs)
+        return _build_input_sets(inputs, self._op_name)
+
+    def _update_classification(self, old_collection, position, new_classification):
+        """Keeps the data classification up to date in case of running the conditional mode or
+        split and merge operations producing empty batches.
+        Otherwise it is no-op.
+
+        Parameters
+        ----------
+        old_collection : list or dict
+            The old classification - list of input classification or dictionary of kwarg
+            classification
+        position : int or str
+            The lookup to the currently examinet element in the `old_collection`
+        new_classification : _Classification
+            New classification of the input/kwarg
+        """
+        # If the old classification was empty, it may be invalid due to the pass-through
+        # behaviour on emtpy batches, so we need to update it with the new one
+        if old_collection[position].is_batch and len(old_collection[position].data) == 0:
+            old_collection[position] = new_classification
+            return new_classification
+        return old_collection[position]
 
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
         self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyword arguments')
+
+        # TODO(klecki): Tis will work only with DataNodes
+        if _conditionals.conditionals_enabled():
+            inputs, kwargs = _conditionals.apply_conditional_split_to_args(inputs, kwargs)
+            input_data_nodes_bkp = inputs
 
         call_args = {}
         inputs = list(inputs)
@@ -491,6 +581,8 @@ class _OperatorManager:
         for i, (input,
                 expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
             classification = _Classification(input, f'Input {i}')
+            expected_classification = self._update_classification(self._inputs_classification, i,
+                                                                  classification)
 
             self._check_batch_classification(expected_classification.is_batch,
                                              classification.is_batch,
@@ -502,7 +594,8 @@ class _OperatorManager:
                                               i)
 
             if classification.is_batch:
-                self._check_batch_size(classification, i)
+                if self.op_helper.schema_name != "_conditional__Merge":
+                    self._check_batch_size(classification, i)
                 self._check_call_arg_meta_data(
                     expected_classification.data, classification.data, 'Input', i)
 
@@ -520,6 +613,8 @@ class _OperatorManager:
             classification = _Classification(value, f'Argument {key}',
                                              arg_constant_len=self._batch_size)
 
+            self._update_classification(self._kwargs_classification, key, classification)
+
             self._check_batch_classification(self._kwargs_classification[key].is_batch,
                                              classification.is_batch, 'Argument', key)
             self._check_device_classification(self._kwargs_classification[key].device,
@@ -531,9 +626,31 @@ class _OperatorManager:
                     f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
                     f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
-                self._check_call_arg_meta_data(
-                    self._kwargs_classification[key].data, classification.data, 'Argument', key)
+                self._check_call_arg_meta_data(self._kwargs_classification[key].data,
+                                               classification.data, 'Argument', key)
                 call_args[key] = classification.data
+
+        if _conditionals.conditionals_enabled():
+            # Did we manage to succefuly extract a input batch, but the input was not directly
+            # produced by DALI
+            # TODO(klecki): Add better handling of constant nodes for conditionals in debug mode.
+            for i, classification in enumerate(self._inputs_classification):
+                if classification.is_batch and not classification.was_data_node:
+                    raise ValueError(f"Debug mode with conditional execution"
+                                     f" (when `enable_conditionals=True`) doesn't allow for"
+                                     f" modification of operator outputs by libraries other than"
+                                     f" DALI or using the TensorLists extracted via `.get()` as"
+                                     f" inputs. Expected `DataNodeDebug` as an input, got"
+                                     f" {type(classification.original)} at input {i}.")
+
+            for key, classification in self._kwargs_classification.items():
+                if classification.is_batch and not classification.was_data_node:
+                    raise ValueError(f"Debug mode with conditional execution"
+                                     f" (when `enable_conditionals=True`) doesn't allow for"
+                                     f" modification of operator outputs by libraries other than"
+                                     f" DALI or using the TensorLists extracted via `.get()` as"
+                                     f" inputs. Expected `DataNodeDebug` as an input, got"
+                                     f" {type(classification.original)} for argument '{key}'.")
 
         res = [
             self._pipe._run_op_on_device(self._op_name, logical_id, self._device, input, call_args)
@@ -546,8 +663,14 @@ class _OperatorManager:
         if len(res) == 1:
             res = self._pack_to_data_node_debug(res[0])
         else:
-            res = self.op_helper._repack_output_sets(res)
+            res = _repack_output_sets(res)
             res = self._pack_to_data_node_debug(res)
+
+        if _conditionals.conditionals_enabled():
+            # Work with not-processed input DataNodes, so we can detect which scope we should go
+            _conditionals.register_data_nodes(res, input_data_nodes_bkp, kwargs)
+            if self.op_helper.schema_name != "_conditional__Split":
+                res = list(_conditionals.apply_conditional_split_to_branch_outputs(res))
 
         if len(res) == 1:
             return res[0]
@@ -632,6 +755,8 @@ class _PipelineDebug(_pipeline.Pipeline):
                 outputs.append(
                     _tensors.TensorListCPU(
                         np.tile(val, (self._max_batch_size, *[1] * np.array(val).ndim))))
+        # Reset the stack, so we retrace for the next iteration
+        self._condition_stack = _conditionals._ConditionStack()
         return tuple(outputs)
 
     def feed_input(self, data_node, data, **kwargs):
@@ -695,15 +820,22 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
+        # TODO(klecki): Readers are not compatible with requesting batch size, request batch = -1
+        # for anything without input
+        def is_converted_to_batch(elem):
+            return isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorGPU))
+        batch_input = any(is_converted_to_batch(input) for input in inputs)
+        batch_input = batch_input or any(is_converted_to_batch(arg) for _, arg in kwargs.items())
+        if batch_input:
+            requested_size = self._cur_iter_batch_info.size
+        else:
+            requested_size = -1
         if device == 'gpu':
-            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, requested_size)
         if device == 'cpu':
-            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs,
-                                             self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs, requested_size)
         if device == 'mixed':
-            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs,
-                                               self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs, requested_size)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 

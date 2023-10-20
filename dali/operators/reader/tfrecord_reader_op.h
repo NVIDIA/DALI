@@ -26,7 +26,12 @@ namespace dali {
 class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit TFRecordReader(const OpSpec& spec)
-  : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
+  : DataReader<CPUBackend, Tensor<CPUBackend>>(spec),
+    dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
+    use_o_direct_(spec.GetArgument<bool>("use_o_direct")),
+    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "TFRecordReader") {
+    DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
+                 "``dont_use_mmap=False``."));
     loader_ = InitLoader<IndexedFileLoader>(spec);
     parser_.reset(new TFRecordParser(spec));
     DALI_ENFORCE(!skip_cached_images_,
@@ -38,8 +43,21 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
     parser_->Parse(tensor, &ws);
   }
 
+  ~TFRecordReader() override {
+    // Stop the prefetch thread as it uses the thread pool from this class. So before we can
+    // destroy the thread pool make sure no one is using it anymore.
+    this->StopPrefetchThread();
+  }
+
+  void Prefetch() override;
+
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>);
+  bool dont_use_mmap_ = false;
+  bool use_o_direct_ = false;
+  size_t o_direct_chunk_size_ = 0;
+  // ThreadPool for prefetch which is a separate thread
+  ThreadPool thread_pool_;
 };
 
 }  // namespace dali

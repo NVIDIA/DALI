@@ -69,7 +69,8 @@ class DLL_PUBLIC FileStream : public InputStream {
    private:
     unsigned int reserved;
   };
-  static std::unique_ptr<FileStream> Open(const std::string &uri, bool read_ahead, bool use_mmap);
+  static std::unique_ptr<FileStream> Open(const std::string &uri, bool read_ahead, bool use_mmap,
+                                          bool use_odirect = false);
 
   virtual void Close() = 0;
   virtual shared_ptr<void> Get(size_t n_bytes) = 0;

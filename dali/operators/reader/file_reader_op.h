@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,12 +24,13 @@
 
 namespace dali {
 
-class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
+class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
+    this->SetInitialSnapshot();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
@@ -55,7 +56,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper> {
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
 };
 
 }  // namespace dali

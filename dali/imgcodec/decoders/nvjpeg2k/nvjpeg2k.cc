@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,11 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/imgcodec/util/convert_gpu.h"
+#include "dali/imgcodec/util/convert_utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/registry.h"
 #include "dali/pipeline/util/for_each_thread.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace imgcodec {
@@ -39,32 +41,25 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
   }
 }
 
-float calc_bpp_adjustment_multiplier(int input_bpp, DALIDataType pixel_type) {
-  int type_bits = CHAR_BIT * dali::TypeTable::GetTypeInfo(pixel_type).size();
-  float input_max_value = (1 << input_bpp) - 1;
-  float expected_max_value = (1 << type_bits) - 1;
-  return expected_max_value / input_max_value;
-}
-
 }  // namespace
 
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
-    int device_id, const std::map<std::string, any> &params)
+    int device_id, const std::map<std::string, std::any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
 , nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k()) {
   SetParams(params);
-  any num_threads_any = GetParam("nvjpeg2k_num_threads");
-  int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 4;
+  std::any num_threads_any = GetParam("nvjpeg2k_num_threads");
+  int num_threads = num_threads_any.has_value() ? std::any_cast<int>(num_threads_any) : 4;
   tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
   per_thread_resources_ = vector<PerThreadResources>(num_threads);
-  size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
-  size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
+  size_t device_memory_padding = std::any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
+  size_t host_memory_padding = std::any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
 
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
-  DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
+  DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initialization failed");
 
-  ForEachThread(*tp_, [&](int tid) noexcept {
+  ForEachThread(*tp_, [&](int tid) {
     CUDA_CALL(cudaSetDevice(device_id));
     per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
   });
@@ -90,9 +85,7 @@ NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
 
   ForEachThread(*tp_, [&](int tid) {
       auto &res = per_thread_resources_[tid];
-      res.tile_dec_res.clear();
       res.nvjpeg2k_decode_state.reset();
-      res.intermediate_buffer.free();
     });
 
   for (auto thread_id : tp_->GetThreadIds())
@@ -121,111 +114,48 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
       return false;
   }
 
-  if (ctx.roi) {
-    auto shape = ctx.roi.shape();
-    height = shape[0];
-    width = shape[1];
-  }
-
   // nvJPEG2000 decodes into the planar layout
-  ctx.shape = {ctx.image_info.num_components, height, width};
-
+  ctx.orig_shape = {ctx.image_info.num_components, height, width};
+  ctx.shape = ctx.orig_shape;
+  if (ctx.roi) {
+    auto roi_shape = ctx.roi.shape();
+    ctx.shape = {ctx.image_info.num_components, roi_shape[0], roi_shape[1]};
+  }
   return true;
 }
 
-nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(void *out,
-                                                             void **pixel_data,
-                                                             size_t *pitch_in_bytes,
-                                                             int64_t output_offset_x,
-                                                             int64_t output_offset_y,
-                                                             const Context &ctx) {
+bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out,
+                                               const TensorShape<> &shape, const Context &ctx,
+                                               const ROI &roi) {
+  // allocating buffers
+  void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
+  size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
   uint8_t *out_as_bytes = static_cast<uint8_t*>(out);
+  const int64_t channels = shape[0], height = shape[1], width = shape[2];
   const int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-  const int64_t channels = ctx.shape[0], height = ctx.shape[1], width = ctx.shape[2];
   const int64_t component_byte_size = height * width * type_size;
-  const int64_t offset_byte_size = (width * output_offset_y + output_offset_x) * type_size;
   for (uint32_t c = 0; c < channels; c++) {
-    pixel_data[c] = out_as_bytes + c * component_byte_size + offset_byte_size;
+    pixel_data[c] = out_as_bytes + c * component_byte_size;
     pitch_in_bytes[c] = width * type_size;
   }
-
   nvjpeg2kImage_t image;
   image.pixel_data = pixel_data;
   image.pitch_in_bytes = pitch_in_bytes;
   image.num_components = channels;
   image.pixel_type = ctx.pixel_type == DALI_UINT8 ? NVJPEG2K_UINT8 : NVJPEG2K_UINT16;
 
-  return image;
-}
-
-bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx) {
-  // allocating buffers
-  void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
-  size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-
-  if (!ctx.roi) {
-    auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, 0, 0, ctx);
-    auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
-                              ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
-    return check_status(ret, in);
+  nvjpeg2kStatus_t ret;
+  if (roi) {
+    CUDA_CALL(nvjpeg2kDecodeParamsSetDecodeArea(
+      ctx.params, roi.begin[1], roi.end[1], roi.begin[0], roi.end[0]));
+    ret = nvjpeg2kDecodeImage(
+      nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
+      ctx.nvjpeg2k_stream, ctx.params, &image, ctx.cuda_stream);
   } else {
-    auto &image_info = ctx.image_info;
-
-    // Decode tile by tile: nvjpeg2kDecodeImage doesn't work properly with ROI
-    auto &roi = ctx.roi;
-    std::array tile_shape = {image_info.tile_height, image_info.tile_width};
-
-    int state_idx = 0;
-    for (uint32_t tile_y = 0; tile_y < image_info.num_tiles_y; tile_y++) {
-     for (uint32_t tile_x = 0; tile_x < image_info.num_tiles_x; tile_x++) {
-        auto calc_one_dimension = [&](int dim) {
-          uint32_t tile_nr = (dim == 1 ? tile_x : tile_y);
-          uint32_t tile_begin = tile_nr * tile_shape[dim];
-          uint32_t tile_end = tile_begin + tile_shape[dim];
-          uint32_t roi_begin = roi.begin[dim];
-          uint32_t roi_end = roi.end[dim];
-
-          // Intersection of roi and tile
-          uint32_t decode_begin = std::max(roi_begin, tile_begin);
-          uint32_t decode_end = std::min(roi_end, tile_end);
-          uint32_t output_offset = tile_begin > roi_begin ? tile_begin - roi_begin : 0;
-
-          return std::tuple{decode_begin, decode_end, output_offset};
-        };
-
-        auto [begin_x, end_x, output_offset_x] = calc_one_dimension(1);
-        auto [begin_y, end_y, output_offset_y] = calc_one_dimension(0);
-
-        if (begin_x < end_x && begin_y < end_y) {
-          const TileDecodingResources &per_tile_ctx = ctx.tile_dec_res[state_idx];
-
-          CUDA_CALL(cudaEventSynchronize(per_tile_ctx.decode_event));
-
-          auto &params = per_tile_ctx.params;
-          CUDA_CALL(nvjpeg2kDecodeParamsSetDecodeArea(params, begin_x, end_x, begin_y, end_y));
-
-          auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, output_offset_x,
-                                                output_offset_y, ctx);
-
-          auto ret = nvjpeg2kDecodeTile(nvjpeg2k_handle_,
-                                        per_tile_ctx.state,
-                                        ctx.nvjpeg2k_stream,
-                                        params,
-                                        tile_x + tile_y * image_info.num_tiles_x,
-                                        0,
-                                        &output_image,
-                                        ctx.cuda_stream);
-
-          if (ret != NVJPEG2K_STATUS_SUCCESS)
-            return check_status(ret, in);
-
-          CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));
-          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
-        }
-      }
-    }
-    return true;
+    ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
+        ctx.nvjpeg2k_stream, &image, ctx.cuda_stream);
   }
+  return check_status(ret, in);
 }
 
 DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
@@ -243,31 +173,47 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   if (!ParseJpeg2000Info(in, ctx))
     return result;
 
-  const int64_t channels = ctx.shape[0];
+  const int64_t channels = ctx.image_info.num_components;
+  bool is_roi_oob = ctx.roi &&
+    (ctx.roi.begin[0] < 0 || ctx.roi.end[0] > ctx.image_info.image_width ||
+     ctx.roi.begin[1] < 0 || ctx.roi.end[1] > ctx.image_info.image_height);
+
   DALIImageType format = channels == 1 ? DALI_GRAY : DALI_RGB;
   bool is_processing_needed =
     channels > 1 ||  // nvJPEG2000 decodes into planar layout
     ctx.pixel_type != opts.dtype ||
     format != opts.format ||
-    (ctx.bpp != 8 && ctx.bpp != 16);
+    (ctx.bpp != 8 && ctx.bpp != 16) ||
+    is_roi_oob;
 
   auto decode_out = out;
-  if (is_processing_needed) {
-    int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-    size_t new_size = volume(ctx.shape) * type_size;
-    if (new_size > res.intermediate_buffer.capacity()) {
-      CUDA_CALL(cudaStreamSynchronize(ctx.cuda_stream));
-    }
-    res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
-    decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
+  TensorShape<> decode_sh;
+  ROI roi_decode;  // ROI passed to decode API
+  ROI roi_convert;  // ROI passed to convert API
+  if (ctx.roi && !is_roi_oob) {
+    // if ROI decoding and ROI within bounds
+    // then use ROI decoding API directly
+    decode_sh = ctx.shape;
+    roi_decode = ctx.roi;
+  } else {
+    // Otherwise, we decode full image, then slice/pad via convert
+    decode_sh = ctx.orig_shape;
+    roi_convert =  ctx.roi;
   }
 
-  result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);
+  kernels::DynamicScratchpad scratchpad({}, ctx.cuda_stream);
+  if (is_processing_needed) {
+    int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+    size_t nbytes = volume(decode_sh) * type_size;
+    void *tmp_buff = scratchpad.AllocateGPU<uint8_t>(nbytes, type_size);
+    decode_out = {tmp_buff, decode_sh, ctx.pixel_type};
+  }
+  result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), decode_sh, ctx, roi_decode);
 
   if (is_processing_needed) {
-    auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
+    auto multiplier = DynamicRangeMultiplier(ctx.bpp, ctx.pixel_type);
     Convert(out, "HWC", opts.format, decode_out, "CHW", format, ctx.cuda_stream,
-            {}, {}, multiplier);
+            roi_convert, {}, multiplier);
   }
 
   if (result.success) {

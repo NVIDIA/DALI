@@ -318,8 +318,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                                                image_type_,
                                                dtype_,
                                                normalized_,
-                                               ALIGN16(max_height_),
-                                               ALIGN16(max_width_),
+                                               ALIGN32(max_height_),
+                                               ALIGN32(max_width_),
                                                additional_decode_surfaces_);
 
     if (shuffle_) {

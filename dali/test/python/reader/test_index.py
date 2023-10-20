@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +15,15 @@
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
+import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import os.path
 import tempfile
 import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
+from nose2.tools import cartesian_params
+from nose import SkipTest
 
 
 def skip_second(src, dst):
@@ -69,6 +72,86 @@ def test_tfrecord():
         for a, b in zip(out, out_ref):
             assert np.array_equal(a.as_array(), b.as_array())
         _ = pipe_org.run()
+
+
+def test_tfrecord_odirect():
+    batch_size = 16
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def tfrecord_pipe(path, index_path, dont_use_mmap, use_o_direct):
+        input = fn.readers.tfrecord(
+            path=path,
+            index_path=index_path,
+            dont_use_mmap=dont_use_mmap,
+            use_o_direct=use_o_direct,
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)},
+            name="Reader")
+        return input["image/class/label"]
+
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    pipe = tfrecord_pipe(tfrecord, tfrecord_idx, True, True)
+    pipe_ref = tfrecord_pipe(tfrecord, tfrecord_idx, False, False)
+    pipe.build()
+    pipe_ref.build()
+    iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
+    for _ in range(iters):
+        out = pipe.run()
+        out_ref = pipe_ref.run()
+        for a, b in zip(out, out_ref):
+            assert np.array_equal(a.as_array(), b.as_array())
+
+
+@cartesian_params(((1, 2, 1), (3, 1, 2)),
+                  (True, False),
+                  (True, False))
+def test_tfrecord_pad_last_batch(batch_description, dont_use_mmap, use_o_direct):
+    if not dont_use_mmap and use_o_direct:
+        raise SkipTest("Cannot use O_DIRECT with mmap")
+    num_samples, batch_size, num_shards = batch_description
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def tfrecord_pipe(path, index_path, dont_use_mmap, use_o_direct):
+        input = fn.readers.tfrecord(
+            path=path,
+            index_path=index_path,
+            num_shards=num_shards,
+            dont_use_mmap=dont_use_mmap,
+            use_o_direct=use_o_direct,
+            features={
+                "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)},
+            name="Reader")
+        return input["image/class/label"]
+
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    idx_files_dir = tempfile.TemporaryDirectory()
+    recordio_idx = "rio_train.idx"
+    idx_file = os.path.join(idx_files_dir.name, recordio_idx)
+
+    def leave_only_N(src, dst, n):
+        with open(src, 'r') as tmp_f:
+            with open(dst, 'w') as f:
+                for i, x in enumerate(tmp_f):
+                    if i == n:
+                        break
+                    f.write(x)
+
+    leave_only_N(tfrecord_idx, idx_file, num_samples)
+
+    pipe = tfrecord_pipe(tfrecord, idx_file, dont_use_mmap, use_o_direct)
+    pipe_ref = tfrecord_pipe(tfrecord, idx_file, False, False)
+    pipe.build()
+    pipe_ref.build()
+    iters = (pipe.epoch_size("Reader") + batch_size) // batch_size
+    for _ in range(iters):
+        out = pipe.run()
+        out_ref = pipe_ref.run()
+        for a, b in zip(out, out_ref):
+            assert np.array_equal(a.as_array(), b.as_array())
 
 
 def test_recordio():
@@ -215,3 +298,41 @@ def test_tfrecord_reader_scalars():
         data = np.array(tensor)
         assert data.dtype == np.int64
         assert data.shape == (), f"Unexpected shape. Expected scalar, got {data.shape}"
+
+
+def test_conditionals():
+    tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
+    tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
+
+    @pipeline_def()
+    def get_dali_pipeline(tfrec_filenames, tfrec_idx_filenames, shard_id, num_gpus):
+
+        inputs = fn.readers.tfrecord(
+            path=tfrec_filenames, index_path=tfrec_idx_filenames, random_shuffle=True,
+            shard_id=shard_id, num_shards=num_gpus, initial_fill=10000, seed=42, features={
+                'image/encoded': tfrec.FixedLenFeature((), tfrec.string, ""),
+                'image/class/label': tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                'image/class/text': tfrec.FixedLenFeature([], tfrec.string, ''),
+                'image/object/bbox/xmin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/ymin': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/xmax': tfrec.VarLenFeature(tfrec.float32, 0.0),
+                'image/object/bbox/ymax': tfrec.VarLenFeature(tfrec.float32, 0.0)
+            })
+
+        encoded = inputs["image/encoded"]
+        images = fn.decoders.image(encoded, device="mixed", output_type=types.RGB)
+        images = fn.resize(images, device="gpu", resize_shorter=256)
+
+        labels = inputs["image/class/label"].gpu()
+
+        labels -= 1  # Change to 0-based (don't use background class)
+        return images, labels
+
+    pipe_base = get_dali_pipeline(tfrecord, tfrecord_idx, shard_id=0, num_gpus=1, device_id=0,
+                                  num_threads=4, batch_size=32)
+
+    pipe_cond = get_dali_pipeline(tfrecord, tfrecord_idx, shard_id=0, num_gpus=1, device_id=0,
+                                  num_threads=4, batch_size=32, enable_conditionals=True)
+    for pipe in [pipe_base, pipe_cond]:
+        pipe.build()
+    compare_pipelines(pipe_base, pipe_cond, 32, 5)

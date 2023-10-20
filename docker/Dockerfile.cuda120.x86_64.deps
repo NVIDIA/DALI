@@ -6,14 +6,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y libxml2 curl perl gcc && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run && \
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.0.1/local_installers/cuda_12.0.1_525.85.12_linux.run&& \
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
 
 RUN NVJPEG2K_VERSION=0.6.0.28-1 && \
-    CUFILE_VERSION=1.5.0.59-1 && \
-    NVCOMP_VERSION=2.4 && \
+    CUFILE_VERSION=1.5.1.14-1 && \
+    NVCOMP_VERSION=2.6.1 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
@@ -25,7 +25,7 @@ RUN NVJPEG2K_VERSION=0.6.0.28-1 && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir nvcomp && \
     cd nvcomp && \
-    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_install_CUDA_11.x.tgz && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_${NVCOMP_VERSION}_x86_64_12.x.tgz  && \
     tar -xvf nvcomp*.tgz && \
     cp -rv include/nvcomp* /usr/local/cuda/include/ && \
     cp -v lib/*.so /usr/local/cuda/lib64/ && \

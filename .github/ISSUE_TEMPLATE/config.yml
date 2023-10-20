@@ -1,0 +1,11 @@
+# GitHub info on config.yml
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository#configuring-the-template-chooser
+# Set to 'false' if you only want the templates to be used. 
+blank_issues_enabled: true
+
+# When using discussions instead of Question issue templates,
+# link that below to have it show up in the 'Submit Issue' page
+contact_links:
+  - name: NVIDIA Security
+    url: https://github.com/NVIDIA/DALI/blob/main/SECURITY.rst
+    about: Please report security vulnerabilities here.

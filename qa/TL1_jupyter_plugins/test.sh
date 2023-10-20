@@ -1,5 +1,5 @@
 #!/bin/bash -e
-./test_mxnet.sh
-./test_tf.sh
-./test_paddle.sh
-./test_pytorch.sh
+bash -e ./test_mxnet.sh
+bash -e ./test_tf.sh
+bash -e ./test_paddle.sh
+bash -e ./test_pytorch.sh

@@ -520,7 +520,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
-        copyD2D(data, frame.frame_.data(), FrameSize());
+        copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
       LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
         std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
@@ -612,7 +612,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   // Initial fill of the buffer
   frame_returned_ = false;
   while (
-    HasEmptySlot() &&
+    // as we may enlarge the buffer make sure to not decode more than num_decode_surfaces_ frames
+    NumEmptySpots() > frame_buffer_.size() - num_decode_surfaces_ &&
     more_frames_to_decode_ &&
     !frame_returned_ &&
     frame_to_return_index == -1) {
@@ -670,7 +671,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   copyD2D(
     current_frame_output_,
     frame_buffer_[frame_to_return_index].frame_.data(),
-    FrameSize());
+    FrameSize(),
+    stream_);
   LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
           std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
           ", current copy " << copy_to_output << std::endl;
@@ -727,7 +729,19 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
       return frame;
     }
   }
-  DALI_FAIL("Could not find empty slot in the frame buffer");
+
+  // in some cases we may decode more than one frame after receiving one packet
+  // frame N-1 may require packet N and N-1, and in results after submitting packet N we
+  // will get frame N-1 and N but the buffer may have space only for 1 frame
+  std::vector<BufferedFrame> new_frame_buffer(frame_buffer_.size() + 1);
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+    new_frame_buffer[i] = std::move(frame_buffer_[i]);
+  }
+  frame_buffer_ = std::move(new_frame_buffer);
+  auto &new_frame = frame_buffer_.back();
+  new_frame.frame_.resize(FrameSize());
+  new_frame.pts_ = -1;
+  return new_frame;
 }
 
 bool FramesDecoderGpu::HasEmptySlot() const {

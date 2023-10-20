@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
+#include "dali/core/version_util.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
@@ -55,7 +56,7 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
                             std::ifstream& index_file, const std::string& index_path, int64_t line,
-                            const std::string& index_version) {
+                            int index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
   samples_container.back().components =
@@ -70,7 +71,7 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Reading consecutive components
   ComponentDesc component;
   while (components_stream >> component.ext) {
-    if (index_version == "v1.2") {
+    if (index_version == MakeVersionNumber(1, 2)) {
       DALI_ENFORCE(
           components_stream >> component.offset >> component.size >> component.filename,
           IndexFileErrMsg(
@@ -97,6 +98,18 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                IndexFileErrMsg(index_path, line, "no extensions provided for the sample"));
 }
 
+inline int ParseIndexVersion(const string& version_str) {
+  const char *s = version_str.c_str();
+  assert(*s == 'v');
+  s++;
+  int major = atoi(s);
+  s = strchr(s, '.');
+  assert(s);
+  s++;
+  int minor = atoi(s);
+  return MakeVersionNumber(major, minor);
+}
+
 inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
                            std::vector<ComponentDesc>& components_container,
                            const std::string& index_path) {
@@ -106,13 +119,15 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string global_meta;
   getline(index_file, global_meta);
   std::stringstream global_meta_stream(global_meta);
-  std::string index_version;
-  DALI_ENFORCE(global_meta_stream >> index_version,
+  std::string index_version_str;
+  DALI_ENFORCE(global_meta_stream >> index_version_str,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
   DALI_ENFORCE(
-      kSupportedIndexVersions.count(index_version) > 0,
+      kSupportedIndexVersions.count(index_version_str) > 0,
       IndexFileErrMsg(index_path, 0,
-                      make_string("Unsupported version of the index file (", index_version, ").")));
+                      make_string("Unsupported version of the index file (",
+                                  index_version_str, ").")));
+  int index_version = ParseIndexVersion(index_version_str);
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
@@ -196,12 +211,19 @@ inline std::string SupportedTypesListGen() {
   return out_str.substr(0, out_str.size() - 2 * (detail::wds::kSupportedTypes.size() > 0));
 }
 
+std::string str_tolower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return s;
+}
+
 WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     : Loader(spec),
       paths_(spec.GetRepeatedArgument<std::string>("paths")),
       index_paths_(spec.GetRepeatedArgument<std::string>("index_paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
-          spec.GetArgument<std::string>("missing_component_behavior"))) {
+          spec.GetArgument<std::string>("missing_component_behavior"))),
+      case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")) {
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
                make_string("The number of index files, if any, must match the number of archives ",
                "in the dataset"));
@@ -220,6 +242,9 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
     std::string ext;
     ext_.emplace_back();
     while (std::getline(exts_stream, ext, detail::wds::kExtDelim)) {
+      if (!case_sensitive_extensions_) {
+        ext = str_tolower(ext);
+      }
       if (!ext_.back().count(ext)) {
         ext_.back().insert(ext);
       }
@@ -396,7 +421,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
       for (auto& component : sample.components) {
         component.outputs =
             detail::wds::VectorRange<size_t>(output_indicies_, output_indicies_.size());
-        for (auto& output : ext_map[component.ext]) {
+        auto ext = component.ext;
+        if (!case_sensitive_extensions_) {
+          ext = str_tolower(ext);
+        }
+        for (auto& output : ext_map[ext]) {
           if (!was_output_set[output]) {
             DALI_ENFORCE(component.size % dtype_sizes_[output] == 0,
                          make_string("Error in index file at ", GetSampleSource(new_sample),

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/imgcodec/image_decoder.h"
 #include <cassert>
 #include <condition_variable>
-#include <memory>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <typeinfo>
 #include <vector>
 #include "dali/core/cuda_error.h"
 #include "dali/core/mm/memory.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/core/nvtx.h"
 #include "dali/imgcodec/util/output_shape.h"
 
 namespace dali {
@@ -213,6 +216,8 @@ class ImageDecoder::DecoderWorker {
   std::thread worker_;
   bool stop_requested_ = false;
   std::once_flag started_;
+  std::string thread_name_;
+  std::string nvtx_marker_str_;
 
   ImageDecoder *owner_ = nullptr;
   const ImageDecoderFactory *factory_ = nullptr;
@@ -240,6 +245,9 @@ ImageDecoderInstance *ImageDecoder::DecoderWorker::decoder(bool create_if_null) 
   if (!decoder_) {
     decoder_ = factory_->Create(owner_->device_id_, owner_->params_);
     produces_gpu_output_ = factory_->GetProperties().gpu_output;
+    thread_name_ = make_string("[DALI][WT]ImageDecoder");
+    auto &dec_ref = *this->decoder_;
+    nvtx_marker_str_ = make_string(typeid(dec_ref).name(), "/ process_batch");
   }
   return decoder_.get();
 }
@@ -270,6 +278,7 @@ void ImageDecoder::DecoderWorker::stop() {
 }
 
 void ImageDecoder::DecoderWorker::run() {
+  SetThreadName(thread_name_.c_str());
   DeviceGuard dg(owner_->device_id_);
   std::unique_lock lock(mtx_, std::defer_lock);
   while (!stop_requested_) {
@@ -309,6 +318,7 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
 
 // The main processing function
 void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) noexcept {
+  DomainTimeRange tr(nvtx_marker_str_, DomainTimeRange::kCyan);
   assert(work->num_samples() > 0);
   assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
          (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||
@@ -329,11 +339,11 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
     if (!fallback_work->empty())
       fallback_->add_work(std::move(fallback_work));
   } else {
-    filter(*work, mask);
     for (size_t i = 0; i < mask.size(); i++) {
       if (!mask[i])
         work->results.set(work->indices[i], DecodeResult::Failure(nullptr));
     }
+    filter(*work, mask);
   }
 
   if (!work->sources.empty()) {
@@ -399,7 +409,7 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
 
 ImageDecoder::ImageDecoder(int device_id,
                            bool lazy_init,
-                           const std::map<std::string, any> &params,
+                           const std::map<std::string, std::any> &params,
                            std::function<bool(ImageDecoderFactory *)> decoder_filter) {
   SetParams(params);
   if (device_id == -1)
@@ -487,7 +497,7 @@ void ImageDecoder::CalculateOutputShape(TensorListShape<> &shape,
   }
 }
 
-bool ImageDecoder::SetParam(const char *key, const any &value) {
+bool ImageDecoder::SetParam(const char *key, const std::any &value) {
   params_[key] = value;
 
   for (auto &[_, worker] : workers_)
@@ -497,12 +507,12 @@ bool ImageDecoder::SetParam(const char *key, const any &value) {
   return true;
 }
 
-any ImageDecoder::GetParam(const char *key) const {
+std::any ImageDecoder::GetParam(const char *key) const {
   auto it = params_.find(key);
-  return it != params_.end() ? it->second : any{};
+  return it != params_.end() ? it->second : std::any{};
 }
 
-int ImageDecoder::SetParams(const std::map<std::string, any> &params) {
+int ImageDecoder::SetParams(const std::map<std::string, std::any> &params) {
   for (auto &[k, v] : params)
     params_[k] = v;
 
@@ -665,33 +675,33 @@ void ImageDecoder::InitWorkers(bool lazy_init) {
 void ImageDecoder::move_to_fallback(ScheduledWork *fb,
                                     ScheduledWork &work,
                                     const vector<bool> &keep) {
-    int moved = 0;
+  int moved = 0;
 
-    int n = work.sources.size();
+  int n = work.sources.size();
 
-    for (int i = 0; i < n; i++) {
-      if (keep[i]) {
-        if (moved) {
-          // compact
-          if (!work.cpu_outputs.empty())
-            work.cpu_outputs[i - moved] = std::move(work.cpu_outputs[i]);
-          if (!work.gpu_outputs.empty())
-            work.gpu_outputs[i - moved] = std::move(work.gpu_outputs[i]);
-          if (!work.temp_buffers.empty())
-            work.temp_buffers[i - moved] = std::move(work.temp_buffers[i]);
-          if (!work.rois[i])
-            work.rois[i - moved] = std::move(work.rois[i]);
-          work.sources[i - moved] = work.sources[i];
-          work.indices[i - moved] = work.indices[i];
-        }
-      } else {
-        if (fb)
-          fb->move_entry(work, i);
-        moved++;
+  for (int i = 0; i < n; i++) {
+    if (keep[i]) {
+      if (moved) {
+        // compact
+        if (!work.cpu_outputs.empty())
+          work.cpu_outputs[i - moved] = std::move(work.cpu_outputs[i]);
+        if (!work.gpu_outputs.empty())
+          work.gpu_outputs[i - moved] = std::move(work.gpu_outputs[i]);
+        if (!work.temp_buffers.empty())
+          work.temp_buffers[i - moved] = std::move(work.temp_buffers[i]);
+        if (!work.rois[i])
+          work.rois[i - moved] = std::move(work.rois[i]);
+        work.sources[i - moved] = work.sources[i];
+        work.indices[i - moved] = work.indices[i];
       }
+    } else {
+      if (fb)
+        fb->move_entry(work, i);
+      moved++;
     }
-    if (fb)
-      fb->resize(fb->num_samples() - moved);
+  }
+  if (moved)
+    work.resize(n - moved);
 }
 
 

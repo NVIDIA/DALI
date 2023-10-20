@@ -19,12 +19,12 @@
 #include <string>
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class Flip: public Operator<Backend> {
+class Flip: public StatelessOperator<Backend> {
  public:
   explicit Flip(const OpSpec &spec);
 

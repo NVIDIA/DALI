@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import os
 import random
 from nvidia.dali import pipeline_def
 
+from nose2.tools import params
 from nose_utils import assert_raises
 from test_utils import check_output_pattern
 from test_utils import compare_pipelines
@@ -47,46 +48,45 @@ def get_img_files(data_path, subdir='*', ext=None):
 
 
 @pipeline_def
-def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False):
+def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False,
+                 jpeg_fancy_upsampling=False):
     inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
     decoded = fn.decoders.image(inputs, device=device, output_type=types.RGB,
-                                use_fast_idct=use_fast_idct, memory_stats=memory_stats)
+                                use_fast_idct=use_fast_idct, memory_stats=memory_stats,
+                                jpeg_fancy_upsampling=jpeg_fancy_upsampling)
 
     return decoded, labels
 
 
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
-missnamed_path = 'db/single/missnamed'
+misnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
-test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
+test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 
-def run_decode(data_path, batch, device, threads, memory_stats=False):
+def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False):
     pipe = decoder_pipe(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0,
                         device=device, memory_stats=memory_stats, prefetch_queue_depth=1)
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
-        pipe.run()
+        outs = pipe.run()
+        del outs
+    del pipe
 
 
 def test_image_decoder():
-    def log(img_type, size, device, threads):
-        pass
-
     for device in {'cpu', 'mixed'}:
         for batch_size in {1, 10}:
             for img_type in test_good_path:
                 for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    run_decode(data_path, batch_size, device, threads)
-                    yield log, img_type, batch_size, device, threads
-            for img_type in test_missnamed_path:
+                    yield run_decode, img_type, data_path, batch_size, device, threads
+            for img_type in test_misnamed_path:
                 for threads in {1, random.choice([2, 3, 4])}:
-                    data_path = os.path.join(test_data_root, missnamed_path, img_type)
-                    run_decode(data_path, batch_size, device, threads)
-                    yield log, img_type, batch_size, device, threads
+                    data_path = os.path.join(test_data_root, misnamed_path, img_type)
+                    yield run_decode, img_type, data_path, batch_size, device, threads
 
 
 @pipeline_def
@@ -204,6 +204,30 @@ def test_FastDCT():
                 yield check_FastDCT_body, batch_size, img_type, device
 
 
+def check_fancy_upsampling_body(batch_size, img_type, device):
+    data_path = os.path.join(test_data_root, good_path, img_type)
+    compare_pipelines(
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device=device, jpeg_fancy_upsampling=True),
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device='cpu'),
+        batch_size=batch_size, N_iterations=3, eps=1)
+
+
+@params(1, 8)
+def test_fancy_upsampling(batch_size):
+    if nvidia.dali.backend.GetNvjpegVersion() < 12001:
+        from nose import SkipTest
+        raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
+    data_path = os.path.join(test_data_root, good_path, 'jpeg')
+    compare_pipelines(
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device='mixed', jpeg_fancy_upsampling=True),
+        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
+                     device_id=0, device='cpu'),
+        batch_size=batch_size, N_iterations=3, eps=1)
+
+
 def test_image_decoder_memory_stats():
     device = 'mixed'
     img_type = 'jpeg'
@@ -215,7 +239,7 @@ def test_image_decoder_memory_stats():
         pattern = r'Device memory: \d+ allocations, largest = 16777216 bytes\n.*' \
                   r'Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n'
         with check_output_pattern(pattern):
-            run_decode(data_path, size, device, threads, memory_stats=True)
+            run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
     for size in {1, 10}:
         for threads in {1, random.choice([2, 3, 4])}:

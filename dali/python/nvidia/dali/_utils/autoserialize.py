@@ -30,7 +30,12 @@ def _discover_autoserialize(module, visited):
     """
     assert module is not None
     ret = []
-    module_members = inspect.getmembers(module)
+    try:
+        module_members = inspect.getmembers(module)
+    except (ModuleNotFoundError, ImportError):
+        # If any module can't be inspected, DALI will not be able to find the @autoserialize
+        # anyway. We can just skip this module.
+        return ret
     modules = []
     for name, path in module_members:
         obj = getattr(module, name, None)

@@ -40,7 +40,7 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
   explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
                         bool shuffle_after_epoch = false)
-      : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
+      : FileLoader<GPUBackend, Target, CUFileStream>(spec, shuffle_after_epoch) {
   }
 
   ~CUFileLoader() {
@@ -51,7 +51,7 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
      * cuFileDeregister functions, so instead of letting them to be cleared by Loader class when
      * cuFile is no longer accesible we need to do that here.
      */
-    this->last_sample_ptr_tmp.reset();
+    this->last_sample_ptr_tmp.ptr.reset();
     this->sample_buffer_.clear();
     this->empty_tensors_.clear();
   }

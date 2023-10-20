@@ -43,7 +43,7 @@ template <typename Backend = CPUBackend, typename Target = FileWrapper,
           typename InputStream = FileStream>
 class FileLoader : public Loader<Backend, Target> {
  public:
-  explicit inline FileLoader(const OpSpec &spec, bool shuffle_after_epoch = false)
+  FileLoader(const OpSpec &spec, bool shuffle_after_epoch)
       : Loader<Backend, Target>(spec),
         file_filter_(spec.GetArgument<string>("file_filter")),
         shuffle_after_epoch_(shuffle_after_epoch),

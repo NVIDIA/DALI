@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/mm/pool_resource.h"
+#include "dali/core/mm/with_upstream.h"
 #include "dali/core/mm/detail/free_list.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
@@ -36,10 +37,12 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = pool_resource_base<Kind, coalescing_free_tree, spinlock>,
+    typename GlobalPool = pool_resource<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
-class async_pool_resource : public async_memory_resource<Kind> {
+class async_pool_resource : public async_memory_resource<Kind>,
+                            public pool_resource_base<Kind>,
+                            public with_upstream<Kind> {
  public:
   /**
    * @param upstream       Upstream resource, used by the global pool
@@ -100,6 +103,30 @@ class async_pool_resource : public async_memory_resource<Kind> {
    */
   void synchronize() {
     synchronize_impl(true);
+  }
+
+  /**
+   * @brief Releases unused upstream memory
+   *
+   * Releases any ready per-stream blocks to the global pool and
+   * calls `release_unused` on it.
+   */
+  void release_unused() override {
+    std::lock_guard<std::mutex> guard(lock_);
+    synchronize_impl(false);
+    for (auto &kv : stream_free_)
+      free_ready(kv.second);
+    global_pool_.release_unused();
+  }
+
+  void *try_allocate_from_free(size_t size, size_t alignment) override {
+    std::lock_guard<std::mutex> guard(lock_);
+    return global_pool_.try_allocate_from_free(size, alignment);
+  }
+
+  GlobalPool *upstream() const override {
+    // ugly WAR - the global pool may be the "upstream" we really care about here
+    return const_cast<GlobalPool *>(&global_pool_);
   }
 
  private:
@@ -350,6 +377,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
         char *block_end = base + block_size;
         char *remainder = detail::align_ptr(aligned + bytes, remainder_alignment);
         bool split = supports_splitting && remainder + min_split_remainder < block_end;
+        size_t orig_alignment = f->alignment;
         size_t split_size = block_size;
         if (split) {
           // Adjust the pending free `f` so that it contains only what remains after
@@ -364,10 +392,10 @@ class async_pool_resource : public async_memory_resource<Kind> {
         } else {
           remove_pending_free(from, f, false);
         }
-        if (split_size != bytes) {
+        if (split_size != bytes || alignment != orig_alignment) {
           padded_[aligned] = { split_size,
                                static_cast<int>(front_padding),
-                               static_cast<int>(alignment) };
+                               static_cast<int>(orig_alignment) };
         }
         return aligned;
       }
@@ -570,7 +598,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
    *
    * In general, `memory_resource` requires that the a pointer being deallocated
    * was returned from a previous allocation on the same resource, with the same size.
-   * However, a specific implementation of a memory resource (i.e. pool_resource_base with
+   * However, a specific implementation of a memory resource (i.e. pool_resource with
    * certain FreeList types) can concatenate the deallocated memory segments.
    * This property is used for partial recycling of stream-bound free blocks - we might
    * reuse a part of the block on the same stream and return the rest to the global pool, with

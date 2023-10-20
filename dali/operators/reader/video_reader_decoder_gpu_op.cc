@@ -76,6 +76,7 @@ void VideoReaderDecoderGpu::RunImpl(Workspace &ws) {
       sample.data_.raw_data(),
       sample.data_.size(),
       ws.stream());
+    video_output.SetSourceInfo(sample_id, sample.data_.GetSourceInfo());
   }
 
   if (!has_labels_) {

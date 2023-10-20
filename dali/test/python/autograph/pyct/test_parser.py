@@ -22,6 +22,7 @@ import gast
 
 from nvidia.dali._autograph.pyct import ast_util
 from nvidia.dali._autograph.pyct import errors
+from nvidia.dali._autograph.pyct import gast_util
 from nvidia.dali._autograph.pyct import parser
 from nvidia.dali._autograph.pyct import pretty_printer
 
@@ -340,7 +341,7 @@ string""")
     node = gast.If(
         test=gast.Constant(1, kind=None),
         body=[
-            gast.Assign(
+            gast_util.compat_assign(
                 targets=[
                     gast.Name(
                         'a',
@@ -349,10 +350,11 @@ string""")
                         type_comment=None)
                 ],
                 value=gast.Name(
-                    'b', ctx=gast.Load(), annotation=None, type_comment=None))
+                    'b', ctx=gast.Load(), annotation=None, type_comment=None),
+                type_comment=None)
         ],
         orelse=[
-            gast.Assign(
+            gast_util.compat_assign(
                 targets=[
                     gast.Name(
                         'a',
@@ -360,7 +362,8 @@ string""")
                         annotation=None,
                         type_comment=None)
                 ],
-                value=gast.Constant('c', kind=None))
+                value=gast.Constant('c', kind=None),
+                type_comment=None)
         ])
 
     source = parser.unparse(node, indentation='  ')

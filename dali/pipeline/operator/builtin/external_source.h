@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ class ExternalSource : public InputOperator<Backend> {
  public:
   explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
+        repeats_last_(spec.GetArgument<bool>("repeat_last")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_() {
@@ -55,15 +56,15 @@ class ExternalSource : public InputOperator<Backend> {
     return "ExternalSource (" + output_name_ + ")";
   }
 
-  const TensorLayout& layout() const {
+  const TensorLayout& in_layout() const override {
     return layout_;
   }
 
-  int ndim() const {
+  int in_ndim() const override {
     return ndim_;
   }
 
-  DALIDataType dtype() const {
+  DALIDataType in_dtype() const override {
     return dtype_;
   }
 
@@ -156,18 +157,26 @@ class ExternalSource : public InputOperator<Backend> {
     ndim_ = input_ndim;
 
     if (spec_.HasArgument("layout")) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Expected data with layout: \"", layout_,
+      if (batch.GetLayout().empty()) {
+        layout_ = spec_.template GetArgument<TensorLayout>("layout");
+      } else {
+        DALI_ENFORCE(layout_ == batch.GetLayout(),
+                     make_string("Expected data with layout: \"", layout_,
                      "\" and got: \"", batch.GetLayout(), "\"."));
-    } else if (!layout_.empty()) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Layout of the data fed to the external source has changed "
-                     "from previous iteration. Layout in the previous iteration was \"", layout_,
-                     "\" and the current is \"", batch.GetLayout(), "\"."));
+      }
+    } else {
+        if (layout_.empty()) {
+          layout_ = batch.GetLayout();
+        } else  {
+          DALI_ENFORCE(layout_ == batch.GetLayout(),
+                        make_string("Layout of the data fed to the external source has changed "
+                          "from previous iteration. Layout in the previous iteration was \"",
+                          layout_, "\" and the current is \"", batch.GetLayout(), "\"."));
+        }
     }
-    layout_ = batch.GetLayout();
   }
 
+  const bool repeats_last_;
 
   string output_name_;
 
@@ -175,6 +184,7 @@ class ExternalSource : public InputOperator<Backend> {
   DALIDataType previous_dtype_ = DALI_NO_TYPE;
   int ndim_;
   TensorLayout layout_;
+  std::optional<std::string> data_id_ = std::nullopt;
 };
 
 }  // namespace dali

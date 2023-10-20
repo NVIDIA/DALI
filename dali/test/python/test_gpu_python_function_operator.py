@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,8 +40,7 @@ NUM_WORKERS = 6
 class PythonFunctionPipeline(Pipeline):
     def __init__(self, function, device, num_outputs=1):
         super(PythonFunctionPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID,
-                                                     seed=SEED,
-                                                     exec_async=False, exec_pipelined=False)
+                                                     seed=SEED)
         self.device = device
         self.reader = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device='cpu',

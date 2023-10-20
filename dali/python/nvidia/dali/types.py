@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -390,7 +390,7 @@ def _get_device_id_for_array(array):
         return None
 
 
-_cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')        # noqa: W605
+_cupy_array_type_regex = re.compile('.*cupy.*\..*ndarray.*')        # noqa: W605
 
 
 def _is_cupy_array(value):
@@ -505,7 +505,7 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         if dtype is None:
             dtype = actual_type
 
-    import nvidia.dali.ops as ops
+    import nvidia.dali.fn as fn
 
     def _convert(x, type):
         if isinstance(x, (list, tuple)):
@@ -518,22 +518,8 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
     if device is None:
         device = "cpu"
 
-    # 'name' argument is pased to call, not the constructor
-    constructor_args = kwargs
-    call_args = {}
-    name = constructor_args.get("name")
-    if name is not None:
-        call_args["name"] = name
-        del constructor_args["name"]
-
-    op = ops.Constant(device=device,
-                      fdata=fdata,
-                      idata=idata,
-                      shape=shape,
-                      dtype=dtype,
-                      layout=layout,
-                      **constructor_args)
-    return op(**call_args)
+    return fn.constant(device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype,
+                       layout=layout, **kwargs)
 
 
 def _is_scalar_value(value):

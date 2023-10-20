@@ -30,9 +30,9 @@ namespace dali {
 #define COORD_TRANSFORM_DIMS (1, 2, 3, 4, 5, 6)
 
 template <typename Backend>
-class CoordTransform : public SequenceOperator<Backend, true>, private MTTransformAttr {
+class CoordTransform : public SequenceOperator<Backend, Operator, true>, private MTTransformAttr {
  public:
-  using Base = SequenceOperator<Backend, true>;
+  using Base = SequenceOperator<Backend, Operator, true>;
   explicit CoordTransform(const OpSpec &spec) : Base(spec), MTTransformAttr(spec) {
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
   }

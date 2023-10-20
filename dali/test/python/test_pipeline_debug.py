@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,16 @@ from nvidia.dali import types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from nose_utils import raises
 from test_utils import compare_pipelines, get_dali_extra_path
+from nose_utils import assert_raises
+
+from conditionals.test_pipeline_conditionals import (pred_gens,
+                                                     _impl_against_split_merge,
+                                                     _impl_dot_gpu,
+                                                     _impl_arg_inputs_scoped_tracking,
+                                                     _impl_arg_inputs_scoped_uninitialized,
+                                                     _impl_generators,
+                                                     _impl_uninitialized)
+
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 
@@ -649,3 +659,129 @@ def test_nan_check():
 
     for values in [[1, 1], [np.nan, np.nan]]:
         yield _test_nan_check, values
+
+
+def test_debug_pipeline_conditionals():
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    def pipeline_split_merge():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        input = fn.constant(idata=[10], shape=[])
+        true, false = fn._conditional.split(input, predicate=pred)
+        output_true = true + 2
+        output_false = false + 100
+        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        print(
+            f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
+        return pred, output
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        input = fn.constant(idata=[10], shape=[])
+        print(f"Pred: {pred}")
+        if pred:
+            output = input + 2
+            print(f"Output if: {output}")
+        else:
+            output = input + 100
+            print(f"Output else: {output}")
+        print(f"Output: {output}")
+        return pred, output
+
+    pipe_standard = pipeline_split_merge(debug=True)
+    pipe_standard.build()
+
+    pipe_cond = pipeline_cond(debug=True)
+    pipe_cond.build()
+    compare_pipelines(pipe_standard, pipe_cond, 8, 5)
+
+
+def test_debug_pipeline_conditional_repeated_op():
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
+    def pipeline_split_merge():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        rng2 = fn.random.coin_flip(seed=2)
+        true, _ = fn._conditional.split(rng1, predicate=pred)
+        _, false = fn._conditional.split(rng2, predicate=pred)
+        output_true = true + 20
+        output_false = false + 10
+        output = fn._conditional.merge(output_true, output_false, predicate=pred)
+        print(
+            f"Pred: {pred}, Output if: {output_true}, Output else: {output_false}, Output {output}")
+        return pred, output
+
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        rng2 = fn.random.coin_flip(seed=2)
+        print(f"Pred: {pred}")
+        if pred:
+            output = rng1 + 20
+            print(f"Output if: {output}")
+        else:
+            output = rng2 + 10
+            print(f"Output else: {output}")
+        print(f"Output: {output}")
+        return pred, output
+
+    pipe_standard = pipeline_split_merge(debug=True)
+    pipe_standard.build()
+
+    pipe_cond = pipeline_cond(debug=True)
+    pipe_cond.build()
+    compare_pipelines(pipe_standard, pipe_cond, 8, 5)
+
+
+def test_against_split_merge():
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_against_split_merge, {'debug': base_debug}, {'debug': conditional_debug}
+
+
+def test_dot_gpu():
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_dot_gpu, {'debug': base_debug}, {'debug': conditional_debug}
+
+
+def test_arg_inputs_scoped_tracking():
+    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]:
+        yield _impl_arg_inputs_scoped_tracking, {'debug': global_debug}, {'debug': scoped_debug}
+
+
+def test_arg_inputs_scoped_uninitialized():
+    yield _impl_arg_inputs_scoped_uninitialized, {'debug': True}
+
+
+def test_generators():
+    for pred in pred_gens[:-1]:
+        for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
+            yield _impl_generators, pred, {'debug': base_debug}, {'debug': conditional_debug}
+
+
+def test_uninitialized():
+    yield _impl_uninitialized, {'debug': True}
+
+
+def test_debug_pipeline_conditional_without_data_node():
+    @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
+    def pipeline_cond():
+        pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
+        rng1 = fn.random.coin_flip(seed=1)
+        if pred:
+            output = fn.copy(rng1.get())
+        else:
+            output = rng1 + 10
+        return pred, output
+
+    with assert_raises(
+            ValueError, glob=("Debug mode with conditional execution (when "
+                              "`enable_conditionals=True`) doesn't allow for modification of"
+                              " operator outputs by libraries other than DALI or using the"
+                              " TensorLists extracted via `.get()` as inputs."
+                              " Expected `DataNodeDebug` as an input, got * at input *.")):
+        pipe_cond = pipeline_cond(debug=True)
+        pipe_cond.build()
+        pipe_cond.run()

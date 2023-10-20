@@ -11,17 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import sys
 import collections
 import nose.case
 import nose.inspector
 import nose.loader
 import nose.suite
-if not hasattr(collections, "Callable"):
+import nose.plugins.attrib
+if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.case.collections = collections.abc
     nose.inspector.collections = collections.abc
     nose.loader.collections = collections.abc
     nose.suite.collections = collections.abc
+    nose.plugins.attrib.collections = collections.abc
 
 import nose.tools as tools
 import re

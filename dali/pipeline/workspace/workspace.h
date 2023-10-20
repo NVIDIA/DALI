@@ -25,6 +25,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/executor/iteration_data.h"
 
 namespace dali {
 
@@ -113,7 +114,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   using DataObjectPtr = ptr_t<DataObject<Backend>>;
 
-  WorkspaceBase() {}
+  WorkspaceBase() = default;
   ~WorkspaceBase() override = default;
 
   /**
@@ -526,19 +527,116 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
- * @brief Returns the index of the sample that this workspace stores
- * in the input/output batch.
- */
+   * @brief Returns the index of the sample that this workspace stores
+   * in the input/output batch.
+   */
   DLL_PUBLIC virtual inline int data_idx() const {
     return 0;
   }
 
   /**
- * @brief Returns the index of the thread that will process this data.
- */
+   * @brief Returns the index of the thread that will process this data.
+   */
   DLL_PUBLIC virtual inline int thread_idx() const {
     return 0;
   }
+
+
+  /// @{
+  /**
+   * Sets the operator ID that this Workspace in associated with.
+   */
+  void SetOperatorInstanceName(std::string operator_id) {
+    operator_instance_name_ = std::move(operator_id);
+  }
+
+
+  /**
+   * Returns the operator ID that this Workspace in associated with.
+   *
+   * @remark When implementing the error messages within an operator implementation,
+   * it is not necessary to add the OperatorId to the message - the Executor does it automatically.
+   */
+  const std::string &GetOperatorInstanceName() const {
+    return operator_instance_name_;
+  }
+  /// @}
+
+
+  ///@{
+  /**
+   * Set the whole operator trace map in this workspace.
+   *
+   * Sets the operator trace map that corresponds to all operators in the current iteration.
+   *
+   * Typically, this function shall be called by the Executor, when assigning the Workspace to
+   * the Operator.
+   */
+  void InjectOperatorTraces(std::shared_ptr<operator_trace_map_t> operator_trace_map) {
+    operator_traces_ = std::move(operator_trace_map);
+  }
+
+
+  /**
+   * Set the trace value for the current operator.
+   *
+   * Typically, this function shall be called by an operator in RunImpl or SetupImpl.
+   *
+   * @see operator_trace_map_t
+   */
+  DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
+    (*operator_traces_)[GetOperatorInstanceName()].insert_or_assign(
+            trace_key, std::move(trace_value));
+  }
+
+
+  /**
+   * Erase the trace value for the current operator.
+   *
+   * Typically, this function shall be called by an operator in RunImpl or SetupImpl.
+   *
+   * @see operator_trace_map_t
+   */
+  DLL_PUBLIC void EraseOperatorTrace(const std::string &trace_key) {
+    (*operator_traces_)[GetOperatorInstanceName()].erase(trace_key);
+  }
+
+
+  /**
+   * Erase all the trace values for the current operator.
+   *
+   * @see operator_trace_map_t
+   */
+  DLL_PUBLIC void ClearOperatorTraces() {
+    (*operator_traces_)[GetOperatorInstanceName()].clear();
+  }
+
+
+  /**
+   * Get the trace map for a given operator.
+   *
+   * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
+   *
+   * Typically, this function will be called when the traces shall be read.
+   *
+   * @see operator_trace_map_t
+   *
+   * @param operator_name Name (ID) of the operator.
+   */
+  DLL_PUBLIC const auto &GetOperatorTraces(const std::string &operator_name) const {
+    return operator_traces_->at(operator_name);
+  }
+
+  /**
+   * Get the operator trace map for all operators in the pipeline.
+   *
+   * @see operator_trace_map_t
+   */
+  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
+    return *operator_traces_;
+  }
+  ///@}
+
 
  protected:
   struct InOutMeta {
@@ -684,10 +782,17 @@ class WorkspaceBase : public ArgumentWorkspace {
     return index_map[idx];
   }
 
+
   AccessOrder output_order_ = AccessOrder::host();
   ThreadPool *thread_pool_ = nullptr;
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
+
+  /// Name of the instance of the operator, to which this Workspace in associated with.
+  std::string operator_instance_name_;
+
+  /// Traces of the operators corresponding to all operators in the current iteration.
+  std::shared_ptr<operator_trace_map_t> operator_traces_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};

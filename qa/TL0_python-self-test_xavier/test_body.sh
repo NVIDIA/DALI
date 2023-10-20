@@ -19,15 +19,22 @@ test_py_with_framework() {
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
             grep -qiE ${exclude} ${test_script} && status=$((status+1))
         done
+        # if nose2 is used isnide the test use it
+        if grep -qiE "nose2" ${test_script}; then
+            PYTHON_TEST_CMD=${python_new_invoke_test}
+            test_script=${test_script/.py/}
+        else
+            PYTHON_TEST_CMD=${python_invoke_test}
+        fi
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+            ${PYTHON_TEST_CMD} --attr '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' ${test_script}
         fi
     done
 
 
-    XAVIER_OPERATOR_TESTS=""
-    for test_script in $(ls operator/test_*.py); do
+    XAVIER_OPERATOR_1_TESTS=""
+    for test_script in $(ls operator_1/test_*.py); do
         status=0
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
             grep -qiE ${exclude} ${test_script} && status=$((status+1))
@@ -36,7 +43,21 @@ test_py_with_framework() {
         if [ ${status} -eq 0 ]; then
             test_script=(${test_script//// })
             test_script=${test_script[1]::-3}
-            XAVIER_OPERATOR_TESTS="$XAVIER_OPERATOR_TESTS $test_script"
+            XAVIER_OPERATOR_1_TESTS="$XAVIER_OPERATOR_1_TESTS $test_script"
+        fi
+    done
+
+    XAVIER_OPERATOR_2_TESTS=""
+    for test_script in $(ls operator_2/test_*.py); do
+        status=0
+        for exclude in "${EXCLUDE_PACKAGES[@]}"; do
+            grep -qiE ${exclude} ${test_script} && status=$((status+1))
+        done
+        # execute only when no matches are found
+        if [ ${status} -eq 0 ]; then
+            test_script=(${test_script//// })
+            test_script=${test_script[1]::-3}
+            XAVIER_OPERATOR_2_TESTS="$XAVIER_OPERATOR_2_TESTS $test_script"
         fi
     done
 
@@ -54,8 +75,9 @@ test_py_with_framework() {
         fi
     done
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s operator $XAVIER_OPERATOR_TESTS
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s reader $XAVIER_READER_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_1 $XAVIER_OPERATOR_1_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_2 $XAVIER_OPERATOR_2_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s reader $XAVIER_READER_TESTS
 }
 
 test_py() {

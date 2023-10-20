@@ -42,6 +42,7 @@ NVIDIA DALI Documentation
    math
    indexing
    supported_ops
+   auto_aug/auto_aug
    supported_ops_legacy
    framework_plugins
 

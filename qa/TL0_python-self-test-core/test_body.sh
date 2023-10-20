@@ -2,7 +2,12 @@
 
 test_py_with_framework() {
     # Note that we do not filter '!numba' below as it is installed as dependency
-    for test_script in $(ls test_pipeline*.py \
+    for test_script in $(ls test_pipeline.py \
+                            test_pipeline_debug.py \
+                            test_pipeline_debug_resnet50.py \
+                            test_pipeline_decorator.py \
+                            test_pipeline_multichannel.py \
+                            test_pipeline_segmentation.py \
                             test_triton_autoserialize.py \
                             test_functional_api.py \
                             test_backend_impl.py \
@@ -22,16 +27,24 @@ test_py() {
 
 test_autograph() {
     ${python_new_invoke_test} -s autograph
+    ${python_new_invoke_test} -s conditionals
+    ${python_new_invoke_test} -s auto_aug
 }
 
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_new_invoke_test} -A '!slow,pytorch' -s checkpointing
+}
+
+test_checkpointing() {
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s checkpointing
 }
 
 test_no_fw() {
     test_py_with_framework
     test_py
     test_autograph
+    test_checkpointing
 }
 
 run_all() {

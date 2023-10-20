@@ -38,6 +38,12 @@ if (BUILD_CUFILE)
     "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader_gpu.cc")
 endif()
 
+if (BUILD_CFITSIO)
+  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/fits_loader.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fits_loader_gpu.cc")
+endif()
+
 if (BUILD_LIBSND)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/nemo_asr_loader.cc")

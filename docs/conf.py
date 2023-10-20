@@ -82,10 +82,12 @@ if "dev" in version_long:
     release_opt = option_off
     main_opt = option_on
     option_nr = 1
+    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
 else:
     release_opt = option_on
     main_opt = option_off
     option_nr = 0
+    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
 version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
@@ -111,8 +113,13 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.autosectionlabel',
+    'sphinx.ext.autosectionlabel'
 ]
+
+# https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
+autodoc_typehints_format = 'short'
+python_use_unqualified_type_names = True
+autodoc_typehints = 'none'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -144,6 +151,29 @@ pygments_style = 'sphinx'
 # Mock some of the dependencies for building docs. tf-plugin doc check tf version before loading,
 # so we do not mock tensorflow so we do not need to extend the logic there.
 autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
+
+
+# -- Options for MathJax -----------------------------------------------------
+
+# Configure the MathJax to use SVG rendering as a default instead of the CHTML one.
+# Apparently, this is how MathJax is supposed to be configured based on their converter
+# https://mathjax.github.io/MathJax-demos-web/convert-configuration/convert-configuration.html
+# The import is crucial, in version two it was apparently enough to set
+# `jax: ["input/TeX", "output/SVG"]` in the config.
+# We need it, because the newer version of MatJax tries to render some vertical and horizontal lines
+# with less than 1 pixel, which doesn't show in Firefox in some cases:
+# * https://github.com/mathjax/MathJax/issues/2795
+# * https://bugzilla.mozilla.org/show_bug.cgi?id=1741887
+# The bug happens only with the CHTML renderer.
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+mathjax_config = {
+    'loader': {
+        'load': ['output/svg']
+    },
+    'ignoreHtmlClass': 'tex2jax_ignore',
+    'processHtmlClass': 'tex2jax_process'
+}
+
 
 # -- Options for Napoleon ----------------------------------------------------
 
@@ -251,9 +281,11 @@ texinfo_documents = [
 
 
 # -- Extension configuration -------------------------------------------------
-extlinks = {'issue': ('https://github.com/NVIDIA/DALI/issues/%s',
-                      'issue '),
-            'fileref': ('https://github.com/NVIDIA/DALI/tree/' + (git_sha if git_sha != u'0000000' else "main") + '/%s', ''),}
+extlinks = {
+    'issue': ('https://github.com/NVIDIA/DALI/issues/%s', 'issue %s'),
+    'fileref': ('https://github.com/NVIDIA/DALI/tree/' +
+                (git_sha if git_sha != u'0000000' else "main") + '/%s', '%s'),
+}
 
 
 from typing import (

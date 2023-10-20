@@ -8,7 +8,9 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip \
+                   devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
+                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
 # Don't want the short-unicode version for Python 2.7
@@ -48,7 +50,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     cd /tmp/dali_deps                                                                              && \
     git checkout ${DALI_DEPS_VERSION_SHA}                                                          && \
     git submodule init                                                                             && \
-    git submodule update --depth 1 --recursive                                                     && \
+    git submodule update --depth 1 --init --recursive                                              && \
     export CC_COMP=${CC}                                                                           && \
     export CXX_COMP=${CXX}                                                                         && \
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'

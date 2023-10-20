@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_OPERATOR_H_
 #define DALI_PIPELINE_OPERATOR_OPERATOR_H_
 
+#include <any>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -22,7 +23,6 @@
 #include <vector>
 #include <unordered_map>
 
-#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali/core/error_handling.h"
@@ -33,6 +33,7 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
@@ -130,8 +131,8 @@ class DLL_PUBLIC OperatorBase {
   template<typename T>
   T GetDiagnostic(const std::string &name) const {
     try {
-      return *any_cast<T *>(diagnostics_.at(name));
-    } catch (dali::bad_any_cast &e) {
+      return *std::any_cast<T *>(diagnostics_.at(name));
+    } catch (std::bad_any_cast &e) {
       DALI_FAIL(make_string("Specified type of diagnostic parameter (`", typeid(T).name(),
                             "`) doesn't match the type that this parameter was registered with. ",
                             e.what()));
@@ -153,6 +154,41 @@ class DLL_PUBLIC OperatorBase {
     }
   }
 
+  /**
+   * @brief Saves operator state into a checkpoint.
+   *
+   * Is called exactly once per epoch.
+  */
+  virtual void SaveState(OpCheckpoint &cpt, AccessOrder order) {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Restores operator state from checkpoint.
+   *
+   * Passed OpCheckpoint should have the host access order.
+   *
+   * Implementation can be blocking, as the performance is not critical.
+  */
+  virtual void RestoreState(const OpCheckpoint &cpt) {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Serializes the passed OpCheckpoint, containing state saved by this operator.
+   *
+   * Passed OpCheckpoint should have the host access order.
+  */
+  virtual std::string SerializeCheckpoint(const OpCheckpoint &cpt) const {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
+
+  /**
+   * @brief Deserializes serialized operator state and sets it in the passed OpCheckpoint.
+  */
+  virtual void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+    DALI_FAIL("Checkpointing is not implemented for this operator.");
+  }
 
  protected:
   /**
@@ -186,7 +222,7 @@ class DLL_PUBLIC OperatorBase {
   int max_batch_size_;
   int default_cuda_stream_priority_;
 
-  std::unordered_map<std::string, any> diagnostics_;
+  std::unordered_map<std::string, std::any> diagnostics_;
 };
 
 #define USE_OPERATOR_MEMBERS()                       \

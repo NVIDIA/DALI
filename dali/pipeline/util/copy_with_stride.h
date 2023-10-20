@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,19 @@
 
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/span.h"
+#include "dali/core/util.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/dltensor.h"
 
 namespace dali {
 
-template <typename Backend>
-DLL_PUBLIC void CopyWithStride(void *output, const void *input,
-                               const Index *in_strides,
-                               const Index *shape,
-                               int ndim,
-                               size_t item_size,
-                               cudaStream_t stream = 0);
+DLL_PUBLIC void CopyDlTensorCpu(void *out_data, DLMTensorPtr &dlm_tensor_ptr);
+
+DLL_PUBLIC void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output,
+                                     std::vector<DLMTensorPtr> &dl_tensors,
+                                     cudaStream_t stream);
 
 }  // namespace dali
 

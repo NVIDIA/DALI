@@ -16,9 +16,11 @@ import numpy as np
 import nvidia.dali.fn as fn
 import os
 import tempfile
+import json
 from nvidia.dali import Pipeline, pipeline_def
 
 from nose_utils import raises
+from nose2.tools import params
 from test_utils import compare_pipelines, get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -98,7 +100,8 @@ def test_operator_coco_reader_custom_order():
     yield check_operator_coco_reader_custom_order, None, True  # Natural order plus an invalid path
 
 
-def check_operator_coco_reader_label_remap(avoid_remap):
+@params(True, False)
+def test_operator_coco_reader_label_remap(avoid_remap):
     batch_size = 2
     images = list(test_data.keys())
     ids_map = {s.id: s.cls if avoid_remap else s.mapped_cls for s in test_data.values()}
@@ -123,11 +126,6 @@ def check_operator_coco_reader_label_remap(avoid_remap):
             assert ids_map[int(out[0].at(s))] == int(out[1].at(s)), \
                 f"{i}, {ids_map[int(out[0].at(s))]} vs {out[1].at(s)}"
             i = i + 1
-
-
-def test_operator_coco_reader_label_remap():
-    for avoid_remap in [True, False]:
-        yield check_operator_coco_reader_label_remap, avoid_remap
 
 
 def test_operator_coco_reader_same_images():
@@ -225,3 +223,124 @@ def test_coco_reader_alias():
 
     for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
         yield check_coco_reader_alias, polygon_masks, pixelwise_masks
+
+
+@params(True, False)
+def test_coco_include_crowd(include_iscrowd):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def coco_pipe(include_iscrowd):
+        _, boxes, _, image_ids = fn.readers.coco(file_root=file_root,
+                                                 annotations_file=train_annotations,
+                                                 image_ids=True,
+                                                 include_iscrowd=include_iscrowd)
+        return boxes, image_ids
+
+    annotations = None
+    with open(train_annotations) as file:
+        annotations = json.load(file)
+
+    pipe = coco_pipe(include_iscrowd=include_iscrowd)
+    pipe.build()
+    number_of_samples = pipe.epoch_size()
+    for k in number_of_samples:
+        # there is only one reader
+        number_of_samples = number_of_samples[k]
+        break
+
+    anno_mapping = {}
+    for elm in annotations["annotations"]:
+        image_id = elm["image_id"]
+        if not anno_mapping.get(image_id):
+            anno_mapping[image_id] = {"bbox": [], "iscrowd": []}
+        anno_mapping[image_id]["bbox"].append(elm["bbox"])
+        anno_mapping[image_id]["iscrowd"].append(elm["iscrowd"])
+
+    all_iscrowd = []
+    for _ in range(number_of_samples):
+        boxes, image_ids = pipe.run()
+        image_ids = int(image_ids.as_array())
+        boxes = boxes.as_array()[0]
+        anno = anno_mapping[image_ids]
+        idx = 0
+        # it assumes that the coco reader reads annotations at the order of appearance inside JSON
+        all_iscrowd += anno["iscrowd"]
+        for j, iscrowd in enumerate(anno["iscrowd"]):
+            if include_iscrowd or iscrowd == 0:
+                assert np.all(boxes[idx] == np.array(anno["bbox"][j]))
+                idx += 1
+    assert any(all_iscrowd), 'At least one annotation should include `iscrowd=1`'
+
+
+def test_coco_empty_annotations_pix():
+    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
+    train_annotations = os.path.join(test_data_root, 'db', 'coco_dummy', 'instances.json')
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def coco_pipe():
+        _, _, _,  masks, ids = fn.readers.coco(file_root=file_root,
+                                               annotations_file=train_annotations,
+                                               image_ids=True,
+                                               pixelwise_masks=True)
+        return masks, ids
+
+    pipe = coco_pipe()
+    pipe.build()
+    number_of_samples = pipe.epoch_size()
+    for k in number_of_samples:
+        # there is only one reader
+        number_of_samples = number_of_samples[k]
+        break
+
+    annotations = None
+    with open(train_annotations) as file:
+        annotations = json.load(file)
+
+    anno_mapping = {}
+    for elm in annotations["annotations"]:
+        image_id = elm["image_id"]
+        anno_mapping[image_id] = anno_mapping.get(image_id, False) or "segmentation" in elm
+
+    for _ in range(number_of_samples):
+        mask, image_ids = pipe.run()
+        image_ids = int(image_ids.as_array())
+        max_mask = np.max(np.array(mask.as_tensor()))
+        assert (max_mask != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or \
+               (max_mask == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids]))
+
+
+def test_coco_empty_annotations_poly():
+    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
+    train_annotations = os.path.join(test_data_root, 'db', 'coco_dummy', 'instances.json')
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def coco_pipe():
+        _, _, _,  poly, vert, ids = fn.readers.coco(file_root=file_root,
+                                                    annotations_file=train_annotations,
+                                                    image_ids=True,
+                                                    polygon_masks=True)
+        return poly, vert, ids
+
+    pipe = coco_pipe()
+    pipe.build()
+    number_of_samples = pipe.epoch_size()
+    for k in number_of_samples:
+        # there is only one reader
+        number_of_samples = number_of_samples[k]
+        break
+
+    annotations = None
+    with open(train_annotations) as file:
+        annotations = json.load(file)
+
+    anno_mapping = {}
+    for elm in annotations["annotations"]:
+        image_id = elm["image_id"]
+        anno_mapping[image_id] = anno_mapping.get(image_id, False) or "segmentation" in elm
+
+    for _ in range(number_of_samples):
+        poly, vert, image_ids = pipe.run()
+        image_ids = int(image_ids.as_array())
+        poly = np.array(poly.as_tensor()).size
+        vert = np.array(vert.as_tensor()).size
+        assert (poly != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or \
+               (vert == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids]))

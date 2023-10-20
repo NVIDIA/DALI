@@ -15,8 +15,11 @@
 #ifndef DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 #define DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include <deque>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/operators/decoder/video/video_decoder_base.h"
@@ -43,9 +46,11 @@ namespace detail {
  * @param num_frames How many frames the video has.
  * @param frames_per_sequence How many frames per sequence user requested.
  * @param batch_size How many sequences make up a single batch.
- * @return
+ * @return Tuple: [Number of full batches,
+ *                 Number of full sequences in the last batch,
+ *                 Number of frames in the last (incomplete) sequence]
  */
-auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_size) {
+inline auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_size) {
   assert(frames_per_sequence > 0);
   assert(batch_size > 0);
   // Initially, the Operator will return full batches of full sequences.
@@ -65,7 +70,60 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
   return std::make_tuple(num_full_batches, num_full_sequences, frames_in_last_sequence);
 }
 
+
+/**
+ * Helper structure to handle Pad frames.
+ *
+ * Pad frame is a frame, which will be used for padding incomplete sequences.
+ *
+ * This structure, given the value and shape, generates a pad frame on a proper device.
+ *
+ * @tparam OutBackend Backend, on which the pad frame will be allocated.
+ * @tparam PadType Type of the pad value.
+ */
+template<typename OutBackend, typename PadType>
+struct PadFrameCreator {
+  static constexpr bool is_cpu = std::is_same_v<OutBackend, CPUBackend>;
+
+  template<typename T>
+  using container_type =
+          std::conditional_t<is_cpu, thrust::host_vector<T>, thrust::device_vector<T>>;
+
+  PadFrameCreator() = default;
+
+
+  PadFrameCreator(PadType value, TensorShape<3> frame_shape,
+                  std::optional<cudaStream_t> stream = std::nullopt) {
+    Initialize(value, frame_shape, stream);
+  }
+
+
+  void Initialize(PadType value, TensorShape<3> frame_shape,
+                  std::optional<cudaStream_t> stream = std::nullopt) {
+    pad_frame_data_ = std::vector<PadType>(frame_shape.num_elements(), value);
+    pad_frame_.Resize(frame_shape, TypeTable::GetTypeId<PadType>());
+    if (stream) {
+      pad_frame_.Copy(pad_frame_data_, *stream);
+    } else {
+      pad_frame_.Copy(pad_frame_data_);
+    }
+  }
+
+
+  /// Buffer with the data used for padding.
+  std::vector<PadType> pad_frame_data_;
+  /// Pad frame.
+  Tensor<OutBackend> pad_frame_;
+
+
+  SampleView<OutBackend> GetPadFrame() {
+    return sample_view(pad_frame_);
+  }
+};
+
+
 }  // namespace detail
+
 
 template<typename Backend>
 using frames_decoder_t =
@@ -75,9 +133,22 @@ using frames_decoder_t =
                 FramesDecoderGpu
         >;
 
+static const std::string next_output_data_id_trace_name_ = "next_output_data_id";  // NOLINT
+
+
 template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
 class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
  public:
+  static constexpr bool is_cpu = std::is_same_v<Backend, CPUBackend>;
+  using InBackend = CPUBackend;
+  using OutBackend = std::conditional_t<is_cpu, CPUBackend, GPUBackend>;
+  static_assert((is_cpu && std::is_same_v<FramesDecoder, dali::FramesDecoder>) ||
+                (!is_cpu && std::is_same_v<FramesDecoder, FramesDecoderGpu>),
+                "Incompatible FramesDecoder to a given Backend");
+
+  using VideoDecoderBase<Backend, FramesDecoder>::frames_decoders_;
+
+
   explicit VideoInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
           sequence_length_(spec.GetArgument<int>("sequence_length")),
@@ -87,6 +158,10 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     DALI_ENFORCE(last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
                  make_string("Provided `last_sequence_policy` is not supported: ",
                              last_sequence_policy_));
+    if constexpr (!is_cpu) {
+      thread_pool_.emplace(this->num_threads_, spec.GetArgument<int>("device_id"),
+                           spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
+    }
   }
 
 
@@ -104,15 +179,43 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
+  const TensorLayout& in_layout() const override {
+    return in_layout_;
+  }
+
+
+  int in_ndim() const override {
+    return 1;
+  }
+
+
+  DALIDataType in_dtype() const override {
+    return DALIDataType::DALI_UINT8;
+  }
+
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
+  /**
+   * Awkward RunImpl function for VideoInput operator.
+   * @see VideoInputCpu & VideoInputMixed for more information.
+   */
+  void VideoInputRunImpl(Workspace &ws);
 
-  void RunImpl(Workspace &ws) override;
 
  private:
   void Invalidate() {
-    valid_ = false;
+    initialized_ = false;
+    needs_data_load_ = true;
+    data_id_ = std::nullopt;
   }
+
+
+  void LoadDataFromInputOperator(ThreadPool &thread_pool);
+
+  void SetNextDataIdTrace(Workspace &ws, std::string next_data_id);
+
+  void CreateDecoder(const Workspace &ws);
 
 
   /**
@@ -151,14 +254,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  void InitializePadValue(uint8_t value) {
-    pad_frame_shape_ = GetFrameShape(0);
-    pad_value_data_ = std::vector<uint8_t>(pad_frame_shape_.num_elements(), value);
-  }
-
-
-  SampleView<Backend> GetPadFrame() {
-    return {pad_value_data_.data(), pad_frame_shape_};
+  void InitializePadValue(uint8_t value, std::optional<cudaStream_t> stream) {
+    pad_frame_creator_ = {value, GetFrameShape(0), stream};
   }
 
 
@@ -181,21 +278,40 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
+  ThreadPool &GetThreadPool(const Workspace &ws) {
+    if constexpr (is_cpu) {
+      return ws.GetThreadPool();
+    } else {
+      assert(thread_pool_.has_value());
+      return *thread_pool_;
+    }
+  }
+
+
   const int sequence_length_ = {};
   const int device_id_ = {};
   const int batch_size_ = {};
   const std::string last_sequence_policy_;
 
-  /// Valid VideoInput is the one that has the encoded video loaded and will return decoded sequence
-  bool valid_ = false;
+  /// VideoInput is initialized, when it's ready to return decoded sequences using given input.
+  bool initialized_ = false;
+  /// VideoInput needs data load, if the current input has been depleted.
+  bool needs_data_load_ = true;
+  /// Input to the VideoInput. It's a single encoded video file.
+  TensorList<InBackend> encoded_video_;
+  /// DataId property of the input. @see daliSetExternalInputDataId
+  std::optional<std::string> data_id_;
 
   /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;
 
-  /// Buffer with the data used for padding incomplete sequences.
-  std::vector<uint8_t> pad_value_data_ = {};
-  /// Shape of pad frame.
-  TensorShape<3> pad_frame_shape_ = {};
+  /// Used for padding incomplete sequences.
+  detail::PadFrameCreator<OutBackend, uint8_t> pad_frame_creator_;
+
+  /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
+  std::optional<ThreadPool> thread_pool_ = std::nullopt;
+
+  TensorLayout in_layout_ = "B";  // Byte stream.
 };
 
 
@@ -204,6 +320,100 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
  */
 inline bool IsVideoInput(const OpSchema& schema) {
   return schema.name() == "experimental__inputs__Video";
+}
+
+
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::LoadDataFromInputOperator(ThreadPool &thread_pool) {
+  // By definition, the input batch size of this Operator is always 1.
+  static constexpr int input_batch_size = 1;
+  assert(needs_data_load_);  // Data shall not be loaded if it's not needed.
+  assert(this->HasDataInQueue());  // Data shall not be loaded if there's no data in queue.
+  encoded_video_.Reset();
+  encoded_video_.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
+  frames_decoders_.resize(input_batch_size);
+  this->ForwardCurrentData(encoded_video_, data_id_, thread_pool);
+  needs_data_load_ = false;
+}
+
+
+template<typename Backend, typename FramesDecoder>
+void
+VideoInput<Backend, FramesDecoder>::SetNextDataIdTrace(Workspace &ws, std::string next_data_id) {
+  ws.SetOperatorTrace(next_output_data_id_trace_name_, std::move(next_data_id));
+}
+
+
+template<typename Backend, typename FramesDecoder>
+bool VideoInput<Backend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                   const Workspace &ws) {
+  if (!initialized_) {
+    if (needs_data_load_) {
+      InputOperator<Backend>::HandleDataAvailability();
+      auto &tp = GetThreadPool(ws);
+      LoadDataFromInputOperator(tp);
+    }
+
+    CreateDecoder(ws);
+
+    assert(output_descs_.empty());
+    DetermineOutputDescs(static_cast<int>(frames_decoders_[0]->NumFrames()));
+
+    // This has to be done for every video file, since we need to know the shape of the frames.
+    if (last_sequence_policy_ == "pad") {
+      InitializePadValue(0, !is_cpu ? std::make_optional(ws.stream()) : std::nullopt);
+    }
+
+    initialized_ = true;
+  }
+  output_desc.resize(1);
+  output_desc[0] = output_descs_.front();
+  output_descs_.pop_front();
+  return true;
+}
+
+
+template<typename Backend, typename FramesDecoder>
+void VideoInput<Backend, FramesDecoder>::VideoInputRunImpl(Workspace &ws) {
+  auto &output = ws.Output<OutBackend>(0);
+  output.SetLayout("FHWC");
+
+  bool full_sequence;
+  for (int64_t s = 0; s < output.num_samples(); s++) {
+    auto pad_value = last_sequence_policy_ == "pad" ? std::optional<SampleView<OutBackend>>(
+            pad_frame_creator_.GetPadFrame()) : std::nullopt;
+    full_sequence = this->DecodeFrames(output[s], 0, sequence_length_, pad_value,
+                                       ws.has_stream() ? std::make_optional(ws.stream())
+                                                       : std::nullopt);
+    if (!full_sequence) {
+      break;
+    }
+  }
+
+  // If true, this operator can be run again, after this Run.
+  bool will_return_next = true;
+
+  // There won't be any more output using the current input.
+  bool input_sample_depleted = !full_sequence || frames_decoders_[0]->NextFrameIdx() == -1;
+
+  if (input_sample_depleted) {
+    Invalidate();
+    if (this->HasDataInQueue()) {
+      /*
+       * Loading the next input (if available).
+       * Instead of doing this in Setup, it's done in Run so that operator can assign proper
+       * "next_output_data_id" trace.
+       */
+      LoadDataFromInputOperator(GetThreadPool(ws));
+    } else {
+      will_return_next = false;
+    }
+  }
+
+  if (data_id_) {
+    SetNextDataIdTrace(ws, *data_id_);
+  }
+  InputOperator<Backend>::SetDepletedOperatorTrace(ws, !will_return_next);
 }
 
 }  // namespace dali

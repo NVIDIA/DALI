@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/cuda_event.h"
 
@@ -35,7 +34,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
+  explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, std::any> &params);
   ~NvJpeg2000DecoderInstance();
 
   DecodeResult DecodeImplTask(int thread_idx,
@@ -54,19 +53,19 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     return BatchParallelDecoderImpl::ScheduleDecode(std::move(ctx), out, in, std::move(opts), rois);
   }
 
-  bool SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const std::any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
-      nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+      nvjpeg2k_device_memory_padding_ = std::any_cast<size_t>(value);
       return true;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
-      nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+      nvjpeg2k_host_memory_padding_ = std::any_cast<size_t>(value);
       return true;
     } else {
       return false;
     }
   }
 
-  any GetParam(const char *name) const override {
+  std::any GetParam(const char *name) const override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       return nvjpeg2k_device_memory_padding_;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
@@ -76,42 +75,21 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   }
 
-  struct TileDecodingResources {
-    NvJpeg2kDecodeState state;
-    CUDAEvent decode_event;
-    NvJpeg2kDecodeParams params;
-
-    explicit TileDecodingResources(const NvJpeg2kHandle &nvjpeg2k_handle, int device_id)
-        : state(nvjpeg2k_handle), decode_event(CUDAEvent::Create(device_id)) {
-    }
-  };
-
   struct PerThreadResources {
-    static constexpr int kNumParallelTiles = 2;
-
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                        size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
-    , intermediate_buffer()
     , nvjpeg2k_stream(NvJpeg2kStream::Create())
     , decode_event(CUDAEvent::Create(device_id))
     , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
-      intermediate_buffer.resize(device_memory_padding / 8);
-
-      tile_dec_res.reserve(kNumParallelTiles);
-      for (int i = 0; i < kNumParallelTiles; i++) {
-        tile_dec_res.emplace_back(nvjpeg2k_handle, device_id);
-      }
     }
 
     NvJpeg2kDecodeState nvjpeg2k_decode_state;
-    DeviceBuffer<uint8_t> intermediate_buffer;
     NvJpeg2kStream nvjpeg2k_stream;
     CUDAEvent decode_event;
     CUDAStreamLease cuda_stream;
-
-    std::vector<TileDecodingResources> tile_dec_res;
+    NvJpeg2kDecodeParams params;
   };
 
   /**
@@ -125,14 +103,15 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     , nvjpeg2k_stream(res.nvjpeg2k_stream)
     , decode_event(res.decode_event)
     , cuda_stream(res.cuda_stream)
-    , tile_dec_res(make_cspan(res.tile_dec_res)) {}
+    , params(res.params) {}
 
     nvjpeg2kImageInfo_t image_info;
     /** @brief Bits per pixel */
-    uint8_t bpp;
+    uint8_t bpp = 0;
     /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
-    DALIDataType pixel_type;
+    DALIDataType pixel_type = DALI_NO_TYPE;
     TensorShape<> shape;
+    TensorShape<> orig_shape;
 
     DecodeParams opts;
     const ROI &roi;
@@ -141,30 +120,13 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     const NvJpeg2kStream &nvjpeg2k_stream;
     const CUDAEvent &decode_event;
     const CUDAStreamLease &cuda_stream;
-    span<const TileDecodingResources> tile_dec_res;
+    const NvJpeg2kDecodeParams& params;
   };
 
  private:
   bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx);
-
-  /**
-   * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
-   *
-   * @param out memory image is decoded into
-   * @param pixel_data memory allocated for nvjpeg2kImage_t::pixel_data
-   * @param pitch_in_bytes memory allocated for nvjpeg2kImage_t::pitch_in_bytes
-   * @param output_offset_x offset in output memory to decode into
-   * @param output_offset_y offset in output memory to decode into
-   * @param ctx decoding context
-   * @return nvjpeg2kImage_t
-   */
-  nvjpeg2kImage_t PrepareOutputArea(void *out,
-                                    void **pixel_data,
-                                    size_t *pitch_in_bytes,
-                                    int64_t output_offset_x,
-                                    int64_t output_offset_y,
-                                    const Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, void *out, const TensorShape<> &sh, const Context &ctx,
+                      const ROI &roi = {});
 
   // TODO(staniewzki): remove default values
   size_t nvjpeg2k_device_memory_padding_ = 256;
@@ -196,7 +158,7 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(
-        int device_id, const std::map<std::string, any> &params = {}) const override {
+        int device_id, const std::map<std::string, std::any> &params = {}) const override {
     return std::make_shared<NvJpeg2000DecoderInstance>(device_id, params);
   }
 };

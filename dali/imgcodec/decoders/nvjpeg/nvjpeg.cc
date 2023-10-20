@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
+#include "dali/core/version_util.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
@@ -28,15 +29,37 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+
+int nvjpegGetVersion() {
+  int major = -1;
+  int minor = -1;
+  int patch = -1;
+  GetVersionProperty(nvjpegGetProperty, &major, MAJOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &minor, MINOR_VERSION, NVJPEG_STATUS_SUCCESS);
+  GetVersionProperty(nvjpegGetProperty, &patch, PATCH_LEVEL, NVJPEG_STATUS_SUCCESS);
+  return MakeVersionNumber(major, minor, patch);
+}
+
+}  // namespace
+
 NvJpegDecoderInstance::
-NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
+NvJpegDecoderInstance(int device_id, const std::map<std::string, std::any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   SetParams(params);
 
+  unsigned int nvjpeg_flags = 0;
+#ifdef NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION
+  if (use_jpeg_fancy_upsampling_ && nvjpegGetVersion() >= 12001) {
+    nvjpeg_flags |= NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION;
+  }
+#endif
+
   DeviceGuard dg(device_id_);
-  CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
+
+  CUDA_CALL(nvjpegCreateEx(NVJPEG_BACKEND_DEFAULT, NULL, NULL, nvjpeg_flags, &nvjpeg_handle_));
 
   tp_ = std::make_unique<ThreadPool>(num_threads_, device_id, true, "NvJpegDecoderInstance");
   resources_.reserve(tp_->NumThreads());
@@ -144,28 +167,46 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
   }
 }
 
-bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
+bool NvJpegDecoderInstance::CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts,
+                                      const ROI &roi) {
+  JpegParser jpeg_parser{};
+  if (!jpeg_parser.CanParse(in))
+    return false;
+
+  // This decoder does not support SOF-3 (JPEG lossless) samples
+  auto ext_info = jpeg_parser.GetExtendedInfo(in);
+  std::array<uint8_t, 2> sof3_marker = {0xff, 0xc3};
+  bool is_lossless_jpeg = ext_info.sof_marker == sof3_marker;
+  return !is_lossless_jpeg;
+}
+
+bool NvJpegDecoderInstance::SetParam(const char *name, const std::any &value) {
   if (strcmp(name, "device_memory_padding") == 0) {
-    device_memory_padding_ = any_cast<size_t>(value);
+    device_memory_padding_ = std::any_cast<size_t>(value);
     return true;
   } else if (strcmp(name, "host_memory_padding") == 0) {
-    host_memory_padding_ = any_cast<size_t>(value);
+    host_memory_padding_ = std::any_cast<size_t>(value);
     return true;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
-    num_threads_ = any_cast<int>(value);
+    num_threads_ = std::any_cast<int>(value);
+    return true;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    use_jpeg_fancy_upsampling_ = std::any_cast<bool>(value);
     return true;
   }
 
   return false;
 }
 
-any NvJpegDecoderInstance::GetParam(const char *name) const {
+std::any NvJpegDecoderInstance::GetParam(const char *name) const {
   if (strcmp(name, "device_memory_padding") == 0) {
     return device_memory_padding_;
   } else if (strcmp(name, "host_memory_padding") == 0) {
     return host_memory_padding_;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
     return num_threads_;
+  } else if (strcmp(name, "jpeg_fancy_upsampling") == 0) {
+    return use_jpeg_fancy_upsampling_;
   } else {
     return {};
   }

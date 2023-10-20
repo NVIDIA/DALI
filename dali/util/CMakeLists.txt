@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/odirect_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/thread_safe_queue.h"
@@ -28,6 +29,7 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/image.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/mmaped_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/odirect_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc"
@@ -42,6 +44,14 @@ if (BUILD_CUFILE)
   set(DALI_SRCS ${DALI_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/cufile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.cc")
+endif()
+
+if (BUILD_CFITSIO)
+  set(DALI_SRCS ${DALI_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/fits.cc")
+
+  set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/fits_test.cc")
 endif()
 
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}

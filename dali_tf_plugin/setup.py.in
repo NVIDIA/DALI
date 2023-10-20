@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,44 @@ class CustomDistribution(Distribution):
         self.ext_modules = [Extension('nvidia.dali_tf_plugin', [])]
 
 setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
-      description='NVIDIA DALI @DALI_FLAVOR@ Tensorflow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
+      description='NVIDIA DALI @DALI_FLAVOR@ TensorFlow plugin for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
+      long_description='''TensorFlow plugin for NVIDIA DALI
+=================================
+
+The TensorFlow plugin enables usage of DALI with TensorFlow.
+
+The NVIDIA Data Loading Library (DALI) is a library for data loading and
+pre-processing to accelerate deep learning applications. It provides a
+collection of highly optimized building blocks for loading and processing
+image, video and audio data. It can be used as a portable drop-in replacement
+for built in data loaders and data iterators in popular deep learning frameworks.
+
+Deep learning applications require complex, multi-stage data processing pipelines
+that include loading, decoding, cropping, resizing, and many other augmentations.
+These data processing pipelines, which are currently executed on the CPU, have become a
+bottleneck, limiting the performance and scalability of training and inference.
+
+DALI addresses the problem of the CPU bottleneck by offloading data preprocessing to the
+GPU. Additionally, DALI relies on its own execution engine, built to maximize the throughput
+of the input pipeline. Features such as prefetching, parallel execution, and batch processing
+are handled transparently for the user.
+
+In addition, the deep learning frameworks have multiple data pre-processing implementations,
+resulting in challenges such as portability of training and inference workflows, and code
+maintainability. Data processing pipelines implemented using DALI are portable because they
+can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
+
+For more details please check the |release-doc|_.
+
+.. image:: https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png
+    :width: 800
+    :align: center
+    :alt: DALI Diagram
+
+.. |release-doc| replace:: latest DALI Documentation
+.. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
+''',
+      long_description_content_type="text/x-rst",
       url='https://github.com/NVIDIA/dali',
       version='@DALI_VERSION@',
       author='NVIDIA Corporation',
@@ -43,13 +80,12 @@ setup(name='nvidia-dali-tf-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIG
       packages=find_namespace_packages(include=['nvidia.*']),
       include_package_data=True,
       zip_safe=False,
-      python_requires='>=3.6, <3.11',
+      python_requires='>=3.8, <3.12',
       classifiers=[
-          'Programming Language :: Python :: 3.6',
-          'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9',
           'Programming Language :: Python :: 3.10',
+          'Programming Language :: Python :: 3.11',
           ],
       install_requires = [
           'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'

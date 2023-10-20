@@ -5,6 +5,8 @@
 #########################################################################################
 ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux2014_x86_64
 ARG CUDA_IMAGE
+ARG BUILDER_CUDA_EXTRA_DEPS=scratch
+FROM ${BUILDER_CUDA_EXTRA_DEPS} as cuda_extra_deps
 FROM ${CUDA_IMAGE} as cuda
 FROM ${FROM_IMAGE_NAME}
 
@@ -14,3 +16,6 @@ ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
 
 # CUDA
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
+
+# extra deps
+COPY --from=cuda_extra_deps / /

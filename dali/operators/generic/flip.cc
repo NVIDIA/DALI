@@ -37,7 +37,7 @@ and depthwise).)code")
 
 template <>
 Flip<CPUBackend>::Flip(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {}
+    : StatelessOperator<CPUBackend>(spec) {}
 
 void RunFlip(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
              const TensorLayout &layout,
