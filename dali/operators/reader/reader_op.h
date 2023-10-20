@@ -109,11 +109,8 @@ class DataReader : public Operator<Backend> {
       DALI_ENFORCE(checkpointing_,
                    "Cannot save the checkpoint, because "
                    "checkpointing was not enabled.");
-      auto &snapshot = loader_snapshot_queue_[snapshot_consumer_];
-      DALI_ENFORCE(snapshot,
-                   make_string("Cannot save the checkpoint. Currently, the reader `", spec_.name(),
-                               "` supports checkpointing only between epochs."));
-      cpt.MutableCheckpointState() = *snapshot;
+      const auto &snapshot = loader_snapshot_queue_[snapshot_consumer_];
+      cpt.MutableCheckpointState() = snapshot;
     }
   }
 
@@ -453,7 +450,7 @@ class DataReader : public Operator<Backend> {
   bool consumer_cycle_;
   bool producer_cycle_;
   bool checkpointing_;
-  std::vector<std::optional<LoaderStateSnapshot>> loader_snapshot_queue_;
+  std::vector<LoaderStateSnapshot> loader_snapshot_queue_;
   int snapshot_consumer_;
   int snapshot_producer_;
   int device_id_;

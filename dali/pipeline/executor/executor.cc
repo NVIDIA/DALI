@@ -525,13 +525,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     }
   }
 
-  // If it is the end of an epoch, create a checkpoint.
+  // Create a checkpoint.
   // The checkpoint corresponds to the state between the iteration `iteration_id`
   // and `iteration_id + 1`.
-  // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
+  // After consuming all the outputs from the iteration, GetCurrentCheckpoint is going to
   // return the created checkpoint.
-  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
+  if (checkpointing_) {
     CreateCheckpoint(op_node, iteration_id + 1, ws.output_order());
+  }
 }
 
 
@@ -733,11 +734,6 @@ template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
   DALI_ENFORCE(checkpointing_, "Cannot access checkpoints when checkpointing is not enabled. ");
   auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
-  // Sanity check
-  DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
-               "The pipeline cannot be checkpointed at the given iteration. "
-               "Currently, checkpointing is supported at the end of the epoch only "
-               "(after the last batch from the epoch was consumed). ");
   return cpt;
 }
 
