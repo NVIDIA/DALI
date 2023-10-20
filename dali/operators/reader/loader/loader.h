@@ -183,6 +183,7 @@ class Loader {
     shards_.clear();
     read_sample_counter_ = 0;
     returned_sample_counter_ = 0;
+    total_read_sample_counter_ = consumer_epoch_ * Size();
 
     RestoreStateImpl(state);
 
@@ -210,11 +211,12 @@ class Loader {
    * @brief Fast-forwards a loader by skipping n samples.
   */
   void FastForward(Index n) {
+    Index producer_epoch = total_read_sample_counter_ / Size();
     for (Index i = 0; i < n; i++) {
       Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
       ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
     }
-    ReadMissingSamples();
+    ReadMissingSamples(producer_epoch);
     Rewind(true);
     Skip(read_sample_counter_);
   }
@@ -242,7 +244,7 @@ class Loader {
           PrepareEmpty(*tensor_ptr);
           ReadSample(*tensor_ptr);
         }
-        sample_buffer_.push_back({read_sample_counter_, std::move(tensor_ptr)});
+        sample_buffer_.push_back({total_read_sample_counter_, std::move(tensor_ptr)});
         IncreaseReadSampleCounter();
         ++shards_.back().end;
       }
@@ -307,7 +309,7 @@ class Loader {
       }
       ReadSample(*tensor_ptr);
     }
-    IndexedLoadTargetSharedPtr sample = {read_sample_counter_, tensor_ptr};
+    IndexedLoadTargetSharedPtr sample = {total_read_sample_counter_, tensor_ptr};
     IncreaseReadSampleCounter();
     std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], sample);
     ++shards_.back().end;
@@ -437,6 +439,7 @@ class Loader {
 
   inline void IncreaseReadSampleCounter() {
     ++read_sample_counter_;
+    ++total_read_sample_counter_;
     if (IsNextShardRelative(read_sample_counter_ - 1, virtual_shard_id_)) {
       if (!stick_to_shard_) {
         ++virtual_shard_id_;
@@ -473,7 +476,7 @@ class Loader {
   }
 
 
-  void ReadMissingSamples() {
+  void ReadMissingSamples(Index producer_epoch) {
     if (!initial_buffer_filled_) return;
 
     std::vector<IndexedLoadTargetSharedPtr*> to_read;
@@ -491,7 +494,7 @@ class Loader {
 
     Rewind(stick_to_shard_);
 
-    Index at = 0;
+    Index at = producer_epoch * Size();
     LoadTargetSharedPtr last = nullptr;
     for (auto target : to_read) {
       if (target->idx < at) {
@@ -516,8 +519,12 @@ class Loader {
       at++;
     }
 
-    Rewind(stick_to_shard_);
-    Skip(read_sample_counter_);
+    if (at < total_read_sample_counter_) {
+      Skip(total_read_sample_counter_ - at);
+    } else {
+      Rewind(stick_to_shard_);
+      Skip(read_sample_counter_);
+    }
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
@@ -601,6 +608,8 @@ class Loader {
   bool initial_buffer_filled_ = false;
   // Counts how many samples the reader have read already from this epoch
   Index read_sample_counter_ = 0;
+  // Counts how many samples the reader has read already from all epochs
+  Index total_read_sample_counter_ = 0;
 
   LoaderStateSnapshot current_snapshot_;
 };
