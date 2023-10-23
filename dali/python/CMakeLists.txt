@@ -69,7 +69,7 @@ if(NOT ${CMAKE_CROSSCOMPILING})
     add_custom_command(
       TARGET dali_python_format_stubs
       WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-      COMMAND find dali/python/nvidia/dali -name '*.pyi' -print0 | xargs -0 yapf --in-place --verbose --parallel --style "${PROJECT_SOURCE_DIR}/.style.yapf"
+      COMMAND find dali/python/nvidia/dali -name '*.pyi' -print0 | xargs -0 black --line-length 100 --target-version py38 --verbose
     )
   endif()
 endif()
