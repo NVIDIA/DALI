@@ -101,10 +101,8 @@ class _TFRecordReaderImpl():
 
 
 class TFRecordReader(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _generated = False
     _internal_schema_name = '_TFRecordReader'
 
 
 class TFRecord(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _generated = False
     _internal_schema_name = 'readers___TFRecord'

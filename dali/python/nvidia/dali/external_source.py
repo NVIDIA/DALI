@@ -830,7 +830,6 @@ Keyword Args
 
     __doc__ += _args_doc
     __call__.__doc__ += _args_doc
-    _generated = False
 
 
 def _is_external_source_with_callback(op_instance):
@@ -911,4 +910,3 @@ provided memory is copied to the internal buffer.
 
 
 external_source.__doc__ += ExternalSource._args_doc
-external_source._generated = False

@@ -86,7 +86,6 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
 
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
     schema_name = 'NumbaFunction'
-    _generated = False
     ops.register_cpu_op('NumbaFunction')
     ops.register_gpu_op('NumbaFunction')
 
