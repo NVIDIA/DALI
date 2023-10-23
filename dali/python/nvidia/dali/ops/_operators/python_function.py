@@ -19,7 +19,7 @@ from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali.types import (CUDAStream as _CUDAStream)
+from nvidia.dali.types import CUDAStream as _CUDAStream
 
 
 cupy = None
@@ -32,8 +32,7 @@ def _setup_cupy():
 
 
 class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
-
-    def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
+    def __init__(self, impl_name, function, num_outputs=1, device="cpu", **kwargs):
         self._schema = _b.GetSchema(impl_name)
         self._spec = _b.OpSpec(impl_name)
         self._device = device
@@ -73,9 +72,11 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
 
         for inp in inputs:
             if not isinstance(inp, _DataNode):
-                raise TypeError(f"Expected inputs of type `DataNode`. "
-                                f"Received input of type '{type(inp).__name__}'. "
-                                f"Python Operators do not support Multiple Input Sets.")
+                raise TypeError(
+                    f"Expected inputs of type `DataNode`. "
+                    f"Received input of type '{type(inp).__name__}'. "
+                    f"Python Operators do not support Multiple Input Sets."
+                )
 
         args, arg_inputs = ops._separate_kwargs(kwargs)
         args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
@@ -99,8 +100,8 @@ def _dlpack_from_array(array):
 
 class PythonFunction(PythonFunctionBase):
     schema_name = "PythonFunction"
-    _registry.register_cpu_op('PythonFunction')
-    _registry.register_gpu_op('PythonFunction')
+    _registry.register_cpu_op("PythonFunction")
+    _registry.register_gpu_op("PythonFunction")
 
     @staticmethod
     def current_stream():
@@ -113,10 +114,14 @@ class PythonFunction(PythonFunctionBase):
             if not isinstance(outputs, tuple):
                 raise TypeError(
                     "The output from a multi-output Python"
-                    "function operator must be a tuple, got: ", type(outputs))
+                    "function operator must be a tuple, got: ",
+                    type(outputs),
+                )
             if len(outputs) != num_outputs:
-                raise ValueError(f"Unexpected number of outputs from Python"
-                                 f"function operator - got {len(outputs)}, expected {num_outputs}")
+                raise ValueError(
+                    f"Unexpected number of outputs from Python"
+                    f"function operator - got {len(outputs)}, expected {num_outputs}"
+                )
 
     @staticmethod
     def function_wrapper_per_sample(function, num_outputs, from_dlpack, to_dlpack, *dlpack_inputs):
@@ -153,18 +158,12 @@ class PythonFunction(PythonFunctionBase):
     def _function_wrapper_cpu(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
             return PythonFunction.function_wrapper_batch(
-                function,
-                num_outputs,
-                _dlpack_to_array,
-                _dlpack_from_array,
-                *dlpack_inputs)
+                function, num_outputs, _dlpack_to_array, _dlpack_from_array, *dlpack_inputs
+            )
         else:
             return PythonFunction.function_wrapper_per_sample(
-                function,
-                num_outputs,
-                _dlpack_to_array,
-                _dlpack_from_array,
-                *dlpack_inputs)
+                function, num_outputs, _dlpack_to_array, _dlpack_from_array, *dlpack_inputs
+            )
 
     @staticmethod
     def _cupy_stream_wrapper(function, *inputs):
@@ -177,75 +176,83 @@ class PythonFunction(PythonFunctionBase):
 
     @staticmethod
     def _function_wrapper_gpu(batch_processing, function, num_outputs, *dlpack_inputs):
-
         def wrapped_func(*inputs):
             return PythonFunction._cupy_stream_wrapper(function, *inputs)
 
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(wrapped_func, num_outputs, cupy.fromDlpack,
-                                                         lambda t: t.toDlpack(), *dlpack_inputs)
+            return PythonFunction.function_wrapper_batch(
+                wrapped_func, num_outputs, cupy.fromDlpack, lambda t: t.toDlpack(), *dlpack_inputs
+            )
         else:
-            return PythonFunction.function_wrapper_per_sample(wrapped_func, num_outputs,
-                                                              cupy.fromDlpack,
-                                                              lambda t: t.toDlpack(),
-                                                              *dlpack_inputs)
+            return PythonFunction.function_wrapper_per_sample(
+                wrapped_func, num_outputs, cupy.fromDlpack, lambda t: t.toDlpack(), *dlpack_inputs
+            )
 
-    def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
-        if device == 'gpu':
+    def __init__(self, function, num_outputs=1, device="cpu", batch_processing=False, **kwargs):
+        if device == "gpu":
             _setup_cupy()
 
-        if device == 'cpu':
+        if device == "cpu":
+
             def func(*ts):
                 return PythonFunction._function_wrapper_cpu(
-                    batch_processing, function, num_outputs, *ts)
+                    batch_processing, function, num_outputs, *ts
+                )
+
         else:
+
             def func(*ts):
                 return PythonFunction._function_wrapper_gpu(
-                    batch_processing, function, num_outputs, *ts)
+                    batch_processing, function, num_outputs, *ts
+                )
 
-        super(PythonFunction,
-              self).__init__(
-                impl_name="DLTensorPythonFunctionImpl",
-                function=func,
-                num_outputs=num_outputs,
-                device=device,
-                synchronize_stream=False,
-                batch_processing=batch_processing,
-                **kwargs)
+        super(PythonFunction, self).__init__(
+            impl_name="DLTensorPythonFunctionImpl",
+            function=func,
+            num_outputs=num_outputs,
+            device=device,
+            synchronize_stream=False,
+            batch_processing=batch_processing,
+            **kwargs,
+        )
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
     schema_name = "DLTensorPythonFunction"
-    _registry.register_cpu_op('DLTensorPythonFunction')
-    _registry.register_gpu_op('DLTensorPythonFunction')
+    _registry.register_cpu_op("DLTensorPythonFunction")
+    _registry.register_gpu_op("DLTensorPythonFunction")
 
     @staticmethod
     def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(function,
-                                                         num_outputs,
-                                                         lambda x: x,
-                                                         lambda x: x,
-                                                         *dlpack_inputs)
+            return PythonFunction.function_wrapper_batch(
+                function, num_outputs, lambda x: x, lambda x: x, *dlpack_inputs
+            )
         else:
-            return PythonFunction.function_wrapper_per_sample(function,
-                                                              num_outputs,
-                                                              lambda x: x,
-                                                              lambda x: x,
-                                                              *dlpack_inputs)
+            return PythonFunction.function_wrapper_per_sample(
+                function, num_outputs, lambda x: x, lambda x: x, *dlpack_inputs
+            )
 
-    def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
-                 batch_processing=True, **kwargs):
-
+    def __init__(
+        self,
+        function,
+        num_outputs=1,
+        device="cpu",
+        synchronize_stream=True,
+        batch_processing=True,
+        **kwargs,
+    ):
         def func(*ts):
             return DLTensorPythonFunction._function_wrapper_dlpack(
-                batch_processing, function, num_outputs, *ts)
+                batch_processing, function, num_outputs, *ts
+            )
 
-        super(DLTensorPythonFunction,
-              self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                             function=func,
-                             num_outputs=num_outputs,
-                             device=device,
-                             synchronize_stream=synchronize_stream,
-                             batch_processing=batch_processing,
-                             **kwargs)
+        super(DLTensorPythonFunction, self).__init__(
+            impl_name="DLTensorPythonFunctionImpl",
+            function=func,
+            num_outputs=num_outputs,
+            device=device,
+            synchronize_stream=synchronize_stream,
+            batch_processing=batch_processing,
+            **kwargs,
+        )

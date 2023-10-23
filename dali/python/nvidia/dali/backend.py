@@ -13,10 +13,17 @@
 # limitations under the License.
 
 from nvidia.dali.backend_impl import (
-    Init, OpSpec, LoadLibrary, GetCudaVersion, GetCufftVersion, GetNppVersion, GetNvjpegVersion)
+    Init,
+    OpSpec,
+    LoadLibrary,
+    GetCudaVersion,
+    GetCufftVersion,
+    GetNppVersion,
+    GetNvjpegVersion,
+)
 
 # TODO: Handle forwarding imports from backend_impl
-from nvidia.dali.backend_impl import *        # noqa: F401, F403
+from nvidia.dali.backend_impl import *  # noqa: F401, F403
 
 from . import __cuda_version__
 import warnings
@@ -43,24 +50,32 @@ if not initialized:
 
     # py3.11 warning
     if sys.version_info[0] == 3 and sys.version_info[1] >= 11:
-        deprecation_warning("DALI support for Python {0}.{1} is experimental and some "
-                            "functionalities may not work."
-                            "".format(sys.version_info[0], sys.version_info[1]))
+        deprecation_warning(
+            "DALI support for Python {0}.{1} is experimental and some "
+            "functionalities may not work."
+            "".format(sys.version_info[0], sys.version_info[1])
+        )
 
     # py3.6 warning
     if sys.version_info[0] == 3 and sys.version_info[1] == 6:
-        deprecation_warning("DALI 1.27 is the last release to support Python 3.6. "
-                            "Please update your environment to use Python 3.8, "
-                            "3.9, 3.10, or (experimentally) 3.11.")
+        deprecation_warning(
+            "DALI 1.27 is the last release to support Python 3.6. "
+            "Please update your environment to use Python 3.8, "
+            "3.9, 3.10, or (experimentally) 3.11."
+        )
     # py3.7 warning
     if sys.version_info[0] == 3 and sys.version_info[1] == 7:
-        deprecation_warning("DALI 1.31 is the last release to support Python 3.7. "
-                            "Please update your environment to use Python 3.8, "
-                            "3.9, 3.10, or (experimentally) 3.11.")
+        deprecation_warning(
+            "DALI 1.31 is the last release to support Python 3.7. "
+            "Please update your environment to use Python 3.8, "
+            "3.9, 3.10, or (experimentally) 3.11."
+        )
 
     if int(str(__cuda_version__)[:2]) < 11:
-        deprecation_warning("DALI 1.21 is the last official release that supports CUDA 10.2. "
-                            "Please update your environment to CUDA version 11 or newer.")
+        deprecation_warning(
+            "DALI 1.21 is the last official release that supports CUDA 10.2. "
+            "Please update your environment to CUDA version 11 or newer."
+        )
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
@@ -80,28 +95,34 @@ def check_cuda_runtime():
             deprecation_warning("GPU is not available. Only CPU operators are available.")
 
         if GetCufftVersion() == -1:
-            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
-                                "You need to install it separately. cuFFT is typically "
-                                "provided with CUDA Toolkit installation or an appropriate wheel. "
-                                "Please check "
-                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
-                                "#pip-wheels-installation-linux "
-                                "for the reference.")
+            deprecation_warning(
+                "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                "You need to install it separately. cuFFT is typically "
+                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                "Please check "
+                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                "#pip-wheels-installation-linux "
+                "for the reference."
+            )
 
         if GetNppVersion() == -1:
-            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
-                                "You need to install it separately. NPP is typically "
-                                "provided with CUDA Toolkit installation or an appropriate wheel. "
-                                "Please check "
-                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
-                                "#pip-wheels-installation-linux "
-                                "for the reference.")
+            deprecation_warning(
+                "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                "You need to install it separately. NPP is typically "
+                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                "Please check "
+                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                "#pip-wheels-installation-linux "
+                "for the reference."
+            )
 
         if GetNvjpegVersion() == -1:
-            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
-                                "You need to install it separately. nvJPEG is typically "
-                                "provided with CUDA Toolkit installation or an appropriate wheel. "
-                                "Please check "
-                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
-                                "#pip-wheels-installation-linux "
-                                "for the reference.")
+            deprecation_warning(
+                "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                "You need to install it separately. nvJPEG is typically "
+                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                "Please check "
+                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                "#pip-wheels-installation-linux "
+                "for the reference."
+            )

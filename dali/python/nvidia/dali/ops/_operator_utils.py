@@ -90,9 +90,11 @@ def _build_input_sets(inputs, op_name):
         for input in inputs:
             if isinstance(input, list):
                 if len(input) != arg_list_len:
-                    raise ValueError(f"All argument lists for Multiple Input Sets used "
-                                     f"with operator {op_name} must have "
-                                     f"the same length")
+                    raise ValueError(
+                        f"All argument lists for Multiple Input Sets used "
+                        f"with operator {op_name} must have "
+                        f"the same length"
+                    )
         return arg_list_len
 
     def _unify_lists(inputs, arg_list_len):
@@ -107,9 +109,9 @@ def _build_input_sets(inputs, op_name):
         result = ()
         for input in inputs:
             if isinstance(input, list):
-                result = result + (input, )
+                result = result + (input,)
             else:
-                result = result + ([input] * arg_list_len, )
+                result = result + ([input] * arg_list_len,)
         return result
 
     def _repack_input_sets(inputs):

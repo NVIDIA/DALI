@@ -196,7 +196,7 @@ class DataNode(object):
             return False
 
         if not isinstance(val, tuple):
-            val = (val, )
+            val = (val,)
         d = 0
         for v in val:
             if process_index(v, d):
@@ -246,6 +246,8 @@ not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError(f"Expected outputs of type compatible with \"DataNode\". "
-                        f"Received output type with name \"{type(maybe_node).__name__}\" "
-                        f"that does not match.")
+        raise TypeError(
+            f'Expected outputs of type compatible with "DataNode". '
+            f'Received output type with name "{type(maybe_node).__name__}" '
+            f"that does not match."
+        )

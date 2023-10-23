@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@ def get_include_dir():
     """
     # Import inside the function to avoid circular import as dali imports sysconfig
     import nvidia.dali as dali
-    return os.path.join(os.path.dirname(dali.__file__), 'include')
+
+    return os.path.join(os.path.dirname(dali.__file__), "include")
 
 
 def get_lib_dir():
@@ -33,6 +34,7 @@ def get_lib_dir():
         String representing the path to the library directory
     """
     import nvidia.dali as dali
+
     return os.path.dirname(dali.__file__)
 
 
@@ -43,7 +45,7 @@ def get_include_flags():
         The compilation flags
     """
     flags = []
-    flags.append('-I%s' % get_include_dir())
+    flags.append("-I%s" % get_include_dir())
     return flags
 
 
@@ -54,9 +56,10 @@ def get_compile_flags():
         The compilation flags
     """
     import nvidia.dali.backend as b
+
     flags = []
-    flags.append('-I%s' % get_include_dir())
-    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.GetCxx11AbiFlag())
+    flags.append("-I%s" % get_include_dir())
+    flags.append("-D_GLIBCXX_USE_CXX11_ABI=%d" % b.GetCxx11AbiFlag())
     return flags
 
 
@@ -67,6 +70,6 @@ def get_link_flags():
         The link flags
     """
     flags = []
-    flags.append('-L%s' % get_lib_dir())
-    flags.append('-ldali')
+    flags.append("-L%s" % get_lib_dir())
+    flags.append("-ldali")
     return flags

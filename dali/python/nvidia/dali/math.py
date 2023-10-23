@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import sys
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
+
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)

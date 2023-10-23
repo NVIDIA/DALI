@@ -61,7 +61,8 @@ Args
         for i in range(schema.MaxNumInput()):
             optional = i >= schema.MinNumInput()
             input_type_str = schema.GetInputType(i) + _supported_layouts_str(
-                schema.GetSupportedLayouts(i))
+                schema.GetSupportedLayouts(i)
+            )
             dox = schema.GetInputDox(i)
             input_name = schema.GetInputName(i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
@@ -106,24 +107,26 @@ def _get_kwargs(schema):
         deprecation_warning = None
         if schema.IsDeprecatedArg(arg):
             meta = schema.DeprecatedArgMeta(arg)
-            msg = meta['msg']
+            msg = meta["msg"]
             assert msg is not None
             deprecation_warning = ".. warning::\n\n    " + msg.replace("\n", "\n    ")
-            renamed_arg = meta['renamed_to']
+            renamed_arg = meta["renamed_to"]
             # Renamed and removed arguments won't show full documentation (only warning box)
-            skip_full_doc = renamed_arg or meta['removed']
+            skip_full_doc = renamed_arg or meta["removed"]
             # Renamed aliases are not fully registered to the schema, that's why we query for the
             # info on the renamed_arg name.
             if renamed_arg:
                 dtype = schema.GetArgumentType(renamed_arg)
                 type_name = _type_name_convert_to_string(
-                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg))
+                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg)
+                )
         # Try to get dtype only if not set already
         # (renamed args go through a different path, see above)
         if not dtype:
             dtype = schema.GetArgumentType(arg)
-            type_name = _type_name_convert_to_string(dtype,
-                                                     allow_tensors=schema.IsTensorArgument(arg))
+            type_name = _type_name_convert_to_string(
+                dtype, allow_tensors=schema.IsTensorArgument(arg)
+            )
         # Add argument documentation if necessary
         if not skip_full_doc:
             if schema.IsArgumentOptional(arg):
@@ -140,18 +143,18 @@ def _get_kwargs(schema):
         elif deprecation_warning:
             doc += deprecation_warning
         ret += _numpydoc_formatter(arg, type_name, doc)
-        ret += '\n'
+        ret += "\n"
     return ret
 
 
 def _docstring_generator_main(cls, api):
     """
-        Generate docstring for the class obtaining it from schema based on cls.__name__
-        This lists all the Keyword args that can be used when creating operator
+    Generate docstring for the class obtaining it from schema based on cls.__name__
+    This lists all the Keyword args that can be used when creating operator
     """
     op_name = _names._schema_name(cls)
     schema = _b.GetSchema(op_name)
-    ret = '\n'
+    ret = "\n"
 
     if schema.IsDeprecated():
         use_instead = _names._op_name(schema.DeprecatedInFavorOf(), api)
@@ -168,7 +171,7 @@ def _docstring_generator_main(cls, api):
         ret += "\n\n"
 
     ret += schema.Dox()
-    ret += '\n'
+    ret += "\n"
 
     if schema.IsDocPartiallyHidden():
         return ret
@@ -225,15 +228,15 @@ Keyword args
 def _supported_layouts_str(supported_layouts):
     if len(supported_layouts) == 0:
         return ""
-    return " (" + ", ".join(["\'" + str(layout) + "\'" for layout in supported_layouts]) + ")"
+    return " (" + ", ".join(["'" + str(layout) + "'" for layout in supported_layouts]) + ")"
 
 
 def _docstring_prefix_from_inputs(op_name):
     """
-        Generate start of the docstring for `__call__` of Operator `op_name`
-        assuming the docstrings were provided for all inputs separately
+    Generate start of the docstring for `__call__` of Operator `op_name`
+    assuming the docstrings were provided for all inputs separately
 
-        Returns the signature of `__call__` and list of `Args` in appropriate section
+    Returns the signature of `__call__` and list of `Args` in appropriate section
     """
     schema = _b.GetSchema(op_name)
     # Signature
@@ -247,8 +250,8 @@ def _docstring_prefix_from_inputs(op_name):
 
 def _docstring_prefix_auto(op_name):
     """
-        Generate start of the docstring for `__call__` of Operator `op_name`
-        with default values. Assumes there will be 0 or 1 inputs
+    Generate start of the docstring for `__call__` of Operator `op_name`
+    with default values. Assumes there will be 0 or 1 inputs
     """
     schema = _b.GetSchema(op_name)
     if schema.MaxNumInput() == 0:
@@ -273,7 +276,7 @@ Args
 
 def _docstring_generator_call(op_name):
     """
-        Generate full docstring for `__call__` of Operator `op_name`.
+    Generate full docstring for `__call__` of Operator `op_name`.
     """
     schema = _b.GetSchema(op_name)
     if schema.IsDocPartiallyHidden():
