@@ -38,12 +38,19 @@ mod_aditional_doc = {
 }
 
 
+def _is_private(module):
+    submodules = module.split(".")
+    return any([submodule.startswith("_") for submodule in submodules])
+
+
 def get_modules(top_modules):
     modules = []
     for module in sys.modules.keys():
         for doc_module in top_modules:
-            if module.startswith(doc_module) and not module.endswith('hidden'):
+            if (module.startswith(doc_module) and not module.endswith('hidden')
+                    and not _is_private(module)):
                 modules += [module]
+    print(f"{modules=}")
     return sorted(modules)
 
 
@@ -156,4 +163,3 @@ def fn_autodoc(out_filename, generated_path, references):
 
     with open(out_filename, 'w') as f:
         f.write(all_modules_str)
-

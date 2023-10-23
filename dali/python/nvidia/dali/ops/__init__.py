@@ -586,7 +586,7 @@ def _load_ops():
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
             op_class = python_op_factory(op_name, op_reg_name)
-            op_class.__module__ = module.__name__
+            _internal._adjust_operator_module(op_class, ops_module, submodule)
             setattr(module, op_name, op_class)
 
             if op_name not in ["ExternalSource"]:
@@ -625,7 +625,7 @@ def _load_readers_tfrecord():
         _, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
-            op_class.__module__ = module.__name__
+            _internal._adjust_operator_module(op_class, ops_module, submodule)
             setattr(module, op_name, op_class)
             _wrap_op(op_class, submodule)
 
@@ -717,11 +717,16 @@ from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
+_internal._adjust_operator_module(PythonFunction, sys.modules[__name__], [])
+_internal._adjust_operator_module(DLTensorPythonFunction, sys.modules[__name__], [])
+
 # Compose is only exposed for ops API, no fn bindings are generated
 from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
 
 _registry.register_cpu_op('Compose')
 _registry.register_gpu_op('Compose')
+
+_internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 
 
 from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: E402, F401

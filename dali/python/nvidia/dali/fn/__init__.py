@@ -125,8 +125,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     if not hasattr(module, wrapper_name):
         wrap_func = _wrap_op_fn(op_class, wrapper_name, wrapper_doc)
         setattr(module, wrapper_name, wrap_func)
-        if submodule:
-            wrap_func.__module__ = module.__name__
+        _internal._adjust_operator_module(wrap_func, fn_module, submodule)
         if make_hidden:
             parent_module = _internal.get_submodule(fn_module, submodule[:-1])
             setattr(parent_module, wrapper_name, wrap_func)
