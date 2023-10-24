@@ -131,5 +131,5 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             setattr(parent_module, wrapper_name, wrap_func)
 
 
-external_source.__module__ = __name__
 external_source._schema_name = "ExternalSource"
+_internal._adjust_operator_module(external_source, sys.modules[__name__], [])

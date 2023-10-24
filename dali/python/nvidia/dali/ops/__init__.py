@@ -706,7 +706,7 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
 # appropriate module.
 from nvidia.dali.external_source import ExternalSource  # noqa: E402
 
-ExternalSource.__module__ = __name__
+_internal._adjust_operator_module(ExternalSource, sys.modules[__name__], [])
 
 # Expose the PythonFunction family of classes and generate the fn bindings for them
 from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
