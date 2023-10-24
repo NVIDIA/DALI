@@ -28,8 +28,7 @@ namespace dali {
 template <typename Backend>
 class PowerSpectrum : public Operator<Backend> {
  public:
-  explicit PowerSpectrum(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+  explicit PowerSpectrum(const OpSpec &spec) : Operator<Backend>(spec) {
     fft_args_.nfft = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : -1;
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
     int power = spec.GetArgument<int>("power");
@@ -41,13 +40,17 @@ class PowerSpectrum : public Operator<Backend> {
         fft_args_.spectrum_type = kernels::signal::fft::FFT_SPECTRUM_POWER;
         break;
       default:
-        DALI_FAIL(make_string("Power argument should be either `2` for power spectrum or `1` "
-          "for complex magnitude. Received: ", power));
+        DALI_FAIL(
+            make_string("Power argument should be either `2` for power spectrum or `1` "
+                        "for complex magnitude. Received: ",
+                        power));
     }
   }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
+  bool CanInferOutputs() const override {
+    return true;
+  }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
