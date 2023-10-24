@@ -509,7 +509,13 @@ void ExposeTensor(py::module &m) {
           const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
-          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
+          // Use dynamically allocated memory so we can call deleter inside py::gil_scoped_acquire
+          // scope
+          py::buffer *buf_tmp = new py::buffer(b);
+          t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = buf_tmp](void *) {
+             py::gil_scoped_acquire aqr;
+             delete buf_ref;
+          }),
                        bytes, is_pinned, i_shape, type.id(), device_id);
           t->SetLayout(layout);
           return t.release();

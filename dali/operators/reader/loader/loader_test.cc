@@ -180,4 +180,85 @@ TYPED_TEST(DataLoadStoreTest, CachedLMDBTest) {
 }
 #endif
 
+
+class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
+ public:
+  explicit DummyCountingLoader(const OpSpec& spec, uint64_t size) :
+    Loader<CPUBackend, Tensor<CPUBackend>, true>(spec),
+    size_(size), counter_(0) {}
+
+  void ReadSample(Tensor<CPUBackend> &t) override {
+    t.Resize({1}, DALI_UINT64);
+    *t.mutable_data<uint64_t>() = counter_++;
+  }
+
+  void PrepareMetadataImpl() override {}
+
+  Index SizeImpl() override {
+    return size_;
+  }
+
+  void Skip(uint64_t n) override {
+    counter_ += n;
+  }
+
+  void Rewind(bool wrap_to_shard) override {
+    counter_ = 0;
+  }
+
+  void Reset(bool wrap_to_shard) override {
+    Rewind(wrap_to_shard);
+  }
+
+  uint64_t ReadInt(bool is_new_batch, bool is_end_of_batch) {
+    return *ReadOne(is_new_batch, is_end_of_batch)->data<uint64_t>();
+  }
+
+  std::vector<uint64_t> ReadInts(size_t n) {
+    std::vector<uint64_t> result(n);
+    for (size_t i = 0; i < n; i++) {
+      result[i] = ReadInt(i % max_batch_size_ == 0, (i + 1) % max_batch_size_ == 0);
+    }
+    return result;
+  }
+
+ private:
+  uint64_t size_;
+  uint64_t counter_;
+};
+
+void testFastForward(const OpSpec &spec, uint64_t data_size, int steps) {
+  auto reference = InitLoader<DummyCountingLoader>(spec, data_size)->ReadInts(steps);
+  auto loader = InitLoader<DummyCountingLoader>(spec, data_size);
+
+  int pos = 0;
+  int fast_forward_distance = 0;
+  while (pos + 3 < steps) {
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(loader->ReadInt(false, false), reference[pos]);
+      pos++;
+    }
+    loader->FastForward(fast_forward_distance);
+    pos += fast_forward_distance;
+    fast_forward_distance++;
+  }
+}
+
+TEST(LoaderCheckpointingTest, TestFastForwardNoShuffle) {
+  auto spec = OpSpec("FileReader")
+                .AddArg("device_id", 0)
+                .AddArg("max_batch_size", 256);
+  testFastForward(spec, 200, 50);
+}
+
+TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
+  auto spec = OpSpec("FileReader")
+                .AddArg("device_id", 0)
+                .AddArg("max_batch_size", 256)
+                .AddArg("initial_fill", 10)
+                .AddArg("random_shuffle", true)
+                .AddArg("seed", 123);
+  testFastForward(spec, 200, 50);
+}
+
 };  // namespace dali

@@ -5,6 +5,8 @@ recursive-include nvidia/dali/include *.cuh
 recursive-include nvidia/dali/include *.inl
 recursive-include nvidia/dali/include/cuda *
 recursive-include nvidia/dali/include/nv *
+recursive-include nvidia/dali *.pyi
+recursive-include nvidia/dali py.typed
 recursive-include nvidia/dali *.bin
 recursive-include nvidia/dali *.so
 recursive-include nvidia/dali/.libs *.so.*

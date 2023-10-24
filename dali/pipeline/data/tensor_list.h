@@ -35,6 +35,11 @@
 
 namespace dali {
 
+// Forward declarations in signature, beware
+namespace test {
+class TensorListVariableBatchSizeTest_UpdatePropertiesFromSamples_Test;
+};  // namespace test
+
 template <typename Backend>
 class DLL_PUBLIC TensorList;
 
@@ -656,6 +661,7 @@ class DLL_PUBLIC TensorList {
   friend void MakeSampleView(class SampleWorkspace &sample, class Workspace &batch,
                              int data_idx, int thread_idx);
   friend void FixBatchPropertiesConsistency(class Workspace &ws, bool contiguous);
+  friend class test::TensorListVariableBatchSizeTest_UpdatePropertiesFromSamples_Test;
 
   auto &tensor_handle(size_t pos) {
     return tensors_[pos];

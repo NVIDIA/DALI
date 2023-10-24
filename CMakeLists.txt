@@ -160,6 +160,7 @@ cmake_dependent_option(STATIC_LIBS "Build static libraries instead of shared-obj
 option(VERBOSE_LOGS "Adds verbose loging to DALI" OFF)
 option(WERROR "Treat all warnings as errors" OFF)
 option(RELWITHDEBINFO_CUDA_DEBUG "Add device side debug info for RelWithDebInfo build configuration" OFF)
+option(FORMAT_PYTHON_STUB_FILES "Format *.pyi API stub files automatically" ON)
 
 cmake_dependent_option(DALI_CLANG_ONLY "Compile DALI using only Clang. Suitable only for developement."
     OFF "CMAKE_CXX_COMPILER_ID STREQUAL Clang" OFF)
@@ -180,7 +181,7 @@ if (NOT BUILD_PYTHON AND PYTHON_VERSIONS)
   message(WARNING "The BUILD_PYTHON option is set to off and the PYTHON_VERSIONS variable is
           provided. The latter will be ignored.")
 elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "")
-  set(PYTHON_VERSIONS "3.7;3.8;3.9;3.10;3.11")
+  set(PYTHON_VERSIONS "3.8;3.9;3.10;3.11")
 endif ()
 
 if (BUILD_PYTHON)

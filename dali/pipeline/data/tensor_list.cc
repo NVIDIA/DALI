@@ -1103,15 +1103,30 @@ void TensorList<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
   // assume that the curr_num_tensors_ is valid
   DALI_ENFORCE(curr_num_tensors_ > 0,
                "Unexpected empty output of per-sample operator. Internal DALI error.");
-  type_ = tensors_[0].type_info();
-  sample_dim_ = tensors_[0].shape().sample_dim();
-  shape_.resize(curr_num_tensors_, sample_dim_);
-  layout_ = tensors_[0].GetMeta().GetLayout();
-  pinned_ = tensors_[0].is_pinned();
-  order_ = tensors_[0].order();
-  device_ = tensors_[0].device_id();
-  contiguous_buffer_.set_order(order_);
   for (int i = 0; i < curr_num_tensors_; i++) {
+    // if tensor is empty it can be uninitialized, so find the initialized one
+    if (tensors_[i].nbytes() == 0 && i != curr_num_tensors_ - 1) continue;
+    type_ = tensors_[i].type_info();
+    sample_dim_ = tensors_[i].shape().sample_dim();
+    shape_.resize(curr_num_tensors_, sample_dim_);
+    layout_ = tensors_[i].GetMeta().GetLayout();
+    pinned_ = tensors_[i].is_pinned();
+    order_ = tensors_[i].order();
+    device_ = tensors_[i].device_id();
+    contiguous_buffer_.set_order(order_);
+    break;
+  }
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    if (tensors_[i].nbytes() == 0) {
+      if (is_pinned() != tensors_[i].is_pinned() || order() != tensors_[i].order()) {
+        tensors_[i].reset();
+        tensors_[i].set_pinned(is_pinned());
+        tensors_[i].set_order(order());
+      }
+      tensors_[i].set_type(type());
+      tensors_[i].SetLayout(GetLayout());
+      tensors_[i].set_device_id(device_id());
+    }
     DALI_ENFORCE(type() == tensors_[i].type(),
                  make_string("Samples must have the same type, expected: ", type(),
                              " got: ", tensors_[i].type(), " at ", i, "."));
