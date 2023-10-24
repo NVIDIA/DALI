@@ -306,6 +306,8 @@ def data_iterator(
     passes them to the iterator constructor. It also accepts all arguments of
     :meth:`nvidia.dali.pipeline.pipeline_def` and passes them to the pipeline definition
     function.
+    If no `device_id` argument is passed to the decorated function, it is assumed that
+    the first device is the one we want to use and `device_id` is set to 0.
     If the same argument is passed to the decorator and the decorated function,
     exception is raised.
 
