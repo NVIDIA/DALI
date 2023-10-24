@@ -160,7 +160,7 @@ class DLL_PUBLIC OperatorBase {
    * Is called exactly once per epoch.
   */
   virtual void SaveState(OpCheckpoint &cpt, AccessOrder order) {
-    DALI_FAIL("Checkpointing is not implemented for this operator.");
+    CheckpointingUnsupportedError();
   }
 
   /**
@@ -171,7 +171,7 @@ class DLL_PUBLIC OperatorBase {
    * Implementation can be blocking, as the performance is not critical.
   */
   virtual void RestoreState(const OpCheckpoint &cpt) {
-    DALI_FAIL("Checkpointing is not implemented for this operator.");
+    CheckpointingUnsupportedError();
   }
 
   /**
@@ -180,14 +180,14 @@ class DLL_PUBLIC OperatorBase {
    * Passed OpCheckpoint should have the host access order.
   */
   virtual std::string SerializeCheckpoint(const OpCheckpoint &cpt) const {
-    DALI_FAIL("Checkpointing is not implemented for this operator.");
+    CheckpointingUnsupportedError();
   }
 
   /**
    * @brief Deserializes serialized operator state and sets it in the passed OpCheckpoint.
   */
   virtual void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
-    DALI_FAIL("Checkpointing is not implemented for this operator.");
+    CheckpointingUnsupportedError();
   }
 
  protected:
@@ -208,6 +208,10 @@ class DLL_PUBLIC OperatorBase {
                             const ArgumentWorkspace &ws, int batch_size) {
     DALI_ENFORCE(batch_size > 0, "Default batch size (-1) is not supported anymore");
     dali::GetPerSampleArgument(output, argument_name, spec_, ws, batch_size);
+  }
+
+  [[noreturn]] void CheckpointingUnsupportedError() const {
+    DALI_FAIL(make_string("Checkpointing is not implemented for this operator: ", spec_.name()));
   }
 
   // TODO(mszolucha): remove these two to allow i2i variable batch size, when all ops are ready
