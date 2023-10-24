@@ -93,6 +93,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc
     fn_wrapper._schema_name = op_class.schema_name
+    fn_wrapper._generated = getattr(op_class, "_generated", False)
     return fn_wrapper
 
 
