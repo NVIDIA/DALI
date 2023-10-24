@@ -23,6 +23,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/image/transform.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/crop/crop_attr.h"
@@ -203,10 +204,10 @@ typedef DALIError_t (*resizeCropMirroHost)(const uint8 *img, int H, int W, int C
  * @brief Performs fused resize+crop+mirror
  */
 template <typename Backend>
-class ResizeCropMirror : public Operator<CPUBackend>, protected ResizeCropMirrorAttr {
+class ResizeCropMirror : public StatelessOperator<CPUBackend>, protected ResizeCropMirrorAttr {
  public:
   explicit inline ResizeCropMirror(const OpSpec &spec) :
-    Operator(spec), ResizeCropMirrorAttr(spec) {
+    StatelessOperator(spec), ResizeCropMirrorAttr(spec) {
     // Resize per-image & per-thread data
     tl_workspace_.resize(num_threads_);
 

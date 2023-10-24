@@ -18,15 +18,16 @@
 
 #include <vector>
 
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class ColorSpaceConversion : public Operator<Backend> {
+class ColorSpaceConversion : public StatelessOperator<Backend> {
  public:
   inline explicit ColorSpaceConversion(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         input_type_(spec.GetArgument<DALIImageType>("image_type")),
         output_type_(spec.GetArgument<DALIImageType>("output_type")),
         in_nchannels_(NumberOfChannels(input_type_)),

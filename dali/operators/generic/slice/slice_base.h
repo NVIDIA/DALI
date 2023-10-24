@@ -28,6 +28,7 @@
 #include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 #include "dali/util/crop_window.h"
@@ -40,10 +41,10 @@
 namespace dali {
 
 template <typename Backend>
-class SliceBase : public Operator<Backend> {
+class SliceBase : public StatelessOperator<Backend> {
  public:
   explicit inline SliceBase(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
     spec.TryGetArgument(output_type_, "dtype");
     if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {

@@ -18,16 +18,17 @@
 #include <memory>
 #include <vector>
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {
 
 template <typename Backend>
-class Shapes : public Operator<Backend> {
+class Shapes : public StatelessOperator<Backend> {
  public:
   Shapes(const Shapes &) = delete;
-  explicit Shapes(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Shapes(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     output_type_ = spec.GetArgument<DALIDataType>("dtype");
     switch (output_type_) {
     case DALI_INT32:

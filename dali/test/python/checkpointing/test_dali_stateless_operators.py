@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, get_dali_extra_path
 from nose2.tools import params
 from nose_utils import assert_raises
 
 # Test configuration
 batch_size = 8
-test_data_shape = [25, 15, 3]
+test_data_shape = [40, 60, 3]
 test_data_layout = "HWC"
+test_data_frames = 24
+test_sequence_shape = [test_data_frames] + test_data_shape
 
 
 def tensor_list_to_array(tensor_list):
@@ -53,9 +56,9 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
 
 # Provides the same random batch each time
 class RandomBatch:
-    def __init__(self):
+    def __init__(self, data_shape=test_data_shape, dtype=np.uint8):
         rng = np.random.default_rng(1234)
-        self.batch = [rng.integers(255, size=test_data_shape, dtype=np.uint8)
+        self.batch = [rng.integers(255, size=data_shape, dtype=dtype)
                       for _ in range(batch_size)]
 
     def __call__(self):
@@ -70,6 +73,16 @@ def check_single_input(op, device, **kwargs):
     @pipeline_def
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
+        return op(move_to(data, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_single_sequence_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(data_shape=test_sequence_shape),
+                                  layout='FHWC', batch=True)
         return op(move_to(data, device), device=device, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
@@ -160,6 +173,139 @@ def test_transforms_scale_stateless():
 
 def test_transforms_translation_stateless():
     check_no_input(fn.transforms.translation, 'cpu', offset=(4, 3))
+
+
+@params('cpu', 'gpu')
+def test_one_hot_stateless(device):
+    check_single_input(fn.one_hot, device)
+
+
+@params('cpu', 'gpu')
+def test_erase_stateless(device):
+    check_single_input(fn.erase, device, anchor=(3, 4), shape=(5, 6))
+
+
+@params('cpu', 'gpu')
+def test_pad_stateless(device):
+    check_single_input(fn.pad, device, shape=(100, 100, 3))
+
+
+@params('cpu', 'gpu')
+def test_constant_stateless(device):
+    check_no_input(fn.constant, device, idata=[1, 2, 3])
+
+
+@params('cpu', 'gpu')
+def test_reshape_stateless(device):
+    check_single_input(fn.reshape, device, shape=[1, -1])
+
+
+@params('cpu', 'gpu')
+def test_lookup_table_stateless(device):
+    check_single_input(fn.lookup_table, device, keys=[0], values=[1], default_value=123)
+
+
+@params('cpu', 'gpu')
+def test_transpose_stateless(device):
+    check_single_input(fn.transpose, device, perm=[2, 0, 1])
+
+
+def test_paste_stateless():
+    check_single_input(fn.paste, 'gpu', fill_value=0, ratio=2)
+
+
+@params('cpu', 'gpu')
+def test_color_space_conversion_stateless(device):
+    check_single_input(fn.color_space_conversion, device,
+                       image_type=dali.types.DALIImageType.RGB,
+                       output_type=dali.types.DALIImageType.YCbCr)
+
+
+def test_resize_crop_mirror_stateless(device):
+    check_single_input(fn.resize_crop_mirror, 'cpu', crop=(2, 2, 3), mirror=True)
+
+
+@params('cpu', 'gpu')
+def test_slice_stateless(device):
+    check_single_input(fn.slice, device, rel_start=(0.25, 0.25), rel_end=(0.75, 0.75))
+
+
+@params('cpu', 'gpu')
+def test_shapes_stateless(device):
+    check_single_input(fn.shapes, device)
+
+
+@params('cpu', 'gpu')
+def test_per_frame_stateless(device):
+    check_single_input(fn.per_frame, device, replace=True)
+
+
+@params('cpu', 'gpu')
+def test_get_property_stateless(device):
+    check_single_input(fn.get_property, device, key='layout')
+
+
+@params('cpu', 'gpu')
+def test_jpeg_compression_distortion_stateless(device):
+    check_single_input(fn.jpeg_compression_distortion, device)
+
+
+@params('cpu', 'gpu')
+def test_multi_paste_stateless(device):
+    check_single_input(fn.multi_paste, device, in_ids=list(range(batch_size)),
+                       output_size=[100, 100])
+
+
+@params('cpu', 'gpu')
+def test_grid_mask_stateless(device):
+    check_single_input(fn.grid_mask, device)
+
+
+@params('cpu', 'gpu')
+def test_preemphasis_filter_stateless(device):
+    check_single_input(fn.preemphasis_filter, device)
+
+
+def test_optical_flow_stateless():
+    check_single_sequence_input(fn.optical_flow, 'gpu')
+
+
+def test_sequence_rearrange():
+    check_single_sequence_input(fn.sequence_rearrange, 'gpu',
+                                new_order=list(range(test_data_frames)))
+
+
+@params('cpu', 'gpu')
+def test_element_extract_stateless(device):
+    check_single_sequence_input(fn.element_extract, device, element_map=[0])
+
+
+@params('cpu', 'gpu')
+def test_to_decibels_stateless(device):
+    @pipeline_def
+    def pipeline_factory():
+        input = np.array([[1], [2], [3]], dtype=np.float32)
+        return fn.to_decibels(input, device=device)
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def test_peek_image_shape_stateless():
+    @pipeline_def
+    def pipeline_factory():
+        img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
+        jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
+        shapes = fn.peek_image_shape(jpegs)
+        return shapes
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+@params('cpu', 'gpu')
+def test_coord_flip_stateless(device):
+    @pipeline_def
+    def pipeline_factory():
+        input = np.array([[1], [2], [3]], dtype=np.float32)
+        return fn.coord_flip(input, flip_x=True, center_x=0, device=device)
+    check_is_pipeline_stateless(pipeline_factory)
 
 
 @params('cpu', 'gpu')

@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/static_switch.h"
@@ -27,11 +28,11 @@
 namespace dali {
 
 template <typename Backend>
-class Constant : public Operator<Backend> {
+class Constant : public StatelessOperator<Backend> {
  public:
-  using Base = Operator<Backend>;
+  using Base = StatelessOperator<Backend>;
 
-  explicit Constant(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Constant(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     bool has_shape = spec.ArgumentDefined("shape");
     spec.TryGetRepeatedArgument(shape_arg_, "shape");
     if (spec.HasArgument("fdata")) {
