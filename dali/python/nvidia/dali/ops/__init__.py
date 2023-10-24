@@ -714,20 +714,19 @@ from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
     PythonFunction, DLTensorPythonFunction, _dlpack_to_array,  # noqa: F401
     _dlpack_from_array)  # noqa: F401
 
-_wrap_op(PythonFunction)
-_wrap_op(DLTensorPythonFunction)
-
 _internal._adjust_operator_module(PythonFunction, sys.modules[__name__], [])
 _internal._adjust_operator_module(DLTensorPythonFunction, sys.modules[__name__], [])
+
+_wrap_op(PythonFunction)
+_wrap_op(DLTensorPythonFunction)
 
 # Compose is only exposed for ops API, no fn bindings are generated
 from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
 
-_registry.register_cpu_op('Compose')
-_registry.register_gpu_op('Compose')
-
 _internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 
+_registry.register_cpu_op('Compose')
+_registry.register_gpu_op('Compose')
 
 from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: E402, F401
                                              _generate_input_desc)  # noqa: F401

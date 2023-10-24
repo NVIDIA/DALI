@@ -58,7 +58,7 @@ Parameters
     return root
 
 
-def _adjust_operator_module(operator, api_module, submodule):
+def _adjust_operator_module(operator, api_module, submodule, impl_overwrite=None):
     """Adjust the __module__ of `operator` to point into the submodule of `api_module`
     pointed by the list of in `submodule`, for example:
         api_module = <nvidia.dali.ops module>
@@ -66,7 +66,10 @@ def _adjust_operator_module(operator, api_module, submodule):
 
     The original module where the operator code was generated is saved as `_impl_module` to allow
     access to it.
+
+    If the operator has base class defined by hand, but it is generated with an automatic wrapper
+    generator, we can point to the original implementation module via `impl_overwrite`.
     """
     module = get_submodule(api_module, submodule)
-    operator._impl_module = operator.__module__
+    operator._impl_module = operator.__module__ if impl_overwrite is None else impl_overwrite
     operator.__module__ = module.__name__
