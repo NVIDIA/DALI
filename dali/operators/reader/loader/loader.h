@@ -189,7 +189,7 @@ class Loader {
 
     // Re-run reset
     Reset(true);
-    
+
     SaveStateSnapshot(current_snapshot_);
 
     FastForward(state.age);
