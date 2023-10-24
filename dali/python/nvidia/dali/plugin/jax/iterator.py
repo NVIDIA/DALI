@@ -246,6 +246,9 @@ def data_iterator_impl(
         def create_iterator(*args, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
 
+            if 'num_threads' not in wrapper_kwargs:
+                wrapper_kwargs['num_threads'] = 4
+
             if sharding is None:
                 if 'device_id' not in wrapper_kwargs:
                     # Due to https://github.com/google/jax/issues/16024 the best we can do is to

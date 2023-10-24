@@ -55,7 +55,7 @@ def test_dali_iterator_decorator_declarative():
     run_and_assert_sequential_iterator(iter)
 
 
-def test_dali_iterator_decorator_declarative_with_default_device():
+def test_dali_iterator_decorator_declarative_with_default_args():
     # given
     @data_iterator(
         output_map=['data'],
@@ -64,7 +64,6 @@ def test_dali_iterator_decorator_declarative_with_default_device():
         return iterator_function_def()
 
     iter = iterator_function(
-        num_threads=4,
         batch_size=batch_size)
 
     # then
