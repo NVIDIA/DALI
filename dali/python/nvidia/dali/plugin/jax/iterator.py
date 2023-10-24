@@ -247,6 +247,11 @@ def data_iterator_impl(
             pipeline_def_fn = pipeline_def(func)
 
             if sharding is None:
+                if 'device_id' not in wrapper_kwargs:
+                    # Due to https://github.com/google/jax/issues/16024 the best we can do is to
+                    # assume that the first device is the one we want to use.
+                    wrapper_kwargs['device_id'] = 0
+
                 pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
             else:
                 pipelines = []
