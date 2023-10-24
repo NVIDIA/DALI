@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,41 +16,103 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
-
 DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
-      R"code(Mask for the horizontal flip.
+      R"code(Mask for flipping
 
 Supported values:
 
-- `0` - Do not perform horizontal flip for this image.
-- `1` - Performs horizontal flip for this image.)code", 0, true)
-  .AddParent("ResizeAttr");
+- `0` - No flip
+- `1` - Horizontal flip
+- `2` - Vertical flip
+- `4` - Depthwise flip
+- any bitwise combination of the above)code", 0, false)
+  .AddParent("ResizeAttr")
+  .AddParent("CropAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation. Both fixed and
-random resizing and cropping are supported.)code")
+  .DocStr(R"code(Performs a fused resize, crop, mirror operation
+
+This operator resizes a region of interest of the input image to the desired size,
+optionally flipping the image.
+.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("interp_type",  // TODO(michalz): Replace with ResamplingFilterAttr when ready
-      R"code(Type of interpolation used.)code",
-      DALI_INTERP_LINEAR)
-  .AddParent("Crop")
+  .SupportVolumetric()
+  .AllowSequences()
   .AddParent("ResizeCropMirrorAttr")
-  .InputLayout("HWC");
-
-DALI_REGISTER_OPERATOR(FastResizeCropMirror, FastResizeCropMirror<CPUBackend>, CPU);
+  .AddParent("ResamplingFilterAttr")
+  .InputLayout(0, {"HWC",  "FHWC",  "CHW",  "FCHW",  "CFHW" ,
+                   "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  });
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation.
-
-The operator handles both fixed and random resizing and cropping.
-Backprojects the desired crop through the resize operation to reduce the amount of
-work that is performed.)code")
+  .DocStr(R"code(Legacy alias for ResizedCropMirror.)code")
   .NumInput(1)
   .NumOutput(1)
+  .SupportVolumetric()
+  .AllowSequences()
   .AddParent("ResizeCropMirror")
-  .InputLayout("HWC");
+  .InputLayout(0, {"HWC",  "FHWC",  "CHW",  "FCHW",  "CFHW" ,
+                   "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  });
+
+template<typename Backend>
+ResizeCropMirror<Backend>::ResizeCropMirror(const OpSpec &spec)
+    : StatelessOperator<Backend>(spec)
+    , ResizeBase<Backend>(spec)
+    , resize_attr_(spec) {
+  resample_params_.resize(num_threads_);
+  InitializeBackend();
+}
+
+
+template <typename Backend>
+bool ResizeCropMirror<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                const Workspace &ws) {
+  output_desc.resize(1);
+  auto &input = ws.Input<Backend>(0);
+
+  const auto &in_shape = input.shape();
+  auto in_type = input.type();
+  auto in_layout = input.GetLayout();
+  int N = in_shape.num_samples();
+
+  PrepareParams(ws, in_shape, in_layout);
+
+  auto out_type = resampling_attr_.GetOutputType(in_type);
+
+  output_desc[0].type = out_type;
+  this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
+                    make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
+  return true;
+}
+
+
+template<>
+void ResizeCropMirror<CPUBackend>::InitializeBackend() {
+  InitializeCPU(num_threads_);
+}
+
+template<>
+void ResizeCropMirror<GPUBackend>::InitializeBackend() {
+  InitializeGPU(spec_.GetArgument<int>("minibatch_size"),
+                spec_.GetArgument<int64_t>("temp_buffer_hint"));
+}
+
+template<typename Backend>
+void ResizeCropMirror<Backend>::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<Backend>(0);
+  auto &output = ws.Output<Backend>(0);
+
+  this->RunResize(ws, output, input);
+  output.SetLayout(input.GetLayout());
+}
+
+
+DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(ResizeCropMirror, ResizeCropMirror<GPUBackend>, GPU);
+
+DALI_REGISTER_OPERATOR(FastResizeCropMirror, ResizeCropMirror<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(FastResizeCropMirror, ResizeCropMirror<GPUBackend>, GPU);
+
 
 }  // namespace dali

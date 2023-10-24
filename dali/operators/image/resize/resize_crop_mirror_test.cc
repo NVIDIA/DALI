@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@ class ResizeCropMirrorTest : public GenericResizeTest<ImgType> {
   // tell compiler we don't want to hide overloaded DefaultSchema
   using GenericResizeTest<ImgType>::DefaultSchema;
 
-  OpSpec DefaultSchema(bool fast_resize = false) {
-    const char *op = (fast_resize) ? "FastResizeCropMirror"
-                                   : "ResizeCropMirror";
-    return GenericResizeTest<ImgType>::DefaultSchema(op, "cpu");
+  OpSpec DefaultSchema(bool gpu = false) {
+    return GenericResizeTest<ImgType>::DefaultSchema("ResizeCropMirror", gpu ? "gpu" : "cpu");
   }
 };
 
@@ -47,20 +45,6 @@ TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
                 .AddArg("resize_x", 480.f)
                 .AddArg("resize_y", 480.f)
                 .AddArg("crop", vector<float>{224, 224}), 5e-6);
-}
-
-TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCrop) {
-  this->TstBody(this->DefaultSchema(true)
-                .AddArg("resize_shorter", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 1.98);
-}
-
-TYPED_TEST(ResizeCropMirrorTest, TestFixedFastResizeAndCropWarp) {
-  this->TstBody(this->DefaultSchema(true)
-                    .AddArg("resize_x", 480.f)
-                    .AddArg("resize_y", 480.f)
-                    .AddArg("crop", vector<float>{224, 224}),
-                1.80);
 }
 
 }  // namespace dali
