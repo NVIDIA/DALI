@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+pip_packages='astunparse gast dm-tree black'
+
 build_and_check() {
   make -j
   pip install ./dali/python
