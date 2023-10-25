@@ -50,7 +50,6 @@ def get_modules(top_modules):
             if (module.startswith(doc_module) and not module.endswith('hidden')
                     and not _is_private(module)):
                 modules += [module]
-    print(f"{modules=}")
     return sorted(modules)
 
 
