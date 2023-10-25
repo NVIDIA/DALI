@@ -20,7 +20,7 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.pipeline import pipeline_def
 
-from .integration import _to_jax_array
+from nvidia.dali.plugin.jax.integration import _to_jax_array
 
 
 class DALIGenericIterator(_DaliBaseIterator):

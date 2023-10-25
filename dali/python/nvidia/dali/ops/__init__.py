@@ -462,7 +462,7 @@ class _DaliOperatorMeta(type):
 
     @property
     def __doc__(self):
-        return _docs._docstring_generator(self)
+        return _docs._docstring_generator(_names._schema_name(self))
 
 
 def _check_arg_input(schema, op_name, name):
@@ -561,13 +561,14 @@ def python_op_factory(name, schema_name=None):
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
+    Operator._generated = True  # The class was generated using python_op_factory
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
     return _functional._wrap_op(op_class, submodule, parent_module,
-                                _docs._docstring_generator_fn(op_class))
+                                _docs._docstring_generator_fn(op_class.schema_name))
 
 
 def _load_ops():

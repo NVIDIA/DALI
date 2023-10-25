@@ -144,13 +144,13 @@ def _get_kwargs(schema):
     return ret
 
 
-def _docstring_generator_main(cls, api):
+def _docstring_generator_main(schema_name, api):
     """
         Generate docstring for the class obtaining it from schema based on cls.__name__
+        or the schema name as a str.
         This lists all the Keyword args that can be used when creating operator
     """
-    op_name = _names._schema_name(cls)
-    schema = _b.GetSchema(op_name)
+    schema = _b.GetSchema(schema_name)
     ret = '\n'
 
     if schema.IsDeprecated():
@@ -193,11 +193,11 @@ def _docstring_generator_main(cls, api):
         ret += "\nThis operator will **not** be optimized out of the graph.\n"
 
     op_dev = []
-    if op_name in _registry.cpu_ops():
+    if schema_name in _registry.cpu_ops():
         op_dev.append("'cpu'")
-    if op_name in _registry.gpu_ops():
+    if schema_name in _registry.gpu_ops():
         op_dev.append("'gpu'")
-    if op_name in _registry.mixed_ops():
+    if schema_name in _registry.mixed_ops():
         op_dev.append("'mixed'")
     ret += """
 Supported backends
@@ -208,10 +208,9 @@ Supported backends
     return ret
 
 
-def _docstring_generator(cls):
-    op_name = _names._schema_name(cls)
-    schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls, "ops")
+def _docstring_generator(schema_name):
+    schema = _b.GetSchema(schema_name)
+    ret = _docstring_generator_main(schema_name, "ops")
     if schema.IsDocPartiallyHidden():
         return ret
     ret += """
@@ -299,10 +298,9 @@ Keyword Args
     return ret
 
 
-def _docstring_generator_fn(cls):
-    op_name = _names._schema_name(cls)
-    schema = _b.GetSchema(op_name)
-    ret = _docstring_generator_main(cls, "fn")
+def _docstring_generator_fn(schema_name):
+    schema = _b.GetSchema(schema_name)
+    ret = _docstring_generator_main(schema_name, "fn")
     if schema.IsDocPartiallyHidden():
         return ret
     ret += _get_inputs_doc(schema)
