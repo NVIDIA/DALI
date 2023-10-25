@@ -26,7 +26,7 @@ Supported values:
 - `1` - Horizontal flip
 - `2` - Vertical flip
 - `4` - Depthwise flip
-- any bitwise combination of the above)", 0, false)
+- any bitwise combination of the above)", 0, true)
   .AddParent("ResizeAttr")
   .AddParent("CropAttr");
 
