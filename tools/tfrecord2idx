@@ -24,8 +24,7 @@ while True:
         # crc
         f.read(4)
         idx.write(str(current) + ' ' + str(f.tell() - current) + '\n')
-    except Exception as e:
-        print(e)
+    except Exception:
         print("Not a valid TFRecord file")
         break
 
