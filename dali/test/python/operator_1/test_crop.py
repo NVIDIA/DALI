@@ -245,7 +245,7 @@ def test_crop_no_cast_vs_cast_to_float_and_back():
 
 class Crop3dPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, data_shape, data_layout, num_threads=1,
-                 device_id=0, crop_seq_as_depth=False, fixed_window=False):
+                 device_id=0, crop_seq_as_depth=False, separate_crop_dims=True):
         super(Crop3dPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
@@ -264,7 +264,7 @@ class Crop3dPipeline(Pipeline):
         else:
             assert False
 
-        if not fixed_window:
+        if separate_crop_dims:
             self.crop = ops.Crop(device=self.device,
                                  crop_pos_z=0.1,
                                  crop_pos_y=0.2,
@@ -348,12 +348,12 @@ def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(
         assert False
 
 
-def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape, fixed_window=False):
+def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape, separate_crop_dims=True):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
     compare_pipelines(
         Crop3dPipeline(device, batch_size, iter(eii1), data_shape=shape, data_layout=layout,
-                       fixed_window=fixed_window),
+                       separate_crop_dims=separate_crop_dims),
         Crop3dPythonOpPipeline(crop_3d_func, batch_size, iter(eii2), data_shape=shape,
                                data_layout=layout), batch_size=batch_size, N_iterations=3)
 
@@ -371,8 +371,8 @@ def test_crop_3d_vs_python_op_crop():
                 yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
 
 
-def test_crop_3d_vs_python_op_crop_fixed_window():
-    check_crop_3d_vs_python_op_crop('gpu', 1, "CDHW", (8, 30, 10, 50), True)
+def test_crop_3d_vs_python_op_crop_separate_crop_dims():
+    check_crop_3d_vs_python_op_crop('gpu', 1, "CDHW", (8, 30, 10, 50), False)
 
 
 def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape):
