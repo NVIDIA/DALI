@@ -18,7 +18,7 @@ namespace dali {
 
 DALI_SCHEMA(ResizeCropMirrorAttr)
   .AddOptionalArg("mirror",
-      R"code(Mask for flipping
+      R"(Mask for flipping
 
 Supported values:
 
@@ -26,16 +26,16 @@ Supported values:
 - `1` - Horizontal flip
 - `2` - Vertical flip
 - `4` - Depthwise flip
-- any bitwise combination of the above)code", 0, false)
+- any bitwise combination of the above)", 0, false)
   .AddParent("ResizeAttr")
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr(R"code(Performs a fused resize, crop, mirror operation
+  .DocStr(R"(Performs a fused resize, crop, mirror operation
 
 This operator resizes a region of interest of the input image to the desired size,
 optionally flipping the image.
-.)code")
+.)")
   .NumInput(1)
   .NumOutput(1)
   .SupportVolumetric()
@@ -46,12 +46,17 @@ optionally flipping the image.
                    "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  });
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(R"code(Legacy alias for ResizedCropMirror.)code")
+  .DocStr(R"(Legacy alias for ResizedCropMirror, with antialiasing disabled by defaul.)")
   .NumInput(1)
   .NumOutput(1)
   .SupportVolumetric()
   .AllowSequences()
   .AddParent("ResizeCropMirror")
+  .AddOptionalArg("antialias", R"(If enabled, it applies an antialiasing filter when scaling down.
+
+.. note::
+  Nearest neighbor interpolation does not support antialiasing.)",
+      false)
   .InputLayout(0, {"HWC",  "FHWC",  "CHW",  "FCHW",  "CFHW" ,
                    "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  });
 
@@ -62,6 +67,45 @@ ResizeCropMirror<Backend>::ResizeCropMirror(const OpSpec &spec)
     , resize_attr_(spec) {
   resample_params_.resize(num_threads_);
   InitializeBackend();
+}
+
+void ResizeCropMirrorAttr::PrepareResizeParams(
+    const OpSpec &spec,
+    const ArgumentWorkspace &ws,
+    const TensorListShape<> &input_shape) {
+  // First, proceed as with normal resize
+  ResizeAttr::PrepareResizeParams(spec, ws, input_shape);
+  mirror_.Acquire(spec, ws, batch_size_);
+
+  // Then get the crop windows and back-project them
+  for (int i = 0; i < batch_size_; i++) {
+    CropAttr::ProcessArguments(spec, &ws, i);
+    auto &params = params_[i];
+    TensorShape<> resized_input_shape = input_shape[i];
+    for (int d = 0; d < spatial_ndim_; d++)
+      resized_input_shape[d + first_spatial_dim_] = params.dst_size[d];
+    auto window = GetCropWindowGenerator(i)(resized_input_shape, layout_);
+    int mirror = *mirror_[i].data;
+    for (int d = 0; d < spatial_ndim_; d++) {
+      double src_extent = params.src_hi[d] - params.src_lo[d];
+      // Fun fact: it should work even if src_extent is negative,
+      // i.e. the resize part already flips.
+      double resize_ratio = src_extent / params.dst_size[d];
+      double resize_offset = params.src_lo[d];
+
+      double crop_lo = window.anchor[d];
+      double crop_hi = window.anchor[d] + window.shape[d];
+
+      params.src_lo[d] = crop_lo * resize_ratio + resize_offset;
+      params.src_hi[d] = crop_hi * resize_ratio + resize_offset;
+
+      bool mirror_this_dim = mirror & (1 << d);
+      if (mirror_this_dim)
+        std::swap(params.src_lo[d], params.src_hi[d]);
+
+      params.dst_size[d] = window.shape[d];
+    }
+  }
 }
 
 

@@ -22,7 +22,6 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/image/transform.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/operators/image/crop/crop_attr.h"
@@ -39,37 +38,11 @@ class ResizeCropMirrorAttr : public ResizeAttr, protected CropAttr {
     : CropAttr(spec)
     , mirror_("mirror", spec) {}
 
+  using ResizeAttr::PrepareResizeParams;
+  void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                           const TensorListShape<> &input_shape) override;
+
  protected:
-  void SetFlagsAndMode(const OpSpec &spec) override {
-    ResizeAttr::SetFlagsAndMode(spec);
-    has_roi_ = !IsWholeImage();
-  }
-
-  void GetRoI(const OpSpec &spec,
-              const ArgumentWorkspace &ws,
-              const TensorListShape<> input_shape) override {
-    mirror_.Acquire(spec, ws, batch_size_);
-    if (has_roi_) {
-      roi_relative_ = false;
-      roi_start_.resize(batch_size_ * spatial_ndim_);
-      roi_end_.resize(batch_size_ * spatial_ndim_);
-      for (int i = 0; i < batch_size_; i++) {
-        CropAttr::ProcessArguments(spec, &ws, i);
-        int mirror = *mirror_[i].data;
-        auto wnd = GetCropWindowGenerator(i)(input_shape[i], layout_);
-
-        for (int d = 0; d < spatial_ndim_; d++) {
-          auto &lo = roi_start_[i * spatial_ndim_ + d];
-          auto &hi = roi_end_[i * spatial_ndim_ + d];
-          lo = wnd.anchor[d];
-          hi = lo + wnd.shape[d];
-          if (mirror & (i << d))
-            std::swap(lo, hi);
-        }
-      }
-    }
-  }
-
   ArgValue<int, 0> mirror_;
 };
 

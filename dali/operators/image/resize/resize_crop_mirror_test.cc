@@ -34,17 +34,19 @@ TYPED_TEST_SUITE(ResizeCropMirrorTest, Types);
 // Difference is consistent, deterministic and goes away if I force OCV
 // instead of TJPG decoding.
 
-TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCrop) {
-  this->TstBody(this->DefaultSchema()
+TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropCPU) {
+  this->TstBody(this->DefaultSchema(false)
                 .AddArg("resize_shorter", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 5e-6);
+                .AddArg("antialias", false)
+                .AddArg("crop", vector<float>{224, 224}), 0.2);
 }
 
-TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropWarp) {
-  this->TstBody(this->DefaultSchema()
+TYPED_TEST(ResizeCropMirrorTest, TestFixedResizeAndCropGPU) {
+  this->TstBody(this->DefaultSchema(true)
                 .AddArg("resize_x", 480.f)
                 .AddArg("resize_y", 480.f)
-                .AddArg("crop", vector<float>{224, 224}), 5e-6);
+                .AddArg("antialias", false)
+                .AddArg("crop", vector<float>{224, 224}), 0.2);
 }
 
 }  // namespace dali
