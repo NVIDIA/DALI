@@ -16,8 +16,8 @@ ENV PYVER=${PYVER} \
     PATH=/opt/python/cp38-cp38/bin:/opt/python/cp39-cp39/bin:${PYBIN}:/opt/python/cp310-cp310/bin:/opt/python/cp311-cp311/bin:${PYBIN}:/opt/python/cp312-cp312/bin:${PYBIN}:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LD_LIBRARY_PATH} \
     LIBRARY_PATH=/usr/local/lib:/opt/dali/${DALI_BUILD_DIR}:/opt/python/cp38-cp38/lib:/opt/python/cp39-cp39/lib:/opt/python/cp310-cp310/lib:/opt/python/cp311-cp311/lib:${PYLIB}:/opt/python/cp312-cp312/lib:${PYLIB}:${LIBRARY_PATH} \
-    ASAN_OPTIONS=start_deactivated=true:detect_leaks=0:detect_container_overflow=0 \
-    LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
+    ASAN_OPTIONS=${BUILD_WITH_ASAN:+start_deactivated=true:detect_leaks=0:detect_container_overflow=0} \
+    LD_PRELOAD=${BUILD_WITH_ASAN:+"/usr/lib64/libasan.so.6 /usr/lib64/libstdc++.so.6"}
 
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
