@@ -342,7 +342,7 @@ TEST(LoaderCheckpointingTest, TestCheckpointShortEpoch) {
 
   TestLoaderCheckpointing(InitLoader<DummyCountingLoader>(
     spec,
-    8   /* epoch size, that's 3 epochs in a sample buffer! */, 
+    8   /* epoch size, that's 3 epochs in a sample buffer! */,
     100 /* add 100*current_epoch to each output to differentiate samples */),
   32);
 }
