@@ -388,11 +388,7 @@ def test_bb_flip_stateless(device):
 
 @params('cpu', 'gpu')
 def test_to_decibels_stateless(device):
-    @pipeline_def
-    def pipeline_factory():
-        input = np.array([[1], [2], [3]], dtype=np.float32)
-        return fn.to_decibels(input, device=device)
-    check_is_pipeline_stateless(pipeline_factory)
+    check_single_signal_input(fn.to_decibels, device)
 
 
 def test_peek_image_shape_stateless():
