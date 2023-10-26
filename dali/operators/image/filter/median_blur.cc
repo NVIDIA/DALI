@@ -21,6 +21,7 @@
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
@@ -43,10 +44,10 @@ with the median color of a surrounding rectangular region.
     true);
 
 
-class MedianBlur : public Operator<GPUBackend> {
+class MedianBlur : public StatelessOperator<GPUBackend> {
  public:
   explicit MedianBlur(const OpSpec &spec)
-  : Operator<GPUBackend>(spec) {}
+  : StatelessOperator<GPUBackend>(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto &in = ws.Input<GPUBackend>(0);

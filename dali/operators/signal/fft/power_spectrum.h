@@ -26,10 +26,10 @@
 namespace dali {
 
 template <typename Backend>
-class PowerSpectrum : public Operator<Backend> {
+class PowerSpectrum : public StatelessOperator<Backend> {
  public:
   explicit PowerSpectrum(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     fft_args_.nfft = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : -1;
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
     int power = spec.GetArgument<int>("power");

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import glob
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -58,11 +59,28 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
 class RandomBatch:
     def __init__(self, data_shape=test_data_shape, dtype=np.uint8):
         rng = np.random.default_rng(1234)
-        self.batch = [rng.integers(255, size=data_shape, dtype=dtype)
+        self.batch = [rng.integers(255, size=data_shape, dtype=np.uint8).astype(dtype)
                       for _ in range(batch_size)]
 
     def __call__(self):
         return self.batch
+
+
+# Provides the same random batch of bounding boxes each time
+class RandomBoundingBoxBatch:
+    def __init__(self):
+        rng = np.random.default_rng(1234)
+        def random_sample():
+            l = rng.uniform(0, 1, size=1)
+            t = rng.uniform(0, 1, size=1)
+            r = rng.uniform(l, 1)
+            b = rng.uniform(r, 1)
+            return np.vstack([l,t,r,b]).astype(np.float32).T
+        self.batch = [random_sample() for _ in range(batch_size)]
+
+    def __call__(self):
+        return self.batch
+
 
 
 def move_to(tensor, device):
@@ -83,6 +101,34 @@ def check_single_sequence_input(op, device, **kwargs):
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(data_shape=test_sequence_shape),
                                   layout='FHWC', batch=True)
+        return op(move_to(data, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_single_signal_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(data_shape=[30, 40], dtype=np.float32),
+                                  layout='ft', batch=True)
+        return op(move_to(data, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_single_1d_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch(data_shape=[100], dtype=np.float32), batch=True)
+        return op(move_to(data, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_single_bbox_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBoundingBoxBatch(), batch=True)
         return op(move_to(data, device), device=device, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
@@ -180,6 +226,10 @@ def test_one_hot_stateless(device):
     check_single_input(fn.one_hot, device)
 
 
+def test_median_bluer_stateless():
+    check_single_input(fn.experimental.median_blur, 'gpu')
+
+
 @params('cpu', 'gpu')
 def test_erase_stateless(device):
     check_single_input(fn.erase, device, anchor=(3, 4), shape=(5, 6))
@@ -270,14 +320,70 @@ def test_optical_flow_stateless():
     check_single_sequence_input(fn.optical_flow, 'gpu')
 
 
-def test_sequence_rearrange():
+def test_sequence_rearrange_stateless():
     check_single_sequence_input(fn.sequence_rearrange, 'gpu',
                                 new_order=list(range(test_data_frames)))
 
 
 @params('cpu', 'gpu')
+def test_spectrogram_stateless(device):
+    check_single_1d_input(fn.spectrogram, device)
+
+
+def test_power_spectrum_stateless():
+    check_single_signal_input(fn.power_spectrum, 'cpu')
+
+
+@params('cpu', 'gpu')
+def test_dump_image_stateless(device):
+    suffix = 'test_dump_image_stateless_tmp'
+    check_single_input(fn.dump_image, device, suffix=suffix)
+    for f in glob.glob(f'*-{suffix}-*.ppm'):
+        os.remove(f)
+
+
+@params('cpu', 'gpu')
+def test_variance_stateless(device):
+    check_single_1d_input(lambda x, **kwargs: fn.reductions.variance(x, 0., **kwargs), device)
+
+
+@params('cpu', 'gpu')
+def test_normalize_stateless(device):
+    check_single_input(fn.normalize, device)
+
+
+@params('cpu', 'gpu')
+def test_mel_filter_bank_stateless(device):
+    check_single_signal_input(fn.mel_filter_bank, device)
+
+
+@params('cpu', 'gpu')
+def test_mfcc_stateless(device):
+    check_single_signal_input(fn.mfcc, device)
+
+
+@params('cpu', 'gpu')
+def test_nonsilent_region_stateless(device):
+    check_single_1d_input(lambda *args, **kwargs: fn.nonsilent_region(*args, **kwargs)[0], device)
+
+
+@params('cpu', 'gpu')
+def test_audio_resample_stateless(device):
+    check_single_signal_input(fn.audio_resample, device, scale=0.5)
+
+
+@params('cpu', 'gpu')
 def test_element_extract_stateless(device):
     check_single_sequence_input(fn.element_extract, device, element_map=[0])
+
+
+def test_bbox_paste_stateless():
+    check_single_bbox_input(fn.bbox_paste, 'cpu', ratio=2)
+
+
+@params('cpu', 'gpu')
+def test_bb_flip_stateless(device):
+    check_single_bbox_input(fn.bb_flip, device, ltrb=True)
 
 
 @params('cpu', 'gpu')
@@ -295,6 +401,16 @@ def test_peek_image_shape_stateless():
         img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
         jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
         shapes = fn.peek_image_shape(jpegs)
+        return shapes
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def test_imgcodec_peek_image_shape_stateless():
+    @pipeline_def
+    def pipeline_factory():
+        img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
+        jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
+        shapes = fn.experimental.peek_image_shape(jpegs)
         return shapes
     check_is_pipeline_stateless(pipeline_factory)
 
