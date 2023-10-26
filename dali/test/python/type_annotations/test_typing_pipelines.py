@@ -32,8 +32,7 @@ def rn50_pipe():
     imgs = fn.decoders.image(enc, device="mixed")
     rng = fn.random.coin_flip(probability=0.5)
     resized = fn.random_resized_crop(imgs, size=[224, 224])
-    normalized = fn.crop_mirror_normalize(resized, mirror=rng,
-                                          dtype=types.DALIDataType.FLOAT16,
+    normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
                                           output_layout="HWC", crop=(224, 224),
                                           mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                           std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
@@ -56,10 +55,15 @@ def rn50_ops_pipe():
     Decoder = ops.decoders.Image(device="mixed")
     Rng = ops.random.CoinFlip(probability=0.5)
     Rrc = ops.RandomResizedCrop(device="gpu", size=[224, 224])
-    Cmn = ops.CropMirrorNormalize(mirror=Rng(), device="gpu", dtype=types.DALIDataType.FLOAT16,
-                                  output_layout="HWC", crop=(224, 224),
-                                  mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                  std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    Cmn = ops.CropMirrorNormalize(
+        mirror=Rng(),
+        device="gpu",
+        dtype=types.DALIDataType.FLOAT16,
+        output_layout="HWC",
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
     enc, label = Reader()
     imgs = Decoder(enc)
     resized = Rrc(imgs)
@@ -96,6 +100,7 @@ def test_cond_pipe():
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.UINT8  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
+
 
 @pipeline_def(batch_size=10, device_id=0, num_threads=4)
 def es_pipe():

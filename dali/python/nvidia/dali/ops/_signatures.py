@@ -24,7 +24,6 @@ from typing import Sequence, List, Any
 from nvidia.dali import backend as _b
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _registry, _names, _docs
-from nvidia.dali.fn import _to_snake_case
 from nvidia.dali import types
 from nvidia.dali import ops, fn
 
@@ -389,8 +388,8 @@ def _group_signatures(api: str):
 
     """
     sig_groups = {
-        "python_only" : [],
-        "hidden_or_internal" : [],
+        "python_only": [],
+        "hidden_or_internal": [],
         "python_wrapper": [],
         "generated": []
     }
@@ -422,7 +421,8 @@ def _group_signatures(api: str):
 
 
 class StubFileManager:
-    def __init__(self, nvidia_dali_path : Path, api : str):
+
+    def __init__(self, nvidia_dali_path: Path, api: str):
         self._module_to_file = {}
         self._nvidia_dali_path = nvidia_dali_path
         self._api = api
@@ -437,7 +437,7 @@ class StubFileManager:
         """
         module_path = Path("/".join(module_nesting))
         if module_path not in self._module_to_file:
-            file_path =  self._nvidia_dali_path / self._api / module_path / "__init__.pyi"
+            file_path = self._nvidia_dali_path / self._api / module_path / "__init__.pyi"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             open(file_path, "w").close()  # clear the file
             f = open(file_path, "a")
@@ -458,7 +458,6 @@ class StubFileManager:
     def close(self):
         for _, f in self._module_to_file.items():
             f.close()
-
 
 
 def gen_all_signatures(nvidia_dali_path, api):

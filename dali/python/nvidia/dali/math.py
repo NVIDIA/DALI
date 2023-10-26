@@ -16,6 +16,7 @@ import sys
 
 from nvidia.dali.data_node import DataNode as _DataNode
 
+
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
     # Fully circular imports don't work. We need to import _arithm_op late and
