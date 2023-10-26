@@ -21,6 +21,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {

@@ -291,7 +291,7 @@ void SpectrogramImplCpu<time_major>::RunImpl(Workspace &ws) {
 
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {
+    : StatelessOperator<CPUBackend>(spec) {
   auto layout = spec.GetArgument<std::string>("layout");
   DALI_ENFORCE(layout == "tf" || layout == "ft",
                make_string("Unexpected layout: ", layout));
