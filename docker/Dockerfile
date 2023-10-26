@@ -20,7 +20,7 @@ ENV PYVER=${PYVER} \
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 # install Python bindings and patch it to use the clang we have here
-RUN pip install future setuptools wheel clang==14.0 flake8 && \
+RUN pip install future setuptools wheel clang==14.0 flake8 astunparse gast dm-tree black && \
     PY_CLANG_PATH=$(echo $(pip show clang) | sed 's/.*Location: \(.*\) Requires.*/\1/')/clang/cindex.py && \
     LIBCLANG_PATH=/usr/local/lib/libclang.so && \
     sed -i "s|library_file = None|library_file = \"${LIBCLANG_PATH}\"|" ${PY_CLANG_PATH} && \
