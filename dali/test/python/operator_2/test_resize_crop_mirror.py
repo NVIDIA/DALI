@@ -30,7 +30,7 @@ def rcm_pipe(device, mode):
     flip_y = fn.random.coin_flip(dtype=types.INT32)
     flip = flip_x | (flip_y * 2)
     if mode == "not_larger":  # avoid invalid crops
-        size = fn.random.uniform(range=(480, 1000), shape=(2,), dtype=types.FLOAT)
+        size = fn.random.uniform(range=(800, 1000), shape=(2,), dtype=types.FLOAT)
     else:
         size = fn.random.uniform(range=(224, 480), shape=(2,), dtype=types.FLOAT)
     crop_w = fn.random.uniform(range=(100, 224), dtype=types.FLOAT)
