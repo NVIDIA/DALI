@@ -70,17 +70,18 @@ class RandomBatch:
 class RandomBoundingBoxBatch:
     def __init__(self):
         rng = np.random.default_rng(1234)
+
         def random_sample():
-            l = rng.uniform(0, 1, size=1)
-            t = rng.uniform(0, 1, size=1)
-            r = rng.uniform(l, 1)
-            b = rng.uniform(r, 1)
-            return np.vstack([l,t,r,b]).astype(np.float32).T
+            left = rng.uniform(0, 1, size=1)
+            top = rng.uniform(0, 1, size=1)
+            right = rng.uniform(left, 1)
+            bottom = rng.uniform(top, 1)
+            return np.vstack([left, top, right, bottom]).astype(np.float32).T
+
         self.batch = [random_sample() for _ in range(batch_size)]
 
     def __call__(self):
         return self.batch
-
 
 
 def move_to(tensor, device):
@@ -119,7 +120,8 @@ def check_single_signal_input(op, device, **kwargs):
 def check_single_1d_input(op, device, **kwargs):
     @pipeline_def
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch(data_shape=[100], dtype=np.float32), batch=True)
+        data = fn.external_source(source=RandomBatch(data_shape=[100], dtype=np.float32),
+                                  batch=True)
         return op(move_to(data, device), device=device, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
