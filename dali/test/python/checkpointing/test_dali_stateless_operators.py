@@ -127,6 +127,16 @@ def check_single_1d_input(op, device, **kwargs):
     check_is_pipeline_stateless(pipeline_factory)
 
 
+def check_single_encoded_jpeg_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
+        jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
+        return op(move_to(jpegs, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
 def check_single_bbox_input(op, device, **kwargs):
     @pipeline_def
     def pipeline_factory():
@@ -394,23 +404,21 @@ def test_to_decibels_stateless(device):
 
 
 def test_peek_image_shape_stateless():
-    @pipeline_def
-    def pipeline_factory():
-        img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
-        jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
-        shapes = fn.peek_image_shape(jpegs)
-        return shapes
-    check_is_pipeline_stateless(pipeline_factory)
+    check_single_encoded_jpeg_input(fn.peek_image_shape, 'cpu')
 
 
 def test_imgcodec_peek_image_shape_stateless():
-    @pipeline_def
-    def pipeline_factory():
-        img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
-        jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
-        shapes = fn.experimental.peek_image_shape(jpegs)
-        return shapes
-    check_is_pipeline_stateless(pipeline_factory)
+    check_single_encoded_jpeg_input(fn.peek_image_shape, 'cpu')
+
+
+@params('cpu', 'mixed')
+def test_image_decoder_stateless(device):
+    check_single_encoded_jpeg_input(fn.decoders.image, device)
+
+
+@params('cpu', 'mixed')
+def test_image_decoder_crop_stateless(device):
+    check_single_encoded_jpeg_input(fn.decoders.image_crop, device)
 
 
 @params('cpu', 'gpu')

@@ -22,6 +22,7 @@
 #include <memory>
 #include <numeric>
 #include <atomic>
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
@@ -56,10 +57,10 @@ namespace dali {
 
 using ImageInfo = EncodedImageInfo<int>;
 
-class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
+class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl {
  public:
   explicit nvJPEGDecoder(const OpSpec& spec) :
-    Operator<MixedBackend>(spec),
+    StatelessOperator<MixedBackend>(spec),
     CachedDecoderImpl(spec),
     output_image_type_(spec.GetArgument<DALIImageType>("output_type")),
     hybrid_huffman_threshold_(spec.GetArgument<unsigned int>("hybrid_huffman_threshold")),
