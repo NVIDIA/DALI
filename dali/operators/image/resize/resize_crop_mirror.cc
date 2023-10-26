@@ -46,7 +46,7 @@ optionally flipping the image.
                    "DHWC", "FDHWC", "CDHW", "FCDHW", "CFDHW"  });
 
 DALI_SCHEMA(FastResizeCropMirror)
-  .DocStr(R"(Legacy alias for ResizedCropMirror, with antialiasing disabled by defaul.)")
+  .DocStr(R"(Legacy alias for ResizedCropMirror, with antialiasing disabled by default.)")
   .NumInput(1)
   .NumOutput(1)
   .SupportVolumetric()
@@ -99,7 +99,7 @@ void ResizeCropMirrorAttr::PrepareResizeParams(
       params.src_lo[d] = crop_lo * resize_ratio + resize_offset;
       params.src_hi[d] = crop_hi * resize_ratio + resize_offset;
 
-      bool mirror_this_dim = mirror & (1 << d);
+      bool mirror_this_dim = mirror & (1 << (spatial_ndim_ - 1 - d));
       if (mirror_this_dim)
         std::swap(params.src_lo[d], params.src_hi[d]);
 
