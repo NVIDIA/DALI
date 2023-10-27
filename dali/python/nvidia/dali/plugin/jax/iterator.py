@@ -228,6 +228,20 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
+def default_num_threads_value():
+    """Returns default value for num_threads argument of DALI iterator decorator.
+
+.. note::
+    This value should not be considered as optimized for any particular workload. For best
+        performance, it is recommended to set this value manually.
+
+.. note::
+    This value is subject to change in the future.
+"""
+
+    return 4
+
+
 def data_iterator_impl(
         iterator_type,
         pipeline_fn=None,
@@ -247,7 +261,7 @@ def data_iterator_impl(
             pipeline_def_fn = pipeline_def(func)
 
             if 'num_threads' not in wrapper_kwargs:
-                wrapper_kwargs['num_threads'] = 4
+                wrapper_kwargs['num_threads'] = default_num_threads_value()
 
             if sharding is None:
                 if 'device_id' not in wrapper_kwargs:
