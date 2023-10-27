@@ -169,7 +169,7 @@ void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
 
   crop_x_norm_[data_idx] = spec.GetArgument<float>("crop_pos_x", ws, data_idx);
   crop_y_norm_[data_idx] = spec.GetArgument<float>("crop_pos_y", ws, data_idx);
-  if (spec.ArgumentDefined("crop_d")) {
+  if (spec.ArgumentDefined("crop_d") || crop_depth_[data_idx] != kNoCrop) {
     crop_z_norm_[data_idx] = spec.GetArgument<float>("crop_pos_z", ws, data_idx);
   }
 

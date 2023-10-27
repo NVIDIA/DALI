@@ -90,6 +90,7 @@ std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot &snapshot) {
   dali_proto::ReaderStateSnapshot proto_snapshot;
   proto_snapshot.mutable_loader_state()->set_rng(SerializeToString(snapshot.rng));
   proto_snapshot.mutable_loader_state()->set_current_epoch(snapshot.current_epoch);
+  proto_snapshot.mutable_loader_state()->set_age(snapshot.age);
   return proto_snapshot.SerializeAsString();
 }
 
@@ -100,6 +101,7 @@ LoaderStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
   return LoaderStateSnapshot {
     DeserializeFromString<std::default_random_engine>(proto_snapshot.loader_state().rng()),
     proto_snapshot.loader_state().current_epoch(),
+    proto_snapshot.loader_state().age(),
   };
 }
 
