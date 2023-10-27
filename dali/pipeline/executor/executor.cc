@@ -663,31 +663,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
   if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
     DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
 
-  checkpointing_epoch_size_ = -1;
-  std::string reader_name;
-  for (const auto &node : graph_->GetOpNodes()) {
-    auto meta = node.op->GetReaderMeta();
-    if (meta.epoch_size_padded <= 0)
-      continue;
-
-    int shards = meta.number_of_shards;
-    int local_samples_per_epoch = (meta.epoch_size_padded + shards - 1) / shards;
-    int local_epoch_size = (local_samples_per_epoch + max_batch_size_ - 1) / max_batch_size_;
-    if (checkpointing_epoch_size_ == -1) {
-      checkpointing_epoch_size_ = local_epoch_size;
-      reader_name = node.spec.name();
-    } else if (checkpointing_epoch_size_ != local_epoch_size) {
-      DALI_FAIL(make_string(
-        "When the checkpointing is enabled, all readers must have the same epoch size. ",
-        "The readers ", reader_name, " and ", node.spec.name(), " have different epoch sizes ",
-        "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
-    }
-  }
-
-  /* If there is no operator with ReaderMeta, set the epoch size to 1. */
-  if (checkpointing_epoch_size_ == -1)
-    checkpointing_epoch_size_ = 1;
-
   // Create initial checkpoint.
   // This way, we make sure there is always a checkpoint that can be accessed.
   CreateInitialCheckpoints();
