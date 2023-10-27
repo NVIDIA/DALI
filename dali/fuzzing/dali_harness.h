@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -142,13 +142,13 @@ class ResNetHarness : public FileListHarness {
         .AddArg("probability", 0.5f)
         .AddOutput("mirror", "cpu"));
 
-    std::string resize_op = "FastResizeCropMirror";
     // Add a resize+crop+mirror op
     pipeline.AddOperator(
-        OpSpec(resize_op)
+        OpSpec("ResizeCropMirror")
         .AddArg("device", "cpu")
         .AddArg("crop", vector<float>{224, 224})
         .AddInput("images", "cpu")
+        .AddArg("antialias", false)
         .AddArgumentInput("mirror", "mirror")
         .AddArgumentInput("crop_pos_x", "uniform1")
         .AddArgumentInput("crop_pos_y", "uniform2")
