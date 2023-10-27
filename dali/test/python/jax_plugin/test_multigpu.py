@@ -381,3 +381,23 @@ def test_positional_sharding_with_iterator_decorator():
 
     # then
     run_sharded_iterator_test(data_iterator_instance)
+
+
+def test_dali_sequential_iterator_decorator_non_default_device():
+    # given
+    @data_iterator(
+        output_map=['data'],
+        reader_name='reader')
+    def iterator_function():
+        return iterator_function_def()
+
+    # when
+    iter = iterator_function(
+        num_threads=4,
+        device_id=1,
+        batch_size=batch_size)
+
+    batch = next(iter)
+
+    # then
+    assert batch['data'].device_buffers[0].device() == jax.devices()[1]

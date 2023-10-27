@@ -228,6 +228,20 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
+def default_num_threads_value():
+    """Returns default value for num_threads argument of DALI iterator decorator.
+
+.. note::
+    This value should not be considered as optimized for any particular workload. For best
+        performance, it is recommended to set this value manually.
+
+.. note::
+    This value is subject to change in the future.
+"""
+
+    return 4
+
+
 def data_iterator_impl(
         iterator_type,
         pipeline_fn=None,
@@ -246,7 +260,15 @@ def data_iterator_impl(
         def create_iterator(*args, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
 
+            if 'num_threads' not in wrapper_kwargs:
+                wrapper_kwargs['num_threads'] = default_num_threads_value()
+
             if sharding is None:
+                if 'device_id' not in wrapper_kwargs:
+                    # Due to https://github.com/google/jax/issues/16024 the best we can do is to
+                    # assume that the first device is the one we want to use.
+                    wrapper_kwargs['device_id'] = 0
+
                 pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
             else:
                 pipelines = []
@@ -301,6 +323,8 @@ def data_iterator(
     passes them to the iterator constructor. It also accepts all arguments of
     :meth:`nvidia.dali.pipeline.pipeline_def` and passes them to the pipeline definition
     function.
+    If no `device_id` argument is passed to the decorated function, it is assumed that
+    the first device is the one we want to use and `device_id` is set to 0.
     If the same argument is passed to the decorator and the decorated function,
     exception is raised.
 
