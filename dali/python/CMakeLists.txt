@@ -53,7 +53,8 @@ if(NOT ${CMAKE_CROSSCOMPILING})
     set(PYTHONPATH "${PYTHON_TARGET_PATH}")
   endif()
 
-  add_custom_target(dali_python_generate_stubs ALL DEPENDS dali_python ${dali_python_function_lib})
+  add_custom_target(dali_python_generate_stubs ALL
+                    DEPENDS dali_python ${dali_python_function_lib} dali dali_operators COPY_POST_BUILD_TARGET)
 
   # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
   # backend from the current build.

@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # caffe_parse_header
 # Reads set of version defines from the header file
@@ -132,10 +132,14 @@ endmacro()
 # create phony target first (if not exists with given name yet)
 # and add comand attached to it
 macro(copy_post_build TARGET_NAME SRC DST)
+    if (NOT (TARGET COPY_POST_BUILD_TARGET))
+        add_custom_target(COPY_POST_BUILD_TARGET ALL)
+    endif()
     if (NOT (TARGET install_${TARGET_NAME}))
         add_custom_target(install_${TARGET_NAME} ALL
              DEPENDS ${TARGET_NAME}
         )
+        add_dependencies(COPY_POST_BUILD_TARGET install_${TARGET_NAME})
     endif()
 
     add_custom_command(
