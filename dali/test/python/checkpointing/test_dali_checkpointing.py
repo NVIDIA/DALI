@@ -170,8 +170,12 @@ def test_file_reader(
     p.build()
 
     iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
-    for _ in range(num_epochs * iterations_in_epoch):
-        p.run()
+    for epoch in range(num_epochs):
+        for i in range(iterations_in_epoch):
+            p.run()
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
 
     restored = pipeline(checkpoint=p.checkpoint())
     restored.build()
@@ -222,8 +226,6 @@ def test_file_reader_pytorch(
             if iters_into_epoch is not None:
                 if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
                     break
-
-            
 
     restored = pipeline(checkpoint=iter.checkpoints()[0])
     restored.build()
