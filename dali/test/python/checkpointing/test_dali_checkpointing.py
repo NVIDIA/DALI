@@ -238,6 +238,42 @@ def test_file_reader_pytorch(
                 assert (d1[key] == d2[key]).all()
 
 
+@params(0, 1, 2, 3, 4, 5, 6, 7, 8)
+def test_multiple_readers(num_iters):
+    my_images = os.path.join(images_dir, '134')
+    files = [os.path.join(my_images, f) for f in os.listdir(my_images)]
+
+    @pipeline_def(batch_size=1, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        # Reader with epoch size = 2
+        a_enc, _ = fn.readers.file(
+            name="Reader1", files=files[:2],
+            pad_last_batch=True, random_shuffle=True)
+
+        # Reader with epoch size = 3
+        b_enc, _ = fn.readers.file(
+            name="Reader2", files=files[:3],
+            pad_last_batch=True, random_shuffle=True)
+
+        a = fn.decoders.image_random_crop(a_enc)
+        b = fn.decoders.image_random_crop(b_enc)
+        a = fn.resize(a, size=(200, 200))
+        b = fn.resize(b, size=(200, 200))
+        return (a + b) // 2
+
+    p = pipeline()
+    p.build()
+
+    for _ in range(num_iters):
+        p.run()
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, 1, 20)
+
+
 # Randomized operators section
 # note: fn.decoders.image_random_crop is tested by
 # `check_single_input_operator`
