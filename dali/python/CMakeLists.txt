@@ -60,7 +60,7 @@ if(NOT ${CMAKE_CROSSCOMPILING})
   add_custom_command(
     TARGET dali_python_generate_stubs
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PYTHON_STUBGEN_INTERPRETER} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
   )
 
   # Format the bindings, so they are somewhat readable.

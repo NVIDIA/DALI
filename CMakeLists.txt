@@ -184,8 +184,16 @@ elseif (BUILD_PYTHON AND "${PYTHON_VERSIONS}" STREQUAL "")
   set(PYTHON_VERSIONS "3.8;3.9;3.10;3.11")
 endif ()
 
+if (NOT BUILD_PYTHON AND PYTHON_STUBGEN_INTERPRETER)
+  message(WARNING "The BUILD_PYTHON option is set to off and the PYTHON_STUBGEN_INTERPRETER variable
+          is provided. The latter will be ignored.")
+elseif (BUILD_PYTHON AND "${PYTHON_STUBGEN_INTERPRETER}" STREQUAL "")
+  set(PYTHON_VERSIONS "python")
+endif ()
+
 if (BUILD_PYTHON)
   message(STATUS "Building DALI for Python versions: ${PYTHON_VERSIONS}")
+  message(STATUS "Generating python stubs using interpreter: ${PYTHON_STUBGEN_INTERPRETER}")
 endif ()
 
 if (STATIC_LIBS)
