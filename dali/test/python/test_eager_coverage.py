@@ -919,10 +919,6 @@ def test_subscript_dim_check():
     check_single_input('subscript_dim_check', num_subscripts=3)
 
 
-def test_fast_resize_crop_mirror():
-    check_single_input('fast_resize_crop_mirror', crop=[5, 5], resize_shorter=10)
-
-
 def test_resize_crop_mirror():
     check_single_input('resize_crop_mirror', crop=[5, 5], resize_shorter=10)
 
@@ -1198,7 +1194,6 @@ tested_methods = [
     'noise.shot',
     'segmentation.random_mask_pixel',
     'segmentation.random_object_bbox',
-    'fast_resize_crop_mirror',
     'roi_random_crop',
     'random_bbox_crop',
     'random_resized_crop',
