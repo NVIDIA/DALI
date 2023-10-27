@@ -73,6 +73,7 @@ requirements:
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
+    - black
   host:
     - python
     - future
@@ -94,7 +95,6 @@ requirements:
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
-    - black
   run:
     - python
     - future
