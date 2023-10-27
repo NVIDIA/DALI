@@ -520,7 +520,7 @@ class FileReaderTest : public DALITest {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws_);
-    
+
     auto shape = ws_.Output<CPUBackend>(0).AsTensor().shape();
     for (int nr = 0; nr < shape[0]; nr++) {
       result.push_back(ws_.Output<CPUBackend>(0).tensor<uint8_t>(0)[nr]);
@@ -797,7 +797,8 @@ TEST_F(FileReaderTest, CheckpointingMidEpoch) {
     std::vector<uint8_t> output;
     for (int j = i; j < iters; j++) {
       auto data = RunIter(fresh_pipe, batch_size);
-      std::vector<uint8_t> expected = {reference.begin() + j * batch_size, reference.begin() + (j + 1) * batch_size};
+      std::vector<uint8_t> expected = {reference.begin() + j * batch_size,
+                                       reference.begin() + (j + 1) * batch_size};
       EXPECT_EQ(data, expected);
     }
   }
