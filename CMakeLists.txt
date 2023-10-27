@@ -186,6 +186,9 @@ endif ()
 
 if (BUILD_PYTHON)
   message(STATUS "Building DALI for Python versions: ${PYTHON_VERSIONS}")
+  # Python binary can be used directly, otherwise we just run the python_stub_generator.py
+  # and python3 is selected via shebang
+  message(STATUS "Generating python stubs using interpreter: ${PYTHON_STUBGEN_INTERPRETER}")
 endif ()
 
 if (STATIC_LIBS)

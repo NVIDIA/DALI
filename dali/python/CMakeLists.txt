@@ -53,14 +53,15 @@ if(NOT ${CMAKE_CROSSCOMPILING})
     set(PYTHONPATH "${PYTHON_TARGET_PATH}")
   endif()
 
-  add_custom_target(dali_python_generate_stubs ALL DEPENDS dali_python)
+  add_custom_target(dali_python_generate_stubs ALL
+                    DEPENDS dali_python ${dali_python_function_lib} dali dali_operators copy_post_build_target)
 
   # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
   # backend from the current build.
   add_custom_command(
     TARGET dali_python_generate_stubs
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMAND PYTHONPATH=${PYTHONPATH} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PYTHON_STUBGEN_INTERPRETER} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
   )
 
   # Format the bindings, so they are somewhat readable.
