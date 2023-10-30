@@ -19,6 +19,7 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
+#include <string_view>
 
 namespace dali {
 namespace exec2 {
@@ -27,20 +28,28 @@ class Graph;
 
 class GraphBuilder {
  public:
+  GraphBuilder();
+  ~GraphBuilder();
+
   void Add(const OpSpec &spec);
   void Build(Graph &graph);
+ private:
+  friend class Graph;
+  class GraphBuilderImpl;
+  std::unique_ptr<GraphBuilderImpl> impl;
 };
 
 struct OperatorNode;
 
 struct DataNode {
-  std::string name;
+  std::string_view name;
   OperatorNode *producer = nullptr;
   std::vector<OperatorNode *> consumers;
   StorageDevice backend;
 };
 
 struct OperatorNode {
+  std::string_view name;
   std::vector<DataNode *> inputs;
   std::vector<DataNode *> outputs;
   OpSpec spec;
@@ -49,12 +58,30 @@ struct OperatorNode {
 
 class Graph {
  public:
+  template <typename Key>
+  OperatorNode &op_node(const Key &key) {
+    auto it = op_nodes.find(key);
+    if (it == op_nodes.end())
+      throw std::invalid_argument(make_string("No such operator node: ", key));
+    return it->second;
+  }
 
+  template <typename Key>
+  DataNode &data_node(const Key &key) {
+    auto it = data_nodes.find(key);
+    if (it == data_nodes.end())
+      throw std::invalid_argument(make_string("No such data node: ", key));
+    return it->second;
+  }
 
  private:
+  friend class GraphBuilder;
+  friend class GraphBuilder::GraphBuilderImpl;
   std::map<std::string, OperatorNode> op_nodes;
   std::map<std::string, DataNode> data_nodes;
   std::vector<DataNode *> inputs, outputs;
+
+  void Validata() const;
 };
 
 }  // namespace exec2

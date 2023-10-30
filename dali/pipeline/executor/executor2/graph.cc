@@ -12,21 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-#define DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-
-#include "exec_graph.h"
+#include "graph.h"
 
 namespace dali {
 namespace exec2 {
 
-class Executor {
- public:
- private:
+class GraphBuilder::GraphBuilderImpl {
 };
+
+GraphBuilder::GraphBuilder() : impl(std::make_unique<GraphBuilderImpl>()) {}
+
+GraphBuilder::~GraphBuilder() = default;
+
 
 }  // namespace exec2
 }  // namespace dali
-
-#endif  // DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
 
