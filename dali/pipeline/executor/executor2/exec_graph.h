@@ -24,6 +24,38 @@
 namespace dali {
 namespace exec2 {
 
+struct ExecNode;
+
+class CUDAEventLease : public CUDAEvent {
+ public:
+  CUDAEventLease() = default;
+  CUDAEventLease(CUDAEventPool &pool) : owner_(&pool) {
+    *static_cast<CUDAEvent *>(this) = pool.Get();
+  }
+
+  ~CUDAEventLease() {
+    reset();
+  }
+
+  void reset() {
+    if (*this) {
+      owner_.Put(std::move(*static_cast<CUDAEvent *>(this)));
+      owner_ = nullptr;
+    }
+  }
+
+  CUDAEventLease &operator=(const CUDAEventLease &other) {
+    reset();
+    CUDAEvent::reset(other.release());
+    owner_ = other.owner_;
+    other.owner_ = nullptr;
+    return *this;
+  }
+
+ private:
+  CUDAEventPool *owner_;
+};
+
 struct ExecDataNode {
   template <typename Backend>
   std::shared_ptr<TensorList<Backend>> get(AccessOrder order) {
@@ -42,15 +74,23 @@ struct ExecDataNode {
     return gpu_data;
   }
 
-  std::shared_ptr<TensorList<CPUBackend>> cpu_data;
-  std::shared_ptr<TensorList<GPUBackend>> gpu_data;
-  cudaEvent_t cpu_ready = nullptr, gpu_ready = nullptr;
+  struct OutputQueueEntry {
+    std::shared_ptr<TensorList<CPUBackend>> cpu_data;
+    std::shared_ptr<TensorList<GPUBackend>> gpu_data;
+    CUDAEventLease cpu_ready, gpu_ready;
+  };
+  ExecNode *producer = nullptr;
 };
 
 struct ExecNode {
   OperatorNode *op_node = nullptr;
   OperatorBase *op_instance = nullptr;
+  std::vector<ExecDataNode *> inputs, outputs;
+};
 
+struct ExecGraph {
+  std::vector<std::unique_ptr<ExecDataNode>> data_nodes;
+  std::vector<std::unique_ptr<ExecNode>> op_nodes;
 };
 
 }  // namespace exec2
