@@ -217,8 +217,6 @@ class Loader {
       ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
     }
     ReadMissingSamples(producer_epoch);
-    Rewind(true);
-    Skip(read_sample_counter_);
   }
 
   // Get a random read sample
@@ -519,7 +517,7 @@ class Loader {
       at++;
     }
 
-    if (at < total_read_sample_counter_) {
+    if (at <= total_read_sample_counter_) {
       Skip(total_read_sample_counter_ - at);
     } else {
       Rewind(stick_to_shard_);

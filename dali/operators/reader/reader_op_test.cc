@@ -500,13 +500,12 @@ class FileReaderTest : public DALITest {
 
   std::vector<std::string> filepaths_;
 
-  OpSpec MakeOpSpec() {
-      // Currently, only pad_last_batch=true is supported.
+  OpSpec MakeOpSpec(bool pad_last_batch = true) {
       return OpSpec("FileReader")
             .AddOutput("data_out", "cpu")
             .AddOutput("labels", "cpu")
             .AddArg("files", filepaths_)
-            .AddArg("pad_last_batch", true);
+            .AddArg("pad_last_batch", pad_last_batch);
   }
 
   void BuildPipeline(Pipeline &pipe) {
@@ -550,6 +549,45 @@ class FileReaderTest : public DALITest {
     EXPECT_EQ(op_cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
     return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
   }
+
+  void TestCheckpointMidEpoch(bool pad_last_batch, int batch_size, int iters) {
+    auto prepare_pipeline = [this, pad_last_batch](Pipeline &pipe) {
+      pipe.EnableCheckpointing();
+      pipe.AddOperator(
+          MakeOpSpec(pad_last_batch)
+          .AddArg("shuffle_after_epoch", true)
+          .AddArg("prefetch_queue_depth", 2)
+          .AddArg("initial_fill", 3), "file_reader");
+      BuildPipeline(pipe);
+    };
+
+    Pipeline pipe(batch_size, 1, 0);
+    prepare_pipeline(pipe);
+
+    std::vector<uint8_t> reference;  // whole pipeline output
+    std::vector<Checkpoint> checkpoints;  // checkpoints every iteration
+
+    for (int i = 0; i < iters; i++) {
+      checkpoints.push_back(pipe.GetCheckpoint());
+      auto data = RunIter(pipe, batch_size);
+      reference.insert(reference.end(), data.begin(), data.end());
+    }
+
+    for (int i = 0; i < iters; i++) {
+      Pipeline fresh_pipe(batch_size, 1, 0);
+      prepare_pipeline(fresh_pipe);
+      fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+
+      std::vector<uint8_t> output;
+      for (int j = i; j < iters; j++) {
+        auto data = RunIter(fresh_pipe, batch_size);
+        std::vector<uint8_t> expected = {reference.begin() + j * batch_size,
+                                         reference.begin() + (j + 1) * batch_size};
+        EXPECT_EQ(data, expected);
+      }
+    }
+  }
+
 
  protected:
   Workspace ws_;
@@ -764,44 +802,18 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
 }
 
 TEST_F(FileReaderTest, CheckpointingMidEpoch) {
-  constexpr int batch_size = 7;
-  constexpr int iters = 20;
+  TestCheckpointMidEpoch(true, 7, 20);
+}
 
-  auto prepare_pipeline = [this](Pipeline &pipe) {
-    pipe.EnableCheckpointing();
-    pipe.AddOperator(
-        MakeOpSpec()
-        .AddArg("shuffle_after_epoch", true)
-        .AddArg("prefetch_queue_depth", 2)
-        .AddArg("initial_fill", 3), "file_reader");
-    BuildPipeline(pipe);
-  };
+TEST_F(FileReaderTest, CheckpointingNoPadLastBatch) {
+  constexpr int batch_size = 3;
+  constexpr int iters = 7;
 
-  Pipeline pipe(batch_size, 1, 0);
-  prepare_pipeline(pipe);
+  // Make sure there will be an incomplete batch and pad_last_batch=false will have effect
+  EXPECT_GE(batch_size * iters, filepaths_.size());
+  EXPECT_NE(filepaths_.size() % batch_size, 0);
 
-  std::vector<uint8_t> reference;  // whole pipeline output
-  std::vector<Checkpoint> checkpoints;  // checkpoints every iteration
-
-  for (int i = 0; i < iters; i++) {
-    checkpoints.push_back(pipe.GetCheckpoint());
-    auto data = RunIter(pipe, batch_size);
-    reference.insert(reference.end(), data.begin(), data.end());
-  }
-
-  for (int i = 0; i < iters; i++) {
-    Pipeline fresh_pipe(batch_size, 1, 0);
-    prepare_pipeline(fresh_pipe);
-    fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
-
-    std::vector<uint8_t> output;
-    for (int j = i; j < iters; j++) {
-      auto data = RunIter(fresh_pipe, batch_size);
-      std::vector<uint8_t> expected = {reference.begin() + j * batch_size,
-                                       reference.begin() + (j + 1) * batch_size};
-      EXPECT_EQ(data, expected);
-    }
-  }
+  TestCheckpointMidEpoch(false, batch_size, iters);
 }
 
 };  // namespace dali

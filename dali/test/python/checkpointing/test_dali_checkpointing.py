@@ -133,33 +133,40 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
 # Readers section
 
 @params(
-        (1, 3, 0, 1, True, False, False),
-        (5, 10, 0, 2, True, False, False),
-        (0, 32, 1, 4, False, False, False),
-        (3, 64, 3, 4, False, False, False),
-        (1, 3, 0, 1, True, False, True),
-        (5, 10, 0, 2, True, False, True),
-        (0, 32, 1, 4, False, False, True),
-        (3, 64, 3, 4, False, False, True),
-        (2, 7, 0, 1, False, True, False),
-        (1, 8, 0, 2, False, True, False),
-        (1, 8, 1, 2, False, True, False),
-        (1, 8, 3, 4, False, True, False),
-        (2, 11, 2, 5, False, True, False),
-        (5, 3, 0, 1, True, False, False, 4),
-        (2, 10, 0, 2, True, False, False, 5),
-        (4, 256, 2, 4, False, False, True, 6),
+        (1, 3, 0, 1, True, False, False, True),
+        (5, 10, 0, 2, True, False, False, True),
+        (0, 32, 1, 4, False, False, False, True),
+        (3, 64, 3, 4, False, False, False, True),
+        (1, 3, 0, 1, True, False, True, True),
+        (5, 10, 0, 2, True, False, True, True),
+        (0, 32, 1, 4, False, False, True, True),
+        (3, 64, 3, 4, False, False, True, True),
+        (2, 7, 0, 1, False, True, False, True),
+        (1, 8, 0, 2, False, True, False, True),
+        (1, 8, 1, 2, False, True, False, True),
+        (1, 8, 3, 4, False, True, False, True),
+        (2, 11, 2, 5, False, True, False, True),
+        (5, 3, 0, 1, True, False, False, True, 4),
+        (2, 10, 0, 2, True, False, False, True, 5),
+        (4, 256, 2, 4, False, False, True, True, 6),
+        (3, 64, 3, 4, False, False, True, False),
+        (5, 10, 0, 2, True, False, False, False),
+        (1, 3, 0, 1, True, False, False, False),
+        (10, 3, 0, 1, True, False, False, False, 1),
+        (10, 10, 0, 2, True, False, False, False, 2),
+        (10, 256, 2, 4, False, False, True, False, 3),
 )
 def test_file_reader(
         num_epochs, batch_size, shard_id, num_shards,
-        random_shuffle, shuffle_after_epoch, stick_to_shard, iters_into_epoch=None):
+        random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
     def pipeline():
         data, label = fn.readers.file(
             name="Reader", file_root=images_dir,
-            pad_last_batch=True, random_shuffle=random_shuffle,
+            pad_last_batch=pad_last_batch, random_shuffle=random_shuffle,
             shard_id=shard_id, num_shards=num_shards,
             shuffle_after_epoch=shuffle_after_epoch,
             stick_to_shard=stick_to_shard)
