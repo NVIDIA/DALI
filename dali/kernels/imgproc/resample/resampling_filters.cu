@@ -169,10 +169,10 @@ std::shared_ptr<ResamplingFilters> GetResamplingFilters() {
 
 
 std::shared_ptr<ResamplingFilters> GetResamplingFiltersCPU() {
+  (void)mm::GetDefaultResource<mm::memory_kind::host>();
   static std::once_flag once;
   static std::shared_ptr<ResamplingFilters> cpu_filters;
   std::call_once(once, []() {
-    (void)mm::GetDefaultResource<mm::memory_kind::host>();
     cpu_filters = std::make_shared<ResamplingFilters>();
     InitFilters<mm::memory_kind::host>(*cpu_filters);
   });
