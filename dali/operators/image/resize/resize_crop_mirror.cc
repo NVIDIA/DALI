@@ -31,10 +31,11 @@ Supported values:
   .AddParent("CropAttr");
 
 DALI_SCHEMA(ResizeCropMirror)
-  .DocStr(R"(Performs a fused resize, crop, mirror operation
+  .DocStr(R"(Performs a fused resize, crop, mirror operation.
 
-This operator resizes a region of interest of the input image to the desired size,
-optionally flipping the image.
+The result of the operation is equivalent to applying ``resize``, followed by ``crop`` and ``flip``.
+Internally, the operator calculates the relevant region of interest and performs a single
+resizing operation on that region.
 .)")
   .NumInput(1)
   .NumOutput(1)
