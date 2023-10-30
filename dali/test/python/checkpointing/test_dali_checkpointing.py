@@ -19,6 +19,7 @@ from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
+from dataclasses import dataclass
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -285,6 +286,90 @@ def test_multiple_readers(num_iters):
     restored.build()
 
     compare_pipelines(p, restored, 1, 20)
+
+
+@dataclass
+class BaseDecoderConfig:
+    shard_id: int
+    num_shards: int
+    stick_to_shard: bool
+    pad_last_batch: bool
+    random_shuffle: bool
+
+@dataclass
+class VideoConfig:
+    sequence_length : int
+    stride : int
+    step : int
+
+
+@cartesian_params(
+    (0, 1, 3),
+    (1, 3),
+    (0, 2),
+    (
+        BaseDecoderConfig(shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, 
+                          random_shuffle=True),
+        BaseDecoderConfig(shard_id=4, num_shards=7, stick_to_shard=True, pad_last_batch=True, 
+                          random_shuffle=False),
+        BaseDecoderConfig(shard_id=6, num_shards=7, stick_to_shard=False, pad_last_batch=False, 
+                          random_shuffle=False),
+        BaseDecoderConfig(shard_id=0, num_shards=2, stick_to_shard=False, pad_last_batch=False, 
+                          random_shuffle=True),
+    ),
+    (
+        VideoConfig(sequence_length=3, stride=1, step=-1),
+        VideoConfig(sequence_length=3, stride=1, step=5),
+    ),
+)
+def test_video_reader(num_epochs, batch_size, iters_into_epoch,
+                      config: BaseDecoderConfig, video: VideoConfig):
+
+    files = 2 * [os.path.join(get_dali_extra_path(), 'db/video/multiple_framerate/10/10fps.mp4')]
+
+    @pipeline_def(batch_size=batch_size, device_id=0,
+                num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        images, labels, f, t = fn.readers.video(
+            device='gpu',
+            filenames=files,
+            labels=list(range(len(files))),
+            normalized=True,
+            random_shuffle=config.random_shuffle,
+            image_type=types.RGB,
+            dtype=types.FLOAT,
+            name="Reader",
+            enable_frame_num=True,
+            enable_timestamps=True,
+            file_list_frame_num=True,
+            file_list_include_preceding_frame=False,
+
+            num_shards=config.num_shards,
+            shard_id=config.shard_id,
+            stick_to_shard=config.stick_to_shard,
+            pad_last_batch=config.pad_last_batch,
+            
+            sequence_length=video.sequence_length,
+            stride=video.stride,
+            step=video.step)
+
+        return images, labels, f, t
+
+    p = pipeline()
+    p.build()
+
+    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, config.num_shards)
+    for epoch in range(num_epochs):
+        for i in range(iterations_in_epoch):
+            p.run()
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, batch_size, (config.num_shards + 1) * iterations_in_epoch)
 
 
 # Randomized operators section
