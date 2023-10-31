@@ -26,6 +26,7 @@
 #include <vector>
 #include <deque>
 #include <atomic>
+#include <unordered_set>
 
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
@@ -178,26 +179,25 @@ class Loader {
 
     // Now fast forward the loader by `state.age` steps:
     //
-    // 1. Run in dry mode to see what is the oldest sample that actually needs to be read.
+    // 1. Run in dry mode to see which samples actually need to be read.
     //    We don't need to read samples that will leave the buffer during fast-forward.
     for (Index i = 0; i < state.age; i++) {
       Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
-      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, [](Index i){ return false; });
     }
-    Index ignore_samples_until = OldestMissingSample();
+    auto missing = GetMissingSamples();
 
-    // 2. Restore the state and run reading again, this time disabling dry mode once
-    //    we get to sample of index `ignore_samples_until`. We still may read some samples
-    //    that will leave the buffer before the end of fast-forwarding, but statistically
-    //    there won't be many of them.
+    // 2. Restore the state and run reading again, this time reading the needed samples.
     RestoreEpochState(state);
     for (Index i = 0; i < state.age; i++) {
-      int samples_to_be_read = 1 + (i > 0 ? 0 : initial_buffer_fill_);
-      bool dry_mode = (total_read_sample_counter_ + samples_to_be_read < ignore_samples_until);
-      
       Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
-      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, dry_mode);
+      auto filter = [&missing](Index idx) {
+        return missing.find(idx) != missing.end();
+      };
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, filter);
     }
+
+    DALI_ENFORCE(GetMissingSamples().empty(), "Internal error: reading missing samples failed");
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -213,7 +213,14 @@ class Loader {
   }
 
   // Get a random read sample
-  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, bool dry_run = false) {
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch) {
+    return ReadOne(is_new_batch, is_end_of_batch, [](Index i){ return true; });
+  }
+
+  // Reads one sample if its index (total_read_sample_counter_) matches the provided filter.
+  // Otherwise, uses `Skip` instead of `ReadSample` to skip the sample.
+  template <typename Filter>
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, Filter filter) {
     PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
@@ -225,7 +232,7 @@ class Loader {
       // sample buffer
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         LoadTargetSharedPtr tensor_ptr = nullptr;
-        if (!dry_run) {
+        if (filter(total_read_sample_counter_)) {
           tensor_ptr = LoadTargetSharedPtr(
             new LoadTarget,
             [this](LoadTarget* sample){
@@ -283,7 +290,7 @@ class Loader {
 
     std::swap(sample_buffer_[idx], sample_buffer_[shards_.front().start % sample_buffer_.size()]);
     LoadTargetSharedPtr tensor_ptr = nullptr;
-    if (!dry_run) {
+    if (filter(total_read_sample_counter_)) {
       // now grab an empty tensor, fill it and add to filled buffers
       // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
       // being called by multiple consumer threads
@@ -479,17 +486,18 @@ class Loader {
     Reset(true);
   }
 
-  Index OldestMissingSample() {
-    Index oldest = total_read_sample_counter_;
-    if (!last_sample_ptr_tmp.ptr) {
-      oldest = std::min(oldest, last_sample_ptr_tmp.idx);
+  /* Returns indices of samples present in the buffer but with no content read. */
+  std::unordered_set<Index> GetMissingSamples() {
+    std::unordered_set<Index> missing;
+    if (initial_buffer_filled_ && !last_sample_ptr_tmp.ptr) {
+      missing.insert(last_sample_ptr_tmp.idx);
     }
     for (auto &sample : sample_buffer_) {
       if (!sample.ptr) {
-        oldest = std::min(oldest, sample.idx);
+        missing.insert(sample.idx);
       }
     }
-    return oldest;
+    return missing;
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
