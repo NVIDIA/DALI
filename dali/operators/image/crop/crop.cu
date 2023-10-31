@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <vector>
-#include "dali/image/transform.h"
 #include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/core/static_switch.h"
 #include "dali/operators/image/crop/crop.h"

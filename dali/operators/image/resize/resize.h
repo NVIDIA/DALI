@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
-#include "dali/operators/image/resize/resize_crop_mirror.h"
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/resize_attr.h"
 #include "dali/kernels/context.h"
@@ -31,10 +30,6 @@
 #include "dali/kernels/imgproc/resample/params.h"
 
 namespace dali {
-namespace detail {
-  kernels::ResamplingParams2D GetResamplingParams(
-    const TransformMeta &meta, kernels::FilterDesc min_filter, kernels::FilterDesc mag_filter);
-}  // namespace detail
 
 template <typename Backend>
 class Resize : public StatelessOperator<Backend>

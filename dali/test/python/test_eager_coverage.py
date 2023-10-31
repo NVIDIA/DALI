@@ -919,6 +919,10 @@ def test_subscript_dim_check():
     check_single_input('subscript_dim_check', num_subscripts=3)
 
 
+def test_resize_crop_mirror():
+    check_single_input('resize_crop_mirror', crop=[5, 5], resize_shorter=10)
+
+
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
 def get_property_pipeline(files):
     data, _ = fn.readers.file(files=files)
@@ -1041,10 +1045,6 @@ def test_random_object_bbox():
                                 fn_source=source, eager_source=source, layout="")
 
 
-def test_fast_resize_crop_mirror():
-    check_single_input_stateful('fast_resize_crop_mirror', crop=[5, 5], resize_shorter=10)
-
-
 def test_roi_random_crop():
     shape = [10, 20, 3]
     check_single_input_stateful('roi_random_crop',
@@ -1079,10 +1079,6 @@ def test_random_bbox_crop():
     compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, aspect_ratio=[0.5, 2.0],
                                 thresholds=[0.1, 0.3, 0.5], scaling=[0.8, 1.0],
                                 bbox_layout="xyXY")
-
-
-def test_resize_crop_mirror():
-    check_single_input_stateful('resize_crop_mirror', crop=[5, 5], resize_shorter=10)
 
 
 def test_random_coin_flip():
@@ -1198,7 +1194,6 @@ tested_methods = [
     'noise.shot',
     'segmentation.random_mask_pixel',
     'segmentation.random_object_bbox',
-    'fast_resize_crop_mirror',
     'roi_random_crop',
     'random_bbox_crop',
     'random_resized_crop',
