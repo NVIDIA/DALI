@@ -196,34 +196,16 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     Reset(true);
   }
 
-  void Skip(uint64_t n) override {
-    while (n > 0) {
-      Index wrap_at = Size();
-      if (stick_to_shard_ && shard_id_ + 1 < num_shards_) {
-        wrap_at = start_index(shard_id_ + 1, num_shards_, Size());
-      }
-
-      Index max_skip = wrap_at - current_index_;
-      Index skip = std::min(static_cast<Index>(n), max_skip);
-      current_index_ += skip;
-      n -= skip;
-
-      if (current_index_ == wrap_at) {
-        Reset(stick_to_shard_);
-      }
-    }
+  void Skip() override {
+    MoveToNextShard(++current_index_);
   }
 
-  void Rewind(bool wrap_to_shard) override {
+  void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
       current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
-  }
-
-  void Reset(bool wrap_to_shard) override {
-    Rewind(wrap_to_shard);
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
@@ -255,7 +237,6 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   using Base::PrepareEmptyTensor;
   using Base::MoveToNextShard;
   using Base::ShouldSkipImage;
-  using Base::Size;
 
   string file_root_, file_list_;
   vector<std::pair<string, int>> image_label_pairs_;

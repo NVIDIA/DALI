@@ -155,6 +155,7 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
         (10, 3, 0, 1, True, False, False, False, 1),
         (10, 10, 0, 2, True, False, False, False, 2),
         (10, 256, 2, 4, False, False, True, False, 3),
+        (10, 10, 1, 2, False, False, False, False),
 )
 def test_file_reader(
         num_epochs, batch_size, shard_id, num_shards,
