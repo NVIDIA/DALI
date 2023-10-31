@@ -517,12 +517,8 @@ class Loader {
       at++;
     }
 
-    if (at <= total_read_sample_counter_) {
-      Skip(total_read_sample_counter_ - at);
-    } else {
-      Rewind(stick_to_shard_);
-      Skip(read_sample_counter_);
-    }
+    DALI_ENFORCE(at <= total_read_sample_counter_, "Internal error: loader fast-forward failed");
+    Skip(total_read_sample_counter_ - at);
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
