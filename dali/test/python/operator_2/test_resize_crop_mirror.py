@@ -23,7 +23,8 @@ db_2d_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 
 @pipeline_def(num_threads=4, batch_size=8, device_id=0, seed=1234)
-def rcm_pipe(device, mode):
+def rcm_pipe(device, mode, roi_start=None, roi_end=None):
+    roi_relative = True if roi_start or roi_end else None
     files, labels = fn.readers.caffe(path=db_2d_folder, random_shuffle=True)
     images = fn.decoders.image(files, device="mixed" if device == "gpu" else "cpu")
     flip_x = fn.random.coin_flip(dtype=types.INT32)
@@ -38,17 +39,22 @@ def rcm_pipe(device, mode):
     crop_x = fn.random.uniform(range=(0, 1))
     crop_y = fn.random.uniform(range=(0, 1))
     out = fn.resize_crop_mirror(images, size=size, mode=mode,
+                                roi_start=roi_start, roi_end=roi_end, roi_relative=roi_relative,
                                 crop_w=crop_w, crop_h=crop_h, crop_pos_x=crop_x, crop_pos_y=crop_y,
                                 mirror=flip)
-    resized = fn.resize(images, size=size, mode=mode)
+    resized = fn.resize(images, size=size, mode=mode,
+                        roi_start=roi_start, roi_end=roi_end, roi_relative=roi_relative)
     cropped = fn.crop(resized, crop_w=crop_w, crop_h=crop_h, crop_pos_x=crop_x, crop_pos_y=crop_y)
     flipped = fn.flip(cropped, horizontal=flip_x, vertical=flip_y)
     return out, flipped
 
 
-@params(("cpu", "not_larger"), ("cpu", None), ("gpu", "not_smaller"), ("gpu", "stretch"))
-def test_vs_separate_ops(dev, mode):
-    pipe = rcm_pipe(dev, mode)
+@params(("cpu", "not_larger", None, None),
+        ("cpu", None, (0.7, 0.2), (0.1, 0.8)),
+        ("gpu", "not_smaller", None, None),
+        ("gpu", "stretch", (0.3, 0.8), (0.9, 0.1)))
+def test_vs_separate_ops(dev, mode, roi_start, roi_end):
+    pipe = rcm_pipe(dev, mode, roi_start, roi_end)
     pipe.build()
     for _ in range(5):
         rcm, separate = pipe.run()

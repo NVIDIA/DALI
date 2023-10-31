@@ -67,7 +67,6 @@ ResizeCropMirror<Backend>::ResizeCropMirror(const OpSpec &spec)
     : StatelessOperator<Backend>(spec)
     , ResizeBase<Backend>(spec)
     , resize_attr_(spec) {
-  resample_params_.resize(num_threads_);
   InitializeBackend();
 }
 
@@ -113,7 +112,7 @@ void ResizeCropMirrorAttr::PrepareResizeParams(
 
 template <typename Backend>
 bool ResizeCropMirror<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const Workspace &ws) {
+                                          const Workspace &ws) {
   output_desc.resize(1);
   auto &input = ws.Input<Backend>(0);
 
