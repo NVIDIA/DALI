@@ -21,6 +21,8 @@ from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 class ExternalSource:
 
+    # The `source` parameter represents the Union of types accepted by the `fn.external_source`,
+    # check the comment there for the explanation.
     def __init__(
         self,
         source: Optional[Union[Callable[..., Any], Iterable[Any], Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
@@ -46,10 +48,8 @@ class ExternalSource:
 
     def __call__(
         self,
-        source: Optional[Union[Callable[..., Any], Iterable[Any], Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
-        num_outputs: Optional[int] = None,
-        /,
         *,
+        source: Optional[Union[Callable[..., Any], Iterable[Any], Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
         batch: Optional[bool] = None,
         batch_info: Optional[bool] = False,
         dtype: Union[Sequence[DALIDataType], DALIDataType, None] = None,
@@ -68,6 +68,10 @@ class ExternalSource:
         ...
 
 
+# The overload representing a call without specifying `num_outputs`. It expects a function
+# returning a tensor or a batch of tensors directly, corresponding to exactly one DataNode output.
+# `Any` can be replaced to represent TensorLike and BatchLike values.
+# TODO(klecki): overloads with specific `batch` values can be considered
 @overload
 def external_source(
     source: Optional[Union[Callable[..., Any], Iterable[Any]]] = None,
@@ -91,6 +95,11 @@ def external_source(
     ...
 
 
+# The overload representing a call with `num_outputs` specified. It expects a function
+# returning a tuple/sequence of tensors or batches, corresponding to a tuple of `num_outputs`
+# DataNode outputs.
+# `Any` can be replaced to represent TensorLike and BatchLike values.
+# TODO(klecki): overloads with specific `batch` values can be considered
 @overload
 def external_source(
     source: Optional[Union[Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
