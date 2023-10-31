@@ -79,6 +79,7 @@ struct ExecDataNode {
     std::shared_ptr<TensorList<GPUBackend>> gpu_data;
     CUDAEventLease cpu_ready, gpu_ready;
   };
+  std::deque<OutputQueueEntry> queue;
   ExecNode *producer = nullptr;
 };
 
