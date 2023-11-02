@@ -1,7 +1,6 @@
 #!/bin/bash -e
 
 build_and_check() {
-  pip install black dm-tree
   make -j
   pip install ./dali/python
 

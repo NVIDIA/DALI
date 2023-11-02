@@ -162,7 +162,7 @@ void CheckContiguousTensor(const TStrides &strides, int num_strides,
         make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
         " whereas densely packed data of this shape would have a stride ", stride_from_shape));
     stride_from_shape *= shape[i];
-    // for shapes [1, 1, 5] leading dimensions may not contribute to
+    // for shapes [1, 1, 5] leading dimensions may not contribute to stride
     if (shape[i] != 1) {
       stride_from_shape_collapsed *= last_non_one_dim;
       last_non_one_dim = shape[i];
