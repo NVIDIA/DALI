@@ -30,12 +30,6 @@ def pipeline():
 
     return x + y
 
-
-p = None
-
-
-def test_shutdown():
-    global p
-    p = pipeline(device_id=None)
-    p.build()
-    p.run()
+p = pipeline(device_id=None)
+p.build()
+p.run()
