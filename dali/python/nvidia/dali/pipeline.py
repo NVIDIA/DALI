@@ -221,6 +221,7 @@ Parameters
                  py_callback_pickler=None,
                  output_dtype=None,
                  output_ndim=None):
+        self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -326,7 +327,7 @@ Parameters
         elif output_ndim is not None and output_ndim < 0:
             raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
-        Pipeline._pipes.add(self)
+        Pipeline._pipes.add(weakref.ref(self))
 
     _pipes = set()  # this is necessary for clean exit
 
@@ -337,7 +338,7 @@ Parameters
         if self._pipe:
             self._pipe.Shutdown()
             self._pipe = None
-            Pipeline._pipes.remove(self)
+        Pipeline._pipes.discard(weakref.ref(self))
 
     @property
     def batch_size(self):
@@ -1500,7 +1501,11 @@ Parameters
 
 
 def _shutdown_pipelines():
-    for p in list(Pipeline._pipes):
+    for weak in list(Pipeline._pipes):
+        p = weak()
+        if p is None:
+            Pipeline._pipes.discard(weak)
+            continue
         p._shutdown()
     assert len(Pipeline._pipes) == 0
 
