@@ -88,13 +88,8 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
   }
 }
 
-void InitializeMemoryResources(int device_id) {
+void InitializeMemoryResources() {
   (void)mm::GetDefaultResource<mm::memory_kind::host>();
-  if (device_id != CPU_ONLY_DEVICE_ID) {
-    DeviceGuard dg(device_id);
-    (void)mm::GetDefaultResource<mm::memory_kind::pinned>();
-    (void)mm::GetDefaultDeviceResource(device_id);
-  }
 }
 
 }  // namespace
@@ -104,7 +99,7 @@ Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t s
                    bool async_execution, size_t bytes_per_sample_hint,
                    bool set_affinity, int max_num_stream, int default_cuda_stream_priority)
     : built_(false), separated_execution_{false} {
-  InitializeMemoryResources(device_id);
+  InitializeMemoryResources();
   Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
        async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
        default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
@@ -115,7 +110,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
     : built_(false), separated_execution_(false) {
-  InitializeMemoryResources(device_id);
+  InitializeMemoryResources();
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 

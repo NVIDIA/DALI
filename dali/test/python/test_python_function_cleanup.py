@@ -30,6 +30,7 @@ def pipeline():
 
     return x + y
 
+
 p = pipeline(device_id=None)
 p.build()
 p.run()
