@@ -230,6 +230,7 @@ class Loader {
 
       // Read an initial number of samples to fill our
       // sample buffer
+      int skipped_initial_samples = 0;
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         LoadTargetSharedPtr tensor_ptr = nullptr;
         if (filter(total_read_sample_counter_)) {
@@ -243,6 +244,7 @@ class Loader {
           ReadSample(*tensor_ptr);
         } else {
           Skip();
+          skipped_initial_samples++;
         }
         sample_buffer_.push_back({total_read_sample_counter_, std::move(tensor_ptr)});
         IncreaseReadSampleCounter();
@@ -251,8 +253,13 @@ class Loader {
 
       // need some entries in the empty_tensors_ list
       DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
+
+      // if some samples in the initial buffer were skipped there are no tensors for them,
+      // so we need to create more tensors here to keep the total created tensors count correct.
+      int empty_needed = initial_empty_size_ + skipped_initial_samples;
+
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      for (int i = 0; i < initial_empty_size_; ++i) {
+      for (int i = 0; i < empty_needed; ++i) {
         auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
         PrepareEmpty(*tensor_ptr);
         empty_tensors_.push_back(std::move(tensor_ptr));
