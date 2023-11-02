@@ -486,7 +486,7 @@ class Loader {
     sample_buffer_.clear();
     initial_buffer_filled_ = false;
     shards_.clear();
-    
+
     RestoreStateImpl(state);
 
     // Re-run reset
