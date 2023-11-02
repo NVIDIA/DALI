@@ -89,16 +89,11 @@ class DLL_PUBLIC Pipeline {
    * @param default_cuda_stream_priority  CUDA stream priority used by DALI.
    * See `cudaStreamCreateWithPriority` in CUDA documentation
    */
-  DLL_PUBLIC inline Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
+  DLL_PUBLIC Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed = -1,
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
                              bool set_affinity = false, int max_num_stream = -1,
-                             int default_cuda_stream_priority = 0)
-      : built_(false), separated_execution_{false} {
-    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
-         async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
-         default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
-  }
+                             int default_cuda_stream_priority = 0);
 
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,

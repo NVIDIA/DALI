@@ -214,15 +214,15 @@ struct MMEnv {
 };
 
 inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
-  static auto rsrc = std::make_shared<malloc_memory_resource>();
+  auto rsrc = std::make_shared<malloc_memory_resource>();
   size_t threshold = MMEnv::get().host_malloc_threshold;
   if (threshold > 0) {
     using pool_t = pool_resource<mm::memory_kind::host, mm::coalescing_free_tree, spinlock>;
-    static auto pool = std::make_shared<pool_t>(rsrc.get());
-    size_t thresholds[] = { threshold };
-    std::shared_ptr<host_memory_resource> resources[2] = { rsrc, pool };
-    using binning_t = decltype(binning_resource(thresholds, resources));
-    auto binning_rsrc = std::make_shared<binning_t>(thresholds, resources);
+    auto pool = std::make_shared<pool_t>(rsrc.get());
+    std::array<size_t, 1> thresholds = {{ threshold }};
+    std::array<std::shared_ptr<host_memory_resource>, 2> resources = {{ rsrc, pool }};
+    using binning_t = binning_resource<mm::memory_kind::host, 2, decltype(resources)>;
+    auto binning_rsrc = std::make_shared<binning_t>(thresholds, resources, resources);
     return binning_rsrc;
   }
   return rsrc;
