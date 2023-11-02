@@ -1854,6 +1854,7 @@ PYBIND11_MODULE(backend_impl, m) {
              p->Build(build_args);
          })
     .def("Build", [](Pipeline *p) { p->Build(); })
+    .def("Shutdown", &Pipeline::Shutdown)
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);

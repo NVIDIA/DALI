@@ -335,7 +335,7 @@ Parameters
 
     def _shutdown(self):
         if self._pipe:
-            del self._pipe      # delete the backend pipeline, shutting it down
+            self._pipe.Shutdown()
             self._pipe = None
             Pipeline._pipes.remove(self)
 
