@@ -14,6 +14,7 @@
 
 import os
 import glob
+import nose
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -21,6 +22,7 @@ from nvidia.dali.pipeline import pipeline_def
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose2.tools import params
 from nose_utils import assert_raises
+from test_optical_flow import is_of_supported
 
 # Test configuration
 batch_size = 8
@@ -329,11 +331,14 @@ def test_preemphasis_filter_stateless(device):
 
 
 def test_optical_flow_stateless():
+    if not is_of_supported():
+        raise nose.SkipTest('Optical Flow is not supported on this platform')
     check_single_sequence_input(fn.optical_flow, 'gpu')
 
 
-def test_sequence_rearrange_stateless():
-    check_single_sequence_input(fn.sequence_rearrange, 'gpu',
+@params('cpu', 'gpu')
+def test_sequence_rearrange_stateless(device):
+    check_single_sequence_input(fn.sequence_rearrange, device,
                                 new_order=list(range(test_data_frames)))
 
 
@@ -408,7 +413,7 @@ def test_peek_image_shape_stateless():
 
 
 def test_imgcodec_peek_image_shape_stateless():
-    check_single_encoded_jpeg_input(fn.peek_image_shape, 'cpu')
+    check_single_encoded_jpeg_input(fn.experimental.peek_image_shape, 'cpu')
 
 
 @params('cpu', 'mixed')
