@@ -156,11 +156,15 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
         (10, 10, 0, 2, True, False, False, False, 2),
         (10, 256, 2, 4, False, False, True, False, 3),
         (10, 10, 1, 2, False, False, False, False),
+        (10, 10, 1, 2, False, False, False, False, 2),
+        (7, 10, 0, 2, True, False, True, True, 3, 3),
+        (7, 10, 2, 5, True, False, False, False, 3, 10),
+        (0, 32, 3, 4, True, False, False, False, 0, 3),
 )
 def test_file_reader(
         num_epochs, batch_size, shard_id, num_shards,
         random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
-        iters_into_epoch=None):
+        iters_into_epoch=None, initial_fill=1024):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
@@ -170,7 +174,8 @@ def test_file_reader(
             pad_last_batch=pad_last_batch, random_shuffle=random_shuffle,
             shard_id=shard_id, num_shards=num_shards,
             shuffle_after_epoch=shuffle_after_epoch,
-            stick_to_shard=stick_to_shard)
+            stick_to_shard=stick_to_shard,
+            initial_fill=initial_fill)
 
         return data, label
 
