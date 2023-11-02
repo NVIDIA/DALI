@@ -462,7 +462,7 @@ class _DaliOperatorMeta(type):
 
     @property
     def __doc__(self):
-        return _docs._docstring_generator(self)
+        return _docs._docstring_generator(_names._schema_name(self))
 
 
 def _check_arg_input(schema, op_name, name):
@@ -561,13 +561,14 @@ def python_op_factory(name, schema_name=None):
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
+    Operator._generated = True  # The class was generated using python_op_factory
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
     return _functional._wrap_op(op_class, submodule, parent_module,
-                                _docs._docstring_generator_fn(op_class))
+                                _docs._docstring_generator_fn(op_class.schema_name))
 
 
 def _load_ops():
@@ -585,7 +586,7 @@ def _load_ops():
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
             op_class = python_op_factory(op_name, op_reg_name)
-            op_class.__module__ = module.__name__
+            _internal._adjust_operator_module(op_class, ops_module, submodule)
             setattr(module, op_name, op_class)
 
             if op_name not in ["ExternalSource"]:
@@ -624,7 +625,7 @@ def _load_readers_tfrecord():
         _, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
-            op_class.__module__ = module.__name__
+            _internal._adjust_operator_module(op_class, ops_module, submodule)
             setattr(module, op_name, op_class)
             _wrap_op(op_class, submodule)
 
@@ -705,7 +706,7 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
 # appropriate module.
 from nvidia.dali.external_source import ExternalSource  # noqa: E402
 
-ExternalSource.__module__ = __name__
+_internal._adjust_operator_module(ExternalSource, sys.modules[__name__], [])
 
 # Expose the PythonFunction family of classes and generate the fn bindings for them
 from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
@@ -713,15 +714,19 @@ from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
     PythonFunction, DLTensorPythonFunction, _dlpack_to_array,  # noqa: F401
     _dlpack_from_array)  # noqa: F401
 
+_internal._adjust_operator_module(PythonFunction, sys.modules[__name__], [])
+_internal._adjust_operator_module(DLTensorPythonFunction, sys.modules[__name__], [])
+
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
 # Compose is only exposed for ops API, no fn bindings are generated
 from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
 
+_internal._adjust_operator_module(Compose, sys.modules[__name__], [])
+
 _registry.register_cpu_op('Compose')
 _registry.register_gpu_op('Compose')
-
 
 from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: E402, F401
                                              _generate_input_desc)  # noqa: F401

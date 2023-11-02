@@ -51,7 +51,8 @@ TEST_F(SnapshotSerializerTest, VectorMt19937_64) {
 TEST_F(SnapshotSerializerTest, LoaderStateSnapshot) {
   LoaderStateSnapshot snapshot = {
     std::default_random_engine(123),
-    321
+    321,
+    567
   };
 
   std::string serialized = SnapshotSerializer().Serialize(snapshot);
@@ -59,6 +60,7 @@ TEST_F(SnapshotSerializerTest, LoaderStateSnapshot) {
 
   EXPECT_EQ(snapshot.rng, deserialized.rng);
   EXPECT_EQ(snapshot.current_epoch, deserialized.current_epoch);
+  EXPECT_EQ(snapshot.age, deserialized.age);
 }
 
 }  // namespace dali

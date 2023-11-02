@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ namespace dali {
 
 class DLL_PUBLIC ResizeAttr {
  public:
-  void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                           const TensorListShape<> &input_shape);
+  virtual void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                                   const TensorListShape<> &input_shape);
 
   void PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                            const TensorListShape<> &input_shape,
@@ -36,6 +36,7 @@ class DLL_PUBLIC ResizeAttr {
   }
 
   void SetLayout(const TensorLayout &layout) {
+    layout_ = layout;
     ParseLayout(spatial_ndim_, first_spatial_dim_, layout);
   }
 
@@ -85,13 +86,24 @@ class DLL_PUBLIC ResizeAttr {
   bool subpixel_scale_ = true;
 
   ResizeMode mode_ = ResizeMode::Stretch;
+  TensorLayout layout_{};
 
- private:
-  vector<float> size_arg_;
+ protected:
+  int batch_size_ = 0;
+  vector<float> requested_output_size_;
   vector<float> res_x_, res_y_, res_z_;
   vector<float> roi_start_, roi_end_;
 
-  void SetFlagsAndMode(const OpSpec &spec);
+
+  virtual void GetRequestedOutputSize(const OpSpec &spec, const ArgumentWorkspace &ws);
+
+  virtual void GetMaxSize(const OpSpec &spec, const ArgumentWorkspace &ws);
+
+  virtual void GetRoI(const OpSpec &spec,
+                      const ArgumentWorkspace &ws,
+                      const TensorListShape<> input_shape);
+
+  virtual void SetFlagsAndMode(const OpSpec &spec);
 };
 
 }  // namespace dali

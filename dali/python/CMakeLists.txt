@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,3 +43,34 @@ copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/Acknowledgements.txt" "${PROJ
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/find_dali.cmake" "${PROJECT_BINARY_DIR}/dali/cmake")
+
+if(NOT ${CMAKE_CROSSCOMPILING})
+  # Prepate PYTHONPATH targetting the pre-packed wheel produced in this build
+  set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
+  if($ENV{PYTHONPATH})
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}:$ENV{PYTHONPATH}")
+  else()
+    set(PYTHONPATH "${PYTHON_TARGET_PATH}")
+  endif()
+
+  add_custom_target(dali_python_generate_stubs ALL
+                    DEPENDS dali_python ${dali_python_function_lib} dali dali_operators copy_post_build_target)
+
+  # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
+  # backend from the current build.
+  add_custom_command(
+    TARGET dali_python_generate_stubs
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMAND PYTHONPATH=${PYTHONPATH} ${PYTHON_STUBGEN_INTERPRETER} ${PROJECT_SOURCE_DIR}/tools/python_stub_generator.py --wheel_path ${PROJECT_BINARY_DIR}/dali/python/nvidia/dali
+  )
+
+  # Format the bindings, so they are somewhat readable.
+  if (${FORMAT_PYTHON_STUB_FILES})
+    add_custom_target(dali_python_format_stubs ALL DEPENDS dali_python dali_python_generate_stubs)
+    add_custom_command(
+      TARGET dali_python_format_stubs
+      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+      COMMAND find dali/python/nvidia/dali -name '*.pyi' -print0 | xargs -0 black --line-length 100 --target-version py38 --verbose
+    )
+  endif()
+endif()

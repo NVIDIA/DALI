@@ -20,7 +20,7 @@ ENV PYVER=${PYVER} \
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 # install Python bindings and patch it to use the clang we have here
-RUN pip install future setuptools wheel clang==14.0 flake8 && \
+RUN pip install future setuptools wheel clang==14.0 flake8 astunparse gast dm-tree black && \
     PY_CLANG_PATH=$(echo $(pip show clang) | sed 's/.*Location: \(.*\) Requires.*/\1/')/clang/cindex.py && \
     LIBCLANG_PATH=/usr/local/lib/libclang.so && \
     sed -i "s|library_file = None|library_file = \"${LIBCLANG_PATH}\"|" ${PY_CLANG_PATH} && \
@@ -91,7 +91,9 @@ ENV WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}
 ARG WITH_DYNAMIC_NPP
 ENV WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}
 ARG BUILD_WITH_ASAN
-ENV BUILD_WITH_ASAN=${BUILD_WITH_ASAN}
+ENV BUILD_WITH_ASAN=${BUILD_WITH_ASAN} \
+    ASAN_OPTIONS=${BUILD_WITH_ASAN:+start_deactivated=true:detect_leaks=0:detect_container_overflow=0} \
+    LD_PRELOAD=${BUILD_WITH_ASAN:+"/usr/lib64/libasan.so.6 /usr/lib64/libstdc++.so.6"}
 ARG BUILD_WITH_LSAN
 ENV BUILD_WITH_LSAN=${BUILD_WITH_LSAN}
 ARG BUILD_WITH_UBSAN

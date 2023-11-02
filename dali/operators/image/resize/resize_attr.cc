@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,27 +156,34 @@ void CalculateInputRoI(SmallVector<float, 3> &in_lo, SmallVector<float, 3> &in_h
   }
 }
 
-
-void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
-                                     const TensorListShape<> &input_shape) {
-  SetFlagsAndMode(spec);
-  int N = input_shape.num_samples();
-  params_.resize(N);
-
-  if (has_size_) {
-    GetShapeLikeArgument<float>(size_arg_, spec, "size", ws, N, spatial_ndim_);
-  }
-
+void ResizeAttr::GetMaxSize(const OpSpec &spec, const ArgumentWorkspace &ws) {
   max_size_.resize(spatial_ndim_,
                    std::nextafter(static_cast<float>(std::numeric_limits<int>::max()), 0.0f));
   if (has_max_size_) {
     GetSingleOrRepeatedArg(spec, max_size_, "max_size", spatial_ndim_);
   }
+}
 
+void ResizeAttr::GetRoI(const OpSpec &spec,
+                        const ArgumentWorkspace &ws,
+                        const TensorListShape<> input_shape) {
   if (has_roi_) {
+    const int N = batch_size_;
     GetShapeLikeArgument<float>(roi_start_, spec, "roi_start", ws, N, spatial_ndim_);
     GetShapeLikeArgument<float>(roi_end_, spec, "roi_end", ws, N, spatial_ndim_);
   }
+}
+
+void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
+                                     const TensorListShape<> &input_shape) {
+  SetFlagsAndMode(spec);
+  batch_size_ = input_shape.num_samples();
+  const int N = batch_size_;
+  params_.resize(N);
+
+  GetRoI(spec, ws, input_shape);
+  GetRequestedOutputSize(spec, ws);
+  GetMaxSize(spec, ws);
 
   SmallVector<float, 3> requested_size, in_lo, in_hi;
   requested_size.resize(spatial_ndim_);
@@ -184,6 +191,25 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
   in_hi.resize(spatial_ndim_);
 
   const float *max_size = has_max_size_ ? max_size_.data() : nullptr;
+
+  for (int i = 0; i < N; i++) {
+    auto in_sample_shape = input_shape.tensor_shape_span(i);
+    for (int d = 0; d < spatial_ndim_; d++) {
+      requested_size[d] = requested_output_size_[i * spatial_ndim_ + d];
+    }
+
+    bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
+    CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
+                      make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
+    CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
+                          spatial_ndim_, mode_, max_size);
+  }
+}
+
+void ResizeAttr::GetRequestedOutputSize(const OpSpec &spec, const ArgumentWorkspace &ws) {
+  const int N = batch_size_;
+  requested_output_size_.resize(N * spatial_ndim_);
+
   if (HasSeparateSizeArgs()) {
     res_x_.resize(N);
     res_y_.resize(N);
@@ -213,45 +239,21 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
     }
 
     for (int i = 0; i < N; i++) {
-      for (int d = 0; d < spatial_ndim_; d++) {
-        requested_size[d] = size_vecs[d][i];
-      }
-
-      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
-                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
-                            spatial_ndim_, mode_, max_size);
+      for (int d = 0; d < spatial_ndim_; d++)
+        requested_output_size_[spatial_ndim_ * i + d] = size_vecs[d][i];
     }
   } else if (has_resize_shorter_ || has_resize_longer_) {
     const char *arg_name = has_resize_shorter_ ? "resize_shorter" : "resize_longer";
     GetPerSampleArgument(res_x_, arg_name, spec, ws, N);
 
-    for (int i = 0; i < N; i++) {
-      for (int d = 0; d < spatial_ndim_; d++) {
-        requested_size[d] = res_x_[i];
-      }
-
-      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
-                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
-                            spatial_ndim_, mode_, max_size);
-    }
-  } else if (has_size_) {
-    for (int i = 0; i < N; i++) {
-      auto in_sample_shape = input_shape.tensor_shape_span(i);
-      for (int d = 0; d < spatial_ndim_; d++) {
-        requested_size[d] = size_arg_[i * spatial_ndim_ + d];
-      }
-
-      bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
-                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
-      CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
-                            spatial_ndim_, mode_, max_size);
-    }
+    for (int i = 0; i < N; i++)
+      for (int d = 0; d < spatial_ndim_; d++)
+        requested_output_size_[spatial_ndim_ * i + d] = res_x_[i];
+  } else {
+    assert(has_size_);
+    GetShapeLikeArgument<float>(requested_output_size_, spec, "size", ws, N, spatial_ndim_);
   }
 }
+
 
 }  // namespace dali
