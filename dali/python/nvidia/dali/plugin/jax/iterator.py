@@ -320,9 +320,7 @@ def data_iterator(
 
     Decorated function should return DALI pipeline definition function. Decorator accepts
     all arguments of :meth:`nvidia.dali.plugin.base_iterator.DALIGenericIterator.__init__` and
-    passes them to the iterator constructor. It also accepts all arguments of
-    :meth:`nvidia.dali.pipeline.pipeline_def` and passes them to the pipeline definition
-    function.
+    passes them to the iterator constructor.
     If no `device_id` argument is passed to the decorated function, it is assumed that
     the first device is the one we want to use and `device_id` is set to 0.
     If the same argument is passed to the decorator and the decorated function,
