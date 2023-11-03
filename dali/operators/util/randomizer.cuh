@@ -21,6 +21,7 @@
 #include <memory>
 #include "dali/core/host_dev.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/mm/memory.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {
@@ -35,6 +36,21 @@ struct curand_states {
   DALI_HOST_DEV inline curandState& operator[](size_t idx) {
     assert(idx < len_);
     return states_[idx];
+  }
+
+  DALI_HOST inline size_t length() const {
+    return len_;
+  }
+
+  DALI_HOST inline std::shared_ptr<curandState> get_states(AccessOrder order) const {
+    auto states_cpu = mm::alloc_raw_shared<curandState, mm::memory_kind::pinned>(len_);
+    cudaMemcpyAsync(states_cpu.get(), states_, sizeof(curandState) * len_,
+                    cudaMemcpyDeviceToHost, order.stream());
+    return states_cpu;
+  }
+
+  DALI_HOST inline void set_states(const curandState *state) const {
+    cudaMemcpy(states_, state, sizeof(curandState) * len_, cudaMemcpyHostToDevice);
   }
 
  private:

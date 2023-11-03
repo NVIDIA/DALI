@@ -40,7 +40,8 @@ class RNGBase : public Operator<Backend> {
       cpt.MutableCheckpointState() = rng_;
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
-      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+      cpt.SetOrder(order);
+      cpt.MutableCheckpointState() = backend_data_.randomizer_.get_states(order);
     }
   }
 
@@ -53,18 +54,38 @@ class RNGBase : public Operator<Backend> {
       rng_ = rng;
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
-      DALI_FAIL("Checkpointing is not implemented for GPU random operators. ");
+      const auto &states_cpu = cpt.CheckpointState<std::shared_ptr<curandState>>();
+      backend_data_.randomizer_.set_states(states_cpu.get());
     }
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
-    return SnapshotSerializer().Serialize(state.ToVector());
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      const auto &state = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
+      return SnapshotSerializer().Serialize(state.ToVector());
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      const auto &ptr_gpu = cpt.CheckpointState<std::shared_ptr<curandState>>();
+      size_t n = backend_data_.randomizer_.length();
+      std::vector<curandState> states(n);
+      cudaMemcpy(states.data(), ptr_gpu.get(), n * sizeof(curandState), cudaMemcpyDeviceToHost);
+      return SnapshotSerializer().Serialize(states);
+    }
+
   }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    auto deserialized = SnapshotSerializer().Deserialize<std::vector<std::mt19937_64>>(data);
-    cpt.MutableCheckpointState() = BatchRNG<std::mt19937_64>::FromVector(deserialized);
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      auto deserialized = SnapshotSerializer().Deserialize<std::vector<std::mt19937_64>>(data);
+      cpt.MutableCheckpointState() = BatchRNG<std::mt19937_64>::FromVector(deserialized);
+    } else {
+      static_assert(std::is_same_v<Backend, GPUBackend>);
+      auto deserialized = SnapshotSerializer().Deserialize<std::vector<curandState>>(data);
+      auto states = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(deserialized.size());
+      cudaMemcpy(states.get(), deserialized.data(), sizeof(curandState) * deserialized.size(),
+                 cudaMemcpyHostToDevice);
+      cpt.MutableCheckpointState() = states;
+    }
   }
 
  protected:

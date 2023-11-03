@@ -291,13 +291,13 @@ def test_multiple_readers(num_iters):
 # note: fn.decoders.image_random_crop is tested by
 # `check_single_input_operator`
 
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_coin_flip_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.coin_flip, device, shape=shape)
 
@@ -308,20 +308,20 @@ def test_random_normal(device, shape):
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_normal_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.normal, device, shape=shape)
 
 
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_uniform(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_uniform_pytorch(device, shape):
-    check_no_input_operator(fn.random.uniform, device, shape=shape)
+    check_no_input_operator_pytorch(fn.random.uniform, device, shape=shape)
 
 
 # Stateless operators section
