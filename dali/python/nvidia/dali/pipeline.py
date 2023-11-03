@@ -123,7 +123,9 @@ Parameters
         
         p = pipeline()
         p.build()
-        # Run the pipeline...
+        for _ in range(iters):
+            output = p.run()
+            ...
         checkpoint = p.checkpoint()
         
         ...
