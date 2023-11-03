@@ -23,6 +23,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/core/format.h"
@@ -37,7 +38,7 @@ namespace dali {
 #define MULTIPASTE_OUTPUT_TYPES uint8_t, int16_t, int32_t, float
 
 template <typename Backend, typename Actual>
-class MultiPasteOp : public Operator<Backend> {
+class MultiPasteOp : public StatelessOperator<Backend> {
  public:
   DISABLE_COPY_MOVE_ASSIGN(MultiPasteOp);
 
@@ -66,7 +67,7 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   explicit MultiPasteOp(const OpSpec &spec)
-      : Operator<Backend>(spec)
+      : StatelessOperator<Backend>(spec)
       , output_type_(DALI_NO_TYPE)
       , input_type_(DALI_NO_TYPE)
       , output_size_("output_size", spec)

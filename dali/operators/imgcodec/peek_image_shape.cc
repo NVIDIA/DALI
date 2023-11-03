@@ -32,7 +32,7 @@ DALI_SCHEMA(experimental__PeekImageShape)
     R"code(Color format of the image.)code", DALI_RGB);
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {
+    : StatelessOperator<CPUBackend>(spec) {
   output_type_ = spec.GetArgument<DALIDataType>("dtype");
   switch (output_type_) {
   case DALI_INT32:
