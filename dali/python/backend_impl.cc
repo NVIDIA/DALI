@@ -255,6 +255,13 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
     CUDA_CALL(cudaGetDevice(&device_id));
   }
 
+  batch->Reset();
+
+  if (cu_a_interface.contains("stream")) {
+     auto order = AccessOrder(cudaStream_t(PyLong_AsVoidPtr(cu_a_interface["stream"].ptr())));
+     batch->set_order(order);
+  }
+
   // Keep a copy of the input object ref in the deleter, so its refcount is increased
   // while this shared_ptr is alive (and the data should be kept alive)
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),

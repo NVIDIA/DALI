@@ -48,19 +48,23 @@ DALI_SCHEMA(ReduceWithOutputType)
 
   DALI_SCHEMA(ReduceWithMeanInput)
   .AddOptionalArg("ddof",
-    R"code(Delat Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
+    R"code(Delta Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
     0)
   .AddParent("ReduceBase");
 
 DALI_SCHEMA(reductions__StdDev)
   .DocStr("Gets standard deviation of elements along provided axes.")
   .NumInput(2)
+  .InputDox(0, "data", "TensorList", "Input to the operator.")
+  .InputDox(1, "mean", "float or TensorList of float", "Mean value to use in the calculations.")
   .NumOutput(1)
   .AddParent("ReduceWithMeanInput");
 
 DALI_SCHEMA(reductions__Variance)
   .DocStr("Gets variance of elements along provided axes.")
   .NumInput(2)
+  .InputDox(0, "data", "TensorList", "Input to the operator.")
+  .InputDox(1, "mean", "float or TensorList of float", "Mean value to use in the calculations.")
   .NumOutput(1)
   .AddParent("ReduceWithMeanInput");
 

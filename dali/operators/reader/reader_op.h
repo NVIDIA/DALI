@@ -97,7 +97,9 @@ class DataReader : public Operator<Backend> {
     for (int i = 0; i < max_batch_size_; ++i) {
       curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
     }
-    SaveLoaderSnapshot();
+    if (IsCheckpointingEnabled()) {
+      SaveLoaderSnapshot();
+    }
   }
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
@@ -303,15 +305,7 @@ class DataReader : public Operator<Backend> {
   }
 
   void SaveLoaderSnapshot() {
-    if (IsCheckpointingEnabled()) {
-      if (!loader_->IsEpochDepleted()) {
-        // TODO(ktokarski) Currently, the loader cannot save its state in the middle
-        // of the epoch, so we put None in the queue instead.
-        loader_snapshot_queue_[snapshot_producer_] = {};
-      } else {
-        loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
-      }
-    }
+    loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
   }
 
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {

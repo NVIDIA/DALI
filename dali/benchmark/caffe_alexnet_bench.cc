@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,11 +78,12 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
 
   // Add a resize+crop+mirror op
   pipe.AddOperator(
-      OpSpec("FastResizeCropMirror")
+      OpSpec("ResizeCropMirror")
       .AddArg("device", "cpu")
       .AddArg("resize_x", 256)
       .AddArg("resize_y", 256)
       .AddArg("crop", vector<float>{224, 224})
+      .AddArg("antialias", false)
       .AddInput("images", "cpu")
       .AddArgumentInput("crop_pos_x", "uniform1")
       .AddArgumentInput("crop_pos_y", "uniform2")

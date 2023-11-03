@@ -72,6 +72,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}            \
       -DBUILD_NVTX=${BUILD_NVTX}                          \
       -DBUILD_PYTHON=${BUILD_PYTHON:-ON}                  \
+      -DPYTHON_STUBGEN_INTERPRETER=${PYTHON}              \
       -DBUILD_LMDB=${BUILD_LMDB:-ON}                      \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}          \
       -DBUILD_OPENCV=${BUILD_OPENCV:-ON}                  \
