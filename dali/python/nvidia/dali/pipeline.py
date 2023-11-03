@@ -111,28 +111,26 @@ Parameters
 `enable_memory_stats`: bool, optional, default = 1
     If DALI should print operator output buffer statistics.
     Usefull for `bytes_per_sample_hint` operator parameter.
-`enable_checkpointing`: bool, optional, default = 0
+`enable_checkpointing`: bool, optional, default = False
     If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
     method returns serialized state of the pipeline. The same pipeline can be later rebuilt
     with the serialized state passed as the `checkpoint` parameter to resume running
-    from the saved epoch.
+    from the saved iteration.
 
     .. warning::
         This is an experimental feature. The API may change without notice. Checkpoints
         created with this DALI version may not be compatible with the future releases.
-        Currently, some operators do not support checkpointing. The state of the pipeline
-        can be saved at the beginning of an epoch only.
+        Currently, some operators do not support checkpointing.
 
 `checkpoint`: str, optional, default = None
     Serialized checkpoint, received from ``checkpoint`` method.
     When pipeline is built, it's state is restored from the `checkpoint` and the pipeline
-    resumes execution from the saved epoch.
+    resumes execution from the saved iteration.
 
     .. warning::
         This is an experimental feature. The API may change without notice. Checkpoints
         created with this DALI version may not be compatible with the future releases.
-        Currently, some operators do not support checkpointing. The state of the pipeline
-        can be saved at the beginning of an epoch only.
+        Currently, some operators do not support checkpointing.
 
 `py_num_workers`: int, optional, default = 1
     The number of Python workers that will process ``ExternalSource`` callbacks.

@@ -500,18 +500,32 @@ class FileReaderTest : public DALITest {
 
   std::vector<std::string> filepaths_;
 
-  OpSpec MakeOpSpec() {
-      // Currently, only pad_last_batch=true is supported.
+  OpSpec MakeOpSpec(bool pad_last_batch = true) {
       return OpSpec("FileReader")
             .AddOutput("data_out", "cpu")
             .AddOutput("labels", "cpu")
             .AddArg("files", filepaths_)
-            .AddArg("pad_last_batch", true);
+            .AddArg("pad_last_batch", pad_last_batch);
   }
 
   void BuildPipeline(Pipeline &pipe) {
     std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
     pipe.Build(outputs);
+  }
+
+  std::vector<uint8_t> RunIter(Pipeline &pipe, int batch_size) {
+    std::vector<uint8_t> result;
+
+    pipe.RunCPU();
+    pipe.RunGPU();
+    pipe.Outputs(&ws_);
+
+    auto shape = ws_.Output<CPUBackend>(0).AsTensor().shape();
+    for (int nr = 0; nr < shape[0]; nr++) {
+      result.push_back(ws_.Output<CPUBackend>(0).tensor<uint8_t>(0)[nr]);
+    }
+
+    return result;
   }
 
   std::vector<uint8_t> RunEpoch(Pipeline &pipe, int batch_size,
@@ -520,13 +534,8 @@ class FileReaderTest : public DALITest {
     int samples_per_shard = (filepaths_.size() + num_shards - 1) / num_shards;
     int batches_per_shard = (samples_per_shard + batch_size - 1) / batch_size;
     for (int it = 0; it < batches_per_shard; it++) {
-      pipe.RunCPU();
-      pipe.RunGPU();
-      pipe.Outputs(&ws_);
-
-      auto shape = ws_.Output<CPUBackend>(0).AsTensor().shape();
-      for (int nr = 0; nr < shape[0]; nr++)
-        result.push_back(ws_.Output<CPUBackend>(0).tensor<uint8_t>(0)[nr]);
+      auto iter_result = RunIter(pipe, batch_size);
+      result.insert(result.end(), iter_result.begin(), iter_result.end());
     }
     return result;
   }
@@ -540,6 +549,45 @@ class FileReaderTest : public DALITest {
     EXPECT_EQ(op_cpt.CheckpointState<LoaderStateSnapshot>().current_epoch, epoch_nr);
     return {RunEpoch(pipe, batch_size, num_shards, stick_to_shard), cpt};
   }
+
+  void TestCheckpointMidEpoch(bool pad_last_batch, int batch_size, int iters) {
+    auto prepare_pipeline = [this, pad_last_batch](Pipeline &pipe) {
+      pipe.EnableCheckpointing();
+      pipe.AddOperator(
+          MakeOpSpec(pad_last_batch)
+          .AddArg("shuffle_after_epoch", true)
+          .AddArg("prefetch_queue_depth", 2)
+          .AddArg("initial_fill", 3), "file_reader");
+      BuildPipeline(pipe);
+    };
+
+    Pipeline pipe(batch_size, 1, 0);
+    prepare_pipeline(pipe);
+
+    std::vector<uint8_t> reference;  // whole pipeline output
+    std::vector<Checkpoint> checkpoints;  // checkpoints every iteration
+
+    for (int i = 0; i < iters; i++) {
+      checkpoints.push_back(pipe.GetCheckpoint());
+      auto data = RunIter(pipe, batch_size);
+      reference.insert(reference.end(), data.begin(), data.end());
+    }
+
+    for (int i = 0; i < iters; i++) {
+      Pipeline fresh_pipe(batch_size, 1, 0);
+      prepare_pipeline(fresh_pipe);
+      fresh_pipe.RestoreFromCheckpoint(checkpoints[i]);
+
+      std::vector<uint8_t> output;
+      for (int j = i; j < iters; j++) {
+        auto data = RunIter(fresh_pipe, batch_size);
+        std::vector<uint8_t> expected = {reference.begin() + j * batch_size,
+                                         reference.begin() + (j + 1) * batch_size};
+        EXPECT_EQ(data, expected);
+      }
+    }
+  }
+
 
  protected:
   Workspace ws_;
@@ -751,6 +799,21 @@ TEST_F(FileReaderTest, CheckpointingResumeThenSave) {
       EXPECT_EQ(RunEpoch(fresh_pipe, batch_size), results[i + j]);
     }
   }
+}
+
+TEST_F(FileReaderTest, CheckpointingMidEpoch) {
+  TestCheckpointMidEpoch(true, 7, 20);
+}
+
+TEST_F(FileReaderTest, CheckpointingNoPadLastBatch) {
+  constexpr int batch_size = 3;
+  constexpr int iters = 7;
+
+  // Make sure there will be an incomplete batch and pad_last_batch=false will have effect
+  EXPECT_GE(batch_size * iters, filepaths_.size());
+  EXPECT_NE(filepaths_.size() % batch_size, 0);
+
+  TestCheckpointMidEpoch(false, batch_size, iters);
 }
 
 };  // namespace dali
