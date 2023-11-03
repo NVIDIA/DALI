@@ -12,9 +12,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# sys.path.insert(0, os.path.abspath('..'))
-import os
 import sys
+import os
+sys.path.insert(0, os.path.abspath('.'))
+
 import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
 from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
@@ -25,6 +26,7 @@ import re
 import subprocess
 from pathlib import Path
 from datetime import date
+import filters
 
 # -- Project information -----------------------------------------------------
 
@@ -113,8 +115,13 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.autosectionlabel',
+    'sphinxcontrib.spelling',
 ]
+
+tokenizer_lang='dali'
+spelling_word_list_filename = ['words.txt']
+spelling_filters = ['filters.LibFilter', 'filters.AcronymFilter', 'filters.TechFilter']
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
 autodoc_typehints_format = 'short'
