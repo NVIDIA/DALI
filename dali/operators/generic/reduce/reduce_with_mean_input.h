@@ -25,6 +25,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/operators/generic/reduce/reduce.h"
 #include "dali/operators/util/axes_utils.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 
@@ -35,10 +36,10 @@ namespace dali {
 template <
   template <typename T, typename R, typename S> class ReductionType,
   typename Backend>
-class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
+class ReduceWithMeanInput : public StatelessOperator<Backend>, AxesHelper {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    StatelessOperator<Backend>(spec),
     AxesHelper(spec),
     keep_dims_(spec.GetArgument<bool>("keep_dims")),
     ddof_(spec.GetArgument<int>("ddof")) {

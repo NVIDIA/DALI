@@ -199,18 +199,8 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> 
     return size_;
   }
 
-  void Skip(uint64_t n) override {
-    counter_ += n;
-    epoch_ += (counter_ / size_);
-    counter_ %= size_;
-  }
-
-  void Rewind(bool wrap_to_shard) override {
-    counter_ = 0;
-  }
-
   void Reset(bool wrap_to_shard) override {
-    Rewind(wrap_to_shard);
+    counter_ = 0;
     epoch_++;
   }
 
@@ -236,40 +226,6 @@ class DummyCountingLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> 
   uint64_t mark_epoch_;
   uint64_t epoch_ = 1;
 };
-
-void testFastForward(const OpSpec &spec, uint64_t data_size, int steps) {
-  auto reference = InitLoader<DummyCountingLoader>(spec, data_size)->ReadInts(steps);
-  auto loader = InitLoader<DummyCountingLoader>(spec, data_size);
-
-  int pos = 0;
-  int fast_forward_distance = 0;
-  while (pos + 3 < steps) {
-    for (int i = 0; i < 3; i++) {
-      EXPECT_EQ(loader->ReadInt(false, false), reference[pos]);
-      pos++;
-    }
-    loader->FastForward(fast_forward_distance);
-    pos += fast_forward_distance;
-    fast_forward_distance++;
-  }
-}
-
-TEST(LoaderCheckpointingTest, TestFastForwardNoShuffle) {
-  auto spec = OpSpec("FileReader")
-                .AddArg("device_id", 0)
-                .AddArg("max_batch_size", 256);
-  testFastForward(spec, 200, 50);
-}
-
-TEST(LoaderCheckpointingTest, TestFastForwardShuffled) {
-  auto spec = OpSpec("FileReader")
-                .AddArg("device_id", 0)
-                .AddArg("max_batch_size", 256)
-                .AddArg("initial_fill", 10)
-                .AddArg("random_shuffle", true)
-                .AddArg("seed", 123);
-  testFastForward(spec, 200, 50);
-}
 
 void TestLoaderCheckpointing(const std::unique_ptr<DummyCountingLoader> &loader, int n) {
   std::vector<uint64_t> reference;

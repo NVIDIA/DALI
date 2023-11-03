@@ -19,15 +19,16 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {
 
-class HostDecoder : public Operator<CPUBackend> {
+class HostDecoder : public StatelessOperator<CPUBackend> {
  public:
   explicit inline HostDecoder(const OpSpec &spec) :
-      Operator<CPUBackend>(spec),
+      StatelessOperator<CPUBackend>(spec),
       output_type_(spec.GetArgument<DALIImageType>("output_type")),
       use_fast_idct_(spec.GetArgument<bool>("use_fast_idct"))
   {}

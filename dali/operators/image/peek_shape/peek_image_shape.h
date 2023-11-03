@@ -20,16 +20,17 @@
 #include "dali/image/image_factory.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 
 namespace dali {
 
-class PeekImageShape : public Operator<CPUBackend> {
+class PeekImageShape : public StatelessOperator<CPUBackend> {
  public:
   PeekImageShape(const PeekImageShape &) = delete;
 
-  explicit PeekImageShape(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+  explicit PeekImageShape(const OpSpec &spec) : StatelessOperator<CPUBackend>(spec) {
     output_type_ = spec.GetArgument<DALIDataType>("dtype");
     switch (output_type_) {
     case DALI_INT32:

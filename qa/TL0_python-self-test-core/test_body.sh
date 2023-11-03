@@ -18,6 +18,7 @@ test_py_with_framework() {
 }
 
 test_py() {
+    python test_python_function_cleanup.py
     python test_detection_pipeline.py -i 300
     python test_RN50_data_pipeline.py -s -i 10
     python test_coco_tfrecord.py -i 64

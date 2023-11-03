@@ -19,15 +19,16 @@
 #include <vector>
 
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class CoordFlip : public Operator<Backend> {
+class CoordFlip : public StatelessOperator<Backend> {
  public:
   explicit CoordFlip(const OpSpec &spec)
-      : Operator<Backend>(spec)
+      : StatelessOperator<Backend>(spec)
       , layout_(spec.GetArgument<TensorLayout>("layout")) {}
 
   ~CoordFlip() override = default;

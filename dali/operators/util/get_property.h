@@ -21,15 +21,16 @@
 #include "dali/operators/util/property.h"
 #include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class GetProperty : public Operator<Backend> {
+class GetProperty : public StatelessOperator<Backend> {
  public:
   explicit GetProperty(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         property_key_(spec.template GetArgument<std::string>("key")),
         property_(PropertyFactory()) {}
 

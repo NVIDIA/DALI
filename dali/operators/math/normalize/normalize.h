@@ -25,6 +25,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/util/diag_msg.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -36,9 +37,9 @@ template <typename Backend>
 class Normalize;
 
 template <typename Backend>
-class NormalizeBase : public Operator<Backend> {
+class NormalizeBase : public StatelessOperator<Backend> {
  public:
-  explicit NormalizeBase(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit NormalizeBase(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     has_tensor_mean_ = spec.HasTensorArgument("mean");
     has_scalar_mean_ = spec.HasArgument("mean") && !has_tensor_mean_;
     has_tensor_stddev_ = spec.HasTensorArgument("stddev");

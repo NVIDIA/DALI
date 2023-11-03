@@ -525,13 +525,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     }
   }
 
-  // If it is the end of an epoch, create a checkpoint.
+  // Create a checkpoint.
   // The checkpoint corresponds to the state between the iteration `iteration_id`
   // and `iteration_id + 1`.
-  // After consuming all the outputs from the epoch, GetCurrentCheckpoint is going to
+  // After consuming all the outputs from the iteration, GetCurrentCheckpoint is going to
   // return the created checkpoint.
-  if (checkpointing_ && (iteration_id + 1) % checkpointing_epoch_size_ == 0)
+  if (checkpointing_) {
     CreateCheckpoint(op_node, iteration_id + 1, ws.output_order());
+  }
 }
 
 
@@ -662,31 +663,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
   if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
     DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
 
-  checkpointing_epoch_size_ = -1;
-  std::string reader_name;
-  for (const auto &node : graph_->GetOpNodes()) {
-    auto meta = node.op->GetReaderMeta();
-    if (meta.epoch_size_padded <= 0)
-      continue;
-
-    int shards = meta.number_of_shards;
-    int local_samples_per_epoch = (meta.epoch_size_padded + shards - 1) / shards;
-    int local_epoch_size = (local_samples_per_epoch + max_batch_size_ - 1) / max_batch_size_;
-    if (checkpointing_epoch_size_ == -1) {
-      checkpointing_epoch_size_ = local_epoch_size;
-      reader_name = node.spec.name();
-    } else if (checkpointing_epoch_size_ != local_epoch_size) {
-      DALI_FAIL(make_string(
-        "When the checkpointing is enabled, all readers must have the same epoch size. ",
-        "The readers ", reader_name, " and ", node.spec.name(), " have different epoch sizes ",
-        "(", checkpointing_epoch_size_, " and ", local_epoch_size, " respectively). "));
-    }
-  }
-
-  /* If there is no operator with ReaderMeta, set the epoch size to 1. */
-  if (checkpointing_epoch_size_ == -1)
-    checkpointing_epoch_size_ = 1;
-
   // Create initial checkpoint.
   // This way, we make sure there is always a checkpoint that can be accessed.
   CreateInitialCheckpoints();
@@ -733,11 +709,6 @@ template<typename WorkspacePolicy, typename QueuePolicy>
 Checkpoint &Executor<WorkspacePolicy, QueuePolicy>::GetCurrentCheckpoint() {
   DALI_ENFORCE(checkpointing_, "Cannot access checkpoints when checkpointing is not enabled. ");
   auto &cpt = GetCurrentIterationData(output_iteration_id_).checkpoint;
-  // Sanity check
-  DALI_ENFORCE(cpt.GetIterationId() == output_iteration_id_,
-               "The pipeline cannot be checkpointed at the given iteration. "
-               "Currently, checkpointing is supported at the end of the epoch only "
-               "(after the last batch from the epoch was consumed). ");
   return cpt;
 }
 

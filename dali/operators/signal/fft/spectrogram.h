@@ -19,13 +19,14 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
 template <typename Backend>
-class DLL_PUBLIC Spectrogram : public Operator<Backend> {
+class DLL_PUBLIC Spectrogram : public StatelessOperator<Backend> {
  public:
   DLL_PUBLIC Spectrogram(const OpSpec &spec);
   DLL_PUBLIC ~Spectrogram() override = default;
@@ -44,7 +45,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
+  using StatelessOperator<Backend>::RunImpl;
 
  private:
   std::unique_ptr<OpImplBase<Backend>> impl_;

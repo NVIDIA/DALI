@@ -23,6 +23,7 @@
 #include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_impl.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/nvml.h"
 
@@ -50,12 +51,12 @@ static const std::string kImageTypeArgName = "image_type";                      
 }  // namespace detail
 
 template<typename Backend>
-class OpticalFlow : public Operator<Backend> {
+class OpticalFlow : public StatelessOperator<Backend> {
   using ComputeBackend = typename detail::backend_to_compute<Backend>::type;
 
  public:
   explicit OpticalFlow(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         quality_factor_(spec.GetArgument<float>(detail::kPresetArgName)),
         out_grid_size_(spec.GetArgument<int>(detail::kOutputGridArgName)),
         hint_grid_size_(spec.GetArgument<int>(detail::kHintGridArgName)),
