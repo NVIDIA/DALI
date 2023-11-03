@@ -142,7 +142,7 @@ def python_function(
 def dl_tensor_python_function(
     *input: DataNode,
     function: Callable[..., Union[Any, Sequence[Any]]],
-    batch_processing: Optional[bool] = False,
+    batch_processing: Optional[bool] = True,
     num_outputs: Optional[int] = 1,
     synchronize_stream: Optional[bool] = True,
     output_layouts: Union[Sequence[str], str, None] = None,

@@ -18,6 +18,8 @@ import os
 
 from pathlib import Path
 
+from contextlib import closing
+
 from typing import Union, Optional
 from typing import Sequence, List, Any
 
@@ -120,7 +122,6 @@ def _get_positional_input_param(schema, idx):
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    # TODO(klecki): Check if we actually can pass None as input.
     annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
@@ -225,7 +226,6 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
     """
     param_list = []
     if include_self:
-        # TODO(klecki): what kind of parameter is `self`?
         param_list.append(Parameter("self", kind=Parameter.POSITIONAL_ONLY))
 
     if include_inputs:
@@ -472,29 +472,28 @@ def gen_all_signatures(nvidia_dali_path, api):
     """
     nvidia_dali_path = Path(nvidia_dali_path)
 
-    stub_manager = StubFileManager(nvidia_dali_path, api)
+    with closing(StubFileManager(nvidia_dali_path, api)) as stub_manager:
 
-    sig_groups = _group_signatures(api)
+        sig_groups = _group_signatures(api)
 
-    # Python-only and the manually defined ones are reexported from their respective modules
-    for (schema_name, op) in sig_groups["python_only"] + sig_groups["python_wrapper"]:
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+        # Python-only and the manually defined ones are reexported from their respective modules
+        for (schema_name, op) in sig_groups["python_only"] + sig_groups["python_wrapper"]:
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
 
-        stub_manager.get(module_nesting).write(f"\n\nfrom {op._impl_module} import"
-                                               f" ({op.__name__} as {op.__name__})\n\n")
+            stub_manager.get(module_nesting).write(f"\n\nfrom {op._impl_module} import"
+                                                   f" ({op.__name__} as {op.__name__})\n\n")
 
-    # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
-    # directly visible
+        # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
+        # directly visible
 
-    # Runtime generated classes use fully specified stubs.
-    for (schema_name, op) in sig_groups["generated"]:
-        _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-        schema = _b.TryGetSchema(schema_name)
+        # Runtime generated classes use fully specified stubs.
+        for (schema_name, op) in sig_groups["generated"]:
+            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
+            schema = _b.TryGetSchema(schema_name)
 
-        if api == "fn":
-            stub_manager.get(module_nesting).write(_gen_fn_signature(schema, schema_name, op_name))
-        else:
-            stub_manager.get(module_nesting).write(_gen_ops_signature(schema, schema_name, op_name))
-
-    # TODO(klecki): use scope manager
-    stub_manager.close()
+            if api == "fn":
+                stub_manager.get(module_nesting).write(
+                    _gen_fn_signature(schema, schema_name, op_name))
+            else:
+                stub_manager.get(module_nesting).write(
+                    _gen_ops_signature(schema, schema_name, op_name))
