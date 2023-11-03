@@ -29,6 +29,7 @@
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/mm/default_resources.h"
 #include "dali/pipeline/dali.pb.h"
 
 namespace dali {
@@ -87,15 +88,29 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
   }
 }
 
+void InitializeMemoryResources() {
+  (void)mm::GetDefaultResource<mm::memory_kind::host>();
+}
 
 }  // namespace
 
+Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t seed,
+                   bool pipelined_execution, int prefetch_queue_depth,
+                   bool async_execution, size_t bytes_per_sample_hint,
+                   bool set_affinity, int max_num_stream, int default_cuda_stream_priority)
+    : built_(false), separated_execution_{false} {
+  InitializeMemoryResources();
+  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
+       async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
+       default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+}
 
 Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
     : built_(false), separated_execution_(false) {
+  InitializeMemoryResources();
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
@@ -152,6 +167,8 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
 Pipeline::~Pipeline() {
   Shutdown();
   graph_ = {};
+  executor_ = {};
+  repeat_last_ = {};
 }
 
 void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
