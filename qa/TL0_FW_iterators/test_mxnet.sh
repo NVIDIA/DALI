@@ -1,6 +1,7 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy mxnet'
+# to be run inside a MXNet container - so don't need to list it here as a pip package dependency
+pip_packages='${python_test_runner_package} numpy'
 target_dir=./dali/test/python
 
 one_config_only=true

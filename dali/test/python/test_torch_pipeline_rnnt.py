@@ -159,7 +159,9 @@ class FilterbankFeatures():
         # do stft
         x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length,
                        win_length=self.win_length, pad_mode='reflect',
-                       center=True, window=self.window.to(dtype=torch.float).to(x.device))
+                       center=True, window=self.window.to(dtype=torch.float).to(x.device),
+                       return_complex=True)
+        x = torch.view_as_real(x)
 
         # get power spectrum
         x = x.pow(2).sum(-1)
@@ -214,7 +216,9 @@ def torch_spectrogram(audio, sample_rate, device='cpu',
     window_tensor = window_fn(win_length, periodic=False) if window_fn else None
     stft_out = torch.stft(audio, n_fft=n_fft, hop_length=hop_length,
                           win_length=win_length, pad_mode=pad_mode,
-                          center=center, window=window_tensor.to(dtype=torch.float))
+                          center=center, window=window_tensor.to(dtype=torch.float),
+                          return_complex=True)
+    stft_out = torch.view_as_real(stft_out)
     # get power spectrum
     spectrogram = stft_out.pow(2).sum(-1)
     spectrogram = spectrogram.cpu().numpy()

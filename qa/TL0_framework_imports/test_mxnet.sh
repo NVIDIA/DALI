@@ -1,7 +1,5 @@
 #!/bin/bash -e
-# used pip packages
-
-pip_packages='mxnet'
+# to be run inside a MXNet container - so don't need to list it here as a pip package dependency
 
 test_body() {
     # test code
