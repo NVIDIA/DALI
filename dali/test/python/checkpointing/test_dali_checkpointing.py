@@ -133,33 +133,49 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
 # Readers section
 
 @params(
-        (1, 3, 0, 1, True, False, False),
-        (5, 10, 0, 2, True, False, False),
-        (0, 32, 1, 4, False, False, False),
-        (3, 64, 3, 4, False, False, False),
-        (1, 3, 0, 1, True, False, True),
-        (5, 10, 0, 2, True, False, True),
-        (0, 32, 1, 4, False, False, True),
-        (3, 64, 3, 4, False, False, True),
-        (2, 7, 0, 1, False, True, False),
-        (1, 8, 0, 2, False, True, False),
-        (1, 8, 1, 2, False, True, False),
-        (1, 8, 3, 4, False, True, False),
-        (2, 11, 2, 5, False, True, False)
+        (1, 3, 0, 1, True, False, False, True),
+        (5, 10, 0, 2, True, False, False, True),
+        (0, 32, 1, 4, False, False, False, True),
+        (3, 64, 3, 4, False, False, False, True),
+        (1, 3, 0, 1, True, False, True, True),
+        (5, 10, 0, 2, True, False, True, True),
+        (0, 32, 1, 4, False, False, True, True),
+        (3, 64, 3, 4, False, False, True, True),
+        (2, 7, 0, 1, False, True, False, True),
+        (1, 8, 0, 2, False, True, False, True),
+        (1, 8, 1, 2, False, True, False, True),
+        (1, 8, 3, 4, False, True, False, True),
+        (2, 11, 2, 5, False, True, False, True),
+        (5, 3, 0, 1, True, False, False, True, 4),
+        (2, 10, 0, 2, True, False, False, True, 5),
+        (4, 256, 2, 4, False, False, True, True, 6),
+        (3, 64, 3, 4, False, False, True, False),
+        (5, 10, 0, 2, True, False, False, False),
+        (1, 3, 0, 1, True, False, False, False),
+        (10, 3, 0, 1, True, False, False, False, 1),
+        (10, 10, 0, 2, True, False, False, False, 2),
+        (10, 256, 2, 4, False, False, True, False, 3),
+        (10, 10, 1, 2, False, False, False, False),
+        (10, 10, 1, 2, False, False, False, False, 2),
+        (7, 10, 0, 2, True, False, True, True, 3, 3),
+        (7, 10, 2, 5, True, False, False, False, 3, 10),
+        (0, 32, 3, 4, True, False, False, False, 0, 3),
 )
 def test_file_reader(
         num_epochs, batch_size, shard_id, num_shards,
-        random_shuffle, shuffle_after_epoch, stick_to_shard):
+        random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
 
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
     def pipeline():
         data, label = fn.readers.file(
             name="Reader", file_root=images_dir,
-            pad_last_batch=True, random_shuffle=random_shuffle,
+            pad_last_batch=pad_last_batch, random_shuffle=random_shuffle,
             shard_id=shard_id, num_shards=num_shards,
             shuffle_after_epoch=shuffle_after_epoch,
-            stick_to_shard=stick_to_shard)
+            stick_to_shard=stick_to_shard,
+            initial_fill=initial_fill)
 
         return data, label
 
@@ -167,8 +183,12 @@ def test_file_reader(
     p.build()
 
     iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
-    for _ in range(num_epochs * iterations_in_epoch):
-        p.run()
+    for epoch in range(num_epochs):
+        for i in range(iterations_in_epoch):
+            p.run()
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
 
     restored = pipeline(checkpoint=p.checkpoint())
     restored.build()
@@ -186,10 +206,13 @@ def test_file_reader(
         (1, 8, 0, 2, False, True, False),
         (1, 8, 1, 2, False, True, False),
         (1, 8, 3, 4, False, True, False),
+        (1, 3, 0, 1, True, False, False, 1),
+        (5, 10, 0, 2, True, False, False, 2),
+        (3, 64, 3, 4, False, False, True, 3),
 )
 def test_file_reader_pytorch(
         num_epochs, batch_size, shard_id, num_shards,
-        random_shuffle, shuffle_after_epoch, stick_to_shard):
+        random_shuffle, shuffle_after_epoch, stick_to_shard, iters_into_epoch=None):
 
     from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
@@ -211,9 +234,11 @@ def test_file_reader_pytorch(
 
     iter = DALIGenericIterator(p, ['data', 'labels'], auto_reset=True,
                                reader_name="Reader")
-    for _ in range(num_epochs):
-        for _ in iter:
-            pass
+    for epoch in range(num_epochs):
+        for i, _ in enumerate(iter):
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
 
     restored = pipeline(checkpoint=iter.checkpoints()[0])
     restored.build()
@@ -224,6 +249,42 @@ def test_file_reader_pytorch(
         for d1, d2 in zip(out1, out2):
             for key in d1.keys():
                 assert (d1[key] == d2[key]).all()
+
+
+@params(0, 1, 2, 3, 4, 5, 6, 7, 8)
+def test_multiple_readers(num_iters):
+    my_images = os.path.join(images_dir, '134')
+    files = [os.path.join(my_images, f) for f in os.listdir(my_images)]
+
+    @pipeline_def(batch_size=1, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        # Reader with epoch size = 2
+        a_enc, _ = fn.readers.file(
+            name="Reader1", files=files[:2],
+            pad_last_batch=True, random_shuffle=True)
+
+        # Reader with epoch size = 3
+        b_enc, _ = fn.readers.file(
+            name="Reader2", files=files[:3],
+            pad_last_batch=True, random_shuffle=True)
+
+        a = fn.decoders.image_random_crop(a_enc)
+        b = fn.decoders.image_random_crop(b_enc)
+        a = fn.resize(a, size=(200, 200))
+        b = fn.resize(b, size=(200, 200))
+        return (a + b) // 2
+
+    p = pipeline()
+    p.build()
+
+    for _ in range(num_iters):
+        p.run()
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, 1, 20)
 
 
 # Randomized operators section

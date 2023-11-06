@@ -18,11 +18,13 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
+from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
 from threading import local as tls
 from . import data_node as _data_node
+import atexit
 import functools
 import inspect
 import warnings
@@ -107,31 +109,45 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-`enable_memory_stats`: bool, optional, default = 1
+`enable_memory_stats`: bool, optional, default = False
     If DALI should print operator output buffer statistics.
-    Usefull for `bytes_per_sample_hint` operator parameter.
-`enable_checkpointing`: bool, optional, default = 0
+    Useful for `bytes_per_sample_hint` operator parameter.
+`enable_checkpointing`: bool, optional, default = False
     If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
     method returns serialized state of the pipeline. The same pipeline can be later rebuilt
     with the serialized state passed as the `checkpoint` parameter to resume running
-    from the saved epoch.
+    from the saved iteration::
+
+        @pipeline_def(..., enable_checkpointing=True)
+        def pipeline():
+            ...
+
+        p = pipeline()
+        p.build()
+        for _ in range(iters):
+            output = p.run()
+            ...
+        checkpoint = p.checkpoint()
+
+        ...
+
+        p_restored = pipeline(checkpoint=checkpoint)
+        p_restored.build()
 
     .. warning::
         This is an experimental feature. The API may change without notice. Checkpoints
         created with this DALI version may not be compatible with the future releases.
-        Currently, some operators do not support checkpointing. The state of the pipeline
-        can be saved at the beginning of an epoch only.
+        Currently, some operators do not support checkpointing.
 
 `checkpoint`: str, optional, default = None
     Serialized checkpoint, received from ``checkpoint`` method.
-    When pipeline is built, it's state is restored from the `checkpoint` and the pipeline
-    resumes execution from the saved epoch.
+    When pipeline is built, its state is restored from the `checkpoint` and the pipeline
+    resumes execution from the saved iteration.
 
     .. warning::
         This is an experimental feature. The API may change without notice. Checkpoints
         created with this DALI version may not be compatible with the future releases.
-        Currently, some operators do not support checkpointing. The state of the pipeline
-        can be saved at the beginning of an epoch only.
+        Currently, some operators do not support checkpointing.
 
 `py_num_workers`: int, optional, default = 1
     The number of Python workers that will process ``ExternalSource`` callbacks.
@@ -220,6 +236,7 @@ Parameters
                  py_callback_pickler=None,
                  output_dtype=None,
                  output_ndim=None):
+        self._pipe = None
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -325,6 +342,18 @@ Parameters
         elif output_ndim is not None and output_ndim < 0:
             raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
+        Pipeline._pipes.add(weakref.ref(self))
+
+    _pipes = set()  # this is necessary for clean exit
+
+    def __del__(self):
+        self._shutdown()
+
+    def _shutdown(self):
+        if self._pipe:
+            self._pipe.Shutdown()
+            self._pipe = None
+        Pipeline._pipes.discard(weakref.ref(self))
 
     @property
     def batch_size(self):
@@ -1082,7 +1111,8 @@ Parameters
             return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
         return self.prefetch_queue_depth <= 1
 
-    def run(self, **pipeline_inputs):
+    def run(self,
+            **pipeline_inputs) -> Tuple[Union[tensors.TensorListCPU, tensors.TensorListGPU], ...]:
         """
         Run the pipeline and return the result.
 
@@ -1126,7 +1156,7 @@ Parameters
 
         Returns
         -------
-            A list of `TensorList` objects for respective pipeline outputs
+            A tuple of `TensorList` objects for respective pipeline outputs
         """
         if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
             raise RuntimeError(f"""
@@ -1149,6 +1179,8 @@ Parameters
         """Executes pipeline to fill executor's pipeline."""
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
+        if not self._pipe:
+            raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
         if self._exec_separated:
             self._fill_separated_queues()
@@ -1388,17 +1420,16 @@ Parameters
     def checkpoint(self, filename=None):
         """Returns the pipeline's state as a serialized Protobuf string.
 
-        Additionally, if, `filename` is specified, the serialized checkpoint will be
+        Additionally, if `filename` is specified, the serialized checkpoint will be
         written to the specified file. The file contents will be overwritten.
 
-        The same pipeline can be rebuilt with the saved checkpoint passed as a `checkpoint`
-        parameter to resume execution from the saved epoch.
+        The same pipeline can be later rebuilt with the saved checkpoint passed as a `checkpoint`
+        parameter to resume execution from the saved iteration.
 
         .. warning::
             This is an experimental feature. The API may change without notice. Checkpoints
             created with this DALI version may not be compatible with the future releases.
-            Currently, some operators do not support checkpointing. The state of the pipeline
-            can be saved at the beginning of an epoch only.
+            Currently, some operators do not support checkpointing.
 
         Parameters
         ----------
@@ -1482,6 +1513,20 @@ Parameters
 
         return [(name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
                 for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
+
+
+def _shutdown_pipelines():
+    for weak in list(Pipeline._pipes):
+        p = weak()
+        if p is None:
+            Pipeline._pipes.discard(weak)
+            continue
+        p._shutdown()
+    assert len(Pipeline._pipes) == 0
+
+
+# Shut down the pipelines, so that nothing is running when the interpreter is torn down
+atexit.register(_shutdown_pipelines)
 
 
 def _discriminate_args(func, **func_kwargs):

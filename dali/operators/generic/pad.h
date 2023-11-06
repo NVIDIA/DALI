@@ -25,6 +25,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/scratch.h"
 #include "dali/operators/util/axis_args.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define PAD_SUPPORTED_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
@@ -34,10 +35,10 @@
 namespace dali {
 
 template <typename Backend>
-class Pad : public Operator<Backend> {
+class Pad : public StatelessOperator<Backend> {
  public:
   inline explicit Pad(const OpSpec &spec)
-      : Operator<Backend>(spec)
+      : StatelessOperator<Backend>(spec)
       , axis_args_(spec, "axes", "axis_names")
       , shape_("shape", spec)
       , align_("align", spec)

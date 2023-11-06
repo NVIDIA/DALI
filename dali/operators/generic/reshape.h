@@ -19,15 +19,16 @@
 #include <vector>
 
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 
 namespace dali {
 
 template <typename Backend>
-class Reshape : public Operator<Backend> {
+class Reshape : public StatelessOperator<Backend> {
  public:
-  using Base = Operator<Backend>;
+  using Base = StatelessOperator<Backend>;
 
   explicit Reshape(const OpSpec &spec_);
 

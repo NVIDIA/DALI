@@ -19,6 +19,7 @@
 #include "dali/core/backend_tags.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/parsers/tiff.h"
@@ -27,7 +28,7 @@
 namespace dali {
 namespace imgcodec {
 
-class ImgcodecPeekImageShape : public Operator<CPUBackend> {
+class ImgcodecPeekImageShape : public StatelessOperator<CPUBackend> {
  public:
   ImgcodecPeekImageShape(const ImgcodecPeekImageShape &) = delete;
 

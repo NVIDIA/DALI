@@ -26,6 +26,7 @@
 #include <vector>
 #include <deque>
 #include <atomic>
+#include <unordered_set>
 
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
@@ -172,27 +173,31 @@ class Loader {
     DALI_ENFORCE(IsCheckpointingEnabled(),
                  "Checkpointing was not enabled. Please make sure you set"
                  " enable_checkpointing to True when creating the pipeline.");
-    e_ = state.rng;
-    consumer_epoch_ = state.current_epoch;
-    if (!stick_to_shard_)
-      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
 
-    // Clean up Loader's state
-    sample_buffer_.clear();
-    initial_buffer_filled_ = false;
-    shards_.clear();
-    read_sample_counter_ = 0;
-    returned_sample_counter_ = 0;
-    total_read_sample_counter_ = consumer_epoch_ * Size();
-
-    RestoreStateImpl(state);
-
-    // Re-run reset
-    Reset(true);
-
+    RestoreEpochState(state);
     SaveStateSnapshot(current_snapshot_);
 
-    FastForward(state.age);
+    // Now fast forward the loader by `state.age` steps:
+    //
+    // 1. Run in dry mode to see which samples actually need to be read.
+    //    We don't need to read samples that will leave the buffer during fast-forward.
+    for (Index i = 0; i < state.age; i++) {
+      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, [](Index i){ return false; });
+    }
+    auto missing = GetMissingSamples();
+
+    // 2. Restore the state and run reading again, this time reading the needed samples.
+    RestoreEpochState(state);
+    for (Index i = 0; i < state.age; i++) {
+      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
+      auto filter = [&missing](Index idx) {
+        return missing.find(idx) != missing.end();
+      };
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, filter);
+    }
+
+    DALI_ENFORCE(GetMissingSamples().empty(), "Internal error: reading missing samples failed");
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
@@ -207,22 +212,15 @@ class Loader {
             pad_last_batch_;
   }
 
-  /**
-   * @brief Fast-forwards a loader by skipping n samples.
-  */
-  void FastForward(Index n) {
-    Index producer_epoch = total_read_sample_counter_ / Size();
-    for (Index i = 0; i < n; i++) {
-      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
-      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, true);
-    }
-    ReadMissingSamples(producer_epoch);
-    Rewind(true);
-    Skip(read_sample_counter_);
+  // Get a random read sample
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch) {
+    return ReadOne(is_new_batch, is_end_of_batch, [](Index i){ return true; });
   }
 
-  // Get a random read sample
-  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, bool dry_run = false) {
+  // Reads one sample if its index (total_read_sample_counter_) matches the provided filter.
+  // Otherwise, uses `Skip` instead of `ReadSample` to skip the sample.
+  template <typename Filter>
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, Filter filter) {
     PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
@@ -232,9 +230,10 @@ class Loader {
 
       // Read an initial number of samples to fill our
       // sample buffer
+      int skipped_initial_samples = 0;
       for (int i = 0; i < initial_buffer_fill_; ++i) {
         LoadTargetSharedPtr tensor_ptr = nullptr;
-        if (!dry_run) {
+        if (filter(total_read_sample_counter_)) {
           tensor_ptr = LoadTargetSharedPtr(
             new LoadTarget,
             [this](LoadTarget* sample){
@@ -243,6 +242,9 @@ class Loader {
             });
           PrepareEmpty(*tensor_ptr);
           ReadSample(*tensor_ptr);
+        } else {
+          Skip();
+          skipped_initial_samples++;
         }
         sample_buffer_.push_back({total_read_sample_counter_, std::move(tensor_ptr)});
         IncreaseReadSampleCounter();
@@ -251,8 +253,13 @@ class Loader {
 
       // need some entries in the empty_tensors_ list
       DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
+
+      // if some samples in the initial buffer were skipped there are no tensors for them,
+      // so we need to create more tensors here to keep the total created tensors count correct.
+      int empty_needed = initial_empty_size_ + skipped_initial_samples;
+
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      for (int i = 0; i < initial_empty_size_; ++i) {
+      for (int i = 0; i < empty_needed; ++i) {
         auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
         PrepareEmpty(*tensor_ptr);
         empty_tensors_.push_back(std::move(tensor_ptr));
@@ -290,7 +297,7 @@ class Loader {
 
     std::swap(sample_buffer_[idx], sample_buffer_[shards_.front().start % sample_buffer_.size()]);
     LoadTargetSharedPtr tensor_ptr = nullptr;
-    if (!dry_run) {
+    if (filter(total_read_sample_counter_)) {
       // now grab an empty tensor, fill it and add to filled buffers
       // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
       // being called by multiple consumer threads
@@ -308,6 +315,8 @@ class Loader {
         empty_tensors_.pop_back();
       }
       ReadSample(*tensor_ptr);
+    } else {
+      Skip();
     }
     IndexedLoadTargetSharedPtr sample = {total_read_sample_counter_, tensor_ptr};
     IncreaseReadSampleCounter();
@@ -342,24 +351,14 @@ class Loader {
   virtual void ReadSample(LoadTarget& tensor) = 0;
 
   /**
-   * @brief Advances loader position in the data source by skipping n samples.
-   * @warning This generic implementation is very inefficient and should be overriden.
+   * @brief Advances loader position in the data source by skipping a sample.
+   * @warning This generic implementation is very inefficient (it simply reads and discards
+   *          the sample) and should be overriden.
   */
-  virtual void Skip(uint64_t n) {
+  virtual void Skip() {
     auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
     PrepareEmpty(*tensor_ptr);
-    for (uint64_t i = 0; i < n; i++) {
-      ReadSample(*tensor_ptr);
-    }
-  }
-
-  /**
-   * @brief Resets the loader to the first sample.
-   * Like `Reset`, but shouldn't make any extra side-effects, i.e. calling `Rewind` 
-   * multiple times should be have the same effect as calling it once.
-  */
-  virtual void Rewind(bool wrap_to_shard) {
-    DALI_FAIL("Loader doesn't support rewinding, restoring from checkpoint is impossible");
+    ReadSample(*tensor_ptr);
   }
 
   void PrepareMetadata() {
@@ -475,56 +474,37 @@ class Loader {
     return cache_ && cache_->IsCached(key);
   }
 
+  // Restores state from snapshot, ignoring its age.
+  void RestoreEpochState(const LoaderStateSnapshot &state) {
+    e_ = state.rng;
+    consumer_epoch_ = state.current_epoch;
+    if (!stick_to_shard_)
+      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
+    total_read_sample_counter_ = consumer_epoch_ * Size();
+    read_sample_counter_ = 0;
+    returned_sample_counter_ = 0;
+    sample_buffer_.clear();
+    initial_buffer_filled_ = false;
+    shards_.clear();
 
-  void ReadMissingSamples(Index producer_epoch) {
-    if (!initial_buffer_filled_) return;
+    RestoreStateImpl(state);
 
-    std::vector<IndexedLoadTargetSharedPtr*> to_read;
-    if (!last_sample_ptr_tmp.ptr) {
-      to_read.push_back(&last_sample_ptr_tmp);
+    // Re-run reset
+    Reset(true);
+  }
+
+  /* Returns indices of samples present in the buffer but with no content read. */
+  std::unordered_set<Index> GetMissingSamples() {
+    std::unordered_set<Index> missing;
+    if (initial_buffer_filled_ && !last_sample_ptr_tmp.ptr) {
+      missing.insert(last_sample_ptr_tmp.idx);
     }
     for (auto &sample : sample_buffer_) {
       if (!sample.ptr) {
-        to_read.push_back(&sample);
+        missing.insert(sample.idx);
       }
     }
-
-    // We can't move backwards, so samples have to be read in order
-    std::sort(to_read.begin(), to_read.end(), [](auto a, auto b){ return a->idx < b->idx; });
-
-    Rewind(stick_to_shard_);
-
-    Index at = producer_epoch * Size();
-    LoadTargetSharedPtr last = nullptr;
-    for (auto target : to_read) {
-      if (target->idx < at) {
-        target->ptr = last;
-        continue;
-      }
-
-      Skip(target->idx - at);
-      at = target->idx;
-
-      LoadTargetSharedPtr tensor_ptr = {
-        new LoadTarget,
-        [this](LoadTarget* sample){
-          LoadTargetUniquePtr recycle_ptr(sample);
-          RecycleTensor(std::move(recycle_ptr));
-        }
-      };
-      PrepareEmpty(*tensor_ptr);
-      ReadSample(*tensor_ptr);
-      last = tensor_ptr;
-      target->ptr = std::move(tensor_ptr);
-      at++;
-    }
-
-    if (at < total_read_sample_counter_) {
-      Skip(total_read_sample_counter_ - at);
-    } else {
-      Rewind(stick_to_shard_);
-      Skip(read_sample_counter_);
-    }
+    return missing;
   }
 
   std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;

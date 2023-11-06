@@ -23,6 +23,7 @@
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -66,10 +67,10 @@ namespace detail {
 }  // namespace detail
 
 template <typename Backend>
-class ElementExtract : public Operator<Backend> {
+class ElementExtract : public StatelessOperator<Backend> {
  public:
   inline explicit ElementExtract(const OpSpec &spec)
-      : Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
+      : StatelessOperator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
     element_map_ = spec.GetRepeatedArgument<int>("element_map");
 
     DALI_ENFORCE(!element_map_.empty(), "No `element_map` indicies provided");

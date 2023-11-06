@@ -432,10 +432,6 @@ Keyword Args
     .. note::
         This is applicable only when copying data to and from GPU memory.
 
-`blocking` : bool, optional
-    Determines whether the external source should wait until data is available or just fail
-    when the data is not available.
-
 `no_copy` : bool, optional
     Determines whether DALI should copy the buffer when feed_input is called.
 

@@ -169,7 +169,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
 
 template <>
 Spectrogram<GPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<GPUBackend>(spec)
+    : StatelessOperator<GPUBackend>(spec)
     , impl_(std::make_unique<SpectrogramOpImplGPU>(spec)) {}
 
 DALI_REGISTER_OPERATOR(Spectrogram, Spectrogram<GPUBackend>, GPU);

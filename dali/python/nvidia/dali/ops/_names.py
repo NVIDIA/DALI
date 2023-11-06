@@ -20,7 +20,7 @@ def _schema_name(cls):
     return getattr(cls, 'schema_name', cls.__name__)
 
 
-def _process_op_name(op_schema_name, make_hidden=False):
+def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     """Based on the schema name (for example "Resize" or "experimental__readers__Video")
     transform it into Python-compatible module & operator name information.
 
@@ -31,6 +31,8 @@ def _process_op_name(op_schema_name, make_hidden=False):
     make_hidden : bool, optional
         Should a .hidden module be added to the module path to indicate an internal operator,
         that it's later reimported but not directly discoverable, by default False
+    api : str, optional
+        API type, "ops" or "fn", by default "ops"
 
     Returns
     -------
@@ -46,7 +48,10 @@ def _process_op_name(op_schema_name, make_hidden=False):
     *submodule, op_name = op_full_name.split('.')
     if make_hidden:
         submodule = [*submodule, 'hidden']
-    return op_full_name, submodule, op_name
+    if api == "ops":
+        return op_full_name, submodule, op_name
+    else:
+        return op_full_name, submodule, _functional._to_snake_case(op_name)
 
 
 def _op_name(op_schema_name, api="fn"):
