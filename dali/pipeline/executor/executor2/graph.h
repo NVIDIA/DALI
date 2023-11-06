@@ -52,6 +52,29 @@ struct OperatorNode {
   std::string_view name;
   std::vector<DataNode *> inputs;
   std::vector<DataNode *> outputs;
+
+  DataNode *Input(int idx) const {
+    assert(static_cast<size_t>(idx) < inputs.size());
+    return inputs[idx];
+  }
+
+  DataNode *Output(int idx) const {
+    assert(static_cast<size_t>(idx) < outputs.size());
+    return outputs[idx];
+  }
+
+  DataNode *ArgInput(const std::string &name) const {
+    auto &args = spec.ArgumentInputs();
+    auto it = args.find(name);
+    if (it == args.end())
+      throw std::invalid_argument(make_string("No such argument input: ", name));
+    return inputs[it->second];
+  }
+
+  DataNode *output(int idx) const {
+    return outputs[idx];
+  }
+
   OpSpec spec;
   OpType backend;
 };
