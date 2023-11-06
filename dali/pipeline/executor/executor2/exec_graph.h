@@ -15,11 +15,13 @@
 #ifndef DALI_PIPELINE_EXECUTOR2_EXEC_GRAPH_H_
 #define DALI_PIPELINE_EXECUTOR2_EXEC_GRAPH_H_
 
+#include <cassert>
 #include <memory>
+#include <variant>
 
 #include "graph.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/core/cuda_event.h"
+#include "dali/core/cuda_event_pool.h"
 
 namespace dali {
 namespace exec2 {
@@ -39,12 +41,13 @@ class CUDAEventLease : public CUDAEvent {
 
   void reset() {
     if (*this) {
-      owner_.Put(std::move(*static_cast<CUDAEvent *>(this)));
+      assert(owner_);
+      owner_->Put(std::move(*static_cast<CUDAEvent *>(this)));
       owner_ = nullptr;
     }
   }
 
-  CUDAEventLease &operator=(const CUDAEventLease &other) {
+  CUDAEventLease &operator=(CUDAEventLease &&other) {
     reset();
     CUDAEvent::reset(other.release());
     owner_ = other.owner_;
@@ -75,11 +78,30 @@ struct ExecDataNode {
   }
 
   struct OutputQueueEntry {
-    std::shared_ptr<TensorList<CPUBackend>> cpu_data;
-    std::shared_ptr<TensorList<GPUBackend>> gpu_data;
-    CUDAEventLease cpu_ready, gpu_ready;
+    std::shared_ptr<TensorList<CPUBackend>> cpu;
+    std::shared_ptr<TensorList<GPUBackend>> gpu;
+
+    CUDAEventLease ready;
   };
-  std::deque<OutputQueueEntry> queue;
+
+  std::mutex mtx;
+  std::condition_variable read, write;
+
+  template <typename Backend>
+  void push(std::shared_ptr<TensorList<Backend>> tl, AccessOrder writeOrder)
+  {
+    static_assert(std::is_same_v<Backend, CPUBackend> || std::is_same_v<Backend, GPUBackend>);
+
+    std::lock_guard g(mtx);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      queue.emplace(CUDAEventPool::instance().Get()
+
+  }
+
+  int max_queue_depth = 1;
+
+  std::queue<OutputQueueEntry> queue;
+
   ExecNode *producer = nullptr;
 };
 
