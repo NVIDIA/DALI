@@ -33,15 +33,15 @@ class PythonFunction:
     def __init__(
         self,
         /,
-        *,
         function: Optional[Callable[..., Union[Any, Sequence[Any]]]] = None,
-        batch_processing: bool = False,
         num_outputs: int = 1,
+        device: str = "cpu",
+        batch_processing: bool = False,
+        *,
         output_layouts: Union[Sequence[str], str, None] = None,
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
-        device: Optional[str] = None,
         name: Optional[str] = None,
     ) -> None:
         ...
@@ -54,7 +54,7 @@ class PythonFunction:
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
         name: Optional[str] = None,
-    ) -> Union[DataNode, Sequence[DataNode]]:
+    ) -> Union[DataNode, Sequence[DataNode], None]:
         """See :meth:`nvidia.dali.ops.PythonFunction` class for complete information."""
         ...
 
@@ -76,16 +76,16 @@ class DLTensorPythonFunction:
     def __init__(
         self,
         /,
-        *,
         function: Optional[Callable[..., Union[Any, Sequence[Any]]]] = None,
-        batch_processing: bool = True,
         num_outputs: int = 1,
+        device: str = "cpu",
+        batch_processing: bool = True,
         synchronize_stream: Optional[bool] = True,
+        *,
         output_layouts: Union[Sequence[str], str, None] = None,
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
-        device: Optional[str] = None,
         name: Optional[str] = None,
     ) -> None:
         ...
@@ -114,7 +114,7 @@ def python_function(
     seed: Optional[int] = -1,
     device: Optional[str] = None,
     name: Optional[str] = None,
-) -> Union[DataNode, Sequence[DataNode]]:
+) -> Union[DataNode, Sequence[DataNode], None]:
     """
     Executes a Python function.
 
@@ -140,7 +140,7 @@ def dl_tensor_python_function(
     seed: Optional[int] = -1,
     device: Optional[str] = None,
     name: Optional[str] = None,
-) -> Union[DataNode, Sequence[DataNode]]:
+) -> Union[DataNode, Sequence[DataNode], None]:
     """
     Executes a Python function that operates on DLPack tensors.
 
