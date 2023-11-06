@@ -29,7 +29,7 @@ batch_size = 8
 test_data_shape = [40, 60, 3]
 test_data_layout = "HWC"
 test_data_frames = 24
-test_sequence_shape = [test_data_frames] + test_data_shape
+test_sequence_shape = [test_data_frames, 426, 240, 3]  # 240p video
 
 
 def tensor_list_to_array(tensor_list):
