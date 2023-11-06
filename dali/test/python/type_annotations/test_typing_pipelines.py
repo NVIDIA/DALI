@@ -14,6 +14,8 @@
 
 from pathlib import Path
 
+import numpy as np
+
 from nvidia.dali import fn, ops
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import types, tensors
@@ -30,8 +32,7 @@ def rn50_pipe():
     imgs = fn.decoders.image(enc, device="mixed")
     rng = fn.random.coin_flip(probability=0.5)
     resized = fn.random_resized_crop(imgs, size=[224, 224])
-    normalized = fn.crop_mirror_normalize(resized, mirror=rng,
-                                          dtype=types.DALIDataType.FLOAT16,
+    normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
                                           output_layout="HWC", crop=(224, 224),
                                           mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                           std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
@@ -54,10 +55,15 @@ def rn50_ops_pipe():
     Decoder = ops.decoders.Image(device="mixed")
     Rng = ops.random.CoinFlip(probability=0.5)
     Rrc = ops.RandomResizedCrop(device="gpu", size=[224, 224])
-    Cmn = ops.CropMirrorNormalize(mirror=Rng(), device="gpu", dtype=types.DALIDataType.FLOAT16,
-                                  output_layout="HWC", crop=(224, 224),
-                                  mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                  std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+    Cmn = ops.CropMirrorNormalize(
+        mirror=Rng(),
+        device="gpu",
+        dtype=types.DALIDataType.FLOAT16,
+        output_layout="HWC",
+        crop=(224, 224),
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
     enc, label = Reader()
     imgs = Decoder(enc)
     resized = Rrc(imgs)
@@ -94,3 +100,20 @@ def test_cond_pipe():
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.UINT8  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
+
+
+@pipeline_def(batch_size=10, device_id=0, num_threads=4)
+def es_pipe():
+    single_output = fn.external_source(source=lambda: np.array([0]), batch=False)
+    fist_output, second_output = fn.external_source(source=lambda: (np.array([1]), np.array([2])),
+                                                    num_outputs=2, batch=False)
+    return single_output, fist_output, second_output
+
+
+def test_es_pipe():
+    pipe = es_pipe()
+    pipe.build()
+    out0, out1, out2 = pipe.run()
+    assert np.array_equal(np.array(out0.as_tensor()), np.full((10, 1), 0))
+    assert np.array_equal(np.array(out1.as_tensor()), np.full((10, 1), 1))
+    assert np.array_equal(np.array(out2.as_tensor()), np.full((10, 1), 2))

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,6 +65,6 @@ as PyTorch tensors.)code")
         .NoPrune()
         .AddParent("PythonFunctionBase")
         .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
-an entire batch as an input.)code", false);
+an entire batch as an input.)code", true);
 
 }  // namespace dali
