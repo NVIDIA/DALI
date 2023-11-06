@@ -120,14 +120,14 @@ Parameters
         @pipeline_def(..., enable_checkpointing=True)
         def pipeline():
             ...
-        
+
         p = pipeline()
         p.build()
         for _ in range(iters):
             output = p.run()
             ...
         checkpoint = p.checkpoint()
-        
+
         ...
 
         p_restored = pipeline(checkpoint=checkpoint)
