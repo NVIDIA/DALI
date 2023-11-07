@@ -18,6 +18,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "dali/core/convert.h"
 #include "dali/pipeline/operator/operator.h"
@@ -71,7 +72,6 @@ class RNGBase : public Operator<Backend> {
       cudaMemcpy(states.data(), ptr_gpu.get(), n * sizeof(curandState), cudaMemcpyDeviceToHost);
       return SnapshotSerializer().Serialize(states);
     }
-
   }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
