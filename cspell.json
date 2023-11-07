@@ -1,0 +1,35 @@
+{
+    "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+    "version": "0.2",
+    "dictionaryDefinitions": [
+        {
+            "name": "project-words",
+            "path": "./cspell_dicts/cspell_dict.txt",
+            "addWords": true
+        },
+        {
+            "name": "project-words",
+            "path": "./cspell_dicts/maintainers_dict.txt",
+            "addWords": true
+        },
+        {
+            "name": "project-words",
+            "path": "./cspell_dicts/layouts_dict.txt",
+            "addWords": true
+        },
+    ],
+    "dictionaries": [
+        "project-words",
+        "maintainers",
+        "layouts",
+    ],
+    "ignorePaths": [
+        "build*",
+        "third_party/**",
+        "/.cspell_dict.txt",
+        "*.ipynb",
+        "*.sh",
+        "*.json",
+        "*synset*",
+    ]
+}
