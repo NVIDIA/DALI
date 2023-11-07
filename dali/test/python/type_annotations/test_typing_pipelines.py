@@ -240,4 +240,19 @@ def test_pytorch_plugin():
 
 @attr('numba')
 def test_numba_plugin():
+    import numba
+    import nvidia.dali.plugin.numba as dali_numba
+
+    def double_sample(out_sample, in_sample):
+        out_sample[:] = 2 * in_sample[:]
+
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4)
+    def numba_pipe():
+        forty_two = fn.external_source(source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False)
+        dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
+                                                  out_types=[types.DALIDataType.UINT8],
+                                                  in_types=[types.DALIDataType.UINT8],
+                                                  outs_ndim=[1], ins_ndim=[1],
+                                                  batch_processing=False)
+
     pass

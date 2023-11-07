@@ -33,7 +33,7 @@ test_autograph() {
 }
 
 test_type_annotations() {
-    ${python_new_invoke_test} -A '!pytorch' -s type_annotations
+    ${python_new_invoke_test} -A '!pytorch,!numba' -s type_annotations
 }
 
 test_pytorch() {
