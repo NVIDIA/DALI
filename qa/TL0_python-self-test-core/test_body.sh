@@ -15,6 +15,7 @@ test_py_with_framework() {
                             test_external_source_impl_utils.py); do
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
+    ${python_new_invoke_test} -A 'numba' -s type_annotations
 }
 
 test_py() {
