@@ -164,7 +164,7 @@ def test_python_function_pipe():
             Sequence[DataNode],
             fn.python_function(zeros, function=lambda x: (x + np.full((10, 1), 2), x),
                                num_outputs=2))
-        fn.python_function(zeros, function=lambda x: print(x), num_outputs=0)
+        fn.python_function(zeros, function=print, num_outputs=0)
         expect_data_node(zeros, zeros_2, ones, twos)
         return zeros + twos - twos, zeros_2, ones
 
