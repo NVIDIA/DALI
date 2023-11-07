@@ -215,7 +215,7 @@ def test_pytorch_plugin():
                 (10, 1), 1), x), num_outputs=2))
         twos = dali_torch.fn.torch_python_function(zeros, function=lambda x: x + torch.full(
             (10, 1), 2))
-        dali_torch.fn.torch_python_function(zeros, function=lambda x: print(x), num_outputs=0)
+        dali_torch.fn.torch_python_function(zeros, function=print, num_outputs=0)
         expect_data_node(zeros, zeros_2, ones, twos)
         return zeros + twos - twos, ones
 
