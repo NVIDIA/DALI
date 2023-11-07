@@ -838,4 +838,3 @@ def check_numba_compatibility_gpu():
     if (not ex.NumbaFunction._check_minimal_numba_version(False)
             or not ex.NumbaFunction._check_cuda_compatibility(False)):
         raise SkipTest()
-

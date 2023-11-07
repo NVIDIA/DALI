@@ -195,6 +195,7 @@ def test_python_function_pipe():
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
 
 
+
 @attr('pytorch')
 def test_pytorch_plugin():
     import nvidia.dali.plugin.pytorch as dali_torch
@@ -249,12 +250,13 @@ def test_numba_plugin():
 
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def numba_pipe():
-        forty_two = fn.external_source(source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False)
+        forty_two = fn.external_source(source=lambda x: np.full((2, ), 42, dtype=np.uint8),
+                                       batch=False)
         out = dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
-                                                  out_types=[types.DALIDataType.UINT8],
-                                                  in_types=[types.DALIDataType.UINT8],
-                                                  outs_ndim=[1], ins_ndim=[1],
-                                                  batch_processing=False)
+                                                        out_types=[types.DALIDataType.UINT8],
+                                                        in_types=[types.DALIDataType.UINT8],
+                                                        outs_ndim=[1], ins_ndim=[1],
+                                                        batch_processing=False)
         return out
 
     pipe = numba_pipe()
