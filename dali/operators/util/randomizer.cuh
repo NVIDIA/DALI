@@ -43,14 +43,14 @@ struct curand_states {
   }
 
   DALI_HOST inline std::shared_ptr<curandState> get_states(AccessOrder order) const {
-    auto states_cpu = mm::alloc_raw_shared<curandState, mm::memory_kind::pinned>(len_);
-    cudaMemcpyAsync(states_cpu.get(), states_, sizeof(curandState) * len_,
-                    cudaMemcpyDeviceToHost, order.stream());
-    return states_cpu;
+    auto states = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(len_);
+    cudaMemcpyAsync(states.get(), states_, sizeof(curandState) * len_,
+                    cudaMemcpyDeviceToDevice, order.stream());
+    return states;
   }
 
   DALI_HOST inline void set_states(const curandState *state) const {
-    cudaMemcpy(states_, state, sizeof(curandState) * len_, cudaMemcpyHostToDevice);
+    cudaMemcpy(states_, state, sizeof(curandState) * len_, cudaMemcpyDeviceToDevice);
   }
 
  private:
