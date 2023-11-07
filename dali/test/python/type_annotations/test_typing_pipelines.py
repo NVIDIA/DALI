@@ -199,7 +199,7 @@ def test_python_function_pipe():
 @attr('pytorch')
 def test_pytorch_plugin():
     import nvidia.dali.plugin.pytorch as dali_torch
-    import torch
+    import torch  # type: ignore
 
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def torch_pipe():
