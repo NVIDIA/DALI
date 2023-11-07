@@ -23,7 +23,7 @@ from nvidia.dali import types, tensors
 from nvidia.dali.data_node import DataNode
 from nvidia.dali.pipeline import pipeline_def, Pipeline
 
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_numba_compatibility_cpu
 from nose.plugins.attrib import attr  # type: ignore
 
 _test_root = Path(get_dali_extra_path())
@@ -240,8 +240,9 @@ def test_pytorch_plugin():
 
 @attr('numba')
 def test_numba_plugin():
-    import numba
     import nvidia.dali.plugin.numba as dali_numba
+
+    check_numba_compatibility_cpu()
 
     def double_sample(out_sample, in_sample):
         out_sample[:] = 2 * in_sample[:]
@@ -249,10 +250,14 @@ def test_numba_plugin():
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def numba_pipe():
         forty_two = fn.external_source(source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False)
-        dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
+        out = dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
                                                   out_types=[types.DALIDataType.UINT8],
                                                   in_types=[types.DALIDataType.UINT8],
                                                   outs_ndim=[1], ins_ndim=[1],
                                                   batch_processing=False)
+        return out
 
-    pass
+    pipe = numba_pipe()
+    pipe.build()
+    out, = pipe.run()
+    assert np.array_equal(np.array(out.as_tensor()), np.full((2, 2), 84))
