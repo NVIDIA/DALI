@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Optional
-from typing import Sequence, Any, Callable
+from typing import Union, Optional, overload
+from typing import Any, Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
-from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 
 class PythonFunction:
@@ -33,7 +32,7 @@ class PythonFunction:
     def __init__(
         self,
         /,
-        function: Optional[Callable[..., Union[Any, Sequence[Any]]]] = None,
+        function: Optional[Callable[..., Union[Any, Tuple[Any, ...], None]]] = None,
         num_outputs: int = 1,
         device: str = "cpu",
         batch_processing: bool = False,
@@ -76,7 +75,7 @@ class DLTensorPythonFunction:
     def __init__(
         self,
         /,
-        function: Optional[Callable[..., Union[Any, Sequence[Any]]]] = None,
+        function: Optional[Callable[..., Union[Any, Tuple[Any, ...], None]]] = None,
         num_outputs: int = 1,
         device: str = "cpu",
         batch_processing: bool = True,
@@ -103,9 +102,35 @@ class DLTensorPythonFunction:
         ...
 
 
+@overload
 def python_function(
     *input: DataNode,
-    function: Callable[..., Union[Any, Sequence[Any]]],
+    function: Callable[..., Union[Any, Tuple[Any, ...], None]],
+    batch_processing: bool = False,
+    output_layouts: Union[Sequence[str], str, None] = None,
+    bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
+    preserve: Optional[bool] = False,
+    seed: Optional[int] = -1,
+    device: Optional[str] = None,
+    name: Optional[str] = None,
+) -> DataNode:
+    """
+    Executes a Python function.
+
+    This operator can be used to execute custom Python code in the DALI pipeline.
+    The function receives the data from DALI as NumPy arrays in case of CPU operators or
+    as CuPy arrays for GPU operators. It is expected to return the results in the same format. For
+    a more universal data format, see :meth:`nvidia.dali.fn.dl_tensor_python_function`.
+    The function should not modify input tensors.
+    """
+    # This is just a stub of the documentation, for details use help() or visit the html docs.
+    ...
+
+
+@overload
+def python_function(
+    *input: DataNode,
+    function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = False,
     num_outputs: int = 1,
     output_layouts: Union[Sequence[str], str, None] = None,
@@ -128,9 +153,39 @@ def python_function(
     ...
 
 
+@overload
 def dl_tensor_python_function(
     *input: DataNode,
-    function: Callable[..., Union[Any, Sequence[Any]]],
+    function: Callable[..., Union[Any, Tuple[Any, ...], None]],
+    batch_processing: bool = True,
+    synchronize_stream: Optional[bool] = True,
+    output_layouts: Union[Sequence[str], str, None] = None,
+    bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
+    preserve: Optional[bool] = False,
+    seed: Optional[int] = -1,
+    device: Optional[str] = None,
+    name: Optional[str] = None,
+) -> DataNode:
+    """
+    Executes a Python function that operates on DLPack tensors.
+
+    The function should not modify input tensors.
+
+    For the GPU operator, it is the user's responsibility to synchronize the device code with DALI.
+    To synchronize the device code with DALI, synchronize DALI's work before the operator call
+    with the ``synchronize_stream`` flag (enabled by default) and ensure that the scheduled device
+    tasks are finished in the operator call. The GPU code can be executed on the CUDA stream used
+    by DALI, which can be obtained by calling the ``current_dali_stream()`` function. In this case,
+    the ``synchronize_stream`` flag can be set to False.
+    """
+    # This is just a stub of the documentation, for details use help() or visit the html docs.
+    ...
+
+
+@overload
+def dl_tensor_python_function(
+    *input: DataNode,
+    function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = True,
     num_outputs: int = 1,
     synchronize_stream: Optional[bool] = True,
