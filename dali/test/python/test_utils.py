@@ -16,14 +16,17 @@ import nvidia.dali as dali
 import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
-import inspect
 import functools
+import inspect
 import os
+import platform
 import random
 import re
 import subprocess
 import sys
 import tempfile
+
+from distutils.version import LooseVersion
 
 
 def get_arch(device_id=0):
@@ -810,3 +813,28 @@ def restrict_platform(min_compute_cap=None, platforms=None):
                 print(f"Omitting test case in unsupported env: `{spec}`")
             return dummy_case
     return decorator
+
+
+def check_numba_compatibility_cpu():
+    import numba
+    from nose import SkipTest
+
+    # At present (as of Numba 0.57) there's a bug in LLVM JIT linker that makes the tests fail
+    # randomly on 64-bit ARM platform.
+    #
+    # Numba bug:
+    # https://github.com/numba/numba/issues/8567
+    #
+    # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
+    # llvmlite directly (if still applicable)
+    if platform.processor().lower() in ('arm64', 'aarch64', 'armv8') \
+       and LooseVersion(numba.__version__) >= LooseVersion('0.57.0'):
+        raise SkipTest()
+
+
+def check_numba_compatibility_gpu():
+    from nose import SkipTest
+    import nvidia.dali.plugin.numba.experimental as ex
+    if (not ex.NumbaFunction._check_minimal_numba_version(False)
+            or not ex.NumbaFunction._check_cuda_compatibility(False)):
+        raise SkipTest()

@@ -23,7 +23,8 @@ from nvidia.dali import types, tensors
 from nvidia.dali.data_node import DataNode
 from nvidia.dali.pipeline import pipeline_def, Pipeline
 
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, check_numba_compatibility_cpu
+from nose.plugins.attrib import attr  # type: ignore
 
 _test_root = Path(get_dali_extra_path())
 
@@ -175,3 +176,72 @@ def test_python_function_pipe():
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
+
+
+@attr('pytorch')
+def test_pytorch_plugin():
+    import nvidia.dali.plugin.pytorch as dali_torch
+    import torch  # type: ignore
+
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4)
+    def torch_pipe():
+        ops_fn = dali_torch.TorchPythonFunction(lambda: torch.full((10, 1), 0), num_outputs=1)
+        zeros = ops_fn()
+        # Do a narrowing assertion, as the actual type depends on the value of num_outputs
+        # parameter and we do not provide overload resolution based on it
+        assert isinstance(zeros, DataNode)
+        # Here we try out a cast, as we don't provide overloads based on num_outputs values,
+        # there is one if we don't touch the num_values.
+        ones, zeros_2 = cast(
+            Sequence[DataNode],
+            dali_torch.fn.torch_python_function(zeros, function=lambda x: (x + torch.full(
+                (10, 1), 1), x), num_outputs=2))
+        twos = dali_torch.fn.torch_python_function(zeros, function=lambda x: x + torch.full(
+            (10, 1), 2))
+        dali_torch.fn.torch_python_function(zeros, function=print, num_outputs=0)
+        expect_data_node(zeros, zeros_2, ones, twos)
+        return zeros + twos - twos, ones
+
+    pipe = torch_pipe()
+    expect_pipeline(pipe)
+    pipe.build()
+    out0, out1 = pipe.run()
+    assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
+    assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 10, 1), 1))
+
+    dali_iter = dali_torch.DALIGenericIterator([torch_pipe()], ["zero", "one"])
+    for _, res in zip(range(1), dali_iter):
+        out_dict = res[0]
+        out0_iter = out_dict["zero"]
+        out1_iter = out_dict["one"]
+        assert isinstance(out0_iter, torch.Tensor)
+        assert isinstance(out1_iter, torch.Tensor)
+
+        assert np.array_equal(out0_iter, torch.full((2, 10, 1), 0))
+        assert np.array_equal(out1_iter, torch.full((2, 10, 1), 1))
+
+
+@attr('numba')
+def test_numba_plugin():
+    import nvidia.dali.plugin.numba as dali_numba
+
+    check_numba_compatibility_cpu()
+
+    def double_sample(out_sample, in_sample):
+        out_sample[:] = 2 * in_sample[:]
+
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4)
+    def numba_pipe():
+        forty_two = fn.external_source(source=lambda x: np.full((2, ), 42, dtype=np.uint8),
+                                       batch=False)
+        out = dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
+                                                        out_types=[types.DALIDataType.UINT8],
+                                                        in_types=[types.DALIDataType.UINT8],
+                                                        outs_ndim=[1], ins_ndim=[1],
+                                                        batch_processing=False)
+        return out
+
+    pipe = numba_pipe()
+    pipe.build()
+    out, = pipe.run()
+    assert np.array_equal(np.array(out.as_tensor()), np.full((2, 2), 84))
