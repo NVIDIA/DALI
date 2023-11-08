@@ -38,23 +38,6 @@ def expect_data_node(*inputs: DataNode) -> None:
 
 def expect_pipeline(pipe: Pipeline) -> None:
     assert isinstance(pipe, Pipeline), f"Expected Pipeline, got {pipe} of type {type(pipe)}"
-<<<<<<< HEAD
-=======
-
-
-@pipeline_def(batch_size=10, device_id=0, num_threads=4)
-def rn50_pipe():
-    enc, label = fn.readers.file(
-        files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader")
-    imgs = fn.decoders.image(enc, device="mixed")
-    rng = fn.random.coin_flip(probability=0.5)
-    resized = fn.random_resized_crop(imgs, size=[224, 224])
-    normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
-                                          output_layout="HWC", crop=(224, 224),
-                                          mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                          std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
-    return normalized, label.gpu()
->>>>>>> de70afef4 (Reorganize plugins to reflect actual module hierarchy)
 
 
 def test_rn50_pipe():
