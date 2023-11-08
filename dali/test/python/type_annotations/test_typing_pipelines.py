@@ -178,7 +178,6 @@ def test_python_function_pipe():
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
 
 
-
 @attr('pytorch')
 def test_pytorch_plugin():
     import nvidia.dali.plugin.pytorch as dali_torch
