@@ -204,7 +204,8 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
 
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
-                    data_node_return=True, all_args_optional=False) -> Signature:
+                    data_node_return=True, all_args_optional=False,
+                    filter_annotations=False) -> Signature:
     """Generate a Signature for given schema.
 
     Parameters
@@ -252,6 +253,9 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
                 return_annotation = Sequence[_DataNode]
     else:
         return_annotation = None
+    if filter_annotations:
+        param_list = [Parameter(name=p.name, kind=p.kind, default=p.default) for p in param_list]
+        return_annotation = Signature.empty
     return Signature(param_list, return_annotation=return_annotation)
 
 
