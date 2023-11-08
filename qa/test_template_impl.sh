@@ -42,7 +42,11 @@ then
     return 0
 fi
 
+# disable sanitizer as in some OSes it hangs git clone
+export OLD_LD_PRELOAD=${LD_PRELOAD}
+export LD_PRELOAD=""
 source $topdir/qa/setup_dali_extra.sh
+export LD_PRELOAD=${OLD_LD_PRELOAD}
 
 target_dir=${target_dir-./}
 cd ${target_dir}
