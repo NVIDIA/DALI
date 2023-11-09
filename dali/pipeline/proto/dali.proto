@@ -92,7 +92,7 @@ message RNGSnapshotCPU {
 }
 
 message RNGSnapshotGPU {
-  repeated string rng = 1;
+  optional bytes rng = 1;
 }
 
 message ReaderStateSnapshot {

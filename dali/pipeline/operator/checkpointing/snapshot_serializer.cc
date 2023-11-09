@@ -87,22 +87,19 @@ std::vector<std::mt19937_64> SnapshotSerializer::Deserialize(const std::string &
 }
 
 std::string SnapshotSerializer::Serialize(const std::vector<curandState> &snapshot) {
-  dali_proto::RNGSnapshotCPU proto_snapshot;
-  for (const auto &rng : snapshot) {
-    auto ptr = reinterpret_cast<const char *>(&rng);
-    proto_snapshot.add_rng(std::string(ptr, sizeof(rng)));
-  }
+  dali_proto::RNGSnapshotGPU proto_snapshot;
+  auto ptr = reinterpret_cast<const char *>(snapshot.data());
+  proto_snapshot.set_rng(ptr, snapshot.size() * sizeof(curandState));
   return proto_snapshot.SerializeAsString();
 }
 
 template<>
 std::vector<curandState> SnapshotSerializer::Deserialize(const std::string &data) {
-  dali_proto::RNGSnapshotCPU proto_snapshot;
+  dali_proto::RNGSnapshotGPU proto_snapshot;
   proto_snapshot.ParseFromString(data);
-  std::vector<curandState> snapshot;
-  for (int i = 0; i < proto_snapshot.rng_size(); i++) {
-    snapshot.push_back(*reinterpret_cast<const curandState *>(proto_snapshot.rng(i).data()));
-  }
+  auto str = proto_snapshot.rng();
+  std::vector<curandState> snapshot(str.size() / sizeof(curandState));
+  memcpy(snapshot.data(), str.data(), str.size());
   return snapshot;
 }
 
