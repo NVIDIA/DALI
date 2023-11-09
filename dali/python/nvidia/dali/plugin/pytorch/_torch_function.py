@@ -34,11 +34,13 @@ class TorchPythonFunction(ops.PythonFunctionBase):
         func = function if device == 'cpu' else \
                lambda *ins: self._torch_stream_wrapper(function, *ins)
         if batch_processing:
-            return ops.PythonFunction.function_wrapper_batch(func, self.num_outputs,
+            return ops.PythonFunction.function_wrapper_batch(self.pipeline,
+                                                             func, self.num_outputs,
                                                              torch.utils.dlpack.from_dlpack,
                                                              torch.utils.dlpack.to_dlpack, *args)
         else:
-            return ops.PythonFunction.function_wrapper_per_sample(func, self.num_outputs,
+            return ops.PythonFunction.function_wrapper_per_sample(self.pipeline,
+                                                                  func, self.num_outputs,
                                                                   torch_dlpack.from_dlpack,
                                                                   torch_dlpack.to_dlpack, *args)
 

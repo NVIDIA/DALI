@@ -16,6 +16,7 @@ import cv2
 import glob
 import numpy
 from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -25,7 +26,6 @@ import tempfile
 import time
 from PIL import Image, ImageEnhance
 from nvidia.dali.ops import _DataNode
-from nvidia.dali.pipeline import Pipeline
 
 from nose_utils import raises
 from test_utils import get_dali_extra_path
@@ -493,6 +493,8 @@ counter = 0
 
 
 def func_with_side_effects(images):
+    # print('Hahahah')
+    print(Pipeline.current().device_id)
     global counter
     counter = counter + 1
     return numpy.full_like(images, counter)
@@ -584,3 +586,27 @@ def test_python_function_conditionals():
     pipe = py_fun_pipeline()
     pipe.build()
     pipe.run()
+
+
+def verify_pipeline(pipeline, input):
+    assert pipeline is Pipeline.current()
+    return input
+
+
+def test_current_pipeline():
+    pipe1 = Pipeline(13, 4, 0)
+    with pipe1:
+        dummy = types.Constant(numpy.ones((1)))
+        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe1, inp))
+        pipe1.set_outputs(output)
+
+    pipe2 = Pipeline(6, 2, 0)
+    with pipe2:
+        dummy = types.Constant(numpy.ones((1)))
+        output = fn.python_function(dummy, function=lambda inp: verify_pipeline(pipe2, inp))
+        pipe2.set_outputs(output)
+
+    pipe1.build()
+    pipe2.build()
+    pipe1.run()
+    pipe2.run()
