@@ -296,11 +296,12 @@ class BaseDecoderConfig:
     pad_last_batch: bool
     random_shuffle: bool
 
+
 @dataclass
 class VideoConfig:
-    sequence_length : int
-    stride : int
-    step : int
+    sequence_length: int
+    stride: int
+    step: int
 
 
 @cartesian_params(
@@ -329,7 +330,7 @@ def test_video_reader(num_epochs, batch_size, iters_into_epoch,
              for f in (10, 50)]
 
     @pipeline_def(batch_size=batch_size, device_id=0,
-                num_threads=4, enable_checkpointing=True)
+                  num_threads=4, enable_checkpointing=True)
     def pipeline():
         images, labels, f, t = fn.readers.video(
             device='gpu',
