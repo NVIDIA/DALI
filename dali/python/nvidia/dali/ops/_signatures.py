@@ -111,7 +111,7 @@ def _arg_type_annotation(arg_dtype):
     return _scalar_element_annotation(arg_dtype)
 
 
-def _get_positional_input_param(schema, idx):
+def _get_positional_input_param(schema, idx, annotation):
     """Get the Parameter representing positional inputs at `idx`. Automatically mark it as
     optional. The DataNode annotation currently hides the possibility of MIS.
 
@@ -122,7 +122,7 @@ def _get_positional_input_param(schema, idx):
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
+    annotation = annotation if idx < schema.MinNumInput() else Optional[annotation]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
                          default=default, annotation=annotation)
@@ -189,8 +189,8 @@ def _get_annotation_return_mis(schema):
             # Here we could utilize the fact, that the tuple has known length, but we can't
             # as DALI operators return a list
             # Also, we don't advertise the actual List type, hence the Sequence.
-            return_annotation = Sequence[_DataNode]
-
+            return_annotation = Union[Sequence[_DataNode], Sequence[Sequence[_DataNode]]]
+    return return_annotation
 
 def _get_positional_input_params(schema, input_annotation=_DataNode):
     """Get the list of positional only inputs to the operator.
@@ -206,7 +206,7 @@ def _get_positional_input_params(schema, input_annotation=_DataNode):
         param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation))
     else:
         for i in range(schema.MaxNumInput()):
-            param_list.append(_get_positional_input_param(schema, i, input_annotation))
+            param_list.append(_get_positional_input_param(schema, i, annotation=input_annotation))
     return param_list
 
 
@@ -332,14 +332,26 @@ def inspect_repr_fixups(signature: str) -> str:
 
 def _gen_fn_signature(schema, schema_name, fn_name):
     """Write the stub of the fn API function with the docstring, for given operator.
+    Include two overloads: with regular inputs and secondary accepting MIS.
+
+    Python resolves the overloads in order of definition, we will match first against the primary
+    overload accepting only the DataNode, and if any of the inputs is a list of such (indicating
+    Multiple Input Sets), we will match the second overload that is more general.
+    The secondary overload has less constrained return type annotation but we have to accept it
+    to not have exponential number of overloads.
     """
     return inspect_repr_fixups(f"""
+@overload
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
 
-def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+
+@overload
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                              input_annotation=_get_annotation_input_mis(),
+                              return_annotation_gen=_get_annotation_return_mis)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
@@ -359,8 +371,18 @@ class {cls_name}:
                                  all_args_optional=True)}:
         ...
 
+    @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
+        \"""{_docs._docstring_generator_call(schema_name)}
+        \"""
+        ...
+
+    @overload
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                                 include_self=True, all_args_optional=True,
+                                 input_annotation=_get_annotation_input_mis(),
+                                 return_annotation_gen=_get_annotation_return_mis)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
