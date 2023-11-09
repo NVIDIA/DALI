@@ -763,6 +763,10 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     MoveToNextShard(current_frame_idx_);
 }
 
+void VideoLoader::Skip() {
+  MoveToNextShard(++current_frame_idx_);
+}
+
 Index VideoLoader::SizeImpl() {
     return static_cast<Index>(frame_starts_.size());
 }
