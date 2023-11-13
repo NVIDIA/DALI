@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,13 +29,13 @@
 
 namespace dali {
 
-class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper> {
+class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
  public:
   explicit COCOReader(const OpSpec& spec);
   void RunImpl(SampleWorkspace &ws) override;
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
 
  private:
   CocoLoader& LoaderImpl() { return dynamic_cast<CocoLoader&>(*loader_); }

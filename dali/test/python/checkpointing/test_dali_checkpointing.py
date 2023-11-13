@@ -196,6 +196,58 @@ def test_file_reader(
     compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
 
 
+# Coco reader is based on file reader and all the strange corner cases are (hopefully) tested there
+@params(
+        (0, 4, 1, 2, True, False, False, False, None),
+        (4, 5, 0, 1, False, True, False, False, 1),
+        (16, 6, 3, 5, False, False, True, False, 2),
+        (6, 7, 2, 3, False, True, False, True, 3),
+)
+def test_coco_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    coco_dir = os.path.join(data_root, 'db', 'coco')
+    coco_images = os.path.join(coco_dir, 'images')
+    coco_annotations = os.path.join(coco_dir, 'instances.json')
+
+    @pipeline_def(batch_size=batch_size, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        images, bounding_boxes, labels, polygons, vertices, image_ids = fn.readers.coco(
+            name="Reader",
+            file_root=coco_images,
+            annotations_file=coco_annotations,
+            pad_last_batch=pad_last_batch,
+            random_shuffle=random_shuffle,
+            shard_id=shard_id,
+            num_shards=num_shards,
+            shuffle_after_epoch=shuffle_after_epoch,
+            stick_to_shard=stick_to_shard,
+            initial_fill=1000,
+            polygon_masks=True,
+            image_ids=True)
+
+        return images, bounding_boxes, labels, polygons, vertices, image_ids
+
+    p = pipeline()
+    p.build()
+
+    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
+    for epoch in range(num_epochs):
+        for i in range(iterations_in_epoch):
+            p.run()
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, batch_size, 1)
+
+
 @attr('pytorch')
 @params(
         (1, 3, 0, 1, True, False, False),
