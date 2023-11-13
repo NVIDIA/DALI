@@ -493,8 +493,6 @@ counter = 0
 
 
 def func_with_side_effects(images):
-    # print('Hahahah')
-    print(Pipeline.current().device_id)
     global counter
     counter = counter + 1
     return numpy.full_like(images, counter)
