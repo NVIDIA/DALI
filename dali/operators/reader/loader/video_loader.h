@@ -224,6 +224,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
 
     for (size_t i = 0; i < file_info_.size(); ++i) {
       const auto& file = get_or_open_file(file_info_[i].video_file);
+      // cannot open, skip
+      if (file.empty()) continue;
       const auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
       int frame_count = file.frame_count_;
 
@@ -310,8 +312,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
                  "dataset, check the length of the available videos and the requested sequence "
                  "length.");
 
-
-    const auto& file = get_or_open_file(file_info_[0].video_file);
+    // get first valid video
+    const auto& file = get_or_open_file(file_info_[frame_starts_[0].filename_idx].video_file);
+    DALI_ENFORCE(!file.empty(), "Cannot open video file");
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
 
     vid_decoder_ = std::make_unique<NvDecoder>(device_id_,
