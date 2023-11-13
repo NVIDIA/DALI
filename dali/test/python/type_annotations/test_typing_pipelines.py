@@ -109,7 +109,7 @@ def test_cond_pipe():
             files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
             name="FileReader")
         imgs = fn.decoders.image(enc, device="mixed")
-        resized = fn.resize(imgs, size=[224, 224], interp_type=types.DALIInterpType.INTERP_LINEAR)
+        resized = fn.crop(imgs, crop=[224, 224])
         if fn.random.uniform(range=[0, 1]) < 0.25:
             out = fn.rotate(resized, angle=fn.random.uniform(range=[30, 60]))
         else:
