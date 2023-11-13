@@ -176,20 +176,25 @@ def _get_annotation_return_mis(schema):
     """
     if schema.HasOutputFn():
         # Dynamic number of outputs, not known at "compile time"
-        return_annotation = Union[_DataNode, Sequence[_DataNode], Sequence[Sequence[_DataNode]],
-                                  None]
+        # We can return single or multiple outputs in regular case (same as primary overload),
+        # a list of single outputs or a list of multiple outputs for MIS or None.
+        return_annotation = Union[_DataNode, Sequence[_DataNode], List[_DataNode],
+                                  List[Sequence[_DataNode]], None]
     else:
         # Call it with a dummy spec, as we don't have Output function
         num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
         if num_regular_output == 0:
             return_annotation = None
         elif num_regular_output == 1:
-            return_annotation = Union[_DataNode, Sequence[_DataNode]]
+            # This allows for type hints with single-return operators to work correctly with MIS
+            # as the return type matches the overload for their input type.
+            return_annotation = Union[_DataNode, List[_DataNode]]
         else:
             # Here we could utilize the fact, that the tuple has known length, but we can't
             # as DALI operators return a list
-            # Also, we don't advertise the actual List type, hence the Sequence.
-            return_annotation = Union[Sequence[_DataNode], Sequence[Sequence[_DataNode]]]
+            # Also, we don't advertise the actual List type, hence the Sequence, but we say
+            # that the outermost return type of MIS is a List.
+            return_annotation = Union[Sequence[_DataNode], List[Sequence[_DataNode]]]
     return return_annotation
 
 def _get_positional_input_params(schema, input_annotation=_DataNode):

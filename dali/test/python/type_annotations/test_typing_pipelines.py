@@ -66,6 +66,48 @@ def test_rn50_pipe():
     assert isinstance(labels, tensors.TensorListGPU)
 
 
+def test_rn50_pipe_mis():
+
+    @pipeline_def(batch_size=10, device_id=0, num_threads=4)
+    def rn50_pipe():
+        enc_0, label_0 = fn.readers.file(
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            name="FileReader_0")
+        enc_1, label_1 = fn.readers.file(
+            files=[str(_test_root / "db/single/jpeg/113/snail-4345504_1280.jpg")],
+            name="FileReader_1")
+        imgs = fn.decoders.image([enc_0, enc_1], device="mixed")
+        # Such checks are needed if we want mypy to allow unpacking of the return values from
+        # MIS invocation. The overload in question returns `DataNode | [DataNode]` and the mentioned
+        # operation is not available for pure DataNode (note that subscript is available, but it
+        # is actual DALI operation).
+        assert isinstance(imgs, list)
+        rng = fn.random.coin_flip(probability=0.5)
+
+        resized = fn.random_resized_crop(imgs, size=[224, 224])
+        normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
+                                              output_layout="HWC", crop=(224, 224),
+                                              mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                              std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        assert isinstance(resized, list)
+        assert isinstance(normalized, list)
+        normalized_0, normalized_1 = normalized
+        label = (label_0 + label_1) * 0.5
+        expect_data_node(enc_0, enc_1, label, imgs[0], imgs[1], rng, resized[0], resized[1],
+                         normalized_0, normalized_1, label.gpu())
+        return normalized_0, normalized_1, label.gpu()
+
+    pipe = rn50_pipe()
+    expect_pipeline(pipe)
+    pipe.build()
+    imgs_0, imgs_1, labels = pipe.run()
+    for imgs in [imgs_0, imgs_1]:
+        assert isinstance(imgs, tensors.TensorListGPU)
+        assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
+    assert isinstance(labels, tensors.TensorListGPU)
+
+
+
 def test_rn50_ops_pipe():
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
