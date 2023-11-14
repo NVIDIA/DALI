@@ -55,8 +55,8 @@ class RNGBase : public Operator<Backend> {
       rng_ = rng;
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
-      const auto &states_cpu = cpt.CheckpointState<std::shared_ptr<curandState>>();
-      backend_data_.randomizer_.set_states(states_cpu.get());
+      const auto &states_gpu = cpt.CheckpointState<std::shared_ptr<curandState>>();
+      backend_data_.randomizer_.set_states(states_gpu.get());
     }
   }
 
