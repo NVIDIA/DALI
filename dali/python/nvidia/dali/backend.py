@@ -29,6 +29,12 @@ import sys
 default_plugins = []
 
 
+TensorCPU.__module__ = "nvidia.dali.tensors"
+TensorGPU.__module__ = "nvidia.dali.tensors"
+TensorListCPU.__module__ = "nvidia.dali.tensors"
+TensorListGPU.__module__ = "nvidia.dali.tensors"
+
+
 def deprecation_warning(what):
     # show only this warning
     with warnings.catch_warnings():
