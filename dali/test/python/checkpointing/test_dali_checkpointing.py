@@ -233,7 +233,7 @@ def test_coco_reader(
         num_shards=num_shards,
         shuffle_after_epoch=shuffle_after_epoch,
         stick_to_shard=stick_to_shard,
-        initial_fill=1000,
+        initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
 
