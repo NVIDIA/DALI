@@ -58,7 +58,7 @@ struct curand_states {
     return states;
   }
 
-  DALI_HOST inline void set(const curand_states &other) const {
+  DALI_HOST inline void set(const curand_states &other) {
     cudaMemcpy(states_, other.states_, sizeof(curandState) * len_, cudaMemcpyDeviceToDevice);
   }
 
