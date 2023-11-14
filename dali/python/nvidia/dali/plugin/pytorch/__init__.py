@@ -12,16 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+import sys
+
+from typing import Union, Optional
+from typing import Any, Dict, List
+
+from nvidia.dali import internal as _internal
+from nvidia.dali import ops
 from nvidia.dali import types
+from nvidia.dali.backend import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU
+from nvidia.dali.pipeline import Pipeline
+
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+
 import torch
-import torch.utils.dlpack as torch_dlpack
+import torch.utils.dlpack as torch_dlpack  # noqa: F401
 import ctypes
 import numpy as np
+
+from . import fn  # noqa: F401
+
+from nvidia.dali.plugin.pytorch._torch_function import TorchPythonFunction as TorchPythonFunction
+
+_internal._adjust_operator_module(TorchPythonFunction, sys.modules[__name__], [])
+
+ops._wrap_op(TorchPythonFunction, "fn", __name__)
+
 
 to_torch_type = {
     types.DALIDataType.FLOAT:   torch.float32,
@@ -36,7 +53,11 @@ to_torch_type = {
 }
 
 
-def feed_ndarray(dali_tensor, arr, cuda_stream=None):
+def feed_ndarray(
+    dali_tensor: Union[TensorCPU, TensorGPU, TensorListCPU, TensorListGPU],
+    arr: torch.Tensor,
+    cuda_stream: Union[torch.cuda.Stream, Any, None] = None,
+) -> torch.Tensor:
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
@@ -161,17 +182,19 @@ class DALIGenericIterator(_DaliBaseIterator):
     next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 output_map,
-                 size=-1,
-                 reader_name=None,
-                 auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
+    def __init__(
+        self,
+        pipelines: Union[List[Pipeline], Pipeline],
+        output_map: List[str],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        fill_last_batch: Optional[bool] = None,
+        dynamic_shape: Optional[bool] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+    ) -> None:
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
@@ -200,7 +223,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
                        "greater than the shard size."
 
-    def __next__(self):
+    def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True
         if self._first_batch is not None:
             batch = self._first_batch
@@ -393,16 +416,18 @@ class DALIClassificationIterator(DALIGenericIterator):
     next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 size=-1,
-                 reader_name=None,
-                 auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
+    def __init__(
+        self,
+        pipelines: Union[List[Pipeline], Pipeline],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        fill_last_batch: Optional[bool] = None,
+        dynamic_shape: Optional[bool] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+    ) -> None:
         super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
                                                          size,
                                                          reader_name=reader_name,
@@ -516,18 +541,20 @@ class DALIRaggedIterator(_DaliBaseIterator):
     last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 output_map,
-                 size=-1,
-                 reader_name=None,
-                 output_types=None,
-                 auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
+    def __init__(
+        self,
+        pipelines: Union[List[Pipeline], Pipeline],
+        output_map: List[str],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        output_types: Optional[List[str]] = None,
+        auto_reset: Union[str, bool, None] = False,
+        fill_last_batch: Optional[bool] = None,
+        dynamic_shape: Optional[bool] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+    ) -> None:
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_tags = {
@@ -566,7 +593,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
                        "greater than the shard size."
 
-    def __next__(self):
+    def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True
         if self._first_batch is not None:
             batch = self._first_batch
@@ -705,56 +732,6 @@ class DALIRaggedIterator(_DaliBaseIterator):
 
         return data_batches
 
-    DENSE_TAG = "dense"
-    SPARSE_LIST_TAG = "sparse_list"
-    SPARSE_COO_TAG = "sparse_coo"
-
-
-class TorchPythonFunction(ops.PythonFunctionBase):
-    schema_name = "TorchPythonFunction"
-    _impl_module = "nvidia.dali.plugin.pytorch"
-    ops.register_cpu_op('TorchPythonFunction')
-    ops.register_gpu_op('TorchPythonFunction')
-
-    def _torch_stream_wrapper(self, function, *ins):
-        with torch.cuda.stream(self.stream):
-            out = function(*ins)
-        self.stream.synchronize()
-        return out
-
-    def torch_wrapper(self, batch_processing, function, device, *args):
-        func = function if device == 'cpu' else \
-               lambda *ins: self._torch_stream_wrapper(function, *ins)
-        if batch_processing:
-            return ops.PythonFunction.function_wrapper_batch(func,
-                                                             self.num_outputs,
-                                                             torch.utils.dlpack.from_dlpack,
-                                                             torch.utils.dlpack.to_dlpack,
-                                                             *args)
-        else:
-            return ops.PythonFunction.function_wrapper_per_sample(func,
-                                                                  self.num_outputs,
-                                                                  torch_dlpack.from_dlpack,
-                                                                  torch_dlpack.to_dlpack,
-                                                                  *args)
-
-    def __call__(self, *inputs, **kwargs):
-        pipeline = Pipeline.current()
-        if pipeline is None:
-            Pipeline._raise_no_current_pipeline("TorchPythonFunction")
-        if self.stream is None:
-            self.stream = torch.cuda.Stream(device=pipeline.device_id)
-        return super(TorchPythonFunction, self).__call__(*inputs, **kwargs)
-
-    def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
-        self.stream = None
-        super(TorchPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                                  function=lambda *ins:
-                                                  self.torch_wrapper(batch_processing,
-                                                                     function, device,
-                                                                     *ins),
-                                                  num_outputs=num_outputs, device=device,
-                                                  batch_processing=batch_processing, **kwargs)
-
-
-ops._wrap_op(TorchPythonFunction, "fn", __name__)
+    DENSE_TAG: str = "dense"
+    SPARSE_LIST_TAG: str = "sparse_list"
+    SPARSE_COO_TAG: str = "sparse_coo"

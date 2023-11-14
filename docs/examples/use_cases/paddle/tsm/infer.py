@@ -17,8 +17,8 @@ import argparse
 import json
 import os
 
-from paddle import fluid
 import paddle
+import paddle.static as static
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
@@ -50,10 +50,9 @@ def create_video_pipe(video_files, sequence_length=8, target_size=224,stride=30)
 
 
 def build(seg_num=8, target_size=224):
-    image_shape = [seg_num, 3, target_size, target_size]
+    image_shape = [1, seg_num, 3, target_size, target_size]
 
-    image = fluid.layers.data(
-        name='image', shape=image_shape, dtype='float32')
+    image = static.data(name='image', shape=image_shape, dtype='float32')
 
     model = TSM()
     return model(image)
@@ -69,16 +68,16 @@ def main():
     video_loader = DALIGenericIterator(
         pipeline, ['image'], reader_name="Reader", dynamic_shape=True)
 
-    exe = fluid.Executor(fluid.CUDAPlace(0))
-    startup_prog = fluid.Program()
-    eval_prog = fluid.Program()
+    exe = static.Executor(paddle.CUDAPlace(0))
+    startup_prog = static.Program()
+    eval_prog = static.Program()
 
-    with fluid.program_guard(eval_prog, startup_prog):
-        with fluid.unique_name.guard():
+    with static.program_guard(eval_prog, startup_prog):
+        with paddle.utils.unique_name.guard():
             fetch_list = build(seg_num, target_size)
 
     exe.run(startup_prog)
-    compiled_eval_prog = fluid.CompiledProgram(eval_prog)
+    compiled_eval_prog = static.CompiledProgram(eval_prog)
 
     load_weights(exe, eval_prog, PRETRAIN_WEIGHTS)
 

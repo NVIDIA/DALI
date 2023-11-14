@@ -15,6 +15,7 @@ test_py_with_framework() {
                             test_external_source_impl_utils.py); do
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
+    ${python_new_invoke_test} -A 'numba' -s type_annotations
 }
 
 test_py() {
@@ -33,12 +34,13 @@ test_autograph() {
 }
 
 test_type_annotations() {
-    ${python_new_invoke_test} -s type_annotations
+    ${python_new_invoke_test} -A '!pytorch,!numba' -s type_annotations
 }
 
 test_pytorch() {
     ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
     ${python_new_invoke_test} -A '!slow,pytorch' -s checkpointing
+    ${python_new_invoke_test} -A 'pytorch' -s type_annotations
 }
 
 test_checkpointing() {

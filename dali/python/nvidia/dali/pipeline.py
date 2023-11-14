@@ -18,6 +18,7 @@ from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
 from nvidia.dali import internal
+from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
@@ -108,14 +109,30 @@ Parameters
     unrestricted number of streams is assumed).
 `default_cuda_stream_priority` : int, optional, default = 0
     CUDA stream priority used by DALI. See `cudaStreamCreateWithPriority` in CUDA documentation
-`enable_memory_stats`: bool, optional, default = 1
+`enable_memory_stats`: bool, optional, default = False
     If DALI should print operator output buffer statistics.
-    Usefull for `bytes_per_sample_hint` operator parameter.
+    Useful for `bytes_per_sample_hint` operator parameter.
 `enable_checkpointing`: bool, optional, default = False
     If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
     method returns serialized state of the pipeline. The same pipeline can be later rebuilt
     with the serialized state passed as the `checkpoint` parameter to resume running
-    from the saved iteration.
+    from the saved iteration::
+
+        @pipeline_def(..., enable_checkpointing=True)
+        def pipeline():
+            ...
+
+        p = pipeline()
+        p.build()
+        for _ in range(iters):
+            output = p.run()
+            ...
+        checkpoint = p.checkpoint()
+
+        ...
+
+        p_restored = pipeline(checkpoint=checkpoint)
+        p_restored.build()
 
     .. warning::
         This is an experimental feature. The API may change without notice. Checkpoints
@@ -124,7 +141,7 @@ Parameters
 
 `checkpoint`: str, optional, default = None
     Serialized checkpoint, received from ``checkpoint`` method.
-    When pipeline is built, it's state is restored from the `checkpoint` and the pipeline
+    When pipeline is built, its state is restored from the `checkpoint` and the pipeline
     resumes execution from the saved iteration.
 
     .. warning::
@@ -1094,7 +1111,8 @@ Parameters
             return self._cpu_queue_size <= 1 and self._gpu_queue_size <= 1
         return self.prefetch_queue_depth <= 1
 
-    def run(self, **pipeline_inputs):
+    def run(self,
+            **pipeline_inputs) -> Tuple[Union[tensors.TensorListCPU, tensors.TensorListGPU], ...]:
         """
         Run the pipeline and return the result.
 
@@ -1138,7 +1156,7 @@ Parameters
 
         Returns
         -------
-            A list of `TensorList` objects for respective pipeline outputs
+            A tuple of `TensorList` objects for respective pipeline outputs
         """
         if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
             raise RuntimeError(f"""
@@ -1402,17 +1420,16 @@ Parameters
     def checkpoint(self, filename=None):
         """Returns the pipeline's state as a serialized Protobuf string.
 
-        Additionally, if, `filename` is specified, the serialized checkpoint will be
+        Additionally, if `filename` is specified, the serialized checkpoint will be
         written to the specified file. The file contents will be overwritten.
 
-        The same pipeline can be rebuilt with the saved checkpoint passed as a `checkpoint`
-        parameter to resume execution from the saved epoch.
+        The same pipeline can be later rebuilt with the saved checkpoint passed as a `checkpoint`
+        parameter to resume execution from the saved iteration.
 
         .. warning::
             This is an experimental feature. The API may change without notice. Checkpoints
             created with this DALI version may not be compatible with the future releases.
-            Currently, some operators do not support checkpointing. The state of the pipeline
-            can be saved at the beginning of an epoch only.
+            Currently, some operators do not support checkpointing.
 
         Parameters
         ----------
