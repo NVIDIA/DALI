@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,16 @@ namespace dali {
 struct curand_states {
   curand_states(uint64_t seed, size_t len);
 
+  inline explicit curand_states(size_t len) : len_(len) {
+    states_mem_ = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(len);
+    states_ = states_mem_.get();
+  }
+
   DALI_HOST_DEV inline curandState* states() {
+    return states_;
+  }
+
+  DALI_HOST_DEV inline const curandState* states() const {
     return states_;
   }
 
@@ -42,15 +51,15 @@ struct curand_states {
     return len_;
   }
 
-  DALI_HOST inline std::shared_ptr<curandState> get_states(AccessOrder order) const {
-    auto states = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(len_);
-    cudaMemcpyAsync(states.get(), states_, sizeof(curandState) * len_,
+  DALI_HOST inline curand_states copy(AccessOrder order) const {
+    curand_states states(len_);
+    cudaMemcpyAsync(states.states_, states_, sizeof(curandState) * len_,
                     cudaMemcpyDeviceToDevice, order.stream());
     return states;
   }
 
-  DALI_HOST inline void set_states(const curandState *state) const {
-    cudaMemcpy(states_, state, sizeof(curandState) * len_, cudaMemcpyDeviceToDevice);
+  DALI_HOST inline void set(const curand_states &other) const {
+    cudaMemcpy(states_, other.states_, sizeof(curandState) * len_, cudaMemcpyDeviceToDevice);
   }
 
  private:
