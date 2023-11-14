@@ -29,10 +29,10 @@ import sys
 default_plugins = []
 
 
-TensorCPU.__module__ = "nvidia.dali.tensors"
-TensorGPU.__module__ = "nvidia.dali.tensors"
-TensorListCPU.__module__ = "nvidia.dali.tensors"
-TensorListGPU.__module__ = "nvidia.dali.tensors"
+TensorCPU.__module__ = "nvidia.dali.tensors"  # noqa: F405
+TensorGPU.__module__ = "nvidia.dali.tensors"  # noqa: F405
+TensorListCPU.__module__ = "nvidia.dali.tensors"  # noqa: F405
+TensorListGPU.__module__ = "nvidia.dali.tensors"  # noqa: F405
 
 
 def deprecation_warning(what):
