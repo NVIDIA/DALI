@@ -75,6 +75,7 @@ _enum_mapping = {
     types.DALIInterpType: _DALIInterpType
 }
 
+
 _MAX_INPUT_SPELLED_OUT = 10
 
 
@@ -131,7 +132,7 @@ def _get_positional_input_param(schema, idx, annotation):
                          annotation=annotation)
 
 
-def _get_annotation_input_regular():
+def _get_annotation_input_regular(schema):
     """Return the annotation for regular input parameter in DALI, used for the primary overload.
     A function is used as a global variable can be confused with type alias.
     TODO(klecki): Extend with TensorLike.
@@ -162,17 +163,20 @@ def _get_annotation_return_regular(schema):
     return return_annotation
 
 
-def _get_annotation_input_mis():
+def _get_annotation_input_mis(schema):
     """Return the annotation for multiple input sets, used for the secondary operator overload.
     A function is used as a global variable can be confused with type alias.
+    Handles special case for operators with one input.
     """
+    if schema.MinNumInput() == 1 and schema.MaxNumInput() == 1:
+        return List[_DataNode]
     return Union[_DataNode, List[_DataNode]]
 
 
 def _get_annotation_return_mis(schema):
     """Annotation for function that handles Multiple input sets overload.
     Note that DALI does a lot of flattening, so single-element sequences are transformed to
-    just the element.
+    just that element.
     """
     if schema.HasOutputFn():
         # Dynamic number of outputs, not known at "compile time"
@@ -197,21 +201,23 @@ def _get_annotation_return_mis(schema):
             return_annotation = Union[Sequence[_DataNode], List[Sequence[_DataNode]]]
     return return_annotation
 
-def _get_positional_input_params(schema, input_annotation=_DataNode):
+
+
+def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _DataNode):
     """Get the list of positional only inputs to the operator.
 
     Parameters
     ----------
-    input_annotation: type annotation
+    input_annotation_gen: Callable[[OpSchema], type annotation]
         Input type annotation, used to indicate regular inputs or multiple input set overloads.
         See _get_annotation_* functions.
     """
     param_list = []
     if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation))
+        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema)))
     else:
         for i in range(schema.MaxNumInput()):
-            param_list.append(_get_positional_input_param(schema, i, annotation=input_annotation))
+            param_list.append(_get_positional_input_param(schema, i, annotation=input_annotation_gen(schema)))
     return param_list
 
 
@@ -277,7 +283,7 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
                     data_node_return=True, all_args_optional=False,
-                    input_annotation=_get_annotation_input_regular(),
+                    input_annotation_gen=_get_annotation_input_regular,
                     return_annotation_gen=_get_annotation_return_regular,
                     filter_annotations=False) -> Signature:
     """Generate a Signature for given schema.
@@ -298,9 +304,9 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
-    input_annotation : type annotation
-        The annotation value to be used for type annotation of inputs
-    return_annotation_gen : Callable[OpSchema, type annotation]
+    input_annotation_gen : Callable[[OpSchema], type annotation]
+        Callback generating the annotation to be used for type annotation of inputs.
+    return_annotation_gen : Callable[[OpSchema], type annotation]
         Callback generating the return type annotation for given schema
     """
     param_list = []
@@ -308,7 +314,7 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
         param_list.append(Parameter("self", kind=Parameter.POSITIONAL_ONLY))
 
     if include_inputs:
-        param_list.extend(_get_positional_input_params(schema, input_annotation=input_annotation))
+        param_list.extend(_get_positional_input_params(schema, input_annotation_gen=input_annotation_gen))
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
@@ -355,7 +361,7 @@ def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}
 
 @overload
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
-                              input_annotation=_get_annotation_input_mis(),
+                              input_annotation_gen=_get_annotation_input_mis,
                               return_annotation_gen=_get_annotation_return_mis)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
@@ -386,7 +392,7 @@ class {cls_name}:
     @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True,
-                                 input_annotation=_get_annotation_input_mis(),
+                                 input_annotation_gen=_get_annotation_input_mis,
                                  return_annotation_gen=_get_annotation_return_mis)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
