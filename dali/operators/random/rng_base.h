@@ -70,7 +70,7 @@ class RNGBase : public Operator<Backend> {
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
       const auto &states_gpu = cpt.CheckpointState<curand_states>();
-      size_t n = backend_data_.randomizer_.length();
+      size_t n = states_gpu.length();
       std::vector<curandState> states(n);
       cudaMemcpy(states.data(), states_gpu.states(), n * sizeof(curandState),
                  cudaMemcpyDeviceToHost);
