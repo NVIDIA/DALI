@@ -599,6 +599,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**
    * @brief Check whether this operator calculates number of outputs statically
+   * @return false if static, true if dynamic
    */
   DLL_PUBLIC bool HasOutputFn() const;
 
