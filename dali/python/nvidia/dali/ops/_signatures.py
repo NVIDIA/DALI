@@ -350,6 +350,11 @@ def _gen_fn_signature(schema, schema_name, fn_name):
     Multiple Input Sets), we will match the second overload that is more general.
     The secondary overload has less constrained return type annotation but we have to accept it
     to not have exponential number of overloads.
+    There is a special case, where the secondary overload with exactly one input accepts only
+    List[DataNode] (see the `_get_annotation_input_mis`). Passing a variable recognized as
+    Union[DataNode, List[DataNode]] to such overload set still resolves correctly under mypy and
+    pylance, resulting again in the Union[DataNode, List[DataNode]] return type (for single output),
+    keeping us in the MIS realm in the simple case.
     """
     return inspect_repr_fixups(f"""
 @overload

@@ -69,7 +69,7 @@ def test_rn50_pipe():
 def test_rn50_pipe_mis():
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
-    def rn50_pipe():
+    def rn50_pipe() -> Any:
         enc_0, label_0 = fn.readers.file(
             files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
             name="FileReader_0")
@@ -85,6 +85,9 @@ def test_rn50_pipe_mis():
         rng = fn.random.coin_flip(probability=0.5)
 
         resized = fn.random_resized_crop(imgs, size=[224, 224])
+        # note that mypy type-checks when we pass resized, which is of type
+        # DataNode | List[DataNode] into the 1-input CMN, that expects either a DataNode in primary
+        # overload, or List[DataNode] in the secondary one.
         normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
                                               output_layout="HWC", crop=(224, 224),
                                               mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
