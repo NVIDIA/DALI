@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@
 
 namespace dali {
 
-class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
  public:
   explicit IndexedFileLoader(const OpSpec& spec)
     : Loader(spec),
@@ -172,6 +172,10 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     return;
   }
 
+  void Skip() override {
+    MoveToNextShard(current_index_++);
+  }
+
   ~IndexedFileLoader() override {
     current_file_.reset();
   }
@@ -213,7 +217,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     int64 seek_pos, size;
     size_t file_index;
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
