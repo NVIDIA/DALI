@@ -69,7 +69,7 @@ def test_rn50_pipe():
 def test_rn50_pipe_mis():
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
-    def rn50_pipe() -> Any:
+    def rn50_pipe():
         enc_0, label_0 = fn.readers.file(
             files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
             name="FileReader_0")
@@ -108,7 +108,6 @@ def test_rn50_pipe_mis():
         assert isinstance(imgs, tensors.TensorListGPU)
         assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
-
 
 
 def test_rn50_ops_pipe():

@@ -75,7 +75,6 @@ _enum_mapping = {
     types.DALIInterpType: _DALIInterpType
 }
 
-
 _MAX_INPUT_SPELLED_OUT = 10
 
 
@@ -140,7 +139,6 @@ def _get_annotation_input_regular(schema):
     return _DataNode
 
 
-
 def _get_annotation_return_regular(schema):
     """Produce the return annotation for DALI operator suitable for primary, non-MIS overload.
     Note the flattening, single output is not packed in Sequence.
@@ -202,7 +200,6 @@ def _get_annotation_return_mis(schema):
     return return_annotation
 
 
-
 def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _DataNode):
     """Get the list of positional only inputs to the operator.
 
@@ -214,10 +211,12 @@ def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _Data
     """
     param_list = []
     if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema)))
+        param_list.append(
+            Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema)))
     else:
         for i in range(schema.MaxNumInput()):
-            param_list.append(_get_positional_input_param(schema, i, annotation=input_annotation_gen(schema)))
+            param_list.append(
+                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema)))
     return param_list
 
 
@@ -314,7 +313,8 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
         param_list.append(Parameter("self", kind=Parameter.POSITIONAL_ONLY))
 
     if include_inputs:
-        param_list.extend(_get_positional_input_params(schema, input_annotation_gen=input_annotation_gen))
+        param_list.extend(
+            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen))
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
