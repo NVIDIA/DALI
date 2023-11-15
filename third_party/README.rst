@@ -23,6 +23,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |rapidjson|_    | |rapidjsonver|_     | |rapidjsonlic|_     |
 +-----------------+---------------------+---------------------+
+| |black|_        | |blackver|_         | |blacklic|_         |
++-----------------+---------------------+---------------------+
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
@@ -86,3 +88,10 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/f9d53419e912910fd8fa57d5705fa41425428c35
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
+
+.. |black| replace:: black
+.. _black: https://github.com/psf/black
+.. |blackver| replace:: 23.11.0
+.. _blackver: https://pypi.org/project/black/23.11.0/
+.. |blacklic| replace:: MIT License
+.. _blacklic: https://github.com/psf/black/blob/main/LICENSE

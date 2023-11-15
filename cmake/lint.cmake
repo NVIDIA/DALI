@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,8 +31,15 @@ set(AUTOGRAPH_LINT_PATHS
         ${PROJECT_SOURCE_DIR}/dali/test/python/autograph/
 )
 
+add_custom_target(lint-python-black
+        COMMAND
+          black --check --config ${PROJECT_SOURCE_DIR}/pyproject.toml ${PYTHON_LINT_PATHS} ${AUTOGRAPH_LINT_PATHS}
+        COMMENT
+          "Performing black Python formatting check"
+)
 
-add_custom_target(lint-python
+
+add_custom_target(lint-python-flake
         COMMAND
           flake8 --config=${PROJECT_SOURCE_DIR}/.flake8 ${PYTHON_LINT_PATHS}
         COMMAND
@@ -40,6 +47,10 @@ add_custom_target(lint-python
         COMMENT
           "Performing Python linter check"
 )
+add_dependencies(lint-python-flake lint-python-black)
+
+add_custom_target(lint-python)
+add_dependencies(lint-python lint-python-flake)
 
 add_custom_target(lint)
-add_dependencies(lint lint-cpp lint-python)
+add_dependencies(lint lint-cpp)

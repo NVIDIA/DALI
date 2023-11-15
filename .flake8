@@ -5,5 +5,7 @@ doctests = False
 max-doc-length = 120
 max-line-length = 100
 statistics = True
+# E203 - whitespace before ':' - PEP8 non-compliant warning in slicing expressions
+extend-ignore = E203
 # Filter out the AutoGraph from regular linter - it has a separate .flake8.ag config.
 exclude = *nvidia/dali/_autograph/*,*test/python/autograph/*
