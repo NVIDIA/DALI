@@ -161,7 +161,16 @@ def test_pad():
                 ((25, 100, 3), (0,), None, None, (25,)),
                 ((200, 400, 3), (0, 1), None, (4, 16), (1, 200)),
             ]:
-                yield check_pad, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
+                yield (
+                    check_pad,
+                    device,
+                    batch_size,
+                    input_max_shape,
+                    axes,
+                    axis_names,
+                    align,
+                    shape_arg,
+                )
 
 
 def test_pad_error():

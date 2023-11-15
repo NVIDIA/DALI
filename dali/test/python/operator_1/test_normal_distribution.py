@@ -172,7 +172,20 @@ def test_normal_distribution():
                     else:
                         shape_arg = shape
                         shape_gen_f = None
-                    yield check_normal_distribution, device, dtype, shape_arg, use_shape_like_in, variable_shape, mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size
+                    yield (
+                        check_normal_distribution,
+                        device,
+                        dtype,
+                        shape_arg,
+                        use_shape_like_in,
+                        variable_shape,
+                        mean,
+                        stddev,
+                        variable_dist_params,
+                        shape_gen_f,
+                        niter,
+                        batch_size,
+                    )
 
 
 def test_normal_distribution_scalar_and_one_elem():
@@ -183,7 +196,20 @@ def test_normal_distribution_scalar_and_one_elem():
     for device in ("cpu", "gpu"):
         for dtype in [types.FLOAT, types.INT16]:
             for shape in [None, (), (1,)]:
-                yield check_normal_distribution, device, dtype, shape, False, False, mean, stddev, False, None, niter, batch_size
+                yield (
+                    check_normal_distribution,
+                    device,
+                    dtype,
+                    shape,
+                    False,
+                    False,
+                    mean,
+                    stddev,
+                    False,
+                    None,
+                    niter,
+                    batch_size,
+                )
 
 
 def test_normal_distribution_empty_shapes():
@@ -197,6 +223,17 @@ def test_normal_distribution_empty_shapes():
         yield check_normal_distribution, device, dtype, (
             0,
         ), False, False, mean, stddev, False, None, niter, batch_size
-        yield check_normal_distribution, device, dtype, None, False, False, mean, stddev, False, lambda: random_shape_or_empty(
-            max_shape
-        ), niter, batch_size
+        yield (
+            check_normal_distribution,
+            device,
+            dtype,
+            None,
+            False,
+            False,
+            mean,
+            stddev,
+            False,
+            lambda: random_shape_or_empty(max_shape),
+            niter,
+            batch_size,
+        )

@@ -745,7 +745,16 @@ def test_slice_with_out_of_bounds_policy_support():
             for batch_size in [1, 3]:
                 for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
                     for fill_values in [None, (0x76, 0xB0, 0x00)]:
-                        yield check_slice_with_out_of_bounds_policy_support, device, batch_size, in_shape, out_of_bounds_policy, fill_values, normalized_anchor, normalized_shape
+                        yield (
+                            check_slice_with_out_of_bounds_policy_support,
+                            device,
+                            batch_size,
+                            in_shape,
+                            out_of_bounds_policy,
+                            fill_values,
+                            normalized_anchor,
+                            normalized_shape,
+                        )
 
 
 def check_slice_with_out_of_bounds_error(

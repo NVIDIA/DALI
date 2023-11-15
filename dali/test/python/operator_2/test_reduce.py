@@ -351,7 +351,15 @@ def test_sum_with_output_type():
                 keep_dims = np.random.choice([False, True])
                 for output_type in type_map[1]:
                     layout = rng.choice([None, "RGB"])
-                    yield run_reduce, keep_dims, reduction_name, batch_gen, input_type, output_type, layout
+                    yield (
+                        run_reduce,
+                        keep_dims,
+                        reduction_name,
+                        batch_gen,
+                        input_type,
+                        output_type,
+                        layout,
+                    )
 
 
 def run_reduce_with_mean_input(
@@ -417,7 +425,15 @@ def test_reduce_with_mean_input():
             for ndim, batch_gen in enumerate(batch_gens, start=1):
                 type_id = np.random.choice(types)
                 layout = rng.choice([None, "CDE"[:ndim]])
-                yield run_reduce_with_mean_input, keep_dims, reduction_name, batch_gen, type_id, None, layout
+                yield (
+                    run_reduce_with_mean_input,
+                    keep_dims,
+                    reduction_name,
+                    batch_gen,
+                    type_id,
+                    None,
+                    layout,
+                )
 
 
 def run_and_compare_with_layout(batch_gen, pipe):
@@ -492,9 +508,25 @@ def test_reduce_axis_names():
 
     for axes, axis_names in axes_and_names:
         for reduction in reductions:
-            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, axis_names, batch_fn
+            yield (
+                run_reduce_with_layout,
+                batch_size,
+                get_batch,
+                reduction,
+                axes,
+                axis_names,
+                batch_fn,
+            )
         for reduction in reductions_with_mean_input:
-            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, axes, axis_names, batch_fn
+            yield (
+                run_reduce_with_layout_with_mean_input,
+                batch_size,
+                get_batch,
+                reduction,
+                axes,
+                axis_names,
+                batch_fn,
+            )
 
 
 _random_buf = None

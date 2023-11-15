@@ -590,7 +590,22 @@ def _tests(dim, device):
             (1, types.UINT8, False, True, True, False, False, False, False),
         ]:
             interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
-            yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
+            yield (
+                _test_ND,
+                device,
+                dim,
+                batch_size,
+                False,
+                mode,
+                interp,
+                dtype,
+                w_input,
+                h_input,
+                d_input,
+                use_size_arg,
+                use_size_input,
+                use_roi,
+            )
 
 
 def test_2D_gpu():

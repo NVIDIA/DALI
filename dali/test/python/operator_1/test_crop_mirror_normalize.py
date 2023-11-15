@@ -374,7 +374,20 @@ def test_cmn_vs_numpy():
                         ]
                         shift = default_shift if mean and mean[0] > 1 else None
                         scale = default_scale if std and std[0] > 1 else None
-                        yield check_cmn_vs_numpy, cmn_op, device, batch_size, dtype, output_layout, mirror_probability, mean, std, scale, shift, should_pad
+                        yield (
+                            check_cmn_vs_numpy,
+                            cmn_op,
+                            device,
+                            batch_size,
+                            dtype,
+                            output_layout,
+                            mirror_probability,
+                            mean,
+                            std,
+                            scale,
+                            shift,
+                            should_pad,
+                        )
 
 
 class CMNRandomDataPipeline(Pipeline):
@@ -599,7 +612,22 @@ def test_cmn_random_data_vs_numpy():
                                 ]
                                 shift = default_shift if mean and mean[0] > 1 else None
                                 scale = default_scale if std and std[0] > 1 else None
-                                yield check_cmn_random_data_vs_numpy, cmn_op, device, batch_size, dtype, input_layout, input_shape, output_layout, mirror_probability, mean, std, scale, shift, should_pad
+                                yield (
+                                    check_cmn_random_data_vs_numpy,
+                                    cmn_op,
+                                    device,
+                                    batch_size,
+                                    dtype,
+                                    input_layout,
+                                    input_shape,
+                                    output_layout,
+                                    mirror_probability,
+                                    mean,
+                                    std,
+                                    scale,
+                                    shift,
+                                    should_pad,
+                                )
 
 
 def check_cmn_crop_sequence_length(
@@ -672,7 +700,20 @@ def test_cmn_crop_sequence_length():
                 for input_shape in input_shapes[input_layout]:
                     assert len(input_layout) == len(input_shape)
                     for output_layout in output_layouts[input_layout]:
-                        yield check_cmn_crop_sequence_length, cmn_op, device, batch_size, dtype, input_layout, input_shape, output_layout, mirror_probability, mean, std, should_pad
+                        yield (
+                            check_cmn_crop_sequence_length,
+                            cmn_op,
+                            device,
+                            batch_size,
+                            dtype,
+                            input_layout,
+                            input_shape,
+                            output_layout,
+                            mirror_probability,
+                            mean,
+                            std,
+                            should_pad,
+                        )
 
 
 def check_cmn_with_out_of_bounds_policy_support(
@@ -782,7 +823,22 @@ def test_cmn_with_out_of_bounds_policy_support():
                 for out_layout in ["HWC", "CHW"]:
                     for mirror_probability in [0.5]:
                         for should_pad in [False, True]:
-                            yield check_cmn_with_out_of_bounds_policy_support, cmn_op, device, batch_size, dtype, in_layout, in_shape, out_layout, mirror_probability, mean, std, should_pad, out_of_bounds_policy, fill_values
+                            yield (
+                                check_cmn_with_out_of_bounds_policy_support,
+                                cmn_op,
+                                device,
+                                batch_size,
+                                dtype,
+                                in_layout,
+                                in_shape,
+                                out_layout,
+                                mirror_probability,
+                                mean,
+                                std,
+                                should_pad,
+                                out_of_bounds_policy,
+                                fill_values,
+                            )
 
 
 def check_cmn_with_out_of_bounds_error(cmn_op, device, batch_size, input_shape=(100, 200, 3)):
@@ -868,7 +924,15 @@ def test_per_sample_norm_args():
     for cmn_fn, device in fn_dev_pairs:
         for random_mean, random_std in [(True, True), (True, False), (False, True)]:
             for scale, shift in [(None, None), (255.0, -128.0)]:
-                yield check_cmn_per_sample_norm_args, cmn_fn, device, random_mean, random_std, scale, shift
+                yield (
+                    check_cmn_per_sample_norm_args,
+                    cmn_fn,
+                    device,
+                    random_mean,
+                    random_std,
+                    scale,
+                    shift,
+                )
 
 
 def check_crop_mirror_normalize_wrong_layout(
@@ -898,7 +962,14 @@ def test_crop_mirror_normalize_wrong_layout():
     batch_size = 3
     for cmn_fn, device in fn_dev_pairs:
         for layout in ["ABC"]:
-            yield check_crop_mirror_normalize_wrong_layout, cmn_fn, device, batch_size, in_shape, layout
+            yield (
+                check_crop_mirror_normalize_wrong_layout,
+                cmn_fn,
+                device,
+                batch_size,
+                in_shape,
+                layout,
+            )
 
 
 def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_shape=(100, 200, 3)):

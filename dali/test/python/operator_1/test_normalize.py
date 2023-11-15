@@ -488,4 +488,16 @@ def test_types():
             (np.float32, 0.5, 0.5),
         ]:
             for in_type in [None, np.uint8, np.int16, np.float32]:
-                yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
+                yield (
+                    _run_test,
+                    device,
+                    batch_size,
+                    dim,
+                    axes,
+                    None,
+                    False,
+                    out_type,
+                    in_type,
+                    shift,
+                    scale,
+                )

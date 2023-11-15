@@ -1143,8 +1143,11 @@ def test_arithm_ops_cpu_gpu():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob="Cannot add a GPU operator ArithmeticGenericOp, device_id should not be equal CPU_ONLY_DEVICE_ID.",
-    )  # noqa: E501
+        glob=(
+            "Cannot add a GPU operator ArithmeticGenericOp,"
+            " device_id should not be equal CPU_ONLY_DEVICE_ID."
+        ),
+    )
 
 
 @attr("pytorch")

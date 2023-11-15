@@ -276,7 +276,7 @@ class PyBuiltinsTest(unittest.TestCase):
                     # TODO(mdan): Is this true across implementations?
                     # Note: normally, it's illegal to use super() in inner functions (it
                     # throws an error), but the generated code may create them.
-                    l = lambda: py_builtins.super_in_original_context(  # pylint:disable=g-long-lambda
+                    l = lambda: py_builtins.super_in_original_context(  # pylint:disable=g-long-lambda # noqa: E501
                         super, (), test_scope
                     ).overridden_method(
                         x

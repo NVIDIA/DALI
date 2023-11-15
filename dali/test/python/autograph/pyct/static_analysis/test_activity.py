@@ -615,9 +615,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
     def test_lambda_nested(self):
         def test_fn(a, b, c, d, e, f):  # pylint: disable=unused-argument # noqa: F841
-            a = lambda a, b: d(
-                lambda b=f: a + b + c
-            )  # pylint: disable=undefined-variable  # noqa: F841
+            # fmt: off
+            a = lambda a, b: d(lambda b=f: a + b + c)  # pylint: disable=undefined-variable  # noqa: F841, E501
+            # fmt: on
 
         node, _ = self._parse_and_analyze(test_fn)
 
@@ -693,9 +693,9 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
     def test_comprehension_generator_order(self):
         def test_fn(a, b, c):  # pylint:disable=unused-argument
-            e = {
-                d: (a, b) for (a, b) in c for d in b
-            }  # pylint:disable=unused-variable,g-complex-comprehension  # noqa: F841,E501
+            # fmt: off
+            e = {d: (a, b) for (a, b) in c for d in b}  # pylint:disable=unused-variable,g-complex-comprehension  # noqa: F841,E501
+            # fmt: on
 
         node, _ = self._parse_and_analyze(test_fn)
         fn_node = node

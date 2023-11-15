@@ -159,7 +159,13 @@ def test_tf_dataset_with_stop_iter():
         for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
                 for iters in [1, 2, 3, 4, 5]:
-                    yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype, iters * batch_size - 3
+                    yield (
+                        run_tf_dataset_with_stop_iter,
+                        dev,
+                        max_shape,
+                        dtype,
+                        iters * batch_size - 3,
+                    )
 
 
 def run_tf_dataset_multi_input(dev, start_values, input_names, batches):

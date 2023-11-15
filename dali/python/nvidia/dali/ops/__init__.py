@@ -25,11 +25,11 @@ from nvidia.dali import fn as _functional
 from nvidia.dali import internal as _internal
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali.types import (
+from nvidia.dali.types import (  # noqa: F401
     _type_name_convert_to_string,
-    _type_convert_value,  # noqa: F401
+    _type_convert_value,
     _default_converter,
-    _vector_element_type,  # noqa: F401
+    _vector_element_type,
     ScalarConstant as _ScalarConstant,
     Constant as _Constant,
 )
@@ -38,13 +38,13 @@ from nvidia.dali import _conditionals
 from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
 
 # reexpose what was previously visible:
-from nvidia.dali.ops._registry import (
+from nvidia.dali.ops._registry import (  # noqa: F401
     cpu_ops,
     mixed_ops,
     gpu_ops,
-    register_cpu_op,  # noqa: F401
+    register_cpu_op,
     register_gpu_op,
-)  # noqa: F401
+)
 from nvidia.dali.ops._names import _op_name, _process_op_name, _schema_name
 from nvidia.dali.ops._operator_utils import (
     _build_input_sets,
@@ -260,7 +260,7 @@ def _resolve_double_definitions(current, previous, keep_old=True):
 
 
 def _process_arguments(schema, spec, kwargs, operator_name):
-    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling"""
+    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling."""
     kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
     _add_spec_args(schema, spec, kwargs)
 
@@ -757,11 +757,11 @@ _internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 _registry.register_cpu_op("Compose")
 _registry.register_gpu_op("Compose")
 
-from nvidia.dali.ops._operators.math import (
+from nvidia.dali.ops._operators.math import (  # noqa: F401, E402
     _arithm_op,
-    _group_inputs,  # noqa: E402, F401
+    _group_inputs,
     _generate_input_desc,
-)  # noqa: F401
+)
 
 
 # Discover and generate bindings for all regular operators.

@@ -172,7 +172,15 @@ def test_file_reader_filters():
     for filters in [["*.jpg"], ["*.jpg", "*.png", "*.jpeg"], ["dog*.jpg", "cat*.png", "*.jpg"]]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, "db/single/mixed", False
+        yield (
+            _test_file_reader_filter,
+            filters,
+            filters,
+            batch_size,
+            num_threads,
+            "db/single/mixed",
+            False,
+        )
 
     yield _test_file_reader_filter, ["*.jPg", "*.JPg"], [
         "*.jPg",
@@ -222,5 +230,8 @@ def test_invalid_number_of_shards():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.",
+        glob=(
+            "The number of input samples: *,"
+            " needs to be at least equal to the requested number of shards:*."
+        ),
     )  # noqa: E501

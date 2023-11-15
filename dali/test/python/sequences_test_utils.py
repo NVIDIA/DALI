@@ -412,7 +412,15 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
                     input_desc.name, input_desc.expandable_prefix, device, input_desc.layout
                 )
                 arg_data = ArgData(arg_desc, input_case.data)
-                yield _test_seq_input, num_iters, test_case.operator_fn, test_case.fixed_params, test_case.input_params, arg_data, rng
+                yield (
+                    _test_seq_input,
+                    num_iters,
+                    test_case.operator_fn,
+                    test_case.fixed_params,
+                    test_case.input_params,
+                    arg_data,
+                    rng,
+                )
 
 
 def get_video_input_cases(seq_layout, rng, larger_shape=(512, 288), smaller_shape=(384, 216)):

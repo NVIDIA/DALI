@@ -117,6 +117,7 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
     return convolved, samples, filters, anchors, fill_values
 
 
+# for cpu, skip int8 and border wrap cases, as those are not supported by opencv's filter2d
 @attr("scipy")
 @params(
     *tuple(
@@ -138,7 +139,6 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
                 (np.uint8, 4, "constant", "valid"),
                 (np.float32, 7, "101", "valid"),
             ],
-            # for cpu, skip int8 and border wrap cases, as those are not supported by opencv's filter2d
         )
         if dev != "cpu" or params[0] != np.int8
     )

@@ -279,7 +279,15 @@ def test_random_bbox_crop_variable_shape():
                 for aspect_ratio in aspect_ratio_ranges[ndim]:
                     use_labels = random.choice([True, False])
                     out_bbox_indices = random.choice([True, False])
-                    yield check_random_bbox_crop_variable_shape, batch_size, ndim, scaling, aspect_ratio, use_labels, out_bbox_indices
+                    yield (
+                        check_random_bbox_crop_variable_shape,
+                        batch_size,
+                        ndim,
+                        scaling,
+                        aspect_ratio,
+                        use_labels,
+                        out_bbox_indices,
+                    )
 
 
 def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
@@ -322,7 +330,14 @@ def test_random_bbox_crop_fixed_shape():
             for input_shape in input_shapes[ndim]:
                 for crop_shape in crop_shapes[ndim]:
                     for use_labels in [True, False]:
-                        yield check_random_bbox_crop_fixed_shape, batch_size, ndim, crop_shape, input_shape, use_labels
+                        yield (
+                            check_random_bbox_crop_fixed_shape,
+                            batch_size,
+                            ndim,
+                            crop_shape,
+                            input_shape,
+                            use_labels,
+                        )
 
 
 def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, use_labels):
@@ -378,7 +393,14 @@ def test_random_bbox_crop_overlap():
             for input_shape in input_shapes[ndim]:
                 for crop_shape in crop_shapes[ndim]:
                     for use_labels in [True, False]:
-                        yield check_random_bbox_crop_overlap, batch_size, ndim, crop_shape, input_shape, use_labels
+                        yield (
+                            check_random_bbox_crop_overlap,
+                            batch_size,
+                            ndim,
+                            crop_shape,
+                            input_shape,
+                            use_labels,
+                        )
 
 
 def test_random_bbox_crop_no_labels():

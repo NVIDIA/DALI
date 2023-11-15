@@ -759,16 +759,17 @@ if dataset_compatible_tensorflow():
                 if supported_arg is not None:
                     raise ValueError(
                         (
-                            "Usage of `{name}` is deprecated in favor of `output_{name}`. "
-                            "Both arguments were provided, but only `output_{name}` should be provided."
+                            f"Usage of `{name}` is deprecated in favor of `output_{name}`. "
+                            f"Both arguments were provided, but only `output_{name}` "
+                            "should be provided."
                         ).format(name=name)
                     )
                 # show only this warning
                 warnings.warn(
                     (
-                        "Use of argument `{name}` is deprecated. Please use `output_{name}`"
-                        " instead. `output_{name}` should be provided as a tuple"
-                        " or a single value."
+                        f"Use of argument `{name}` is deprecated. Please use `output_{name}`"
+                        f" instead. `output_{name}` should be provided as a tuple"
+                        f" or a single value."
                     ).format(name=name),
                     Warning,
                     stacklevel=2,

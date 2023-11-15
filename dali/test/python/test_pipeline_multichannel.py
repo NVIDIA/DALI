@@ -188,7 +188,13 @@ def test_multichannel_synth_data_vs_numpy():
         for device in supported_devices:
             for batch_size in {3}:
                 for shape in {(2048, 512, 8)}:
-                    yield check_multichannel_synth_data_vs_numpy, tested_operator, device, batch_size, shape
+                    yield (
+                        check_multichannel_synth_data_vs_numpy,
+                        tested_operator,
+                        device,
+                        batch_size,
+                        shape,
+                    )
 
 
 class MultichannelPipeline(Pipeline):

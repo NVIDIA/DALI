@@ -181,7 +181,15 @@ def test_equivalence():
                     for has_3_dims, use_const_contr_center in rng.sample(
                         [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
                     ):
-                        yield check_equivalence, device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center
+                        yield (
+                            check_equivalence,
+                            device,
+                            inp_dtype,
+                            out_dtype,
+                            op,
+                            has_3_dims,
+                            use_const_contr_center,
+                        )
 
 
 def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
@@ -212,7 +220,14 @@ def test_vs_ref():
                 for has_3_dims, use_const_contr_center in rng.sample(
                     [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
                 ):
-                    yield check_vs_ref, device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center
+                    yield (
+                        check_vs_ref,
+                        device,
+                        inp_dtype,
+                        out_dtype,
+                        has_3_dims,
+                        use_const_contr_center,
+                    )
 
 
 def test_video():

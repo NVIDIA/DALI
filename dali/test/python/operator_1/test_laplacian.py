@@ -231,7 +231,16 @@ def test_vs_open_cv():
             # different from the result of running cv2.laplacian with floats and then
             # clamping the results)
             for window_size in range(1, 13, 2):
-                yield _test_vs_open_cv, device, batch_size, window_size, types.UINT8, None, normalize, grayscale
+                yield (
+                    _test_vs_open_cv,
+                    device,
+                    batch_size,
+                    window_size,
+                    types.UINT8,
+                    None,
+                    normalize,
+                    grayscale,
+                )
 
 
 @attr("slow")
@@ -242,7 +251,16 @@ def slow_test_vs_open_cv():
         for normalize, grayscale in ((True, False), (False, True)):
             for in_type, out_type in ((types.UINT8, types.FLOAT), (types.FLOAT, None)):
                 for window_size in [1] + list(range(3, max_window_size + 2, 4)):
-                    yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
+                    yield (
+                        _test_vs_open_cv,
+                        device,
+                        batch_size,
+                        window_size,
+                        in_type,
+                        out_type,
+                        normalize,
+                        grayscale,
+                    )
 
 
 def laplacian_sp(input, out_type):
@@ -500,7 +518,19 @@ def test_per_sample_laplacian():
             for out_type in [None, np.float32]:
                 for shape, layout, axes in shape_layout_axes_cases:
                     for normalize in [True, False]:
-                        yield check_per_sample_laplacian, device, batch_size, 1, 1, normalize, shape, layout, axes, in_type, out_type
+                        yield (
+                            check_per_sample_laplacian,
+                            device,
+                            batch_size,
+                            1,
+                            1,
+                            normalize,
+                            shape,
+                            layout,
+                            axes,
+                            in_type,
+                            out_type,
+                        )
 
 
 @attr("slow")
@@ -516,7 +546,19 @@ def slow_test_per_sample_laplacian():
                     for window_dim in full_test if in_type == np.float32 else [1]:
                         for smoothing_dim in full_test if in_type == np.float32 else [1]:
                             for normalize in [True, False]:
-                                yield check_per_sample_laplacian, device, batch_size, window_dim, smoothing_dim, normalize, shape, layout, axes, in_type, out_type
+                                yield (
+                                    check_per_sample_laplacian,
+                                    device,
+                                    batch_size,
+                                    window_dim,
+                                    smoothing_dim,
+                                    normalize,
+                                    shape,
+                                    layout,
+                                    axes,
+                                    in_type,
+                                    out_type,
+                                )
 
 
 def check_fixed_param_laplacian(
@@ -627,7 +669,20 @@ def slow_test_fixed_params_laplacian():
                                 else:
                                     scale_cases = window_scales(window_sizes, smooth_sizes, axes)
                                 for scales in scale_cases:
-                                    yield check_fixed_param_laplacian, device, batch_size, in_type, out_type, shape, layout, axes, window_sizes, smooth_sizes, scales, normalize
+                                    yield (
+                                        check_fixed_param_laplacian,
+                                        device,
+                                        batch_size,
+                                        in_type,
+                                        out_type,
+                                        shape,
+                                        layout,
+                                        axes,
+                                        window_sizes,
+                                        smooth_sizes,
+                                        scales,
+                                        normalize,
+                                    )
 
 
 def check_build_time_fail(
@@ -740,41 +795,125 @@ def test_fail_laplacian():
     ]
     for device in "cpu", "gpu":
         for shape, layout, axes, err_regex in args:
-            yield check_build_time_fail, device, 10, shape, layout, axes, 11, 11, 1.0, False, err_regex
-        yield check_tensor_input_fail, device, 10, (
+            yield (
+                check_build_time_fail,
+                device,
+                10,
+                shape,
+                layout,
+                axes,
+                11,
+                11,
+                1.0,
+                False,
+                err_regex,
+            )
+        yield (
+            check_tensor_input_fail,
+            device,
             10,
-            10,
-            3,
-        ), "HWC", 11, 11, 1.0, False, types.UINT16, "Output data type must be same as input, FLOAT or skipped"
+            (
+                10,
+                10,
+                3,
+            ),
+            "HWC",
+            11,
+            11,
+            1.0,
+            False,
+            types.UINT16,
+            "Output data type must be same as input, FLOAT or skipped",
+        )
 
-        yield check_build_time_fail, device, 10, (
+        yield (
+            check_build_time_fail,
+            device,
             10,
-            10,
-            3,
-        ), "HWC", 2, 11, 11, 1.0, True, "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True"
+            (
+                10,
+                10,
+                3,
+            ),
+            "HWC",
+            2,
+            11,
+            11,
+            1.0,
+            True,
+            "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True",
+        )
         for window_size in [-3, 10, max_window_size + 1]:
-            yield check_build_time_fail, device, 10, (
+            yield (
+                check_build_time_fail,
+                device,
                 10,
+                (
+                    10,
+                    10,
+                    3,
+                ),
+                "HWC",
+                2,
+                window_size,
+                5,
+                1.0,
+                False,
+                "Window size must be an odd integer between 3 and \\d",
+            )
+            yield (
+                check_tensor_input_fail,
+                device,
                 10,
-                3,
-            ), "HWC", 2, window_size, 5, 1.0, False, "Window size must be an odd integer between 3 and \\d"
-            yield check_tensor_input_fail, device, 10, (
-                10,
-                10,
-                3,
-            ), "HWC", window_size, 5, 1.0, False, types.FLOAT, "Window size must be an odd integer between 3 and \\d"
+                (
+                    10,
+                    10,
+                    3,
+                ),
+                "HWC",
+                window_size,
+                5,
+                1.0,
+                False,
+                types.FLOAT,
+                "Window size must be an odd integer between 3 and \\d",
+            )
         for window_size in [[3, 6], -1, max_window_size + 1]:
-            yield check_build_time_fail, device, 10, (
+            yield (
+                check_build_time_fail,
+                device,
                 10,
-                10,
+                (
+                    10,
+                    10,
+                    3,
+                ),
+                "HWC",
+                2,
                 3,
-            ), "HWC", 2, 3, window_size, 1.0, False, "Smoothing window size must be an odd integer between 1 and \\d"
+                window_size,
+                1.0,
+                False,
+                "Smoothing window size must be an odd integer between 1 and \\d",
+            )
         for window_size in [6, -1, max_window_size + 1]:
-            yield check_tensor_input_fail, device, 10, (
+            yield (
+                check_tensor_input_fail,
+                device,
                 10,
-                10,
+                (
+                    10,
+                    10,
+                    3,
+                ),
+                "HWC",
                 3,
-            ), "HWC", 3, window_size, 1.0, False, types.FLOAT, "Smoothing window size must be an odd integer between 1 and \\d"
+                window_size,
+                1.0,
+                False,
+                types.FLOAT,
+                "Smoothing window size must be an odd integer between 1 and \\d",
+            )
         for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             yield check_build_time_fail, device, 10, (
                 10,

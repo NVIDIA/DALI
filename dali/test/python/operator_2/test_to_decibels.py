@@ -129,7 +129,15 @@ def test_operator_to_decibels_vs_python():
                 (20.0, 1.0, -200.0, (2, 1000)),
                 (20.0, 1e-6, -120.0, (2, 3, 40)),
             ]:
-                yield check_operator_to_decibels_vs_python, device, batch_size, shape, multiplier, reference, cutoff_db
+                yield (
+                    check_operator_to_decibels_vs_python,
+                    device,
+                    batch_size,
+                    shape,
+                    multiplier,
+                    reference,
+                    cutoff_db,
+                )
 
 
 class NaturalLogarithmPipeline(Pipeline):

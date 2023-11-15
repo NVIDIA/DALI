@@ -269,7 +269,18 @@ def test_operator_erase_vs_python():
                     assert len(axes) > 0
                     assert len(anchor) % len(axes) == 0
 
-                yield check_operator_erase_vs_python, device, batch_size, input_shape, anchor, shape, axis_names, axes, input_layout, fill_value
+                yield (
+                    check_operator_erase_vs_python,
+                    device,
+                    batch_size,
+                    input_shape,
+                    anchor,
+                    shape,
+                    axis_names,
+                    axes,
+                    input_layout,
+                    fill_value,
+                )
 
 
 def check_operator_erase_with_normalized_coords(
@@ -407,7 +418,20 @@ def test_operator_erase_with_normalized_coords():
                 ]:
                     anchor_norm_arg = anchor_norm if normalized_anchor else anchor
                     shape_norm_arg = shape_norm if normalized_shape else shape
-                    yield check_operator_erase_with_normalized_coords, device, batch_size, input_shape, anchor, shape, axis_names, input_layout, anchor_norm_arg, shape_norm_arg, normalized_anchor, normalized_shape
+                    yield (
+                        check_operator_erase_with_normalized_coords,
+                        device,
+                        batch_size,
+                        input_shape,
+                        anchor,
+                        shape,
+                        axis_names,
+                        input_layout,
+                        anchor_norm_arg,
+                        shape_norm_arg,
+                        normalized_anchor,
+                        normalized_shape,
+                    )
 
 
 def test_operator_erase_with_out_of_bounds_roi_coords():

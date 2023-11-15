@@ -122,10 +122,10 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
                 try:
                     if b:
                         a = []
-                except (
-                    TestException
-                ):  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841
+                # fmt: off
+                except TestException:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                     pass
+                # fmt: on
             return a
 
         node = self._parse_and_analyze(test_fn)
@@ -140,13 +140,13 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
         def test_fn(a, b):
             a = []
             if b:
+                # fmt: off
                 try:
                     pass
-                except (
-                    TestException
-                ) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
+                except TestException as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                     if b:
                         a = []
+                # fmt: on
             return a
 
         node = self._parse_and_analyze(test_fn)

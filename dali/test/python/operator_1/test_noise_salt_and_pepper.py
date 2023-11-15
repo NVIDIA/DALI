@@ -171,4 +171,15 @@ def test_operator_noise_salt_and_pepper():
                     for prob in probs:
                         salt_and_pepper_prob = random.choice(salt_and_pepper_probs)
                         batch_size = random.choice([1, 3])
-                        yield _testimpl_operator_noise_salt_and_pepper, device, per_channel, prob, salt_and_pepper_prob, channel_first, salt_val, pepper_val, batch_size, niter
+                        yield (
+                            _testimpl_operator_noise_salt_and_pepper,
+                            device,
+                            per_channel,
+                            prob,
+                            salt_and_pepper_prob,
+                            channel_first,
+                            salt_val,
+                            pepper_val,
+                            batch_size,
+                            niter,
+                        )

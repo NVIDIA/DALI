@@ -269,7 +269,15 @@ def _get_type_and_shape_params():
                     file_arg_type = rng.choice(["file_list", "files", "file_filter"])
                     num_threads = rng.choice([1, 2, 3, 4, 5, 6, 7, 8])
                     batch_size = rng.choice([1, 3, 4, 8, 16])
-                    yield device, fortran_order, dtype, shapes, file_arg_type, num_threads, batch_size
+                    yield (
+                        device,
+                        fortran_order,
+                        dtype,
+                        shapes,
+                        file_arg_type,
+                        num_threads,
+                        batch_size,
+                    )
 
 
 @params(

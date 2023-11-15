@@ -164,7 +164,17 @@ def test_operator_mfcc_vs_python():
                         (1, 90, 0.0, (513, 100)),
                         (1, 20, 202.0, (513, 100)),
                     ]:
-                        yield check_operator_mfcc_vs_python, device, batch_size, shape, axis, dct_type, lifter, n_mfcc, norm
+                        yield (
+                            check_operator_mfcc_vs_python,
+                            device,
+                            batch_size,
+                            shape,
+                            axis,
+                            dct_type,
+                            lifter,
+                            n_mfcc,
+                            norm,
+                        )
 
 
 def check_operator_mfcc_wrong_args(
@@ -215,4 +225,15 @@ def test_operator_mfcc_wrong_args():
                 "Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4",
             ),
         ]:
-            yield check_operator_mfcc_wrong_args, device, batch_size, shape, axis, dct_type, lifter, n_mfcc, norm, msg
+            yield (
+                check_operator_mfcc_wrong_args,
+                device,
+                batch_size,
+                shape,
+                axis,
+                dct_type,
+                lifter,
+                n_mfcc,
+                norm,
+                msg,
+            )

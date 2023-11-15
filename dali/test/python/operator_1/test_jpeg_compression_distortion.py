@@ -177,4 +177,10 @@ def test_jpeg_compression_distortion_sequence():
     for batch_size in [1, 15]:
         for device in ["cpu", "gpu"]:
             for quality in [2, None, 50]:
-                yield _testimpl_jpeg_compression_distortion_sequence, batch_size, device, seq_len, quality
+                yield (
+                    _testimpl_jpeg_compression_distortion_sequence,
+                    batch_size,
+                    device,
+                    seq_len,
+                    quality,
+                )

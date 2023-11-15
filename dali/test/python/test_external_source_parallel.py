@@ -673,7 +673,16 @@ def test_all_kinds_parallel():
                     (1, 1, 3),
                 ):
                     for num_workers in (1, 7):
-                        yield _test_all_kinds_parallel, sample_cb, batch_cb, iterator_cb, batch_size, num_workers, reader_queue_sizes, num_iters
+                        yield (
+                            _test_all_kinds_parallel,
+                            sample_cb,
+                            batch_cb,
+                            iterator_cb,
+                            batch_size,
+                            num_workers,
+                            reader_queue_sizes,
+                            num_iters,
+                        )
 
 
 def collect_iterations(pipe, num_iters):
@@ -761,7 +770,15 @@ def test_cycle_multiple_iterators():
             (True, True),
         ):
             for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1)):
-                yield _test_cycle_multiple_iterators, batch_size, iters_num, num_workers, prefetch_queue_depths, cycle_policies, epoch_sizes
+                yield (
+                    _test_cycle_multiple_iterators,
+                    batch_size,
+                    iters_num,
+                    num_workers,
+                    prefetch_queue_depths,
+                    cycle_policies,
+                    epoch_sizes,
+                )
 
 
 def ext_cb2(sinfo):
@@ -875,11 +892,41 @@ def test_epoch_idx():
         for epoch_size in (1, 3, 7):
             for reader_queue_depth in (1, 5):
                 sample_cb = SampleCb(batch_size, epoch_size)
-                yield _test_epoch_idx, batch_size, epoch_size, sample_cb, num_workers, prefetch_queue_depth, reader_queue_depth, False, None
+                yield (
+                    _test_epoch_idx,
+                    batch_size,
+                    epoch_size,
+                    sample_cb,
+                    num_workers,
+                    prefetch_queue_depth,
+                    reader_queue_depth,
+                    False,
+                    None,
+                )
                 batch_cb = SampleCallbackBatched(sample_cb, batch_size, True)
-                yield _test_epoch_idx, batch_size, epoch_size, batch_cb, num_workers, prefetch_queue_depth, reader_queue_depth, True, True
+                yield (
+                    _test_epoch_idx,
+                    batch_size,
+                    epoch_size,
+                    batch_cb,
+                    num_workers,
+                    prefetch_queue_depth,
+                    reader_queue_depth,
+                    True,
+                    True,
+                )
                 batch_cb = SampleCallbackBatched(sample_cb, batch_size, False)
-                yield _test_epoch_idx, batch_size, epoch_size, batch_cb, num_workers, prefetch_queue_depth, reader_queue_depth, True, False
+                yield (
+                    _test_epoch_idx,
+                    batch_size,
+                    epoch_size,
+                    batch_cb,
+                    num_workers,
+                    prefetch_queue_depth,
+                    reader_queue_depth,
+                    True,
+                    False,
+                )
 
 
 class PermutableSampleCb:
@@ -954,7 +1001,16 @@ def test_permute_dataset():
         for epoch_size in (3, 7):
             cb = PermutableSampleCb(batch_size, epoch_size, trailing_samples=trailing_samples)
             for reader_queue_depth in (1, 5):
-                yield _test_permute_dataset, batch_size, epoch_size, trailing_samples, cb, 4, 1, reader_queue_depth
+                yield (
+                    _test_permute_dataset,
+                    batch_size,
+                    epoch_size,
+                    trailing_samples,
+                    cb,
+                    4,
+                    1,
+                    reader_queue_depth,
+                )
 
 
 class PerIterShapeSource:

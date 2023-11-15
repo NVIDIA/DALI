@@ -211,7 +211,16 @@ def test_image_decoder_fused():
             validation_fun = mean_close
         for device in {"cpu", "mixed"}:
             for img_type in test_good_path:
-                yield run_decode_fused, test_fun, good_path, img_type, batch_size, device, threads, validation_fun
+                yield (
+                    run_decode_fused,
+                    test_fun,
+                    good_path,
+                    img_type,
+                    batch_size,
+                    device,
+                    threads,
+                    validation_fun,
+                )
 
 
 def check_FastDCT_body(batch_size, img_type, device):

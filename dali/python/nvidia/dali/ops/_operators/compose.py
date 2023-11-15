@@ -53,8 +53,8 @@ def Compose(op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]])
 
         op_list[n-1](op_list([n-2](...  op_list[0](args))))
 
-    Operators can be composed only when all outputs of the previous operator can be processed directly
-    by the next operator in the list.
+    Operators can be composed only when all outputs of the previous operator can be processed
+    directly by the next operator in the list.
 
     The example below chains an image decoder and a Resize operation with random square size.
     The  ``decode_and_resize`` object can be called as if it was an operator::

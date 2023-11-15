@@ -178,7 +178,17 @@ def check_spawn_with_callback(
             )
             for workers_num in [1, 4]:
                 for batch_size in [1, 16, 150]:
-                    yield _check_spawn_with_callback, callback, callback_ref, batch_size, num_outputs, layout, workers_num, epoch_size, dtype
+                    yield (
+                        _check_spawn_with_callback,
+                        callback,
+                        callback_ref,
+                        batch_size,
+                        num_outputs,
+                        layout,
+                        workers_num,
+                        epoch_size,
+                        dtype,
+                    )
 
 
 class ExtCallbackMultipleOutputs(ExtCallback):

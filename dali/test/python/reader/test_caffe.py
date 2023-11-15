@@ -78,7 +78,14 @@ def test_reader_path_vs_paths():
             for batch_size2 in {1, 16, 31}:
                 for num_threads1 in {1}:
                     for num_threads2 in {1, 2}:
-                        yield check_reader_path_vs_paths, paths, batch_size1, batch_size2, num_threads1, num_threads2
+                        yield (
+                            check_reader_path_vs_paths,
+                            paths,
+                            batch_size1,
+                            batch_size2,
+                            num_threads1,
+                            num_threads2,
+                        )
 
 
 batch_size_alias_test = 64

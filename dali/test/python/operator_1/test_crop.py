@@ -491,7 +491,14 @@ def test_cmn_crop_sequence_length():
             for dtype in [types.FLOAT]:
                 for input_layout, input_shape in input_configs:
                     assert len(input_layout) == len(input_shape)
-                    yield check_crop_sequence_length, device, batch_size, dtype, input_layout, input_shape
+                    yield (
+                        check_crop_sequence_length,
+                        device,
+                        batch_size,
+                        dtype,
+                        input_layout,
+                        input_shape,
+                    )
 
 
 class CropSynthPipe(Pipeline):
@@ -612,7 +619,14 @@ def test_crop_with_out_of_bounds_policy_support():
         for device in ["gpu", "cpu"]:
             for batch_size in [1, 3]:
                 for fill_values in [None, (0x76, 0xB0, 0x00)]:
-                    yield check_crop_with_out_of_bounds_policy_support, device, batch_size, in_shape, out_of_bounds_policy, fill_values
+                    yield (
+                        check_crop_with_out_of_bounds_policy_support,
+                        device,
+                        batch_size,
+                        in_shape,
+                        out_of_bounds_policy,
+                        fill_values,
+                    )
 
 
 def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):

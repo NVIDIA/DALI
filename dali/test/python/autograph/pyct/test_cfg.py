@@ -1191,12 +1191,12 @@ class AstToCfgTest(unittest.TestCase):
 
     def test_try_except_single_aliased(self):
         def test_fn(a):
+            # fmt: off
             try:
                 a = 1
-            except (
-                Exception1
-            ) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841
+            except Exception1 as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                 a = 2
+            # fmt: on
             return a
 
         (graph,) = self._build_cfg(test_fn).values()
@@ -1219,13 +1219,12 @@ class AstToCfgTest(unittest.TestCase):
 
     def test_try_except_single_tuple_aliased(self):
         def test_fn(a):
+            # fmt: off
             try:
                 a = 1
-            except (
-                Exception1,
-                Exception2,
-            ) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
+            except (Exception1, Exception2) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                 a = 2
+            # fmt: on
             return a
 
         (graph,) = self._build_cfg(test_fn).values()

@@ -807,4 +807,11 @@ def test_iter_setup_zero_copy():
                 for device in ["cpu", "gpu"]:
                     # make it -4 as -1 sometimes fails due to being close to the limit
                     for additional_num_keep_samples in [-4, 0, 1]:
-                        yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples
+                        yield (
+                            _test_iter_setup_zero_copy,
+                            use_fn_api,
+                            by_name,
+                            as_tensor,
+                            device,
+                            additional_num_keep_samples,
+                        )

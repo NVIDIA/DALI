@@ -170,7 +170,15 @@ def test_queue_recv():
         for capacity, send_msg, recv_msg in zip(capacities, send_msgs, recv_msgs):
             for send_one_by_one in (True, False):
                 for worker_params in ({"num_samples": 1}, {"num_samples": None}):
-                    yield _test_queue_recv, start_method, worker_params, capacity, send_msg, recv_msg, send_one_by_one
+                    yield (
+                        _test_queue_recv,
+                        start_method,
+                        worker_params,
+                        capacity,
+                        send_msg,
+                        recv_msg,
+                        send_one_by_one,
+                    )
 
 
 def _test_queue_large(start_method, msg_values):

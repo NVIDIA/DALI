@@ -146,13 +146,33 @@ def test_all():
         for M_kind in [None, "vector", "scalar", "input", "scalar input"]:
             for T_kind in [None, "vector", "scalar", "input", "scalar input"]:
                 for batch_size in [1, 3]:
-                    yield _run_test, device, batch_size, 3, 3, np.float32, np.float32, M_kind, T_kind
+                    yield (
+                        _run_test,
+                        device,
+                        batch_size,
+                        3,
+                        3,
+                        np.float32,
+                        np.float32,
+                        M_kind,
+                        T_kind,
+                    )
 
     for device in ["cpu", "gpu"]:
         for in_dtype in [np.uint8, np.uint16, np.int16, np.int32, np.float32]:
             for out_dtype in set([in_dtype, np.float32]):
                 for batch_size in [1, 8]:
-                    yield _run_test, device, batch_size, 3, 3, in_dtype, out_dtype, "input", "input"
+                    yield (
+                        _run_test,
+                        device,
+                        batch_size,
+                        3,
+                        3,
+                        in_dtype,
+                        out_dtype,
+                        "input",
+                        "input",
+                    )
 
     for device in ["cpu", "gpu"]:
         for M_kind in ["input", "vector", None]:
@@ -162,7 +182,17 @@ def test_all():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, "vector"
+                    yield (
+                        _run_test,
+                        device,
+                        2,
+                        out_dim,
+                        in_dim,
+                        np.float32,
+                        np.float32,
+                        M_kind,
+                        "vector",
+                    )
 
     for device in ["cpu", "gpu"]:
         for MT_kind in ["vector", "input", "scalar"]:
@@ -172,7 +202,17 @@ def test_all():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused"
+                    yield (
+                        _run_test,
+                        device,
+                        2,
+                        out_dim,
+                        in_dim,
+                        np.float32,
+                        np.float32,
+                        MT_kind,
+                        "fused",
+                    )
 
 
 def _test_empty_input(device):

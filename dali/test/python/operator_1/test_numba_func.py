@@ -292,7 +292,20 @@ def test_numba_func():
         batch_processing,
         expected_out,
     ) in args:
-        yield _testimpl_numba_func, device, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out
+        yield (
+            _testimpl_numba_func,
+            device,
+            shape,
+            dtype,
+            run_fn,
+            out_types,
+            in_types,
+            outs_ndim,
+            ins_ndim,
+            setup_fn,
+            batch_processing,
+            expected_out,
+        )
 
 
 @with_setup(check_numba_compatibility_gpu)
@@ -369,7 +382,22 @@ def test_numba_func_gpu():
         batch_processing,
         expected_out,
     ) in args:
-        yield _testimpl_numba_func, device, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out, blocks, threads_per_block
+        yield (
+            _testimpl_numba_func,
+            device,
+            shape,
+            dtype,
+            run_fn,
+            out_types,
+            in_types,
+            outs_ndim,
+            ins_ndim,
+            setup_fn,
+            batch_processing,
+            expected_out,
+            blocks,
+            threads_per_block,
+        )
 
 
 @pipeline_def
@@ -546,7 +574,18 @@ def test_numba_func_image():
         batch_processing,
         transform,
     ) in args:
-        yield _testimpl_numba_func_image, device, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform
+        yield (
+            _testimpl_numba_func_image,
+            device,
+            run_fn,
+            out_types,
+            in_types,
+            outs_ndim,
+            ins_ndim,
+            setup_fn,
+            batch_processing,
+            transform,
+        )
 
 
 @with_setup(check_numba_compatibility_gpu)
@@ -586,7 +625,20 @@ def test_numba_func_image_gpu():
         batch_processing,
         transform,
     ) in args:
-        yield _testimpl_numba_func_image, device, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform, blocks, threads_per_block
+        yield (
+            _testimpl_numba_func_image,
+            device,
+            run_fn,
+            out_types,
+            in_types,
+            outs_ndim,
+            ins_ndim,
+            setup_fn,
+            batch_processing,
+            transform,
+            blocks,
+            threads_per_block,
+        )
 
 
 def split_images_col_sample(out0, out1, out2, in0):

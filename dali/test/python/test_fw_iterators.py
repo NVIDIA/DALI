@@ -550,12 +550,32 @@ def test_mxnet_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield check_mxnet_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy, False
+                                yield (
+                                    check_mxnet_iterator_pass_reader_name,
+                                    shards_num,
+                                    pipes_number,
+                                    batch_size,
+                                    stick_to_shard,
+                                    pad,
+                                    iters,
+                                    last_batch_policy,
+                                    False,
+                                )
 
 
 def test_mxnet_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield check_mxnet_iterator_pass_reader_name, 3, 1, 3, False, True, 3, LastBatchPolicy.DROP, auto_reset
+        yield (
+            check_mxnet_iterator_pass_reader_name,
+            3,
+            1,
+            3,
+            False,
+            True,
+            3,
+            LastBatchPolicy.DROP,
+            auto_reset,
+        )
 
 
 def test_gluon_iterator_last_batch_no_pad_last_batch():
@@ -837,12 +857,32 @@ def test_gluon_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield check_gluon_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy, False
+                                yield (
+                                    check_gluon_iterator_pass_reader_name,
+                                    shards_num,
+                                    pipes_number,
+                                    batch_size,
+                                    stick_to_shard,
+                                    pad,
+                                    iters,
+                                    last_batch_policy,
+                                    False,
+                                )
 
 
 def test_gluon_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield check_gluon_iterator_pass_reader_name, 3, 1, 3, False, True, 3, LastBatchPolicy.DROP, auto_reset
+        yield (
+            check_gluon_iterator_pass_reader_name,
+            3,
+            1,
+            3,
+            False,
+            True,
+            3,
+            LastBatchPolicy.DROP,
+            auto_reset,
+        )
 
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
@@ -1504,12 +1544,32 @@ def test_pytorch_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield check_pytorch_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy, False
+                                yield (
+                                    check_pytorch_iterator_pass_reader_name,
+                                    shards_num,
+                                    pipes_number,
+                                    batch_size,
+                                    stick_to_shard,
+                                    pad,
+                                    iters,
+                                    last_batch_policy,
+                                    False,
+                                )
 
 
 def test_pytorch_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield check_pytorch_iterator_pass_reader_name, 3, 1, 3, False, True, 3, LastBatchPolicy.DROP, auto_reset
+        yield (
+            check_pytorch_iterator_pass_reader_name,
+            3,
+            1,
+            3,
+            False,
+            True,
+            3,
+            LastBatchPolicy.DROP,
+            auto_reset,
+        )
 
 
 def test_paddle_iterator_last_batch_no_pad_last_batch():
@@ -1757,12 +1817,32 @@ def test_paddle_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield check_paddle_iterator_pass_reader_name, shards_num, pipes_number, batch_size, stick_to_shard, pad, iters, last_batch_policy, False
+                                yield (
+                                    check_paddle_iterator_pass_reader_name,
+                                    shards_num,
+                                    pipes_number,
+                                    batch_size,
+                                    stick_to_shard,
+                                    pad,
+                                    iters,
+                                    last_batch_policy,
+                                    False,
+                                )
 
 
 def test_paddle_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield check_paddle_iterator_pass_reader_name, 3, 1, 3, False, True, 3, LastBatchPolicy.DROP, auto_reset
+        yield (
+            check_paddle_iterator_pass_reader_name,
+            3,
+            1,
+            3,
+            False,
+            True,
+            3,
+            LastBatchPolicy.DROP,
+            auto_reset,
+        )
 
 
 class TestIterator:
@@ -2157,7 +2237,17 @@ def test_stop_iteration_gluon():
         auto_reset,
         infinite,
     ) in stop_iteration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+        yield (
+            check_stop_iter,
+            fw_iter,
+            iter_name,
+            batch_size,
+            epochs,
+            iter_num,
+            total_iter_num,
+            auto_reset,
+            infinite,
+        )
 
 
 def test_stop_iteration_gluon_fail_multi():
@@ -2244,7 +2334,17 @@ def test_stop_iteration_pytorch():
         auto_reset,
         infinite,
     ) in stop_iteration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+        yield (
+            check_stop_iter,
+            fw_iter,
+            iter_name,
+            batch_size,
+            epochs,
+            iter_num,
+            total_iter_num,
+            auto_reset,
+            infinite,
+        )
 
 
 def test_stop_iteration_pytorch_fail_multi():
@@ -2330,7 +2430,17 @@ def test_stop_iteration_paddle():
         auto_reset,
         infinite,
     ) in stop_iteration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+        yield (
+            check_stop_iter,
+            fw_iter,
+            iter_name,
+            batch_size,
+            epochs,
+            iter_num,
+            total_iter_num,
+            auto_reset,
+            infinite,
+        )
 
 
 def test_stop_iteration_paddle_fail_multi():
@@ -2416,7 +2526,17 @@ def test_stop_iteration_jax():
         auto_reset,
         infinite,
     ) in stop_iteration_case_generator():
-        yield check_stop_iter, fw_iter, iter_name, batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite
+        yield (
+            check_stop_iter,
+            fw_iter,
+            iter_name,
+            batch_size,
+            epochs,
+            iter_num,
+            total_iter_num,
+            auto_reset,
+            infinite,
+        )
 
 
 def test_stop_iteration_jax_fail_multi():

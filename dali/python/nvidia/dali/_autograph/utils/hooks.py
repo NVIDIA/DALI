@@ -49,8 +49,8 @@ class OperatorBase:
         Returns
         -------
         bool
-            True if custom operator implementation should be always used, False to fallback to Python
-            behavior.
+            True if custom operator implementation should be always used, False to fallback to
+            Python behavior.
         """
         return False
 

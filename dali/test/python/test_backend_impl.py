@@ -291,7 +291,10 @@ def test_tl_from_list_of_tensors_different_dtypes():
         t2 = TensorCPU(np.zeros((1), dtype=dtypes[1]))
         with assert_raises(
             TypeError,
-            glob="Tensors cannot have different data types. Tensor at position 1 has type '*' expected to have type '*'.",
+            glob=(
+                "Tensors cannot have different data types."
+                " Tensor at position 1 has type '*' expected to have type '*'."
+            ),
         ):  # noqa: E501
             TensorListCPU([t1, t2])
 

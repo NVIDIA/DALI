@@ -87,7 +87,15 @@ def test_expand_dims():
         ([0], "X", "", [()], [(1,)], "X"),
     ]
     for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
-        yield _testimpl_expand_dims, axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
+        yield (
+            _testimpl_expand_dims,
+            axes,
+            new_axis_names,
+            layout,
+            shapes,
+            expected_out_shapes,
+            expected_layout,
+        )
 
 
 def test_expand_dims_throw_error():
