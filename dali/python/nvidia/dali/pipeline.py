@@ -73,7 +73,8 @@ class Pipeline(object):
     `device_id` : int, optional, default = -1
         Id of GPU used by the pipeline.
         A None value for this parameter means that DALI should not use GPU nor CUDA runtime.
-        This limits the pipeline to only CPU operators but allows it to run on any CPU capable machine.
+        This limits the pipeline to only CPU operators but allows it to run on any CPU capable
+        machine.
     `seed` : int, optional, default = -1
         Seed used for random number generation. Leaving the default value
         for this parameter results in random seed.
@@ -165,25 +166,30 @@ class Pipeline(object):
 
         If ``spawn`` method is used, ExternalSource's callback must be picklable.
         In order to use ``fork``, there must be no CUDA contexts acquired at the moment of starting
-        the workers. For this reason, if you need to build multiple pipelines that use Python workers,
-        you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
+        the workers. For this reason, if you need to build multiple pipelines that use Python
+        workers, you will need to call :meth:`start_py_workers` before calling :meth:`build` of any
         of the pipelines. You can find more details and caveats of both methods in Python's
         ``multiprocessing`` module documentation.
     `py_callback_pickler` : module or tuple, default = None
         If `py_start_method` is set to *spawn*, callback passed to parallel
         ExternalSource must be picklable.
-        If run in Python3.8 or newer with `py_callback_pickler` set to None, DALI uses customized pickle
-        when serializing callbacks to support serialization of local functions and lambdas.
+        If run in Python3.8 or newer with `py_callback_pickler` set to None, DALI uses customized
+        pickle when serializing callbacks to support serialization of local functions and lambdas.
 
         However, if you need to serialize more complex objects like local classes or you are running
         older version of Python you can provide external serialization package such as dill or
-        cloudpickle that implements two methods: `dumps` and `loads` to make DALI use them to serialize
-        external source callbacks. You can pass a module directly as ``py_callback_pickler``::
+        cloudpickle that implements two methods: `dumps` and `loads` to make DALI use them to
+        serialize external source callbacks. You can pass a module directly as
+        ``py_callback_pickler``::
 
             import dill
             @pipeline_def(py_callback_pickler=dill, ...)
             def create_pipeline():
-                src = fn.external_source(lambda sample_info: np.int32([42]), batch=False, parallel=True)
+                src = fn.external_source(
+                    lambda sample_info: np.int32([42]),
+                    batch=False,
+                    parallel=True,
+                )
                 ...
 
         A valid value for `py_callback_pickler` is either a module/object implementing
@@ -195,14 +201,14 @@ class Pipeline(object):
         If you run Python3.8 or newer with the default DALI pickler (`py_callback_pickler` = None),
         you can hint DALI to serialize global functions by value rather than by reference
         by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
-        working with Jupyter notebook to work around the issue of worker process being unable to import
-        the callback defined as a global function inside the notebook.
+        working with Jupyter notebook to work around the issue of worker process being unable to
+        import the callback defined as a global function inside the notebook.
     `output_dtype` : ``nvidia.dali.types.DALIDataType`` or list of those, default = None
-        With this argument, you may declare, what data type you expect in the given output. You shall
-        pass a list of mod:`types.DALIDataType`, each element in the list corresponding to
-        one output from the pipeline. Additionally, you can pass ``None`` as a wildcard. The outputs,
-        after each iteration, will be validated against the types you passed to this argument. If any
-        output does not match the provided type, RuntimeError will be raised.
+        With this argument, you may declare, what data type you expect in the given output. You
+        shall pass a list of mod:`types.DALIDataType`, each element in the list corresponding to
+        one output from the pipeline. Additionally, you can pass ``None`` as a wildcard.
+        The outputs, after each iteration, will be validated against the types you passed to this
+        argument. If any output does not match the provided type, RuntimeError will be raised.
 
         If the ``output_dtype`` value is a single value (not a list), it will be broadcast to the
         number of outputs from the pipeline.
@@ -210,9 +216,10 @@ class Pipeline(object):
         With this argument, you may declare, how many dimensions you expect in the given output.
         You shall pass a list of integers, each element in the list corresponding to one output
         from the pipeline.
-        Additionally, you can pass ``None`` as a wildcard. The outputs, after each iteration, will be
-        validated against the numbers of dimensions you passed to this argument. If the dimensionality
-        of any output does not match the provided ``ndim``, RuntimeError will be raised.
+        Additionally, you can pass ``None`` as a wildcard. The outputs, after each iteration, will
+        be validated against the numbers of dimensions you passed to this argument. If the
+        dimensionality of any output does not match the provided ``ndim``, RuntimeError will be
+        raised.
 
         If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
         number of outputs from the pipeline."""

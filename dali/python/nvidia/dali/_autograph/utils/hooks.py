@@ -21,9 +21,9 @@ class OperatorBase:
     for example if and for statements are replaced by ag__.if_stmt and ag__.for_stmt function
     calls.
     In such operator AutoGraph checks if one of the arguments is the user-defined type of interest
-    (by default a tf.Tensor of tf.data.Dataset) and if so, appropriate graph operations are inserted.
-    Otherwise a _py... fallback like _py_if_stmt or _py_for_stmt is invoked, providing default
-    Python semantics.
+    (by default a tf.Tensor of tf.data.Dataset) and if so, appropriate graph operations are
+    inserted. Otherwise a _py... fallback like _py_if_stmt or _py_for_stmt is invoked, providing
+    default Python semantics.
 
     The user that wants to customize AutoGraph can do so, by overloading OperatorBase.
     Any `detect_overload_x` function is used to detect the objects of user-defined type,

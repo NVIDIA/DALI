@@ -260,7 +260,9 @@ def _resolve_double_definitions(current, previous, keep_old=True):
 
 
 def _process_arguments(schema, spec, kwargs, operator_name):
-    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling."""
+    """
+    Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling.
+    """
     kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
     _add_spec_args(schema, spec, kwargs)
 
