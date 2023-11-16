@@ -145,7 +145,7 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
   return -1;
 }
 
-class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
  public:
   explicit LMDBLoader(const OpSpec& options)
       : Loader(options) {
@@ -204,6 +204,10 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
                 value.mv_size * sizeof(uint8_t));
   }
 
+  void Skip() override {
+    MoveToNextShard(++current_index_);
+  }
+
  protected:
   Index SizeImpl() override {
     return offsets_.size() > 0 ? offsets_.back() : 0;
@@ -224,7 +228,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void Reset(bool wrap_to_shard) override {
     // work out how many entries to move forward to handle sharding
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
@@ -233,8 +237,8 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     mdb_[file_index].SeekByIndex(local_index);
   }
-  using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
-  using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
+  using Loader<CPUBackend, Tensor<CPUBackend>, true>::virtual_shard_id_;
+  using Loader<CPUBackend, Tensor<CPUBackend>, true>::num_shards_;
 
   std::vector<IndexedLMDB> mdb_;
 

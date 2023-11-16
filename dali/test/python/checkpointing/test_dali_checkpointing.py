@@ -238,6 +238,34 @@ def test_coco_reader(
         image_ids=True)
 
 
+@params(
+        (1, 3, 0, 1, True, True, True, 1),
+        (5, 5, 1, 3, True, True, False, 2),
+        (6, 7, 2, 3, True, False, True, 3),
+        (5, 3, 0, 1, True, False, False, 1),
+        (7, 5, 2, 3, False, True, True, None),
+        (4, 1, 1, 2, False, True, False, 2),
+        (0, 3, 3, 4, False, False, True, None),
+        (1, 4, 2, 3, False, False, False, 3),
+)
+def test_caffe_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    caffe_dir = os.path.join(data_root, 'db', 'lmdb')
+
+    check_reader_checkpointing(
+        fn.readers.caffe, num_epochs, batch_size, iters_into_epoch,
+        path=caffe_dir,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+
 @attr('pytorch')
 @params(
         (1, 3, 0, 1, True, False, False),
