@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
@@ -236,6 +237,46 @@ def test_coco_reader(
         initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
+
+
+@params(
+        (0, 1, 0, 1, False, False, False, False, None),
+        (5, 2, 1, 2, False, False, False, True, 1),
+        (6, 3, 4, 5, False, False, True, False, 2),
+        (7, 4, 2, 5, False, False, True, True, 3),
+        (5, 1, 1, 3, False, True, False, False, 4),
+        (6, 2, 2, 4, False, True, False, True, None),
+        (7, 3, 0, 1, True, False, False, False, 1),
+        (8, 4, 2, 3, True, False, False, True, 2),
+        (9, 1, 0, 1, True, False, True, False, 3),
+        (10, 2, 0, 2, True, False, True, True, 4),
+)
+def test_nemo_asr_reader(num_epochs, batch_size, shard_id, num_shards,
+                         random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+                         iters_into_epoch=None, initial_fill=1024):
+
+    nemo_dir = os.path.join(data_root, 'db', 'audio', 'wav')
+    wav_files = [os.path.join(nemo_dir, f) for f in os.listdir(nemo_dir) if f.endswith('.wav')]
+
+    manifest = tempfile.NamedTemporaryFile('w')
+    for i, f in enumerate(wav_files):
+        manifest.write(f'{{"audio_filepath": "{f}", \
+                       "offset": {i/1000}, \
+                       "duration": {0.3 + i/100}, \
+                       "text": "o{"o"*i}"}}\n')
+    manifest.flush()
+
+    check_reader_checkpointing(
+        fn.readers.nemo_asr, num_epochs, batch_size, iters_into_epoch,
+        manifest_filepaths=[manifest.name],
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id, num_shards=num_shards,
+        shuffle_after_epoch=shuffle_after_epoch,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+    manifest.close()
 
 
 @attr('pytorch')
