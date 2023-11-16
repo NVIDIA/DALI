@@ -93,7 +93,7 @@ std::string SnapshotSerializer::Serialize(const std::vector<curandState> &snapsh
   return proto_snapshot.SerializeAsString();
 }
 
-template<>
+template<> DLL_PUBLIC
 std::vector<curandState> SnapshotSerializer::Deserialize(const std::string &data) {
   dali_proto::RNGSnapshotGPU proto_snapshot;
   proto_snapshot.ParseFromString(data);
