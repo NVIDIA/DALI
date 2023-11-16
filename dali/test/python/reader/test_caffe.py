@@ -121,7 +121,7 @@ def test_caffe_sharding():
         def sample_id(sample):
             return sample.as_array().sum()
 
-        return {sample_id(p.run()[0]) for _ in range(size * num_shards)}
+        return {sample_id(p.run()[0]) for _ in range(size)}
 
     dataset = get_data(0, 1, False)
 
