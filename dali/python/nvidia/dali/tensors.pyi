@@ -14,7 +14,6 @@
 
 from typing import Any, List, overload
 
-from nvidia.dali.data_node import DataNode
 from nvidia.dali.types import DALIDataType
 
 
@@ -59,7 +58,7 @@ class TensorCPU:
         ...
 
     @property
-    def dtype(self) -> DataNode:
+    def dtype(self) -> DALIDataType:
         ...
 
     @property
@@ -109,7 +108,7 @@ class TensorGPU:
         ...
 
     @property
-    def dtype(self) -> DataNode:
+    def dtype(self) -> DALIDataType:
         ...
 
     @property
