@@ -203,7 +203,7 @@ class DLL_PUBLIC FramesDecoder {
   }
 
   bool IsValid() {
-    return _is_valid;
+    return is_valid_;
   }
 
  protected:
@@ -275,7 +275,8 @@ class DLL_PUBLIC FramesDecoder {
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
-  bool _is_valid = false;
+  // False when the file doesn't have any correct content or doesn't have valid video stream
+  bool is_valid_ = false;
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};

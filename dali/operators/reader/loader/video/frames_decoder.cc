@@ -200,7 +200,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   InitAvState();
   BuildIndex();
   DetectVfr();
-  _is_valid = true;
+  is_valid_ = true;
 }
 
 
@@ -255,13 +255,13 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   }
 
   if (!build_index) {
-    _is_valid = true;
+    is_valid_ = true;
     return;
   }
 
   BuildIndex();
   DetectVfr();
-  _is_valid = true;
+  is_valid_ = true;
 }
 
 void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs) {
