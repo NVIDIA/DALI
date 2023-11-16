@@ -18,6 +18,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <curand_kernel.h>  // NOLINT
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
@@ -33,6 +34,8 @@ class DLL_PUBLIC SnapshotSerializer {
   DLL_PUBLIC std::string Serialize(const std::vector<std::mt19937> &snapshot);
 
   DLL_PUBLIC std::string Serialize(const std::vector<std::mt19937_64> &snapshot);
+
+  DLL_PUBLIC std::string Serialize(const std::vector<curandState> &snapshot);
 
   DLL_PUBLIC std::string Serialize(const LoaderStateSnapshot &snapshot);
 

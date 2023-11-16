@@ -91,6 +91,10 @@ message RNGSnapshotCPU {
   repeated string rng = 1;
 }
 
+message RNGSnapshotGPU {
+  optional bytes rng = 1;
+}
+
 message ReaderStateSnapshot {
   message LoaderStateSnapshot {
     optional bytes rng = 1;
