@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from typing import cast, Sequence
+from typing import cast, Sequence, Union
 
 from nvidia.dali import fn, ops
 from nvidia.dali import types, tensors
@@ -40,6 +40,13 @@ def expect_pipeline(pipe: Pipeline) -> None:
     assert isinstance(pipe, Pipeline), f"Expected Pipeline, got {pipe} of type {type(pipe)}"
 
 
+def expect_tensor_list(*tls: Union[tensors.TensorListCPU, tensors.TensorListGPU]) -> None:
+    for tl in tls:
+        assert isinstance(
+            tl, (tensors.TensorListCPU, tensors.TensorListGPU)
+        ), f"Expected TensorList, got {tl} of type {type(tl)}"
+
+
 def test_rn50_pipe():
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
@@ -61,6 +68,7 @@ def test_rn50_pipe():
     expect_pipeline(pipe)
     pipe.build()
     imgs, labels = pipe.run()
+    expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
@@ -96,6 +104,7 @@ def test_rn50_ops_pipe():
     expect_pipeline(pipe)
     pipe.build()
     imgs, labels = pipe.run()
+    expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.FLOAT16  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
@@ -121,6 +130,7 @@ def test_cond_pipe():
     expect_pipeline(pipe)
     pipe.build()
     imgs, labels = pipe.run()
+    expect_tensor_list(imgs, labels)
     assert isinstance(imgs, tensors.TensorListGPU)
     assert imgs.dtype == types.DALIDataType.UINT8  # noqa: E721
     assert isinstance(labels, tensors.TensorListGPU)
@@ -142,6 +152,7 @@ def test_es_pipe():
     expect_pipeline(pipe)
     pipe.build()
     out0, out1, out2, out3, out4 = pipe.run()
+    expect_tensor_list(out0, out1, out2, out3, out4)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((10, 1), 0))
     assert np.array_equal(np.array(out1.as_tensor()), np.full((10, 1), 1))
     assert np.array_equal(np.array(out2.as_tensor()), np.full((10, 1), 2))
@@ -173,6 +184,7 @@ def test_python_function_pipe():
     expect_pipeline(pipe)
     pipe.build()
     out0, out1, out2 = pipe.run()
+    expect_tensor_list(out0, out1, out2)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
@@ -206,6 +218,7 @@ def test_pytorch_plugin():
     expect_pipeline(pipe)
     pipe.build()
     out0, out1 = pipe.run()
+    expect_tensor_list(out0, out1)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 10, 1), 1))
 
@@ -244,4 +257,5 @@ def test_numba_plugin():
     pipe = numba_pipe()
     pipe.build()
     out, = pipe.run()
+    expect_tensor_list(out)
     assert np.array_equal(np.array(out.as_tensor()), np.full((2, 2), 84))
