@@ -234,4 +234,4 @@ def test_invalid_number_of_shards():
             "The number of input samples: *,"
             " needs to be at least equal to the requested number of shards:*."
         ),
-    )  # noqa: E501
+    )

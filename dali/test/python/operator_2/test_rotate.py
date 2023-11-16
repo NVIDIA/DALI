@@ -75,17 +75,17 @@ def get_3d_lin_rotation(angle, axis):
                 u * u + (v * v + w * w) * cosa,
                 u * v * (1 - cosa) - w * sina,
                 u * w * (1 - cosa) + v * sina,
-            ],  # noqa:E501
+            ],
             [
                 u * v * (1 - cosa) + w * sina,
                 v * v + (u * u + w * w) * cosa,
                 v * w * (1 - cosa) - u * sina,
-            ],  # noqa:E501
+            ],
             [
                 u * w * (1 - cosa) - v * sina,
                 v * w * (1 - cosa) + u * sina,
                 w * w + (u * u + v * v) * cosa,
-            ],  # noqa:E501
+            ],
         ],
         dtype=np.float32,
     )

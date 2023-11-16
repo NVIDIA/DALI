@@ -362,7 +362,7 @@ def _test_pickle_by_value_decorator_on_global_function(name, py_callback_pickler
     # which is default Python behavior, would fail
     _simple_callback_by_value.__name__ = (
         _simple_callback_by_value.__qualname__
-    ) = "simple_callback_by_value"  # noqa: E501
+    ) = "simple_callback_by_value"
     _create_and_compare_simple_pipelines(
         _simple_callback_by_value, py_callback_pickler, batch_size=4, py_num_workers=2
     )

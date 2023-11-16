@@ -295,7 +295,7 @@ def test_tl_from_list_of_tensors_different_dtypes():
                 "Tensors cannot have different data types."
                 " Tensor at position 1 has type '*' expected to have type '*'."
             ),
-        ):  # noqa: E501
+        ):
             TensorListCPU([t1, t2])
 
 

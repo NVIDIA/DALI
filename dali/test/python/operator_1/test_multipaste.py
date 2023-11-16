@@ -378,7 +378,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -393,7 +393,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -408,7 +408,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -423,7 +423,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -438,7 +438,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -453,7 +453,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -468,7 +468,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -483,7 +483,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -498,7 +498,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -513,7 +513,7 @@ def test_operator_multipaste():
             None,
             types.INT16,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -528,7 +528,7 @@ def test_operator_multipaste():
             None,
             types.INT32,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -543,7 +543,7 @@ def test_operator_multipaste():
             None,
             types.FLOAT,
             0,
-        ],  # noqa: 501
+        ],
         [
             4,
             2,
@@ -558,7 +558,7 @@ def test_operator_multipaste():
             None,
             types.UINT8,
             4,
-        ],  # noqa: 501
+        ],
     ]
     for t in tests:
         yield (check_operator_multipaste, *t, "cpu")

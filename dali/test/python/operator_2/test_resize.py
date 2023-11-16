@@ -581,7 +581,7 @@ def _tests(dim, device):
             h_input,
             d_input,
             use_roi,
-        ) in [  # noqa: E501
+        ) in [
             (0, types.UINT8, True, False, False, False, False, False, False),
             (1, types.FLOAT, False, False, False, False, True, True, True),
             (0, types.FLOAT, True, False, False, True, True, False, True),

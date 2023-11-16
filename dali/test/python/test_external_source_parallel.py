@@ -942,7 +942,7 @@ class PermutableSampleCb:
             sample_info.iteration > self.epoch_size
             or sample_info.iteration == self.epoch_size
             and sample_info.idx_in_batch >= self.trailing_samples
-        ):  # noqa: E501
+        ):
             raise StopIteration
         if self.last_seen_epoch != sample_info.epoch_idx:
             self.last_seen_epoch = sample_info.epoch_idx

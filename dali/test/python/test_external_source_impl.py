@@ -512,7 +512,7 @@ def test_external_source_generator_cycle_error():
     fn.external_source(gen(), cycle=False)  # no cycle - OK
     with assert_raises(
         TypeError, glob="Cannot cycle through a generator * pass that function instead as `source`."
-    ):  # noqa: E501
+    ):
         fn.external_source(gen(), cycle=True)  # cycle over generator - error expected
 
 

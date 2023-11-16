@@ -111,7 +111,7 @@ def test_deserialization_from_file_with_params():
         "serialized_pipeline and filename arguments are mutually exclusive. "
         "Precisely one of them should be defined."
     ),
-)  # noqa: E501
+)
 def test_incorrect_invocation_mutually_exclusive_params():
     filename = "/tmp/dali.serialize.pipeline.test"
     pipe = TestPipeline(batch_size=3, num_threads=1, shape=[666])
@@ -125,6 +125,6 @@ def test_incorrect_invocation_mutually_exclusive_params():
         "serialized_pipeline and filename arguments are mutually exclusive. "
         "Precisely one of them should be defined."
     ),
-)  # noqa: E501
+)
 def test_incorrect_invocation_no_params():
     Pipeline.deserialize()
