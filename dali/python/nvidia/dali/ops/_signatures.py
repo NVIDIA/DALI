@@ -454,7 +454,7 @@ class StubFileManager:
                 submodules_dict = submodules_dict[submodule]
             direct_submodules = submodules_dict.keys()
             for direct_submodule in direct_submodules:
-                f.write(f"from . import {direct_submodule}\n")
+                f.write(f"from . import {direct_submodule} as {direct_submodule}\n")
 
             f.write("\n\n")
         return self._module_to_file[module_path]
