@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ class IndexedLMDB {
     mdb_size_ = stat.ms_entries;
     LOG_LINE << "lmdb " << num_ << " " << db_path_
              << " has " << mdb_size_ << " entries" << std::endl;
+    MDB_val tmp_key, tmp_value;
+    mdb_cursor_get(mdb_cursor_, &tmp_key, &tmp_value, MDB_FIRST);
     mdb_index_ = 0;
   }
   size_t GetSize() const { return mdb_size_; }

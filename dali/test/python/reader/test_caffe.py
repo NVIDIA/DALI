@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,6 +97,50 @@ def test_caffe_reader_alias():
     new_pipe = caffe_pipe(fn.readers.caffe, caffe_db_folder)
     legacy_pipe = caffe_pipe(fn.caffe_reader, caffe_db_folder)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+
+def test_caffe_sharding():
+    @pipeline_def(batch_size=1, device_id=0, seed=123, num_threads=1)
+    def pipeline(shard_id, num_shards, stick_to_shard):
+        images, _ = fn.readers.caffe(
+            name='Reader',
+            path=caffe_db_folder,
+            pad_last_batch=True,
+            random_shuffle=False,
+            shard_id=shard_id,
+            stick_to_shard=stick_to_shard,
+            num_shards=num_shards)
+        return images
+
+    def get_data(shard_id, num_shards, stick_to_shard):
+        p = pipeline(shard_id, num_shards, stick_to_shard)
+        p.build()
+        size = p.reader_meta()['Reader']['epoch_size_padded']
+
+        # This should return some unique number for each sample
+        def sample_id(sample):
+            return sample.as_array().sum()
+
+        return {sample_id(p.run()[0]) for _ in range(size * num_shards)}
+
+    dataset = get_data(0, 1, False)
+
+    num_shards = 3
+
+    # Shards do not overlap
+    shard = [get_data(i, num_shards, True) for i in range(num_shards)]
+    for i in range(num_shards):
+        for j in range(num_shards):
+            if i != j:
+                assert len(shard[i] & shard[j]) == 0, "overlapping shards"
+
+    # Shards add up to whole dataset
+    assert set().union(*shard) == dataset, "shards don't add up"
+
+    # With stick_to_shard = False we traverse whole dataset
+    for i in range(num_shards):
+        result = get_data(i, num_shards, False)
+        assert result == dataset, "starting shard changes the data"
 
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
