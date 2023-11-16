@@ -17,12 +17,6 @@ from nvidia.dali.backend import (TensorCPU as TensorCPU, TensorListCPU as Tensor
                                  as TensorGPU, TensorListGPU as TensorListGPU)  # noqa: F401
 
 
-TensorCPU.__module__ = "nvidia.dali.tensors"
-TensorGPU.__module__ = "nvidia.dali.tensors"
-TensorListCPU.__module__ = "nvidia.dali.tensors"
-TensorListGPU.__module__ = "nvidia.dali.tensors"
-
-
 def _transfer_to_cpu(data, device):
     if device.lower() == 'gpu':
         return data.as_cpu()

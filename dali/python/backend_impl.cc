@@ -442,6 +442,9 @@ void ExposeTensor(py::module &m) {
       )code");
 
   auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", [](const py::object object) {
+      return "nvidia.dali.tensors";
+    })
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -636,6 +639,9 @@ void ExposeTensor(py::module &m) {
   py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+    .def_property_readonly_static("__module__", [](const py::object object) {
+      return "nvidia.dali.tensors";
+    })
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -915,6 +921,9 @@ void ExposeTensorList(py::module &m) {
   auto tensor_list_cpu_class =
       py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
           m, "TensorListCPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", [](const py::object object) {
+      return "nvidia.dali.tensors";
+    })
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
@@ -1190,6 +1199,9 @@ void ExposeTensorList(py::module &m) {
   auto tensor_list_gpu_class =
       py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
           m, "TensorListGPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", [](const py::object object) {
+      return "nvidia.dali.tensors";
+    })
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
