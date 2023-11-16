@@ -15,6 +15,7 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
+import webdataset_base
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
@@ -236,6 +237,42 @@ def test_coco_reader(
         initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
+
+
+@params(
+        (10, 1, 1, 8, False, False, False, 3),
+        (3, 2, 0, 1, False, False, True, 4),
+        (3, 4, 4, 7, False, True, False, 5),
+        (0, 8, 2, 6, False, True, True, None),
+        (12, 16, 0, 5, True, False, False, 3),
+        (8, 32, 1, 3, True, False, True, 4),
+        (6, 64, 4, 6, True, True, False, 5),
+        (10, 128, 3, 4, True, True, True, None),
+)
+def test_webdataset_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    tar_file_paths = [
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
+    ]
+    index_files = [webdataset_base.generate_temp_index_file(tar_file_path)
+                   for tar_file_path in tar_file_paths]
+
+    check_reader_checkpointing(
+        fn.readers.webdataset, num_epochs, batch_size, iters_into_epoch,
+        paths=tar_file_paths,
+        index_paths=[f.name for f in index_files],
+        ext=["jpg", "cls"],
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
 
 
 @attr('pytorch')
