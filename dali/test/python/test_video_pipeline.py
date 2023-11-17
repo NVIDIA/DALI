@@ -22,6 +22,7 @@ from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import numpy as np
 import tempfile
+from test_utils import check_output_pattern
 
 from nose_utils import assert_raises, raises
 
@@ -357,21 +358,44 @@ def test_plenty_of_video_files():
         pipe.run()
 
 
-@raises(RuntimeError,
-        glob='Could not open file * because of Invalid data found when processing input')
-def check_corrupted_videos():
-    corrupted_videos = [
-        corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
-    for corrupted in corrupted_videos:
-        pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
-        with pipe:
-            vid = fn.readers.video(device="gpu", filenames=corrupted, sequence_length=1)
-            pipe.set_outputs(vid)
+def check_corrupted_videos(reader, wrong_video, msg):
+    good_video = os.path.join(video_data_root, "cfr", "test_2.mp4")
+    pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
+    with pipe:
+        vid = reader([wrong_video, good_video])
+        pipe.set_outputs(vid)
+    with check_output_pattern(pattern=msg):
         pipe.build()
+        pipe.run()
 
 
 def test_corrupted_videos():
-    check_corrupted_videos()
+    corrupted_videos = [
+        (os.path.join(corrupted_video_data_root, "moov_atom_not_found.mp4"),
+         "Failed to open video file"),
+        (os.path.join(corrupted_video_data_root, "audio_only.mp4"),
+         "Could not find a valid video stream in a file")
+        ]
+    readers = [
+        lambda files:
+            fn.readers.video(device="gpu", filenames=files, sequence_length=3),
+        lambda files:
+            fn.experimental.readers.video(device="gpu", filenames=files, sequence_length=3),
+        lambda files:
+            fn.experimental.readers.video(device="cpu", filenames=files, sequence_length=3),
+    ]
+    for reader in readers:
+        for wrong_video, msg in corrupted_videos:
+            yield check_corrupted_videos, reader, wrong_video, msg
+
+
+def test_unsupported_codec():
+    def reader_fn(files):
+        return fn.experimental.readers.video(device="cpu", filenames=files, sequence_length=3)
+
+    wrong_video = os.path.join(video_data_root, "vp9", "vp9_0.mp4")
+    msg = "Unsupported video codec"
+    yield check_corrupted_videos, reader_fn, wrong_video, msg
 
 
 def check_container(cont):
