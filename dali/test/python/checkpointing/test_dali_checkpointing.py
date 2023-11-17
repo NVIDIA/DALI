@@ -137,7 +137,11 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
     def pipeline():
-        return tuple(reader(name="Reader", **kwargs))
+        result = reader(name="Reader", **kwargs)
+        if isinstance(result, list):
+            return tuple(result)
+        else:
+            return result
 
     p = pipeline()
     p.build()
@@ -236,6 +240,31 @@ def test_coco_reader(
         initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
+
+
+@params(
+        (1, 1, 0, 3, False, False, False, None),
+        (2, 2, 0, 1, False, False, True, 1),
+        (6, 4, 2, 3, False, True, False, 2),
+        (4, 1, 1, 5, False, True, True, 3),
+        (3, 2, 4, 5, True, False, False, 1),
+        (7, 4, 2, 5, True, False, True, 2),
+        (5, 1, 2, 3, True, True, False, 3),
+        (0, 2, 3, 6, True, True, True, None),
+)
+def test_sequence_reader(num_epochs, batch_size, shard_id, num_shards,
+                         random_shuffle, stick_to_shard, pad_last_batch,
+                         iters_into_epoch=None, initial_fill=1024):
+
+    check_reader_checkpointing(
+        fn.readers.sequence, num_epochs, batch_size, iters_into_epoch,
+        file_root=os.path.join(data_root, 'db', 'sequence', 'frames'),
+        sequence_length = 5,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id, num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
 
 
 @attr('pytorch')
