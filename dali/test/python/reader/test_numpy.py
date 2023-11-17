@@ -15,6 +15,7 @@
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+import nvidia.dali.backend as dali_b
 import numpy as np
 from numpy.testing import assert_array_equal
 import os
@@ -54,7 +55,9 @@ def is_gds_supported(device_id=0):
     except ModuleNotFoundError:
         print("Python bindings for NVML not found")
 
-    is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
+    # for CUDA < 12.2 only x86 platform is supported, above aarch64 is supported as well
+    is_gds_supported_var = (platform.processor() == "x86_64" or
+                            dali_b.__cuda_version__ >= 12200) and compute_cap >= 6.0
     return is_gds_supported_var
 
 
