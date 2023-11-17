@@ -19,6 +19,7 @@
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#include "pybind11/pytypes.h"
 #if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
 #endif
@@ -62,6 +63,18 @@ void __backend_impl_force_tls_align_fun(void) {}
 
 
 using namespace pybind11::literals; // NOLINT
+
+/**
+ * @brief Override the default __module__ of Tensor classes from nvidia.dali.backend_impl
+ * with the user-friendly Python module.
+ * This definition must be provided as a first one for the Tensor classes, so all following
+ * definitions can look it up when pybind is generating the signatures, otherwise the annotations
+ * will contain the backend_impl module path.
+ */
+static std::string tensor_module_impl(const py::object object) {
+  (void)object;
+  return "nvidia.dali.tensors";
+}
 
 static void* ctypes_void_ptr(const py::object& object) {
   auto ptr_as_int = getattr(object, "value", py::none());
@@ -442,6 +455,7 @@ void ExposeTensor(py::module &m) {
       )code");
 
   auto tensor_cpu_binding = py::class_<Tensor<CPUBackend>>(m, "TensorCPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<CPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -636,6 +650,7 @@ void ExposeTensor(py::module &m) {
   py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
 
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
+    .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
           FillTensorFromDlPack(capsule, t.get(), layout);
@@ -915,6 +930,7 @@ void ExposeTensorList(py::module &m) {
   auto tensor_list_cpu_class =
       py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
           m, "TensorListCPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
@@ -1190,6 +1206,7 @@ void ExposeTensorList(py::module &m) {
   auto tensor_list_gpu_class =
       py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
           m, "TensorListGPU", py::buffer_protocol())
+    .def_property_readonly_static("__module__", tensor_module_impl)
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
