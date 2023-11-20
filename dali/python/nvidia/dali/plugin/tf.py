@@ -409,7 +409,6 @@ def _get_current_device_spec():
 
 
 if dataset_compatible_tensorflow():
-    from tensorflow.python.framework import ops
     from tensorflow.python.data.ops import dataset_ops
     from tensorflow.python.data.util import structure
     import functools
@@ -466,7 +465,7 @@ if dataset_compatible_tensorflow():
                 output_dtypes = (output_dtypes,)
                 output_shapes = (output_shapes,)
 
-            output_classes = nest.map_structure(lambda _: ops.Tensor, output_dtypes)
+            output_classes = nest.map_structure(lambda _: tf.Tensor, output_dtypes)
 
             self._pipeline_instance = pipeline  # keep the live Pipeline object
             self._pipeline_serialized = serialize_pipeline(pipeline)
