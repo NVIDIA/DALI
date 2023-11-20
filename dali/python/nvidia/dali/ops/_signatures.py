@@ -68,6 +68,8 @@ _DataNode = _create_annotation_placeholder("DataNode")
 _DALIDataType = _create_annotation_placeholder("DALIDataType")
 _DALIImageType = _create_annotation_placeholder("DALIImageType")
 _DALIInterpType = _create_annotation_placeholder("DALIInterpType")
+_TensorLikeIn = _create_annotation_placeholder("TensorLikeIn")
+_TensorLikeArg = _create_annotation_placeholder("TensorLikeArg")
 
 _enum_mapping = {
     types.DALIDataType: _DALIDataType,
@@ -136,7 +138,7 @@ def _get_annotation_input_regular(schema):
     A function is used as a global variable can be confused with type alias.
     TODO(klecki): Extend with TensorLike.
     """
-    return _DataNode
+    return Union[_DataNode, _TensorLikeIn]
 
 
 def _get_annotation_return_regular(schema):
@@ -232,7 +234,11 @@ def _get_keyword_params(schema, all_args_optional=False):
         kw_annotation = _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        annotation = Union[_DataNode, kw_annotation] if is_arg_input else kw_annotation
+        if is_arg_input:
+            annotation = Union[_DataNode, _TensorLikeArg, kw_annotation]
+        else:
+            annotation = kw_annotation
+
         if schema.IsArgumentOptional(arg):
             # In DALI arguments can always accept optional, and the propagation of such argument
             # is skipped. Passing None is equivalent to not providing the argument at all,
@@ -425,6 +431,8 @@ _HEADER = """
 
 from typing import Union, Optional, overload
 from typing import Any, List, Sequence
+
+from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
 
 from nvidia.dali.data_node import DataNode
 
