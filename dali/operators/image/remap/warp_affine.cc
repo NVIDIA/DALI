@@ -44,9 +44,9 @@ transform and it is inverted before applying the formula above.
 It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
 
-
-.. note:: Instead of this argument, the operator can take a second positional input, in which
-          case the matrix can be placed on the GPU.
+.. note::
+  Instead of this argument, the operator can take a second positional input, in which
+  case the matrix can be placed on the GPU.
 )code",
       vector<float>(), true, true)
   .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "
