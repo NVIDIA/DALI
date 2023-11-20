@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ DALI_SCHEMA(WarpAffine)
 
 )code")
   .NumInput(1, 2)
+  .InputDox(0, "data", "TensorList", "The image or volume to be warped")
+  .InputDox(1, "mtx", "TensorList of float",
+            "Like ``matrix`` argument, but can be placed in GPU memory")
   .NumOutput(1)
   .InputLayout(0, { "HWC", "FHWC", "DHWC", "FDHWC" })
   .SupportVolumetric()
@@ -40,6 +43,10 @@ transform and it is inverted before applying the formula above.
 
 It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
+
+
+.. note:: Instead of this argument, the operator can take a second positional input, in which
+          case the matrix can be placed on the GPU.
 )code",
       vector<float>(), true, true)
   .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "
