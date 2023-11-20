@@ -90,6 +90,9 @@ void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
   video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
     video_files_.emplace_back(filename, cuda_stream_);
+    if (!video_files_.back().IsValid()) {
+      video_files_.pop_back();
+    }
   }
 
   for (size_t video_idx = 0; video_idx < video_files_.size(); ++video_idx) {

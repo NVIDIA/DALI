@@ -371,6 +371,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             NumbaFunction._check_minimal_numba_version()
             NumbaFunction._check_cuda_compatibility()
 
+        # TODO(klecki): Normalize the types into lists first, than apply the checks
         assert len(in_types) == len(ins_ndim), ("Number of input types "
                                                 "and input dimensions should match.")
         assert len(out_types) == len(outs_ndim), ("Number of output types "

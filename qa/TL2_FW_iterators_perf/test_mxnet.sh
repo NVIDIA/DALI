@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='mxnet'
+# to be run inside a MXNet container - so don't need to list it here as a pip package dependency
 target_dir=./dali/test/python
 one_config_only=true
 

@@ -21,7 +21,7 @@ If you wish to retain the data you need to copy it before indicating DALI that y
 For typicall use-cases, for example when DALI is used through :ref:`DL Framework Plugins`,
 no additionall memory bookkeeping is necessary.
 
-.. currentmodule:: nvidia.dali.backend
+.. currentmodule:: nvidia.dali.tensors
 
 
 TensorListCPU
@@ -46,7 +46,7 @@ TensorCPU
    :undoc-members:
    :special-members: __init__, __array_interface__
 
-   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+   .. method:: dtype(self: nvidia.dali.tensors.TensorCPU) -> str
 
       String representing NumPy type of the Tensor.
 
@@ -61,7 +61,7 @@ TensorGPU
    :undoc-members:
    :special-members: __init__, __cuda_array_interface__
 
-   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+   .. method:: dtype(self: nvidia.dali.tensors.TensorCPU) -> str
 
       String representing NumPy type of the Tensor.
 

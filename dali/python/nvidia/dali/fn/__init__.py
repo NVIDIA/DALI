@@ -89,9 +89,16 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         else:
             return op_wrapper(*inputs, **kwargs)
 
+    from nvidia.dali.ops import _signatures
+    from nvidia.dali import backend as _b
     fn_wrapper.__name__ = wrapper_name
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc
+    schema = _b.TryGetSchema(op_class.schema_name)
+    if schema is not None:
+        fn_wrapper.__signature__ = _signatures._call_signature(schema, include_inputs=True,
+                                                               include_kwargs=True,
+                                                               filter_annotations=True)
     fn_wrapper._schema_name = op_class.schema_name
     fn_wrapper._generated = getattr(op_class, "_generated", False)
     return fn_wrapper

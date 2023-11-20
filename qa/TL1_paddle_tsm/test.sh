@@ -17,7 +17,7 @@ do_once() {
 
 test_body() {
   out=`python infer.py -k 1 -s 15 demo`
-  if echo $out | grep -E "(paragliding|sticking_tongue_out)"; then
+  if echo $out | grep -E "(waxing_legs|paragliding)"; then
     exit 0
   fi
   exit 3

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,3 +124,31 @@ def check_pytorch_operator_batch_processing(device):
 def test_pytorch_operator_batch_processing():
     for device in {'cpu', 'gpu'}:
         yield check_pytorch_operator_batch_processing, device
+
+
+def verify_pipeline(pipeline, input):
+    assert pipeline is Pipeline.current()
+    return input
+
+
+def test_current_pipeline():
+    pipe1 = Pipeline(13, 4, 0)
+    with pipe1:
+        dummy = types.Constant(numpy.ones((1)))
+        output = \
+            dalitorch.fn.torch_python_function(dummy,
+                                               function=lambda inp: verify_pipeline(pipe1, inp))
+        pipe1.set_outputs(output)
+
+    pipe2 = Pipeline(6, 2, 0)
+    with pipe2:
+        dummy = types.Constant(numpy.ones((1)))
+        output = \
+            dalitorch.fn.torch_python_function(dummy,
+                                               function=lambda inp: verify_pipeline(pipe2, inp))
+        pipe2.set_outputs(output)
+
+    pipe1.build()
+    pipe2.build()
+    pipe1.run()
+    pipe2.run()

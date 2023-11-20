@@ -208,38 +208,12 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
   RunTest(decoder, vfr_hevc_videos_[0]);
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
-  std::string path = "invalid_path.mp4";
-
-  RunConstructorFailureTest(
-    path,
-    make_string("Failed to open video file ", path));
-}
-
-TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
-  std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav";
-
-  RunConstructorFailureTest(
-    path,
-    make_string("Could not find a valid video stream in a file ", path));
-}
-
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   FramesDecoder decoder(cfr_videos_paths_[0]);
 
   RunFailureTest([&]() -> void {
     decoder.SeekFrame(60);},
     "Invalid seek frame id. frame_id = 60, num_frames = 50");
-}
-
-TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
-  std::string path = testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4";
-
-  RunConstructorFailureTest(
-    path,
-    make_string(
-      "Unsupported video codec: vp9 in file: ", path,
-      " Supported codecs: h264, HEVC."));
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {

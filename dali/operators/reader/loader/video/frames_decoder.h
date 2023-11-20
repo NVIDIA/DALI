@@ -202,6 +202,10 @@ class DLL_PUBLIC FramesDecoder {
     return filename_.has_value() ? filename_.value() : "memory file";
   }
 
+  bool IsValid() {
+    return is_valid_;
+  }
+
  protected:
   std::unique_ptr<AvState> av_state_;
 
@@ -247,7 +251,7 @@ class DLL_PUBLIC FramesDecoder {
 
   void InitAvState(bool init_codecs = true);
 
-  void FindVideoStream(bool init_codecs = true);
+  bool FindVideoStream(bool init_codecs = true);
 
   void LazyInitSwContext();
 
@@ -271,6 +275,8 @@ class DLL_PUBLIC FramesDecoder {
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
+  // False when the file doesn't have any correct content or doesn't have valid video stream
+  bool is_valid_ = false;
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};

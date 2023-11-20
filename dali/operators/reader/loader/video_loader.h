@@ -145,11 +145,11 @@ struct sequence_meta {
 };
 
 
-class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
+class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
  public:
   explicit inline VideoLoader(const OpSpec& spec,
     const std::vector<std::string>& filenames)
-    : Loader<GPUBackend, SequenceWrapper>(spec),
+    : Loader<GPUBackend, SequenceWrapper, true>(spec),
       file_root_(spec.GetArgument<std::string>("file_root")),
       file_list_(spec.GetArgument<std::string>("file_list")),
       count_(spec.GetArgument<int>("sequence_length")),
@@ -208,6 +208,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   void PrepareEmpty(SequenceWrapper &tensor) override;
   void ReadSample(SequenceWrapper &tensor) override;
+  void Skip() override;
 
   VideoFile& get_or_open_file(const std::string &filename);
   void seek(VideoFile& file, int frame);
@@ -223,6 +224,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
     for (size_t i = 0; i < file_info_.size(); ++i) {
       const auto& file = get_or_open_file(file_info_[i].video_file);
+      // cannot open, skip
+      if (file.empty()) continue;
       const auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
       int frame_count = file.frame_count_;
 
@@ -309,8 +312,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
                  "dataset, check the length of the available videos and the requested sequence "
                  "length.");
 
-
-    const auto& file = get_or_open_file(file_info_[0].video_file);
+    // get first valid video
+    const auto& file = get_or_open_file(file_info_[frame_starts_[0].filename_idx].video_file);
+    DALI_ENFORCE(!file.empty(), "Cannot open video file");
     auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
 
     vid_decoder_ = std::make_unique<NvDecoder>(device_id_,
@@ -336,7 +340,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
  private:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_frame_idx_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_frame_idx_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_frame_idx_ = 0;
     }

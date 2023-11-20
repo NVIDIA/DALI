@@ -406,6 +406,9 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
+  if (!IsValid()) {
+    return;
+  }
   InitGpuParser();
 }
 
@@ -418,6 +421,9 @@ FramesDecoderGpu::FramesDecoderGpu(
   FramesDecoder(memory_file, memory_file_size, build_index, build_index, num_frames),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
+  if (!IsValid()) {
+    return;
+  }
   InitGpuParser();
 }
 
@@ -782,8 +788,8 @@ void FramesDecoderGpu::Reset() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
-  av_packet_free(&filtered_packet_);
-  av_bsf_free(&bsfc_);
+  if (filtered_packet_) av_packet_free(&filtered_packet_);
+  if (bsfc_) av_bsf_free(&bsfc_);
 }
 
 bool FramesDecoderGpu::SupportsHevc() {

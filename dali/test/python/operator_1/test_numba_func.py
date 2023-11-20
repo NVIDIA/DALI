@@ -12,43 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numba
 import numpy as np
 import os
 from nvidia.dali import pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
-import platform
-from nose import SkipTest, with_setup
-from test_utils import get_dali_extra_path, to_array
+from nose import with_setup
+from test_utils import (get_dali_extra_path, to_array, check_numba_compatibility_cpu,
+                        check_numba_compatibility_gpu)
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
-from distutils.version import LooseVersion
 from numba import cuda
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
-
-
-def check_env_compatibility_cpu():
-    # At present (as of Numba 0.57) there's a bug in LLVM JIT linker that makes the tests fail
-    # randomly on 64-bit ARM platform.
-    #
-    # Numba bug:
-    # https://github.com/numba/numba/issues/8567
-    #
-    # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
-    # llvmlite directly (if still applicable)
-    if platform.processor().lower() in ('arm64', 'aarch64', 'armv8') \
-       and LooseVersion(numba.__version__) >= LooseVersion('0.57.0'):
-        raise SkipTest()
-
-
-def check_env_compatibility_gpu():
-    import nvidia.dali.plugin.numba.experimental as ex
-    if (not ex.NumbaFunction._check_minimal_numba_version(False)
-            or not ex.NumbaFunction._check_cuda_compatibility(False)):
-        raise SkipTest()
 
 
 def set_all_values_to_255_batch(out0, in0):
@@ -176,7 +153,7 @@ def _testimpl_numba_func(device, shapes, dtype, run_fn, out_types, in_types,
             assert np.array_equal(out_arr, expected_out[i])
 
 
-@with_setup(check_env_compatibility_cpu)
+@with_setup(check_numba_compatibility_cpu)
 def test_numba_func():
     # shape, dtype, run_fn, out_types,
     # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
@@ -212,7 +189,7 @@ def test_numba_func():
             setup_fn, batch_processing, expected_out
 
 
-@with_setup(check_env_compatibility_gpu)
+@with_setup(check_numba_compatibility_gpu)
 def test_numba_func_gpu():
     # shape, dtype, run_fn, out_types,
     # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
@@ -324,7 +301,7 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
-@with_setup(check_env_compatibility_cpu)
+@with_setup(check_numba_compatibility_cpu)
 def test_numba_func_image():
     args = [
         (reverse_col_batch, [dali_types.UINT8], [dali_types.UINT8],
@@ -344,7 +321,7 @@ def test_numba_func_image():
             setup_fn, batch_processing, transform
 
 
-@with_setup(check_env_compatibility_gpu)
+@with_setup(check_numba_compatibility_gpu)
 def test_numba_func_image_gpu():
     args = [
         (reverse_col_sample_gpu, [dali_types.UINT8], [dali_types.UINT8],
@@ -410,7 +387,7 @@ def numba_func_split_image_pipe(run_fn=None, out_types=None, in_types=None,
     return images_in, out0, out1, out2
 
 
-@with_setup(check_env_compatibility_cpu)
+@with_setup(check_numba_compatibility_cpu)
 def test_split_images_col():
     pipe = numba_func_split_image_pipe(
         batch_size=8, num_threads=1, device_id=0,
@@ -428,7 +405,7 @@ def test_split_images_col():
                 images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))
 
 
-@with_setup(check_env_compatibility_gpu)
+@with_setup(check_numba_compatibility_gpu)
 def test_split_images_col_gpu():
     blocks = [32, 32, 1]
     threads_per_block = [32, 8, 1]
@@ -495,7 +472,7 @@ def numba_multiple_ins_pipe(shapes, dtype, run_fn=None, out_types=None, in_types
         blocks=blocks, threads_per_block=threads_per_block)
 
 
-@with_setup(check_env_compatibility_cpu)
+@with_setup(check_numba_compatibility_cpu)
 def test_multiple_ins():
     pipe = numba_multiple_ins_pipe(
         shapes=[(10, 10)], dtype=np.uint8, batch_size=8, num_threads=1, device_id=0,
@@ -512,7 +489,7 @@ def test_multiple_ins():
         assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
 
 
-@with_setup(check_env_compatibility_gpu)
+@with_setup(check_numba_compatibility_gpu)
 def test_multiple_ins_gpu():
     blocks = [32, 32, 1]
     threads_per_block = [32, 8, 1]
@@ -577,7 +554,7 @@ def nonuniform_types_pipe(run_fn=None, out_types=None, in_types=None,
     return images_in, out_img, out_shape
 
 
-@with_setup(check_env_compatibility_cpu)
+@with_setup(check_numba_compatibility_cpu)
 def test_nonuniform_types_cpu():
     pipe = nonuniform_types_pipe(
         batch_size=8, num_threads=1, device_id=0,
@@ -595,7 +572,7 @@ def test_nonuniform_types_cpu():
             assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
 
 
-@with_setup(check_env_compatibility_gpu)
+@with_setup(check_numba_compatibility_gpu)
 def test_nonuniform_types_gpu():
     blocks = [16, 16, 1]
     threads_per_block = [32, 16, 1]
