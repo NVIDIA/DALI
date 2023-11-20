@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2021, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,10 +41,10 @@ struct FileWrapper {
 
 template <typename Backend = CPUBackend, typename Target = FileWrapper,
           typename InputStream = FileStream>
-class FileLoader : public Loader<Backend, Target> {
+class FileLoader : public Loader<Backend, Target, true> {
  public:
   FileLoader(const OpSpec &spec, bool shuffle_after_epoch)
-      : Loader<Backend, Target>(spec),
+      : Loader<Backend, Target, true>(spec),
         file_filter_(spec.GetArgument<string>("file_filter")),
         shuffle_after_epoch_(shuffle_after_epoch),
         current_index_(0),
@@ -125,6 +125,9 @@ class FileLoader : public Loader<Backend, Target> {
     }
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
 
+    if (IsCheckpointingEnabled()) {
+      backup_files_ = files_;
+    }
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
@@ -136,7 +139,7 @@ class FileLoader : public Loader<Backend, Target> {
 
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
@@ -144,26 +147,39 @@ class FileLoader : public Loader<Backend, Target> {
     current_epoch_++;
 
     if (shuffle_after_epoch_) {
+      if (IsCheckpointingEnabled()) {
+        // With checkpointing enabled dataset order must be easy to restore.
+        // Shuffling is run with different seed every epoch, so this doesn't
+        // reduce the randomness.
+        files_ = backup_files_;
+      }
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
       std::shuffle(files_.begin(), files_.end(), g);
     }
   }
 
-  using Loader<Backend, Target>::shard_id_;
-  using Loader<Backend, Target>::num_shards_;
-  using Loader<Backend, Target>::stick_to_shard_;
-  using Loader<Backend, Target>::shuffle_;
-  using Loader<Backend, Target>::dont_use_mmap_;
-  using Loader<Backend, Target>::initial_buffer_fill_;
-  using Loader<Backend, Target>::copy_read_data_;
-  using Loader<Backend, Target>::read_ahead_;
-  using Loader<Backend, Target>::MoveToNextShard;
-  using Loader<Backend, Target>::ShouldSkipImage;
-  using Loader<Backend, Target>::Size;
-  using Loader<Backend, Target>::PrepareEmptyTensor;
+  void RestoreStateImpl(const LoaderStateSnapshot &state) override {
+    current_epoch_ = state.current_epoch;
+  }
+
+  using Loader<Backend, Target, true>::shard_id_;
+  using Loader<Backend, Target, true>::virtual_shard_id_;
+  using Loader<Backend, Target, true>::num_shards_;
+  using Loader<Backend, Target, true>::stick_to_shard_;
+  using Loader<Backend, Target, true>::shuffle_;
+  using Loader<Backend, Target, true>::dont_use_mmap_;
+  using Loader<Backend, Target, true>::initial_buffer_fill_;
+  using Loader<Backend, Target, true>::copy_read_data_;
+  using Loader<Backend, Target, true>::read_ahead_;
+  using Loader<Backend, Target, true>::MoveToNextShard;
+  using Loader<Backend, Target, true>::ShouldSkipImage;
+  using Loader<Backend, Target, true>::Size;
+  using Loader<Backend, Target, true>::PrepareEmptyTensor;
+  using Loader<Backend, Target, true>::IsCheckpointingEnabled;
 
   string file_list_, file_root_, file_filter_;
   vector<std::string> files_;
+  vector<std::string> backup_files_;
 
   bool has_files_arg_ = false;
   bool has_file_list_arg_ = false;

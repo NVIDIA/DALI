@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,10 +32,10 @@
 namespace dali {
 
 template <typename Backend, typename Target>
-class NumpyReader : public DataReader<Backend, Target> {
+class NumpyReader : public DataReader<Backend, Target, Target, true> {
  public:
   explicit NumpyReader(const OpSpec& spec)
-      : DataReader<Backend, Target>(spec),
+      : DataReader<Backend, Target, Target, true>(spec),
         slice_attr_(spec, "roi_start", "rel_roi_start", "roi_end", "rel_roi_end", "roi_shape",
                     "rel_roi_shape", "roi_axes", nullptr) {
     out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec);
@@ -48,14 +48,14 @@ class NumpyReader : public DataReader<Backend, Target> {
     return true;
   }
 
-  USE_READER_OPERATOR_MEMBERS(Backend, Target);
-  using DataReader<Backend, Target>::GetCurrBatchSize;
-  using DataReader<Backend, Target>::GetSample;
+  USE_READER_OPERATOR_MEMBERS_3(Backend, Target, Target, true);
+  using DataReader<Backend, Target, Target, true>::GetCurrBatchSize;
+  using DataReader<Backend, Target, Target, true>::GetSample;
   using Operator<Backend>::spec_;
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
-    DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+    DataReader<Backend, Target, Target, true>::SetupImpl(output_desc, ws);
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
@@ -167,6 +167,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
     }
     loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch, use_o_direct_, o_direct_alignm_,
                                       o_direct_read_len_alignm_);
+    this->SetInitialSnapshot();
   }
   ~NumpyReaderCPU() override;
   void Prefetch() override;
@@ -176,7 +177,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper);
+  USE_READER_OPERATOR_MEMBERS_3(CPUBackend, NumpyFileWrapper, NumpyFileWrapper, true);
 
   bool dont_use_mmap_ = false;
   bool use_o_direct_ = false;

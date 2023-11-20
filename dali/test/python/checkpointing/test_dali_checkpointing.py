@@ -566,6 +566,60 @@ def test_nemo_asr_reader(
     manifest.close()
 
 
+@params(
+    ("cpu", 0, 1, 0, 1, False, False, False, False, None),
+    ("cpu", 5, 2, 4, 7, False, False, False, True, 1),
+    ("cpu", 4, 4, 0, 2, False, False, True, False, 2),
+    ("cpu", 3, 8, 4, 6, False, False, True, True, 3),
+    ("cpu", 6, 1, 2, 3, False, True, False, False, 4),
+    ("cpu", 5, 2, 2, 5, False, True, False, True, 3),
+    ("cpu", 4, 4, 3, 4, True, False, False, False, 2),
+    ("cpu", 3, 8, 1, 4, True, False, False, True, 1),
+    ("cpu", 2, 1, 1, 2, True, False, True, False, None),
+    ("cpu", 0, 2, 0, 1, True, False, True, True, 2),
+    ("gpu", 2, 1, 1, 2, False, False, False, False, None),
+    ("gpu", 5, 2, 0, 5, False, False, False, True, 1),
+    ("gpu", 3, 4, 2, 3, False, False, True, False, 2),
+    ("gpu", 6, 8, 3, 5, False, False, True, True, 3),
+    ("gpu", 7, 1, 1, 4, False, True, False, False, 4),
+    ("gpu", 3, 2, 2, 4, False, True, False, True, 3),
+    ("gpu", 3, 4, 2, 5, True, False, False, False, 2),
+    ("gpu", 4, 8, 0, 2, True, False, False, True, 1),
+    ("gpu", 1, 1, 2, 3, True, False, True, False, None),
+    ("gpu", 0, 2, 0, 2, True, False, True, True, 2),
+)
+def test_numpy_reader(
+    device,
+    num_epochs,
+    batch_size,
+    shard_id,
+    num_shards,
+    random_shuffle,
+    shuffle_after_epoch,
+    stick_to_shard,
+    pad_last_batch,
+    iters_into_epoch=None,
+    initial_fill=1024,
+):
+    numpy_dir = os.path.join(data_root, "db", "3D", "MRI", "Knee", "npy_2d_slices", "STU00001")
+
+    check_reader_checkpointing(
+        fn.readers.numpy,
+        num_epochs,
+        batch_size,
+        iters_into_epoch,
+        device=device,
+        file_root=numpy_dir,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shuffle_after_epoch=shuffle_after_epoch,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill,
+    )
+
+
 @attr("pytorch")
 @params(
     (1, 3, 0, 1, True, False, False),
