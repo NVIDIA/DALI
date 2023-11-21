@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-from typing import List
+from typing import Sequence
 from typing import Any, Union, TypeAlias, Protocol
 
 
-class _ArrayInterface(Protocol):
+class ArrayInterface(Protocol):
     """
     Protocol representing classes that are compatible with NumPy array interface.
     Such classes can be used to represent multi-dimensional arrays - that it tensors.
@@ -29,7 +29,7 @@ class _ArrayInterface(Protocol):
         ...
 
 
-class _CudaArrayInterface(Protocol):
+class CudaArrayInterface(Protocol):
     """
     Protocol representing classes that are compatible with Numba CUDA Array Interface.
     Such classes can be used to represent multi-dimensional arrays - that it tensors, residing
@@ -44,7 +44,7 @@ class _CudaArrayInterface(Protocol):
 # TensorLike: TypeAlias = Union[_ArrayInterface, List[int], List[float]]
 
 
-TensorLikeIn: TypeAlias = Union[_ArrayInterface, List[int], List[float], int, float]
+TensorLikeIn: TypeAlias = Union[_ArrayInterface, Sequence[int], Sequence[float], int, float]
 """
 Constant input to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.

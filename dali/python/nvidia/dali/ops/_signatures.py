@@ -170,7 +170,7 @@ def _get_annotation_input_mis(schema):
     """
     if schema.MinNumInput() == 1 and schema.MaxNumInput() == 1:
         return List[_DataNode]
-    return Union[_DataNode, List[_DataNode]]
+    return Union[List[_DataNode], _DataNode, _TensorLikeIn]
 
 
 def _get_annotation_return_mis(schema):
