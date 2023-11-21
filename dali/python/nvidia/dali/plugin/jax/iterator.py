@@ -80,7 +80,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 so one batch is already prepared when the iterator is prompted for the data
     sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+                values compatible with pmapped JAX functions, if multiple pipelines are provided.
 
     Example
     -------
@@ -327,6 +327,7 @@ def data_iterator_impl(
                         # How device_id, shard_id and num_shards are used in the pipeline
                         # is affected by: https://github.com/google/jax/issues/16024
                         # TODO(awolant): Should this match device with index in jax.devices() as id?
+                        # This is connected with pmap experimental `devices` argument.
                         pipeline = pipeline_def_fn(
                             *args,
                             **wrapper_kwargs,
