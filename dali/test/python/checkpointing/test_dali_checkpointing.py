@@ -259,7 +259,7 @@ def test_sequence_reader(num_epochs, batch_size, shard_id, num_shards,
     check_reader_checkpointing(
         fn.readers.sequence, num_epochs, batch_size, iters_into_epoch,
         file_root=os.path.join(data_root, 'db', 'sequence', 'frames'),
-        sequence_length = 5,
+        sequence_length=5,
         pad_last_batch=pad_last_batch,
         random_shuffle=random_shuffle,
         shard_id=shard_id, num_shards=num_shards,
