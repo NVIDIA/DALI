@@ -156,8 +156,7 @@ def test_rn50_ops_pipe():
 
 @attr('pytorch')
 def test_copy_tensor_constant():
-    import torch
-    import numpy as np
+    import torch   # type: ignore
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def const_copy_pipe():
