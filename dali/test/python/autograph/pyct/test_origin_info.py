@@ -83,14 +83,14 @@ class OriginInfoTest(unittest.TestCase):
         self.assertEqual(source_map[call_loc].loc.lineno, fn_start + 2)
         self.assertEqual(source_map[call_loc].loc.filename, module_path)
         self.assertEqual(source_map[call_loc].function_name, "function_with_multiline_call")
-        self.assertEqual(source_map[call_loc].source_code_line, "  return range(")
+        self.assertEqual(source_map[call_loc].source_code_line, "    return range(")
 
         second_arg_loc = origin_info.LineLocation("test_filename", 5)
         self.assertIn(second_arg_loc, source_map)
         self.assertEqual(source_map[second_arg_loc].loc.lineno, fn_start + 4)
         self.assertEqual(source_map[second_arg_loc].loc.filename, module_path)
         self.assertEqual(source_map[second_arg_loc].function_name, "function_with_multiline_call")
-        self.assertEqual(source_map[second_arg_loc].source_code_line, "      x + 1,")
+        self.assertEqual(source_map[second_arg_loc].source_code_line, "        x + 1,")
 
     def test_create_source_map_no_origin_info(self):
         test_fn = basic_definitions.simple_function
@@ -161,14 +161,14 @@ class OriginInfoTest(unittest.TestCase):
 
         docstring_origin = anno.getanno(node.body[0], anno.Basic.ORIGIN)
         self.assertEqual(docstring_origin.loc.lineno, fn_start + 1)
-        self.assertEqual(docstring_origin.loc.col_offset, 2)
-        self.assertEqual(docstring_origin.source_code_line, '  """Docstring."""')
+        self.assertEqual(docstring_origin.loc.col_offset, 4)
+        self.assertEqual(docstring_origin.source_code_line, '    """Docstring."""')
         self.assertIsNone(docstring_origin.comment)
 
         ret_origin = anno.getanno(node.body[1], anno.Basic.ORIGIN)
         self.assertEqual(ret_origin.loc.lineno, fn_start + 2)
-        self.assertEqual(ret_origin.loc.col_offset, 2)
-        self.assertEqual(ret_origin.source_code_line, "  return x  # comment")
+        self.assertEqual(ret_origin.loc.col_offset, 4)
+        self.assertEqual(ret_origin.source_code_line, "    return x  # comment")
         self.assertEqual(ret_origin.comment, "comment")
 
     def test_resolve_entity_nested_function(self):
@@ -181,14 +181,14 @@ class OriginInfoTest(unittest.TestCase):
 
         inner_def_origin = anno.getanno(node.body[1], anno.Basic.ORIGIN)
         self.assertEqual(inner_def_origin.loc.lineno, fn_start + 3)
-        self.assertEqual(inner_def_origin.loc.col_offset, 2)
-        self.assertEqual(inner_def_origin.source_code_line, "  def inner_fn(y):")
+        self.assertEqual(inner_def_origin.loc.col_offset, 4)
+        self.assertEqual(inner_def_origin.source_code_line, "    def inner_fn(y):")
         self.assertIsNone(inner_def_origin.comment)
 
         inner_ret_origin = anno.getanno(node.body[1].body[0], anno.Basic.ORIGIN)
         self.assertEqual(inner_ret_origin.loc.lineno, fn_start + 4)
-        self.assertEqual(inner_ret_origin.loc.col_offset, 4)
-        self.assertEqual(inner_ret_origin.source_code_line, "    return y")
+        self.assertEqual(inner_ret_origin.loc.col_offset, 8)
+        self.assertEqual(inner_ret_origin.source_code_line, "        return y")
         self.assertIsNone(inner_ret_origin.comment)
 
     def test_resolve_entity_indented_block(self):
@@ -201,14 +201,14 @@ class OriginInfoTest(unittest.TestCase):
 
         def_origin = anno.getanno(node, anno.Basic.ORIGIN)
         self.assertEqual(def_origin.loc.lineno, fn_start)
-        self.assertEqual(def_origin.loc.col_offset, 2)
+        self.assertEqual(def_origin.loc.col_offset, 4)
         self.assertEqual(def_origin.source_code_line, "def simple_method(self):")
         self.assertIsNone(def_origin.comment)
 
         ret_origin = anno.getanno(node.body[0], anno.Basic.ORIGIN)
         self.assertEqual(ret_origin.loc.lineno, fn_start + 1)
-        self.assertEqual(ret_origin.loc.col_offset, 4)
-        self.assertEqual(ret_origin.source_code_line, "  return self")
+        self.assertEqual(ret_origin.loc.col_offset, 8)
+        self.assertEqual(ret_origin.source_code_line, "    return self")
         self.assertIsNone(ret_origin.comment)
 
     def test_resolve_entity_decorated_function(self):
@@ -231,18 +231,18 @@ class OriginInfoTest(unittest.TestCase):
 
         if_origin = anno.getanno(node.body[0], anno.Basic.ORIGIN)
         self.assertEqual(if_origin.loc.lineno, fn_start + 3)
-        self.assertEqual(if_origin.loc.col_offset, 2)
-        self.assertEqual(if_origin.source_code_line, "  if x > 0:")
+        self.assertEqual(if_origin.loc.col_offset, 4)
+        self.assertEqual(if_origin.source_code_line, "    if x > 0:")
         self.assertIsNone(if_origin.comment)
 
         ret1_origin = anno.getanno(node.body[0].body[0], anno.Basic.ORIGIN)
         self.assertEqual(ret1_origin.loc.lineno, fn_start + 4)
-        self.assertEqual(ret1_origin.loc.col_offset, 4)
-        self.assertEqual(ret1_origin.source_code_line, "    return 1")
+        self.assertEqual(ret1_origin.loc.col_offset, 8)
+        self.assertEqual(ret1_origin.source_code_line, "        return 1")
         self.assertIsNone(ret1_origin.comment)
 
         ret2_origin = anno.getanno(node.body[1], anno.Basic.ORIGIN)
         self.assertEqual(ret2_origin.loc.lineno, fn_start + 5)
-        self.assertEqual(ret2_origin.loc.col_offset, 2)
-        self.assertEqual(ret2_origin.source_code_line, "  return 2")
+        self.assertEqual(ret2_origin.loc.col_offset, 4)
+        self.assertEqual(ret2_origin.source_code_line, "    return 2")
         self.assertIsNone(ret2_origin.comment)

@@ -1190,14 +1190,14 @@ class AstToCfgTest(unittest.TestCase):
         self.assertGraphEnds(graph, "a", ("return a",))
 
     def test_try_except_single_aliased(self):
+        # fmt: off
         def test_fn(a):
-            # fmt: off
             try:
                 a = 1
             except Exception1 as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                 a = 2
-            # fmt: on
             return a
+        # fmt: on
 
         (graph,) = self._build_cfg(test_fn).values()
 
@@ -1218,14 +1218,14 @@ class AstToCfgTest(unittest.TestCase):
         self.assertGraphEnds(graph, "a", ("return a",))
 
     def test_try_except_single_tuple_aliased(self):
+        # fmt: off
         def test_fn(a):
-            # fmt: off
             try:
                 a = 1
             except (Exception1, Exception2) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
                 a = 2
-            # fmt: on
             return a
+        # fmt: on
 
         (graph,) = self._build_cfg(test_fn).values()
 

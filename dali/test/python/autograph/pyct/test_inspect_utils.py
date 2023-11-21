@@ -142,7 +142,7 @@ class InspectUtilsTest(unittest.TestCase):
             return f_wrapper
 
         expected = """
-      def f_wrapper(*args, **kwargs):
+    def f_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     """
 
@@ -158,8 +158,8 @@ class InspectUtilsTest(unittest.TestCase):
             return f
 
         expected = '''
-      @test_decorator
-      def test_fn(a):
+    @test_decorator
+    def test_fn(a):
         """Test docstring."""
         return [a]
     '''
@@ -181,8 +181,8 @@ class InspectUtilsTest(unittest.TestCase):
 
         expected = textwrap.dedent(
             """
-      @functools.wraps(f)
-      def wrapper(*args, **kwargs):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     """
         )
@@ -197,8 +197,8 @@ class InspectUtilsTest(unittest.TestCase):
     def test_getimmediatesource_functools_wrapper_different_module(self):
         expected = textwrap.dedent(
             """
-      @functools.wraps(f)
-      def wrapper(*args, **kwargs):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     """
         )
@@ -213,7 +213,7 @@ class InspectUtilsTest(unittest.TestCase):
     def test_getimmediatesource_normal_decorator_different_module(self):
         expected = textwrap.dedent(
             """
-      def standalone_wrapper(*args, **kwargs):
+    def standalone_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     """
         )
@@ -228,7 +228,7 @@ class InspectUtilsTest(unittest.TestCase):
     def test_getimmediatesource_normal_functional_decorator_different_module(self):
         expected = textwrap.dedent(
             """
-      def functional_wrapper(*args, **kwargs):
+    def functional_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     """
         )

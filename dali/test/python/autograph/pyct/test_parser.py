@@ -118,23 +118,25 @@ class ParserTest(unittest.TestCase):
         self.assertIn(source, (expected, expected + garbage))
 
     def test_parse_lambda_multiline(self):
-        l = lambda x: lambda y: x + y - 1  # pylint:disable=g-long-lambda
+        # fmt: off
+        l = (
+            lambda x: lambda y: x + y  # pylint:disable=g-long-lambda
+            - 1)
 
         node, source = parser.parse_entity(l, future_features=())
         expected_node_src = "lambda x: (lambda y: ((x + y) - 1))"
         self.assertAstMatches(node, expected_node_src)
         self.assertMatchesWithPotentialGarbage(
-            source,
-            ("lambda x: lambda y: x + y  # pylint:disable=g-long-lambda\n" "        - 1"),
-            ")",
-        )
+            source, ("lambda x: lambda y: x + y  # pylint:disable=g-long-lambda\n"
+                     "            - 1"), ")")
 
         node, source = parser.parse_entity(l(0), future_features=())
         expected_node_src = "lambda y: ((x + y) - 1)"
         self.assertAstMatches(node, expected_node_src)
         self.assertMatchesWithPotentialGarbage(
-            source, ("lambda y: x + y  # pylint:disable=g-long-lambda\n" "        - 1"), ")"
-        )
+            source, ("lambda y: x + y  # pylint:disable=g-long-lambda\n"
+                     "            - 1"), ")")
+        # fmt: on
 
     def test_parse_lambda_in_expression(self):
         l = (
@@ -163,6 +165,7 @@ class ParserTest(unittest.TestCase):
         self.assertMatchesWithPotentialGarbage(source, "lambda y: x + y + 2", ",")
 
     def test_parse_lambda_complex_body(self):
+        # fmt: off
         l = lambda x: (  # pylint:disable=g-long-lambda
             x.y(
                 [],
@@ -171,7 +174,7 @@ class ParserTest(unittest.TestCase):
                 x[0:2],
             ),
             x.u,
-            "abc",
+            'abc',
             1,
         )
 
@@ -179,21 +182,20 @@ class ParserTest(unittest.TestCase):
         expected_node_src = "lambda x: (x.y([], x.z, (), x[0:2]), x.u, 'abc', 1)"
         self.assertAstMatches(node, expected_node_src)
 
-        base_source = (
-            "lambda x: (  # pylint:disable=g-long-lambda\n"
-            "        x.y(\n"
-            "            [],\n"
-            "            x.z,\n"
-            "            (),\n"
-            "            x[0:2],\n"
-            "        ),\n"
-            "        x.u,\n"
-            "        'abc',\n"
-            "        1,"
-        )
+        base_source = ("lambda x: (  # pylint:disable=g-long-lambda\n"
+                       "            x.y(\n"
+                       "                [],\n"
+                       "                x.z,\n"
+                       "                (),\n"
+                       "                x[0:2],\n"
+                       "            ),\n"
+                       "            x.u,\n"
+                       "            \'abc\',\n"
+                       "            1,")
         # The complete source includes the trailing parenthesis. But that is only
         # detected in runtimes which correctly track end_lineno for ASTs.
-        self.assertMatchesWithPotentialGarbage(source, base_source, "\n    )")
+        self.assertMatchesWithPotentialGarbage(source, base_source, '\n        )')
+        # fmt: on
 
     def test_parse_lambda_function_call_definition(self):
         def do_parse_and_test(lam, **unused_kwargs):
