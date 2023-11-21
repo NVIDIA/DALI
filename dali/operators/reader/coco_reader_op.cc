@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,13 +183,15 @@ DALI_SCHEMA(COCOReader)
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
-COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+COCOReader::COCOReader(const OpSpec& spec)
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
   DALI_ENFORCE(!skip_cached_images_, "COCOReader doesn't support `skip_cached_images` option");
   output_polygon_masks_ = OutPolygonMasksEnabled(spec);
   legacy_polygon_format_ = spec.HasArgument("masks") && spec.GetArgument<bool>("masks");
   output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
   output_image_ids_ = OutImageIdsEnabled(spec);
   loader_ = InitLoader<CocoLoader>(spec);
+  this->SetInitialSnapshot();
 
   if (legacy_polygon_format_) {
     DALI_WARN("Warning: Using legacy format for polygons. "

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,10 +97,10 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
 
 using RLEMaskPtr = std::shared_ptr<RLEMask>;
 
-class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<false> {
+class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
-      : FileLabelLoaderBase<false>(spec, spec.GetArgument<bool>("shuffle_after_epoch"))
+      : FileLabelLoaderBase<true>(spec, spec.GetArgument<bool>("shuffle_after_epoch"))
       , spec_(spec) {
     has_preprocessed_annotations_ = HasPreprocessedAnnotations(spec);
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
@@ -190,6 +190,11 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<false> {
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
       std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+    }
+
+    if (IsCheckpointingEnabled() && shuffle_after_epoch_) {
+      // save initial order
+      backup_image_label_pairs_ = image_label_pairs_;
     }
     Reset(true);
   }
