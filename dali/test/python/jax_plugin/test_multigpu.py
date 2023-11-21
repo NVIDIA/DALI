@@ -29,6 +29,7 @@ from utils import get_dali_tensor_gpu, iterator_function_def
 import jax.numpy as jnp
 
 import itertools
+from nose_utils import raises
 
 # Common parameters for all tests in this file
 batch_size = 4
@@ -401,3 +402,21 @@ def test_dali_sequential_iterator_decorator_non_default_device():
 
     # then
     assert batch['data'].device_buffers[0].device() == jax.devices()[1]
+
+
+@raises(ValueError, glob="Only one of `sharding` and `devices` arguments can be provided.")
+def test_sharding_and_devices_mutual_exclusivity():
+    # given
+    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
+    sharding = PositionalSharding(mesh)
+
+    output_map = ['tensor']
+
+    # when
+    @data_iterator(
+        output_map=output_map,
+        sharding=sharding,
+        devices=jax.devices(),
+        reader_name="reader")
+    def iterator_function(shard_id, num_shards):
+        return iterator_function_def(shard_id=shard_id, num_shards=num_shards)

@@ -257,6 +257,10 @@ def data_iterator_impl(
     """ Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
     """
+
+    if sharding is not None and devices is not None:
+        raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
+
     def data_iterator_decorator(func):
         def create_iterator(*args, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
@@ -282,10 +286,6 @@ def data_iterator_impl(
                     last_batch_policy=last_batch_policy,
                     prepare_first_batch=prepare_first_batch)
             else:
-                if sharding is not None and devices is not None:
-                    raise ValueError(
-                        "Only one of `sharding` and `devices` arguments can be provided.")
-
                 if sharding is not None:
                     pipelines = []
 
