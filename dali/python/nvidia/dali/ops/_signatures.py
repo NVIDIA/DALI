@@ -341,9 +341,20 @@ def inspect_repr_fixups(signature: str) -> str:
     return signature.replace("NoneType", "None")
 
 
-def _gen_fn_signature(schema, schema_name, fn_name):
-    """Write the stub of the fn API function with the docstring, for given operator.
-    Include two overloads: with regular inputs and secondary accepting MIS.
+def _gen_fn_signature_no_input(schema, schema_name, fn_name):
+    """In case of no input, we don't have overload set, as there is no MIS involved,
+    we write only the default signature, without involving @overload decorator.
+    """
+    return f"""
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+    ...
+"""
+
+
+def _gen_fn_signature_with_inputs(schema, schema_name, fn_name):
+    """Generate primary and secondary overload (for regular and MIS cases).
 
     Python resolves the overloads in order of definition, we will match first against the primary
     overload accepting only the DataNode, and if any of the inputs is a list of such (indicating
@@ -356,7 +367,7 @@ def _gen_fn_signature(schema, schema_name, fn_name):
     pylance, resulting again in the Union[DataNode, List[DataNode]] return type (for single output),
     keeping us in the MIS realm in the simple case.
     """
-    return inspect_repr_fixups(f"""
+    return f"""
 @overload
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
@@ -371,22 +382,38 @@ def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
-""")
+"""
 
 
-def _gen_ops_signature(schema, schema_name, cls_name):
-    """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
-    operator.
+def _gen_fn_signature(schema, schema_name, fn_name):
+    """Write the stub of the fn API function with the docstring, for given operator.
+    Include two overloads: with regular inputs and secondary accepting MIS.
+    If there are no inputs, we have only one signature.
     """
-    return inspect_repr_fixups(f"""
-class {cls_name}:
-    \"""{_docs._docstring_generator(schema_name)}
-    \"""
-    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
-                                 include_self=True, data_node_return=False,
-                                 all_args_optional=True)}:
-        ...
+    if schema.MaxNumInput() == 0:
+        return inspect_repr_fixups(_gen_fn_signature_no_input(schema, schema_name, fn_name))
+    else:
+        return inspect_repr_fixups(_gen_fn_signature_with_inputs(schema, schema_name, fn_name))
 
+
+def _gen_ops_call_signature_no_input(schema, schema_name):
+    """In case of no input, we don't have overload set, as there is no MIS involved,
+    we write only the default call signature, without involving @overload decorator.
+    """
+    return f"""
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                                 include_self=True, all_args_optional=True)}:
+        \"""{_docs._docstring_generator_call(schema_name)}
+        \"""
+        ...
+"""
+
+
+def _gen_ops_call_signature_with_inputs(schema, schema_name):
+    """Generate primary and secondary overload (for regular and MIS cases).
+    Read _gen_fn_signature_with_inputs docstring for details - this is the same thing for ops API.
+    """
+    return f"""
     @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
@@ -402,6 +429,25 @@ class {cls_name}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
+"""
+
+
+def _gen_ops_signature(schema, schema_name, cls_name):
+    """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
+    operator.
+    """
+    return inspect_repr_fixups(f"""
+class {cls_name}:
+    \"""{_docs._docstring_generator(schema_name)}
+    \"""
+    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
+                                 include_self=True, data_node_return=False,
+                                 all_args_optional=True)}:
+        ...
+
+{(_gen_ops_call_signature_no_input(schema, schema_name)
+  if schema.MaxNumInput() == 0
+  else _gen_ops_call_signature_with_inputs(schema, schema_name))}
 """)
 
 
