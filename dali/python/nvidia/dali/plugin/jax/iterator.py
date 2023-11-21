@@ -264,43 +264,87 @@ def data_iterator_impl(
             if 'num_threads' not in wrapper_kwargs:
                 wrapper_kwargs['num_threads'] = default_num_threads_value()
 
-            if sharding is None:
+            if sharding is None and devices is None:
                 if 'device_id' not in wrapper_kwargs:
                     # Due to https://github.com/google/jax/issues/16024 the best we can do is to
                     # assume that the first device is the one we want to use.
                     wrapper_kwargs['device_id'] = 0
 
                 pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
+                
+                return iterator_type(
+                    pipelines=pipelines,
+                    output_map=output_map,
+                    size=size,
+                    reader_name=reader_name,
+                    auto_reset=auto_reset,
+                    last_batch_padded=last_batch_padded,
+                    last_batch_policy=last_batch_policy,
+                    prepare_first_batch=prepare_first_batch)
             else:
-                pipelines = []
+                if sharding is not None and devices is not None:
+                    raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
+                
+                if sharding is not None:
+                    pipelines = []
 
-                # Handle batch_size_per_gpu
-                global_batch_size = wrapper_kwargs['batch_size']
-                batch_size_per_gpu = global_batch_size // len(jax.devices())
-                wrapper_kwargs['batch_size'] = batch_size_per_gpu
+                    # Handle batch_size_per_gpu
+                    global_batch_size = wrapper_kwargs['batch_size']
+                    batch_size_per_gpu = global_batch_size // len(jax.devices())
+                    wrapper_kwargs['batch_size'] = batch_size_per_gpu
 
-                for id, device in enumerate(jax.local_devices()):
-                    # How device_id, shard_id and num_shards are used in the pipeline
-                    # is affected by: https://github.com/google/jax/issues/16024
-                    pipeline = pipeline_def_fn(
-                        *args,
-                        **wrapper_kwargs,
-                        device_id=id,
-                        shard_id=device.id,
-                        num_shards=len(jax.devices()))
+                    for id, device in enumerate(jax.local_devices()):
+                        # How device_id, shard_id and num_shards are used in the pipeline
+                        # is affected by: https://github.com/google/jax/issues/16024
+                        pipeline = pipeline_def_fn(
+                            *args,
+                            **wrapper_kwargs,
+                            device_id=id,
+                            shard_id=device.id,
+                            num_shards=len(jax.devices()))
 
-                    pipelines.append(pipeline)
+                        pipelines.append(pipeline)
 
-            return iterator_type(
-                pipelines=pipelines,
-                output_map=output_map,
-                size=size,
-                reader_name=reader_name,
-                auto_reset=auto_reset,
-                last_batch_padded=last_batch_padded,
-                last_batch_policy=last_batch_policy,
-                prepare_first_batch=prepare_first_batch,
-                sharding=sharding)
+                    return iterator_type(
+                        pipelines=pipelines,
+                        output_map=output_map,
+                        size=size,
+                        reader_name=reader_name,
+                        auto_reset=auto_reset,
+                        last_batch_padded=last_batch_padded,
+                        last_batch_policy=last_batch_policy,
+                        prepare_first_batch=prepare_first_batch,
+                        sharding=sharding)
+                elif devices is not None:
+                    pipelines = []
+
+                    # Handle batch_size_per_gpu
+                    global_batch_size = wrapper_kwargs['batch_size']
+                    batch_size_per_gpu = global_batch_size // len(jax.devices())
+                    wrapper_kwargs['batch_size'] = batch_size_per_gpu
+
+                    for id, device in enumerate(devices):
+                        # How device_id, shard_id and num_shards are used in the pipeline
+                        # is affected by: https://github.com/google/jax/issues/16024
+                        # TODO(awolant): Should this match device with index in jax.devices() as id?
+                        pipeline = pipeline_def_fn(
+                            *args,
+                            **wrapper_kwargs,
+                            device_id=id,
+                            shard_id=device.id,
+                            num_shards=len(jax.devices()))
+
+                        pipelines.append(pipeline)
+                    
+                    return iterator_type(
+                        pipelines=pipelines,
+                        output_map=output_map,
+                        size=size,
+                        reader_name=reader_name,
+                        auto_reset=auto_reset,
+                        last_batch_padded=last_batch_padded,
+                        last_batch_policy=last_batch_policy,
+                        prepare_first_batch=prepare_first_batch)
 
         return create_iterator
     return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
