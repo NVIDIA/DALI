@@ -176,8 +176,8 @@ def test_copy_tensor_constant():
     expect_tensor_list(const_int, const_float, const_list, const_tuple, const_torch, const_np)
     assert np.array_equal(np.array(const_int.as_tensor()), np.full((10, 1), 1))
     assert np.array_equal(np.array(const_float.as_tensor()), np.full((10, 1), 2.0))
-    # assert np.array_equal(np.array(const_list.as_tensor()), np.((10, 2), ))
-    # assert np.array_equal(np.array(const_tuple.as_tensor()), np.full((10, 1), 3))
+    assert np.array_equal(np.array(const_list.as_tensor()), np.full((10, 2), [2, 3]))
+    assert np.array_equal(np.array(const_tuple.as_tensor()), np.full((10, 2), [4, 5]))
     assert np.array_equal(np.array(const_torch.as_tensor()), np.full((10, 1, 1), 6))
     assert np.array_equal(np.array(const_np.as_tensor()), np.full((10, 1, 1), 7))
 

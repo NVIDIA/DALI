@@ -44,14 +44,14 @@ class CudaArrayInterface(Protocol):
 # TensorLike: TypeAlias = Union[_ArrayInterface, List[int], List[float]]
 
 
-TensorLikeIn: TypeAlias = Union[_ArrayInterface, Sequence[int], Sequence[float], int, float]
+TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]
 """
 Constant input to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.
 """
 
 
-TensorLikeArg: TypeAlias = _ArrayInterface
+TensorLikeArg: TypeAlias = ArrayInterface
 """
 Constant argument to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.
