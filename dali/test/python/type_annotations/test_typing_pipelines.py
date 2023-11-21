@@ -158,6 +158,7 @@ def test_rn50_ops_pipe():
 def test_copy_tensor_constant():
     import torch
     import numpy as np
+
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def const_copy_pipe():
         const_int = fn.copy(1)
