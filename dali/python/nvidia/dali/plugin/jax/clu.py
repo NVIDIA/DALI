@@ -296,8 +296,8 @@ def peekable_data_iterator(
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
     sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
-                build an output jax.Array for each category. Iterator will return outputs 
-                compatible with automatic parallelization in JAX. 
+                build an output jax.Array for each category. Iterator will return outputs
+                compatible with automatic parallelization in JAX.
                 This argument is mutually exclusive with `devices` argument. If `devices` is
                 provided, `sharding` should be set to None.
     devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will

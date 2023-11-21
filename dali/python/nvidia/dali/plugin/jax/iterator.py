@@ -271,7 +271,7 @@ def data_iterator_impl(
                     wrapper_kwargs['device_id'] = 0
 
                 pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
-                
+
                 return iterator_type(
                     pipelines=pipelines,
                     output_map=output_map,
@@ -283,8 +283,9 @@ def data_iterator_impl(
                     prepare_first_batch=prepare_first_batch)
             else:
                 if sharding is not None and devices is not None:
-                    raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
-                
+                    raise ValueError(
+                        "Only one of `sharding` and `devices` arguments can be provided.")
+
                 if sharding is not None:
                     pipelines = []
 
@@ -336,7 +337,7 @@ def data_iterator_impl(
                             num_shards=len(jax.devices()))
 
                         pipelines.append(pipeline)
-                    
+
                     return iterator_type(
                         pipelines=pipelines,
                         output_map=output_map,
@@ -426,8 +427,8 @@ def data_iterator(
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
     sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
-                build an output jax.Array for each category. Iterator will return outputs 
-                compatible with automatic parallelization in JAX. 
+                build an output jax.Array for each category. Iterator will return outputs
+                compatible with automatic parallelization in JAX.
                 This argument is mutually exclusive with `devices` argument. If `devices` is
                 provided, `sharding` should be set to None.
     devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
