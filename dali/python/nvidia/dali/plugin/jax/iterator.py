@@ -78,7 +78,7 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions.
 
@@ -194,7 +194,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def _build_output_with_device_put(self, next_output, category_name, category_outputs):
         """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
-        with pmppped JAX functions.
+        with pmapped JAX functions.
         """
         category_outputs_devices = tuple(map(
             lambda jax_shard: jax_shard.device(),
@@ -252,7 +252,8 @@ def data_iterator_impl(
         last_batch_padded=False,
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
-        sharding=None):
+        sharding=None,
+        devices=None):
     """ Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
     """
@@ -314,7 +315,8 @@ def data_iterator(
         last_batch_padded=False,
         last_batch_policy=LastBatchPolicy.FILL,
         prepare_first_batch=True,
-        sharding=None):
+        sharding=None,
+        devices=None):
     """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
     iterator for JAX.
 
@@ -329,7 +331,7 @@ def data_iterator(
     Parameters
     ----------
     pipeline_fn function:
-                Function to be decorated. It should be comaptible with
+                Function to be decorated. It should be compatible with
                 :meth:`nvidia.dali.pipeline.pipeline_def` decorator.
                 For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
     output_map : list of str
@@ -378,9 +380,15 @@ def data_iterator(
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
-                build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+                build an output jax.Array for each category. Iterator will return outputs 
+                compatible with automatic parallelization in JAX. 
+                This argument is mutually exclusive with `devices` argument. If `devices` is
+                provided, `sharding` should be set to None.
+    devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
+                return outputs compatible with pmapped JAX functions.
+                This argument is  mutually exclusive with `sharding` argument. If `sharding`
+                is provided, `devices` should be set to None.
 
     Example
     -------
@@ -411,4 +419,5 @@ def data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding)
+        sharding,
+        devices)
