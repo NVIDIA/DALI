@@ -286,14 +286,14 @@ def data_iterator_impl(
                     last_batch_policy=last_batch_policy,
                     prepare_first_batch=prepare_first_batch)
             else:
+                pipelines = []
+
+                # Handle batch_size_per_gpu
+                global_batch_size = wrapper_kwargs['batch_size']
+                batch_size_per_gpu = global_batch_size // len(jax.devices())
+                wrapper_kwargs['batch_size'] = batch_size_per_gpu
+
                 if sharding is not None:
-                    pipelines = []
-
-                    # Handle batch_size_per_gpu
-                    global_batch_size = wrapper_kwargs['batch_size']
-                    batch_size_per_gpu = global_batch_size // len(jax.devices())
-                    wrapper_kwargs['batch_size'] = batch_size_per_gpu
-
                     for id, device in enumerate(jax.local_devices()):
                         # How device_id, shard_id and num_shards are used in the pipeline
                         # is affected by: https://github.com/google/jax/issues/16024
@@ -317,13 +317,6 @@ def data_iterator_impl(
                         prepare_first_batch=prepare_first_batch,
                         sharding=sharding)
                 elif devices is not None:
-                    pipelines = []
-
-                    # Handle batch_size_per_gpu
-                    global_batch_size = wrapper_kwargs['batch_size']
-                    batch_size_per_gpu = global_batch_size // len(jax.devices())
-                    wrapper_kwargs['batch_size'] = batch_size_per_gpu
-
                     for id, device in enumerate(devices):
                         # How device_id, shard_id and num_shards are used in the pipeline
                         # is affected by: https://github.com/google/jax/issues/16024
