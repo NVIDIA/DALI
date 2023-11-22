@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -99,27 +100,13 @@ class ConstantFnPipeline(Pipeline):
         ]
 
 
-class ScalarConstantPipeline(Pipeline):
-    def __init__(self, device):
-        super().__init__(10, 3, device_id=0, exec_async=True, exec_pipelined=True)
-        self.device = device
-
-    def define_graph(self):
-        device = self.device
-        return [
-            # no-op
-            ops.Reshape(device=device, shape=[1])(types.Constant(1.25)),
-            # flatten with reshape op
-            ops.Reshape(device=device)(
-                types.Constant(np.array([[1, 2], [3, 4]], dtype=np.uint16), device=device),
-                shape=types.Constant([4]))
-        ]
-
-
 def check(a1, a2):
     if a1.dtype != a2.dtype:
         print(a1.dtype, a2.dtype)
     assert a1.dtype == a2.dtype
+    if not np.array_equal(a1, a2):
+        print("A1", a1)
+        print("A2", a2)
     assert np.array_equal(a1, a2)
 
 
@@ -161,11 +148,24 @@ def _test_func(device, array_interface):
 
 
 def _test_scalar_constant_promotion(device):
-    pipe = ScalarConstantPipeline(device)
+    @dali.pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def scalar_constant_pipeline(device):
+        constant = types.Constant(1)
+        with_explicit_dev = types.Constant(4, device=device)
+        p1 = fn.stack(constant, 2)
+        if device == "gpu":
+            p1 = p1.gpu()
+        p2 = fn.stack(3, with_explicit_dev)
+        return (
+            fn.copy(1.25, device=device),
+            fn.cat(p1, p2)
+        )
+
+    pipe = scalar_constant_pipeline(device)
     pipe.build()
     ref = [
-        np.array([1.25], dtype=np.float32),
-        np.array([1, 2, 3, 4], dtype=np.uint16)
+        np.array(1.25, dtype=np.float32),
+        np.array([1, 2, 3, 4], dtype=np.int32)
     ]
     for iter in range(3):
         out = pipe.run()
