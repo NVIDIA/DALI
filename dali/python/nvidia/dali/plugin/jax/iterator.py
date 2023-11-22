@@ -293,19 +293,23 @@ def data_iterator_impl(
                 batch_size_per_gpu = global_batch_size // len(jax.devices())
                 wrapper_kwargs['batch_size'] = batch_size_per_gpu
 
+                devices_to_use = devices if devices is not None else jax.devices()
+
+                for id, device in enumerate(devices_to_use):
+                    # How device_id, shard_id and num_shards are used in the pipeline
+                    # is affected by: https://github.com/google/jax/issues/16024
+                    # TODO(awolant): Should this match device with index in jax.devices() as id?
+                    # This is connected with pmap experimental `devices` argument.
+                    pipeline = pipeline_def_fn(
+                        *args,
+                        **wrapper_kwargs,
+                        device_id=id,
+                        shard_id=device.id,
+                        num_shards=len(devices_to_use))
+
+                    pipelines.append(pipeline)
+
                 if sharding is not None:
-                    for id, device in enumerate(jax.local_devices()):
-                        # How device_id, shard_id and num_shards are used in the pipeline
-                        # is affected by: https://github.com/google/jax/issues/16024
-                        pipeline = pipeline_def_fn(
-                            *args,
-                            **wrapper_kwargs,
-                            device_id=id,
-                            shard_id=device.id,
-                            num_shards=len(jax.devices()))
-
-                        pipelines.append(pipeline)
-
                     return iterator_type(
                         pipelines=pipelines,
                         output_map=output_map,
@@ -317,20 +321,6 @@ def data_iterator_impl(
                         prepare_first_batch=prepare_first_batch,
                         sharding=sharding)
                 elif devices is not None:
-                    for id, device in enumerate(devices):
-                        # How device_id, shard_id and num_shards are used in the pipeline
-                        # is affected by: https://github.com/google/jax/issues/16024
-                        # TODO(awolant): Should this match device with index in jax.devices() as id?
-                        # This is connected with pmap experimental `devices` argument.
-                        pipeline = pipeline_def_fn(
-                            *args,
-                            **wrapper_kwargs,
-                            device_id=id,
-                            shard_id=device.id,
-                            num_shards=len(jax.devices()))
-
-                        pipelines.append(pipeline)
-
                     return iterator_type(
                         pipelines=pipelines,
                         output_map=output_map,
