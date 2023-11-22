@@ -41,9 +41,6 @@ class CudaArrayInterface(Protocol):
         ...
 
 
-# TensorLike: TypeAlias = Union[_ArrayInterface, List[int], List[float]]
-
-
 TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]
 """
 Constant input to the operator, that is expressed by a single tensor. Such input represents
