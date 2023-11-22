@@ -297,6 +297,12 @@ def test_named_sharding_workflow_with_iterator():
 
 
 def run_sharded_iterator_test(iterator, num_iters=11):
+    """Run the iterator with `sharding` set and assert that the output is as expected.
+
+    Note: Output should be compatible with automatically parallelized functions. This means that
+    the output should be an array, where slices of this array are shards of the output.
+    """
+
     assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
 
     batch_size_per_gpu = batch_size // jax.device_count()
@@ -310,18 +316,18 @@ def run_sharded_iterator_test(iterator, num_iters=11):
         jax_array = batch['tensor']
 
         # For 2 GPUs expected result is as follows:
+        # In first iteration, output should be:
+        # [[0] [1] [23] [24]]
         # In first iteration, first shard should be:
-        # [[0]
-        #  [1]]
+        # [[0] [1]]
         # And second shard should be:
-        # [[23]
-        # [24]]
-        # Then, in second iteration first shard should be:
-        # [[2]
-        #  [3]]
+        # [[23] [24]]
+        # Then, in the second iteration output should be:
+        # [[2] [3] [25] [26]]
+        # In second iteration first shard should be:
+        # [[2] [3]]
         # And second shard should be:
-        # [[23]
-        #  [24]]
+        # [[25] [26]]
         sample_id = 0
         for device_id in range(jax.device_count()):
             for i in range(batch_size_per_gpu):
@@ -329,7 +335,8 @@ def run_sharded_iterator_test(iterator, num_iters=11):
                         (1),
                         batch_id * batch_size_per_gpu + i + device_id * iterator.size,
                         np.int32)
-                assert jax.numpy.array_equal(jax_array[sample_id], ground_truth)
+                assert jnp.array_equal(jax_array[sample_id], ground_truth), \
+                    f"Expected {ground_truth} but got {jax_array[sample_id]}"
                 sample_id += 1
 
         # Assert correct backing devices for shards
@@ -402,6 +409,77 @@ def test_dali_sequential_iterator_decorator_non_default_device():
 
     # then
     assert batch['data'].device_buffers[0].device() == jax.devices()[1]
+
+
+def run_pmapped_iterator_test(iterator, num_iters=11):
+    """Run the iterator with `devices` set and assert that the output is as expected.
+
+    Note: Output should be compatible with pmapped functions. This means that
+    the output should be an array of arrays, where each array is a shard of the
+    output.
+    """
+
+    assert jax.device_count() == 2, "Sharded iterator test requires exactly 2 GPUs"
+
+    batch_size_per_gpu = batch_size // jax.device_count()
+
+    # Iterator should return 23 samples per shard
+    assert iterator.size == 23
+
+    # when
+    for batch_id, batch in itertools.islice(enumerate(iterator), num_iters):
+        # then
+        jax_array = batch['tensor']
+
+        # For 2 GPUs expected result is as follows:
+        # In first iteration, output should be:
+        # [[[ 0] [ 1]] [[23] [24]]]
+        # In first iteration, first shard should be:
+        # [[0] [1]]
+        # And second shard should be:
+        # [[23] [24]]
+        # Then, in the second iteration output should be:
+        # [[[ 2] [ 3]] [[25] [26]]]
+        # In second iteration first shard should be:
+        # [[2] [3]]
+        # And second shard should be:
+        # [[25] [26]]
+        sample_id = 0
+        for device_id in range(jax.device_count()):
+            for i in range(batch_size_per_gpu):
+                ground_truth = jax.numpy.full(
+                        (1),
+                        batch_id * batch_size_per_gpu + i + device_id * iterator.size,
+                        np.int32)
+                assert jnp.array_equal(jax_array[device_id][i], ground_truth), \
+                    f"Expected {ground_truth} but got {jax_array[device_id][i]}"
+                sample_id += 1
+
+        # Assert correct backing devices for shards
+        assert jax_array.device_buffers[0].device() == jax.devices()[0]
+        assert jax_array.device_buffers[1].device() == jax.devices()[1]
+
+    # Assert correct number of batches returned from the iterator
+    assert batch_id == num_iters - 1
+
+
+def test_iterator_decorator_with_devices():
+    # given
+    output_map = ['tensor']
+
+    # when
+    @data_iterator(
+        output_map=output_map,
+        devices=jax.devices(),
+        last_batch_policy=LastBatchPolicy.DROP,
+        reader_name="reader")
+    def iterator_function(shard_id, num_shards):
+        return iterator_function_def(shard_id=shard_id, num_shards=num_shards)
+
+    data_iterator_instance = iterator_function(batch_size=batch_size, num_threads=4)
+
+    # then
+    run_pmapped_iterator_test(data_iterator_instance)
 
 
 @raises(ValueError, glob="Only one of `sharding` and `devices` arguments can be provided.")
