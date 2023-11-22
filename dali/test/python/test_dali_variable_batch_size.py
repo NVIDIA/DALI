@@ -32,7 +32,13 @@ import test_utils
 from segmentation_test_utils import make_batch_select_masks
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames, is_of_supported
-from test_utils import module_functions, has_operator, restrict_platform
+from test_utils import (
+    module_functions,
+    has_operator,
+    restrict_platform,
+    check_numba_compatibility_cpu,
+    check_numba_compatibility_gpu,
+)
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -326,23 +332,28 @@ ops_image_custom_args = [
     (fn.warp_affine, {'matrix': (.1, .9, 10, .8, -.2, -20)}),
     (fn.expand_dims, {'axes': 1, 'new_axis_names': "Z"}),
     (fn.grid_mask, {'angle': 2.6810782, 'ratio': 0.38158387, 'tile': 51}),
-    (numba_function, {
+    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]}),
+    (fn.experimental.median_blur, {'devices': ['gpu']})
+]
+
+if check_numba_compatibility_gpu(False):
+    ops_image_custom_args.append((numba_function, {
         'batch_processing': True, 'devices': ['cpu'],
         'in_types': [types.UINT8], 'ins_ndim': [3],
         'out_types': [types.UINT8],  'outs_ndim': [3],
         'run_fn': numba_set_all_values_to_255_batch,
         'setup_fn': numba_setup_out_shape
-        }),
-    (numba_function, {
+        }))
+
+
+if check_numba_compatibility_cpu(False):
+    ops_image_custom_args.append((numba_function, {
         'batch_processing': False, 'devices': ['cpu'],
         'in_types': [types.UINT8], 'ins_ndim': [3],
         'out_types': [types.UINT8],  'outs_ndim': [3],
         'run_fn': numba_set_all_values_to_255_batch,
         'setup_fn': numba_setup_out_shape
-        }),
-    (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]}),
-    (fn.experimental.median_blur, {'devices': ['gpu']})
-]
+        }))
 
 
 def test_ops_image_custom_args():
