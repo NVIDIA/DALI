@@ -331,6 +331,9 @@ def data_iterator_impl(
                         last_batch_policy=last_batch_policy,
                         prepare_first_batch=prepare_first_batch)
 
+                raise AssertionError(
+                    "This should not happen. Check `sharding` and `devices` arguments.")
+
         return create_iterator
     return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
 
