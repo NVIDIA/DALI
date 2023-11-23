@@ -22,7 +22,7 @@ namespace dali {
 DALI_REGISTER_OPERATOR(BbFlip, BbFlipCPU, CPU);
 
 DALI_SCHEMA(BbFlip)
-    .DocStr(R"code(Flips bounding boxes horizontaly or verticaly (mirror).
+    .DocStr(R"code(Flips bounding boxes horizontally or vertically (mirror).
 
 The bounding box coordinates for the  input are in the [x, y, width, height] - ``xywh`` or
 [left, top, right, bottom] - ``ltrb`` format. All coordinates are in the image coordinate

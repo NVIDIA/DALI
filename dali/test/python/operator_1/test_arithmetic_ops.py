@@ -222,7 +222,7 @@ comparisons_operations = [
     ((lambda x, y: x >= y), ">="),
 ]
 
-# The observable behaviour for hi < lo is the same as numpy
+# The observable behavior for hi < lo is the same as numpy
 ternary_operations = [
     (((lambda v, lo, hi: math.clamp(v, lo, hi)), (lambda v, lo, hi: np.clip(v, lo, hi))), "clamp")
 ]

@@ -23,7 +23,7 @@ The operator modifies the layout string of the input data to indicate that
 the batch contains sequences.
 Only the layout is affected, while the data stays untouched.
 
-The operator can be used to feed per-frame tensor arguments when procesing sequences.
+The operator can be used to feed per-frame tensor arguments when processing sequences.
 For example, the following snippet shows how to apply ``gaussian_blur`` to a batch of sequences,
 so that a different ``sigma`` is used for each frame in each sequence::
 

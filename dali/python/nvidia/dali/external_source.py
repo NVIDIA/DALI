@@ -543,7 +543,7 @@ Keyword Args
     Normally, ``external_source`` consumes its input data and expects new ones to be fed in the
     upcoming iteration. Setting ``repeat_last=True`` changes this behavior so that
     ``external_source`` will detect that no new data was fed between the previous pipeline run and
-    the currnet one and will self-refeed with the most recent data.
+    the current one and will self-refeed with the most recent data.
 
     Setting ``repeat_last`` to `True` only makes sense in "push" mode, i.e. when the data is
     actively provided by the user via a call to ``feed_input``. Enabling this option is incompatible

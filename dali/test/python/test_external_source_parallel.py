@@ -228,10 +228,10 @@ def test_parallel_fork():
         parallel_pipe.start_py_workers()
     for parallel_pipe, pipe, dtype, batch_size in pipes:
         yield utils.check_callback, parallel_pipe, pipe, epoch_size, batch_size, dtype
-        # explicitely call py_pool close
+        # explicitly call py_pool close
         # as nose might still reference parallel_pipe from the yield above
         parallel_pipe._py_pool.close()
-    # test that another pipline with forking initialization fails
+    # test that another pipeline with forking initialization fails
     # as there is CUDA contexts already initialized
     parallel_pipe = utils.create_pipe(
         callback, "cpu", 16, py_num_workers=4, py_start_method="fork", parallel=True

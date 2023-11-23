@@ -33,7 +33,7 @@ This operator can be used for many operations. Here's the (incomplete) list:
  * applying affine transform to point clouds
  * projecting points onto a subspace
  * some color space conversions, for example RGB to YCbCr or grayscale
- * linear operations on colors, like hue rotation, brighness and contrast adjustment
+ * linear operations on colors, like hue rotation, brightness and contrast adjustment
 )")
   .NumInput(1)
   .NumOutput(1)

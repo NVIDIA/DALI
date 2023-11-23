@@ -467,7 +467,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
     `ref_out`
         a batch or tuple of batches
     `ref_is_list_of_outputs`
-        only meaningful when there's just one output - if True, ref_out is a one-lement
+        only meaningful when there's just one output - if True, ref_out is a one-element
         list containing a single batch for output 0; otherwise ref_out _is_ a batch
     """
     import_numpy()
@@ -769,7 +769,7 @@ def generator_random_axes_for_3d_input(
                 np.array([-3], dtype=np.int32),
             ]
         if use_empty:
-            # Add it 4 times to increase the probability to be choosen
+            # Add it 4 times to increase the probability to be chosen
             options += 4 * [np.array([], dtype=np.int32)]
 
         axes = []

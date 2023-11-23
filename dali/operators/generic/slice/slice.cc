@@ -22,7 +22,7 @@ DALI_SCHEMA(Slice)
         R"code(Extracts a subtensor, or slice.
 
 .. note::
-    For generic indexing and slicing you can use Python indexing systax.
+    For generic indexing and slicing you can use Python indexing syntax.
     See :ref:`datanode indexing` for details.
 
 The slice can be specified by proving the start and end coordinates, or start coordinates

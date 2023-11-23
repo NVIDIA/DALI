@@ -99,13 +99,13 @@ start_methods = ["fork", "spawn"]
 #
 # We do this to not repeat the pattern of:
 #
-# def check_somthing(start_method):
+# def check_something(start_method):
 #    ...
 #
 # @with_setup(setup_function, teardown_function)
 # def test_something():
 #   for start_method in start_methods:
-#      yield check_somthing, start_method
+#      yield check_something, start_method
 
 
 def check_pool(fn):

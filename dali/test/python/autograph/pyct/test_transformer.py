@@ -294,7 +294,7 @@ class CodeGeneratorTest(unittest.TestCase):
 
             def visit_If(self, node):
                 self.emit("if ")
-                # This is just for simplifity. A real generator will walk the tree and
+                # This is just for simplicity. A real generator will walk the tree and
                 # emit proper code.
                 self.emit(parser.unparse(node.test, include_encoding_marker=False))
                 self.emit(" {\n")

@@ -122,9 +122,9 @@ This will create a 5 directories inside of ``<data_dir>``\ :
 * 720p
 * 1080p
 * 4k
-  Each of these diretories contain scenes (short extracts of the origin video) seperated in two directories ``train`` and ``val``. 
+  Each of these directories contain scenes (short extracts of the origin video) separated in two directories ``train`` and ``val``. 
 
-The script used in prepare_data.sh are the follwing:
+The script used in prepare_data.sh are the following:
 
 tools/split_scenes.py : split the video into scenes and remove audio track:
 
@@ -155,7 +155,7 @@ This file allows configuration of a variety of
 training options - it is expected that you will modify data paths appropriately
 for your system.
 
-Visualization of training data, e.g. loss curves and timings, aswell as sample images is provided through `Tensorboard <https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard>`_ via the `tensorboardX <https://github.com/lanpa/tensorboard-pytorch>`_ library.  Whilst training is running you can access Tensorboard at ``<host_ip>:6006``.
+Visualization of training data, e.g. loss curves and timings, as well as sample images is provided through `Tensorboard <https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard>`_ via the `tensorboardX <https://github.com/lanpa/tensorboard-pytorch>`_ library.  Whilst training is running you can access Tensorboard at ``<host_ip>:6006``.
 
 Results on Myanmar Validation Set
 ---------------------------------

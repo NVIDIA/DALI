@@ -34,7 +34,7 @@ test_data_video = os.path.join(test_data_root, "db", "optical_flow", "sintel_tra
 
 
 def roundint(num):
-    # std::round has different behaviour than np.round so manually add 0.5 and truncate to int
+    # std::round has different behavior than np.round so manually add 0.5 and truncate to int
     return int(num + (0.5 if num >= 0 else -0.5))
 
 

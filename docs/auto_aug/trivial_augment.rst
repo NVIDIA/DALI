@@ -7,7 +7,7 @@ TrivialAugment, as described in https://arxiv.org/abs/2103.10158, is an automati
 that is parameter-free - it can be used without the search for optimal meta-parameters.
 
 Each sample is processed with just one randomly selected
-:ref:`augmentation <Augmentation operations>`. The magnitude bin for every augmantation is randomly
+:ref:`augmentation <Augmentation operations>`. The magnitude bin for every augmentation is randomly
 selected.
 
 To use the TrivialAugment, import and call the

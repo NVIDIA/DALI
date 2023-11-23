@@ -543,7 +543,7 @@ def _get_op(api_module, full_qualified_name: List[str]):
     Parameters
     ----------
     api_module : module
-        fn or orps
+        fn or ops
     full_qualified_name : List[str]
         For example ["readers", "File"]
     """

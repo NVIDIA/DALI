@@ -83,7 +83,7 @@ def test_external_source_mixed_contiguous():
 
 def _test_cross_device(src, dst, use_dali_tensor=False):
     # The use_dali_tensor converts (via the Dlpack) to the DALI native Tensor before feeding the
-    # data, to additionaly check if the constructor works correctly wrt to device_id.
+    # data, to additionally check if the constructor works correctly wrt to device_id.
     # TODO(klecki): [device_id] currently the device_id is not exposed in Python Tensors, so there
     # is no other way we may verify it.
     import nvidia.dali.fn as fn

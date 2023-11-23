@@ -25,7 +25,7 @@ class ShmMessageDesc(Structure):
     by the receiver of the `ShmMessageDesc` instance.
     ----------
     `worker_id` : int
-        Intger identifying a process that put the message, number from [0, num_workers) range
+        Integer identifying a process that put the message, number from [0, num_workers) range
         for workers or -1 in case of a main process.
     `shm_chunk_id` : int
         Integer identifying shm chunk that contains pickled data to be read by the receiver
@@ -194,7 +194,7 @@ class ScheduledTask:
     `scheduled_i` : int
         Ordinal of the batch that tasks list corresponds to.
     `epoch_start` : int
-        The value is increased every time the corresponding context is resetted,
+        The value is increased every time the corresponding context is reset,
         this way worker can know if the new epoch started, and if it can restart
         iterator that raised StopIteration but is set to cycle=raise.
     `task` : TaskArgs

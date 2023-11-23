@@ -216,7 +216,7 @@ Q: Can DALI operate without GPU?
 ################################
 A: Yes. Vast majority of operators have CPU and GPU variants and a pipeline where all operators are
 run on CPU doesn't require a GPU to run. However, DALI is predominantly a GPU library and CPU
-operators are not as thouroughly optimized.
+operators are not as thoroughly optimized.
 The main goal of this functionality is to enable the development of the DALI pipeline on
 machines where GPU is not available (like laptops), with an ability to later deploy the DALI
 pipeline on a GPU-capable cluster.

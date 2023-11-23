@@ -174,7 +174,7 @@ def generate_data(shape, num_classes, blobs_per_class):
     """Generates blobs_per_class gaussian blobs in ND `shape`-shaped array.
     Each point is assigned a class at which the maximum blob intensity occurred - or background,
     if intensity is below certain threshold. The threshold is adjusted to maintain a preset
-    precentage of background"""
+    percentage of background"""
 
     radii = np.array([shape])
     mean = np.random.random([num_classes, blobs_per_class, len(shape)]) * radii
@@ -395,7 +395,7 @@ def test_random_object_bbox_with_class():
                     x.remove(bg)
             if [] in class_opt:
                 class_opt.remove([])
-            # putting this in the list interefered with remove
+            # putting this in the list interfered with remove
             class_opt.append(random_classes(0 if bg is None else bg))
         else:
             class_opt = [None]
@@ -515,7 +515,7 @@ def test_random_object_bbox_ignore_class():
 
 @nottest
 def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
-    """Checks that a correct backgorund labels is chosen:
+    """Checks that a correct background labels is chosen:
     0, if 0 is not present in the list of foreground classes
     smallest label - 1 if 0 is present
     if the smallest label -1 overflows, decrement the label until no collision

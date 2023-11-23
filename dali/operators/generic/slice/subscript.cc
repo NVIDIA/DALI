@@ -99,7 +99,7 @@ DALI_SCHEMA(SubscriptDimCheck)
     .MakeDocHidden()
     .DocStr(R"(Checks that the input has at least `num_subscripts` dimensions.
 
-This operator is used internally when all indices are empty (:) and just verifieis
+This operator is used internally when all indices are empty (:) and just verifies
 that the input has sufficient number of dimensions and passes through the input.)")
     .NumInput(1)
     .NumOutput(1)

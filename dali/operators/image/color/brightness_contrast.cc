@@ -31,7 +31,7 @@ This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AddOptionalArg("brightness",
-                    "Brightness mutliplier.",
+                    "Brightness multiplier.",
                     kDefaultBrightness, true, true)
     .AddOptionalArg("brightness_shift", R"code(The brightness shift.
 

@@ -69,7 +69,7 @@ This readers produces the following outputs::
      ...
      [mask_idx_P, start_vertex_idx_P, end_vertex_idx_P]]
 
-  where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_verted_idx``
+  where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_vertex_idx``
   define the range of indices of vertices, as they appear in the output ``vertices``, belonging to this polygon.
   Each sample in ``vertices`` contains a list of vertices that composed the different polygons in the sample, as 2D coordinates::
 

@@ -299,7 +299,7 @@ class IterableSource:
     It is a counterpart of _CycleIter/_CycleGenIter wrappers from non parallel mode.
     However due to prefetching in parallel mode `cycle`=raise
     will raise StopIteration in consecutive calls until the new epoch starts
-    (i.e. which happens with pipline.reset call)"""
+    (i.e. which happens with pipeline.reset call)"""
 
     def __init__(self, source_desc):
         self.source_desc = source_desc

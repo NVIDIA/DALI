@@ -46,7 +46,7 @@ The number of bins that are created in the output is ``nfft // 2 + 1``.
     R"(Window size in number of samples.)",
     512)
   .AddOptionalArg("window_step",
-    R"(Step betweeen the STFT windows in number of samples.)",
+    R"(Step between the STFT windows in number of samples.)",
     256)
   .AddOptionalArg("window_fn",
     R"(Samples of the window function that will be multiplied to each extracted window when

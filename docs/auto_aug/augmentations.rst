@@ -19,7 +19,7 @@ Here is an example of defining a simplified rotate augmentation::
     def rotate_aug(data, angle, fill_value=128, rotate_keep_size=True):
        return fn.rotate(data, angle=angle, fill_value=fill_value, keep_size=True)
 
-Based on the exsiting augmentation, a new one, with adjusted parameters, can be created::
+Based on the existing augmentation, a new one, with adjusted parameters, can be created::
 
     rotate_aug_60 = rotate_aug.augmentation(mag_range=(0, 60), randomly_negate=False)
 
@@ -40,15 +40,15 @@ Decorator
     is an instance of class :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation`.
     The class should not be instantiated directly, it needs to be created with the decorator.
 
-    Once obtained, those objects become callables that can be used to speicfy a policy for
+    Once obtained, those objects become callables that can be used to specify a policy for
     :ref:`AutoAugment`, :ref:`RandAugment` or :ref:`TrivialAugment`.
 
     .. method:: def augmentation(self, mag_range, randomly_negate, mag_to_param, param_device, name) -> Augmentation
 
         You can call this method to create new
         :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation` instance based on an existing
-        one, with the paramenters adjusted. All parameters are optional - those that were specifed
-        replace the ones that were previouslly passed to
+        one, with the parameters adjusted. All parameters are optional - those that were specified
+        replace the ones that were previously passed to
         :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>`.
 
         :param mag_range: optional, see :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>`.
@@ -63,7 +63,7 @@ Augmentations
 
 Here is a list of callable :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation` instances
 defined by DALI. Note that the ``mag_to_param``, ``param_device`` and ``name`` parameters were
-ommited from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
+ommitted from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
 for simplicity.
 
 To adjust the range of parameter, use the ``augmentation`` method

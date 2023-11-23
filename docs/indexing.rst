@@ -68,7 +68,7 @@ for the respective sample in ``raw_files``.
 Slicing
 ~~~~~~~
 
-To extract multiple values (or slices), the Python list slicing systax can be used::
+To extract multiple values (or slices), the Python list slicing syntax can be used::
 
     header = raw_files[:16]  # extract 16-byte headers from files in the batch
 
@@ -93,7 +93,7 @@ Slicing keeps the sliced dimensions even if the length of the slice is 1::
 
     green_with_channel = images[:,:,1:2]  # the last dimension is kept
 
-When indexing and slicing multidimensional data, the trailing dimenions can be omitted. This is
+When indexing and slicing multidimensional data, the trailing dimensions can be omitted. This is
 equivalent to passing a full-range slice to all trailing dimensions::
 
     wide = letterboxed[20:-20,:,:]   # slice height, keep width and channels
@@ -112,7 +112,7 @@ semantics as numpy arrays. This can be done over multiple dimensions.
     reversed = array[::-1]
     every_second = array[::2]
     every_second_reversed = array[::-2]
-    quater_resolution = image[::2, ::2]
+    quarter_resolution = image[::2, ::2]
 
 Adding dimensions
 ~~~~~~~~~~~~~~~~~

@@ -85,7 +85,7 @@ def test_iterator_decorator_api_match_iterator_init():
         iterator_decorator_args == iterator_init_args
     ), "Arguments for the iterator decorator and the iterator __init__ method do not match"
 
-    # Get docs for the docorator "Parameters" section
+    # Get docs for the decorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
     # Skip everything after `sharding` argument as it differs between the two
     iterator_decorator_docs = inspect.getdoc(peekable_data_iterator)
