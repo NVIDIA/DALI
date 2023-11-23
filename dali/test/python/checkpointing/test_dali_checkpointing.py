@@ -20,6 +20,7 @@ from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
+from nvidia.dali import tfrecord as tfrec
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -240,6 +241,73 @@ def test_coco_reader(
         initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
+
+
+@params(
+        (0, 1, 0, 1, True, True, True, None),
+        (0, 3, 0, 2, True, True, False, 1),
+        (4, 5, 1, 3, True, False, True, 2),
+        (1, 7, 2, 4, True, False, False, None),
+        (11, 2, 2, 10, False, True, True, 1),
+        (2, 4, 1, 6, False, True, False, 2),
+        (5, 6, 2, 3, False, False, True, None),
+        (3, 8, 4, 5, False, False, False, 1),
+)
+def test_mxnet_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None):
+
+    recordio_dir = os.path.join(data_root, 'db', 'recordio')
+    recordio_rec = os.path.join(recordio_dir, 'train.rec')
+    recordio_idx = os.path.join(recordio_dir, 'train.idx')
+
+    check_reader_checkpointing(
+        fn.readers.mxnet, num_epochs, batch_size, iters_into_epoch,
+        path=recordio_rec,
+        index_path=recordio_idx,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard)
+
+
+@params(
+        (0, 1, 0, 1, True, True, True, None),
+        (0, 2, 0, 2, True, True, False, 1),
+        (6, 3, 1, 3, True, False, True, 2),
+        (3, 4, 2, 4, True, False, False, None),
+        (10, 5, 2, 10, False, True, True, 1),
+        (4, 6, 1, 6, False, True, False, 2),
+        (10, 7, 2, 3, False, False, True, None),
+        (2, 8, 4, 5, False, False, False, 1),
+)
+def test_tfrecord_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None):
+
+    tfrecord_dir = os.path.join(data_root, 'db', 'tfrecord')
+    tfrecord = os.path.join(tfrecord_dir, 'train')
+    tfrecord_idx = os.path.join(tfrecord_dir, 'train.idx')
+
+    def tfrecord_wrapper(*args, **kwargs):
+        return fn.readers.tfrecord(*args, **kwargs)["image/encoded"]
+
+    check_reader_checkpointing(
+        tfrecord_wrapper, num_epochs, batch_size, iters_into_epoch,
+        path=tfrecord,
+        index_path=tfrecord_idx,
+        features={
+            "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+            "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
+        },
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard)
 
 
 @params(
