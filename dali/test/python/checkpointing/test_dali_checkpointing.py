@@ -423,6 +423,44 @@ def test_video_reader(num_epochs, batch_size, iters_into_epoch,
         step=video.step)
 
 
+@cartesian_params(
+    ('cpu', 'gpu',),
+    (0, 4),
+    (4,),
+    (0, 2),
+    (
+        BaseDecoderConfig(shard_id=1, num_shards=2, stick_to_shard=True, pad_last_batch=True,
+                          random_shuffle=True),
+        BaseDecoderConfig(shard_id=2, num_shards=3, stick_to_shard=False, pad_last_batch=False,
+                          random_shuffle=False),
+    ),
+    (
+        VideoConfig(sequence_length=3, stride=1, step=5),
+    ),
+)
+def test_experimental_video_reader(device, num_epochs, batch_size, iters_into_epoch,
+                                   config: BaseDecoderConfig, video: VideoConfig):
+
+    files = [os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', f'test_{i}.mp4')
+             for i in (1, 2)]
+
+    check_reader_checkpointing(
+        fn.experimental.readers.video, num_epochs, batch_size, iters_into_epoch,
+        device=device,
+        filenames=files,
+        labels=list(range(len(files))),
+        random_shuffle=config.random_shuffle,
+
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step)
+
+
 # Randomized operators section
 # note: fn.decoders.image_random_crop is tested by
 # `check_single_input_operator`

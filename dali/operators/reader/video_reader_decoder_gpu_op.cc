@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,14 @@
 namespace dali {
 
 VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
-    : DataReader<GPUBackend, VideoSampleGpu>(spec),
+    : DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>(spec),
       has_labels_(spec.HasArgument("labels")) {
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
+      this->SetInitialSnapshot();
 }
 
 void VideoReaderDecoderGpu::Prefetch() {
-  DataReader<GPUBackend, VideoSampleGpu>::Prefetch();
+  DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>::Prefetch();
 
   auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
   for (auto &sample : current_batch) {
@@ -35,7 +36,7 @@ void VideoReaderDecoderGpu::Prefetch() {
 
 bool VideoReaderDecoderGpu::SetupImpl(
   std::vector<OutputDesc> &output_desc, const Workspace &ws) {
-  DataReader<GPUBackend, VideoSampleGpu>::SetupImpl(output_desc, ws);
+  DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>::SetupImpl(output_desc, ws);
 
   output_desc.resize(has_labels_ ? 2 : 1);
   int batch_size = GetCurrBatchSize();
