@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,11 +22,12 @@
 
 namespace dali {
 
-class DLL_PUBLIC WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<CPUBackend>>> {
+class DLL_PUBLIC WebdatasetReader
+    : public DataReader<CPUBackend, vector<Tensor<CPUBackend>>, vector<Tensor<CPUBackend>>, true> {
  public:
-  explicit WebdatasetReader(const OpSpec& spec)
-      : DataReader<CPUBackend, vector<Tensor<CPUBackend>>>(spec) {
+  explicit WebdatasetReader(const OpSpec& spec) : DataReader(spec) {
     loader_ = InitLoader<WebdatasetLoader>(spec);
+    this->SetInitialSnapshot();
   }
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace&) override;
@@ -36,7 +37,8 @@ class DLL_PUBLIC WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, vector<Tensor<CPUBackend>>);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, vector<Tensor<CPUBackend>>,
+                              vector<Tensor<CPUBackend>>, true);
 };
 
 }  // namespace dali
