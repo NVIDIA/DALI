@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,8 +114,13 @@ void VideoLoaderDecoderGpu::PrepareMetadataImpl() {
   Reset(true);
 }
 
+void VideoLoaderDecoderGpu::Skip() {
+  MoveToNextShard(++current_index_);
+}
+
+
 void VideoLoaderDecoderGpu::Reset(bool wrap_to_shard) {
-  current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeImpl()) : 0;
+  current_index_ = wrap_to_shard ? start_index(virtual_shard_id_, num_shards_, SizeImpl()) : 0;
 }
 
 }  // namespace dali

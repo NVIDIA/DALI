@@ -24,6 +24,7 @@
       "nvmlDeviceGetBrand": {},
       "nvmlDeviceGetCount_v2": {},
       "nvmlDeviceGetHandleByIndex_v2": {},
-      "nvmlDeviceGetCudaComputeCapability": {}
+      "nvmlDeviceGetCudaComputeCapability": {},
+      "nvmlSystemGetCudaDriverVersion": {}
    }
 }
