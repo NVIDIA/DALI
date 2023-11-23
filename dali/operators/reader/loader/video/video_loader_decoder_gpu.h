@@ -38,7 +38,8 @@ class VideoSampleGpu {
 };
 
 
-class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu, true>, VideoLoaderDecoderBase {
+class VideoLoaderDecoderGpu
+  : public Loader<GPUBackend, VideoSampleGpu, true>, VideoLoaderDecoderBase {
  public:
   explicit inline VideoLoaderDecoderGpu(const OpSpec &spec) :
     Loader<GPUBackend, VideoSampleGpu, true>(spec),

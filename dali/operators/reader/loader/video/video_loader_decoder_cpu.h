@@ -26,7 +26,8 @@
 namespace dali {
 using VideoSampleCpu = VideoSample<CPUBackend>;
 
-class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu, true>, VideoLoaderDecoderBase {
+class VideoLoaderDecoderCpu
+  : public Loader<CPUBackend, VideoSampleCpu, true>, VideoLoaderDecoderBase {
  public:
   explicit inline VideoLoaderDecoderCpu(const OpSpec &spec) :
     Loader<CPUBackend, VideoSampleCpu, true>(spec),

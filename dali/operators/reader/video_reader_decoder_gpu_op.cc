@@ -19,7 +19,7 @@
 namespace dali {
 
 VideoReaderDecoderGpu::VideoReaderDecoderGpu(const OpSpec &spec)
-    : DataReader<GPUBackend, VideoSampleGpu,VideoSampleGpu, true>(spec),
+    : DataReader<GPUBackend, VideoSampleGpu, VideoSampleGpu, true>(spec),
       has_labels_(spec.HasArgument("labels")) {
       loader_ = InitLoader<VideoLoaderDecoderGpu>(spec);
       this->SetInitialSnapshot();

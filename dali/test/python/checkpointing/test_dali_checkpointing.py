@@ -412,7 +412,8 @@ def test_video_reader(num_epochs, batch_size, iters_into_epoch,
 def test_experimental_video_reader(device, num_epochs, batch_size, iters_into_epoch,
                                    config: BaseDecoderConfig, video: VideoConfig):
 
-    files = [os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', f'test_{i}.mp4') for i in (1, 2)]
+    files = [os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', f'test_{i}.mp4')
+             for i in (1, 2)]
 
     check_reader_checkpointing(
         fn.experimental.readers.video, num_epochs, batch_size, iters_into_epoch,

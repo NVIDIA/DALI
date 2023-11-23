@@ -19,7 +19,8 @@
 #include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 
 namespace dali {
-class VideoReaderDecoderCpu : public DataReader<CPUBackend, VideoSample<CPUBackend>, VideoSample<CPUBackend>, true> {
+class VideoReaderDecoderCpu
+  : public DataReader<CPUBackend, VideoSample<CPUBackend>, VideoSample<CPUBackend>, true> {
  public:
   explicit VideoReaderDecoderCpu(const OpSpec &spec);
 
