@@ -16,13 +16,16 @@ import os
 import glob
 import nose
 import numpy as np
+import itertools
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
-from test_utils import compare_pipelines, get_dali_extra_path
-from nose2.tools import params
+from test_utils import compare_pipelines, get_dali_extra_path, check_numba_compatibility_cpu, \
+    has_operator, restrict_platform
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from test_optical_flow import is_of_supported
+from nose.plugins.attrib import attr
 
 # Test configuration
 batch_size = 8
@@ -135,6 +138,16 @@ def check_single_encoded_jpeg_input(op, device, **kwargs):
         img = os.path.join(get_dali_extra_path(), 'db/single/jpeg/100/swan-3584559_640.jpg')
         jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
         return op(move_to(jpegs, device), device=device, **kwargs)
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+def check_single_encoded_audio_input(op, device, **kwargs):
+    @pipeline_def
+    def pipeline_factory():
+        wav = os.path.join(get_dali_extra_path(), 'db/audio/wav/237-134500-0000.wav')
+        audio, _ = fn.readers.file(files=[wav], pad_last_batch=True)
+        return op(move_to(audio, device), device=device, **kwargs)
 
     check_is_pipeline_stateless(pipeline_factory)
 
@@ -408,6 +421,106 @@ def test_to_decibels_stateless(device):
     check_single_signal_input(fn.to_decibels, device)
 
 
+@cartesian_params(('cpu', 'gpu'), (fn.stack, fn.cat))
+def test_tensor_join_stateless(device, join):
+    def wrapper(x, **kwargs):
+        return join(x, x, x, **kwargs)
+    check_single_input(wrapper, device)
+
+
+@params('cpu', 'gpu')
+def test_tensor_subscript_stateless(device):
+    check_single_input(lambda x, **kwargs: x[0, :, 2:3], device)
+
+
+@params('cpu', 'gpu')
+def test_permute_batch_stateless(device):
+    def wrapper(x, **kwargs):
+        return fn.permute_batch(x, indices=[0] * batch_size, **kwargs)
+    check_single_input(wrapper, device)
+
+
+def test_select_masks_stateless():
+    n = 10
+    polygons = np.asarray([[i, 0, i] for i in range(n)])
+    vertices = np.asarray([[i, i + 1] for i in range(n)])
+    mask_ids = np.asarray([i for i in range(n) if i % 2 == 0])
+
+    @pipeline_def
+    def pipeline_factory():
+        return tuple(fn.segmentation.select_masks(mask_ids, polygons, vertices))
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+@params('cpu', 'gpu')
+def test_box_encoder_stateless(device):
+    n = 10
+    boxes = np.asarray([[float(i), float(i), float(i + 1), float(i + 1)] for i in range(n)])
+    labels = np.asarray(list(range(n)))
+    anchors = [float(i) for i in range(4)]
+
+    @pipeline_def
+    def pipeline_factory():
+        return tuple(fn.box_encoder(boxes, labels, anchors=anchors, device=device))
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
+@params('cpu', 'gpu')
+def test_python_function_stateless(device):
+    def wrapper(x, **kwargs):
+        return fn.python_function(x, function=lambda x: x * 2, **kwargs)
+    check_single_input(wrapper, device)
+
+
+@attr('numba')
+def test_numba_function_stateless():
+    import nvidia.dali.plugin.numba as dali_numba
+
+    check_numba_compatibility_cpu()
+
+    def double_sample(out_sample, in_sample):
+        out_sample[:] = 2 * in_sample[:]
+
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4)
+    def numba_pipe():
+        forty_two = fn.external_source(source=lambda x: np.full((2, ), 42, dtype=np.uint8),
+                                       batch=False)
+        out = dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
+                                                        out_types=[dali.types.DALIDataType.UINT8],
+                                                        in_types=[dali.types.DALIDataType.UINT8],
+                                                        outs_ndim=[1], ins_ndim=[1],
+                                                        batch_processing=False)
+        return out
+
+    check_is_pipeline_stateless(numba_pipe)
+
+
+@has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+def test_inflate_stateless():
+    import lz4.block
+
+    def sample_to_lz4(sample):
+        deflated_buf = lz4.block.compress(sample, store_size=False)
+        return np.frombuffer(deflated_buf, dtype=np.uint8)
+
+    source = RandomBatch()
+    batch = source()
+    input_data = [sample_to_lz4(sample) for sample in batch]
+
+    input_shape = [np.array(sample.shape, dtype=np.int32) for sample in batch]
+
+    @pipeline_def
+    def pipeline():
+        deflated = fn.external_source(source=itertools.repeat(input_data))
+        shape = fn.external_source(source=itertools.repeat(input_shape))
+        return fn.experimental.inflate(deflated.gpu(), shape=shape)
+
+    check_is_pipeline_stateless(pipeline)
+
+
 def test_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.peek_image_shape, 'cpu')
 
@@ -416,9 +529,10 @@ def test_imgcodec_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.experimental.peek_image_shape, 'cpu')
 
 
-@params('cpu', 'mixed')
-def test_image_decoder_stateless(device):
-    check_single_encoded_jpeg_input(fn.decoders.image, device)
+def test_audio_decoder_stateless():
+    def audio_decoder_wrapper(*args, **kwargs):
+        return fn.decoders.audio(*args, **kwargs)[0]
+    check_single_encoded_audio_input(audio_decoder_wrapper, 'cpu')
 
 
 @params('cpu', 'mixed')

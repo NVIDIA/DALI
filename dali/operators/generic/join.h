@@ -18,7 +18,7 @@
 #include <any>
 #include <string>
 #include <vector>
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/join/tensor_join_cpu.h"
 #include "dali/kernels/common/join/tensor_join_gpu.h"
@@ -26,9 +26,9 @@
 namespace dali {
 
 template <typename Backend, bool new_axis>
-class TensorJoin : public Operator<Backend> {
+class TensorJoin : public StatelessOperator<Backend> {
  public:
-  explicit TensorJoin(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit TensorJoin(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     has_axis_ = spec.HasArgument("axis");
     has_axis_name_ = spec.HasArgument("axis_name");
     if (!new_axis) {
@@ -48,7 +48,7 @@ class TensorJoin : public Operator<Backend> {
 
   using Storage = detail::storage_tag_map_t<Backend>;
 
-  using Operator<Backend>::Operator;
+  using StatelessOperator<Backend>::Operator;
 
   bool CanInferOutputs() const override { return true; }
   void RunImpl(Workspace &ws) override;

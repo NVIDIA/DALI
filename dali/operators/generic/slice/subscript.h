@@ -29,7 +29,7 @@
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -133,9 +133,9 @@ struct SubscriptInfo {
 
 
 template <typename Backend>
-class TensorSubscript : public Operator<Backend> {
+class TensorSubscript : public StatelessOperator<Backend> {
  public:
-  explicit TensorSubscript(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit TensorSubscript(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     InitArgs();
   }
 
@@ -328,7 +328,7 @@ class TensorSubscript : public Operator<Backend> {
 
   bool CanInferOutputs() const override { return true; }
 
-  using Operator<Backend>::RunImpl;
+  using StatelessOperator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     auto &output = ws.Output<Backend>(0);
