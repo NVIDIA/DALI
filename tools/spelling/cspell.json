@@ -1,0 +1,64 @@
+{
+    "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+    "version": "0.2",
+    "dictionaryDefinitions": [
+        {
+            "name": "project-words",
+            "path": "./cspell_dicts/cspell_dict.txt",
+            "addWords": true
+        },
+    ],
+    "dictionaries": [
+        "project-words",
+    ],
+    "files": [
+        "dali/**/*.cc",
+        "dali/**/*.cuh",
+        "dali/**/*.h",
+        "dali/**/*.cu",
+        "dali/**/*.py",
+        "docs/**/*.rst",
+    ],
+    "ignorePaths": [
+        "**/_autograph/**"
+    ],
+    "overrides": [
+        // Force `*.cu` and `*.cuh` files to be treated as `cpp` files:
+        {
+          "filename": "**/{*.cu,*.cuh}",
+          "languageId": "cpp"
+        },
+        {
+        "filename": "**/*.rst",
+        "ignoreRegExpList": [
+            // Ignore RST code blocks
+            "/^[^a-z\\n]*(code-block)?\\s*:: *\\w* *\\n\\n([^\\n]+\\n)+\\n/gm",
+            // Ignore directives
+            "/^\\s*\\.\\.\\s*[A-Za-z_]+:.*$/gm",
+            // Ignore ``stuff`` and `stuff`
+            "/``.*``/g",
+            "/`.*`/g",
+        ]
+        },
+    ],
+    "languageSettings": [
+        {
+            "languageId": "cpp,c",
+            "allowCompoundWords": false,
+            "includeRegExpList": [
+                "comments",
+                // Match strings in schemas
+                "/(DocStr|AddOptionalArg|InputDox|Deprecate)\\(\\s*([^,)]+,\\s+)*R?\"[^\"]*\"/g",
+            ],
+        },
+        {
+            "languageId": "python",
+            "allowCompoundWords": false,
+            "includeRegExpList": [
+                "comments",
+                // Match '''long strings''' after a ':'
+                "/:\\s+(\"\"\"|''')[^\\1]*?\\1/g",
+            ]
+        }
+    ]
+}
