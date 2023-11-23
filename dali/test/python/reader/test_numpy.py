@@ -46,18 +46,22 @@ def is_gds_supported(device_id=0):
         return is_gds_supported_var
 
     compute_cap = 0
+    cuda_drv_ver = 0
     try:
         import pynvml
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
         compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         compute_cap = compute_cap[0] + compute_cap[1] / 10.
+        cuda_drv_ver = pynvml.nvmlSystemGetCudaDriverVersion()
     except ModuleNotFoundError:
         print("Python bindings for NVML not found")
 
     # for CUDA < 12.2 only x86 platform is supported, above aarch64 is supported as well
-    is_gds_supported_var = (platform.processor() == "x86_64" or
-                            dali_b.__cuda_version__ >= 12200) and compute_cap >= 6.0
+    is_gds_supported_var = (
+        platform.processor() == "x86_64"
+        or (dali_b.__cuda_version__ >= 12200 and cuda_drv_ver >= 12020)
+    ) and compute_cap >= 6.0
     return is_gds_supported_var
 
 

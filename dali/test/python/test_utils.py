@@ -815,7 +815,7 @@ def restrict_platform(min_compute_cap=None, platforms=None):
     return decorator
 
 
-def check_numba_compatibility_cpu():
+def check_numba_compatibility_cpu(if_skip=True):
     import numba
     from nose import SkipTest
 
@@ -829,12 +829,22 @@ def check_numba_compatibility_cpu():
     # llvmlite directly (if still applicable)
     if platform.processor().lower() in ('arm64', 'aarch64', 'armv8') \
        and LooseVersion(numba.__version__) >= LooseVersion('0.57.0'):
-        raise SkipTest()
+        if if_skip:
+            raise SkipTest()
+        else:
+            return False
+    if not if_skip:
+        return True
 
 
-def check_numba_compatibility_gpu():
+def check_numba_compatibility_gpu(if_skip=True):
     from nose import SkipTest
     import nvidia.dali.plugin.numba.experimental as ex
     if (not ex.NumbaFunction._check_minimal_numba_version(False)
             or not ex.NumbaFunction._check_cuda_compatibility(False)):
-        raise SkipTest()
+        if if_skip:
+            raise SkipTest()
+        else:
+            return False
+    if not if_skip:
+        return True

@@ -22,6 +22,9 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/test/device_test.h"
 #include "dali/core/dynlink_cufile.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif  // NVML_ENABLED
 
 namespace dali {
 namespace gds {
@@ -55,6 +58,18 @@ struct CUFileDriverScope {
 
 template <typename TestBody>
 void SkipIfIncompatible(TestBody &&body) {
+  // skip test for aarch64 and CUDA < 12.2
+#if NVML_ENABLED
+  static const int driverVersion = []() {
+    nvml::Init();
+    return nvml::GetCudaDriverVersion();
+  }();
+#if defined(__aarch64__)
+  if (driverVersion < 12020) {
+    return;
+  }
+#endif  // __aarch64__
+#endif  // NVML_ENABLED
   try {
     body();
   } catch (const CUFileError &e) {

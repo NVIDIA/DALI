@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,11 @@
 
 namespace dali {
 
-class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
+class TFRecordReader
+    : public DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true> {
  public:
   explicit TFRecordReader(const OpSpec& spec)
-  : DataReader<CPUBackend, Tensor<CPUBackend>>(spec),
+  : DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>(spec),
     dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
     use_o_direct_(spec.GetArgument<bool>("use_o_direct")),
     thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "TFRecordReader") {
@@ -36,6 +37,7 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
     parser_.reset(new TFRecordParser(spec));
     DALI_ENFORCE(!skip_cached_images_,
       "TFRecordReader doesn't support `skip_cached_images` option");
+    this->SetInitialSnapshot();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
@@ -52,7 +54,7 @@ class TFRecordReader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   void Prefetch() override;
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true);
   bool dont_use_mmap_ = false;
   bool use_o_direct_ = false;
   size_t o_direct_chunk_size_ = 0;

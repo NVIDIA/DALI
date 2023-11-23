@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,10 @@
 namespace dali {
 
 VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
-    : DataReader<CPUBackend, VideoSampleCpu>(spec),
+    : DataReader<CPUBackend, VideoSampleCpu, VideoSampleCpu, true>(spec),
       has_labels_(spec.HasArgument("labels")) {
       loader_ = InitLoader<VideoLoaderDecoderCpu>(spec);
+      this->SetInitialSnapshot();
 }
 
 void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
