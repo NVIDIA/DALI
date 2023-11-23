@@ -279,10 +279,10 @@ def add_parser_arguments(parser, skip_arch=False):
     )
 
     parser.add_argument(
-        "--raport-file",
-        default="experiment_raport.json",
+        "--report-file",
+        default="experiment_report.json",
         type=str,
-        help="file in which to store JSON experiment raport",
+        help="file in which to store JSON experiment report",
     )
 
     parser.add_argument(
@@ -536,7 +536,7 @@ def prepare_for_training(args, model_args, model_arch):
                 ),
                 dllogger.JSONStreamBackend(
                     dllogger.Verbosity.VERBOSE,
-                    os.path.join(args.workspace, args.raport_file),
+                    os.path.join(args.workspace, args.report_file),
                 ),
             ],
             start_epoch=start_epoch - 1,
