@@ -42,6 +42,8 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/cast_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/coin_flip_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_fast_forward_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/checkpointing_bench.cc"
   )
 
   if (BUILD_LMDB)

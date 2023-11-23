@@ -137,7 +137,11 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
     @pipeline_def(batch_size=batch_size, device_id=0,
                   num_threads=4, enable_checkpointing=True)
     def pipeline():
-        return tuple(reader(name="Reader", **kwargs))
+        result = reader(name="Reader", **kwargs)
+        if isinstance(result, list):
+            return tuple(result)
+        else:
+            return result
 
     p = pipeline()
     p.build()
@@ -236,6 +240,31 @@ def test_coco_reader(
         initial_fill=initial_fill,
         polygon_masks=True,
         image_ids=True)
+
+
+@params(
+        (1, 1, 0, 3, False, False, False, None),
+        (2, 2, 0, 1, False, False, True, 1),
+        (6, 4, 2, 3, False, True, False, 2),
+        (4, 1, 1, 5, False, True, True, 3),
+        (3, 2, 4, 5, True, False, False, 1),
+        (7, 4, 2, 5, True, False, True, 2),
+        (5, 1, 2, 3, True, True, False, 3),
+        (0, 2, 3, 6, True, True, True, None),
+)
+def test_sequence_reader(num_epochs, batch_size, shard_id, num_shards,
+                         random_shuffle, stick_to_shard, pad_last_batch,
+                         iters_into_epoch=None, initial_fill=1024):
+
+    check_reader_checkpointing(
+        fn.readers.sequence, num_epochs, batch_size, iters_into_epoch,
+        file_root=os.path.join(data_root, 'db', 'sequence', 'frames'),
+        sequence_length=5,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id, num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
 
 
 @params(
@@ -439,6 +468,44 @@ def test_video_reader(num_epochs, batch_size, iters_into_epoch,
         enable_timestamps=True,
         file_list_frame_num=True,
         file_list_include_preceding_frame=False,
+
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step)
+
+
+@cartesian_params(
+    ('cpu', 'gpu',),
+    (0, 4),
+    (4,),
+    (0, 2),
+    (
+        BaseDecoderConfig(shard_id=1, num_shards=2, stick_to_shard=True, pad_last_batch=True,
+                          random_shuffle=True),
+        BaseDecoderConfig(shard_id=2, num_shards=3, stick_to_shard=False, pad_last_batch=False,
+                          random_shuffle=False),
+    ),
+    (
+        VideoConfig(sequence_length=3, stride=1, step=5),
+    ),
+)
+def test_experimental_video_reader(device, num_epochs, batch_size, iters_into_epoch,
+                                   config: BaseDecoderConfig, video: VideoConfig):
+
+    files = [os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', f'test_{i}.mp4')
+             for i in (1, 2)]
+
+    check_reader_checkpointing(
+        fn.experimental.readers.video, num_epochs, batch_size, iters_into_epoch,
+        device=device,
+        filenames=files,
+        labels=list(range(len(files))),
+        random_shuffle=config.random_shuffle,
 
         num_shards=config.num_shards,
         shard_id=config.shard_id,
