@@ -255,12 +255,19 @@ inline bool HasCuda11NvmlFunctions() {
 namespace impl {
 
 float GetDriverVersion();
+int GetCudaDriverVersion();
 
 }  // namespace impl
 
 
 inline float GetDriverVersion() {
   static float version = impl::GetDriverVersion();
+  return version;
+}
+
+
+inline int GetCudaDriverVersion() {
+  static int version = impl::GetCudaDriverVersion();
   return version;
 }
 

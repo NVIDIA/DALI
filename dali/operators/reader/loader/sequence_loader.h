@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ struct TensorSequence {
 //              sequentially, and allow for SequenceLoader to wrap any other
 //              loader, similar for parser and reader
 // TODO(klecki) loader is responsible for handling shuffle_
-class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
+class SequenceLoader : public Loader<CPUBackend, TensorSequence, true> {
  public:
   explicit SequenceLoader(const OpSpec &spec)
       : Loader(spec),
@@ -97,6 +97,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
 
   void PrepareEmpty(TensorSequence &tensor) override;
   void ReadSample(TensorSequence &tensor) override;
+  void Skip() override;
 
  protected:
   Index SizeImpl() override;
@@ -126,7 +127,7 @@ class SequenceLoader : public Loader<CPUBackend, TensorSequence> {
  private:
   void Reset(bool wrap_to_shard) override {
     if (wrap_to_shard) {
-      current_sequence_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_sequence_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_sequence_ = 0;
     }

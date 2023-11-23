@@ -47,6 +47,16 @@ RUN rm -rf /etc/apt/sources.list.d/jonathonf-* && \
         make -j8 altinstall && \
         cd .. && \
         rm -rf Python-3.8.16; \
+    elif [ "${PYVER}" = "3.9" ]; then \
+        apt-get install -y --no-install-recommends libffi-dev && \
+        wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tar.xz && \
+        tar -xf Python-3.9.18.tar.xz && \
+        cd Python-3.9.18 && \
+        ./configure --enable-optimizations --prefix=/usr && \
+        make -j8 build_all && \
+        make -j8 altinstall && \
+        cd .. && \
+        rm -rf Python-3.9.18; \
     else \
         if [ $(apt-cache search python$PYVER | wc -l) -eq 0 ]; then \
             apt-get install software-properties-common -y --no-install-recommends && \
