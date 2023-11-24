@@ -45,7 +45,7 @@ def assert_stmt(expression1, expression2):
   """
   if not callable(expression2):
     raise ValueError('{} must be a callable'.format(expression2))
-  args, _, keywords, _, _, _, _ = inspect.getfullargspec(expression2)
+  args, _, keywords, *_ = inspect.getfullargspec(expression2)
   if args or keywords:
     raise ValueError('{} may not have any arguments'.format(expression2))
 

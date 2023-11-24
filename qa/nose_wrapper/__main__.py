@@ -17,7 +17,7 @@ if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
 if sys.version_info >= (3, 11):
 
     def legacy_getargspec(fun):
-        args, varargs, varkw, defaults, _, _, _ = inspect.getfullargspec(fun)
+        args, varargs, varkw, defaults, *_ = inspect.getfullargspec(fun)
         return (args, varargs, varkw, defaults)
 
     inspect.getargspec = legacy_getargspec
