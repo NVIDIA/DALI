@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,10 +94,16 @@ void NemoAsrLoader::PrepareMetadataImpl() {
 }
 
 void NemoAsrLoader::Reset(bool wrap_to_shard) {
-  current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeImpl()) : 0;
+  current_index_ = wrap_to_shard ? start_index(virtual_shard_id_, num_shards_, SizeImpl()) : 0;
   current_epoch_++;
 
   if (shuffle_after_epoch_) {
+    if (IsCheckpointingEnabled()) {
+      // With checkpointing enabled dataset order must be easy to restore.
+      // Shuffling is run with different seed every epoch, so this doesn't
+      // reduce the randomness.
+      std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
+    }
     std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
     std::shuffle(shuffled_indices_.begin(), shuffled_indices_.end(), g);
   }
@@ -185,7 +191,15 @@ void NemoAsrLoader::ReadSample(AsrSample& sample) {
   ));  // NOLINT
 }
 
+void NemoAsrLoader::Skip() {
+  MoveToNextShard(++current_index_);
+}
+
 Index NemoAsrLoader::SizeImpl() {
   return entries_.size();
+}
+
+void NemoAsrLoader::RestoreStateImpl(const LoaderStateSnapshot &state) {
+  current_epoch_ = state.current_epoch;
 }
 }  // namespace dali

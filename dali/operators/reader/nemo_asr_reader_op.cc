@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
 NemoAsrReader::NemoAsrReader(const OpSpec& spec)
-    : DataReader<CPUBackend, AsrSample>(spec),
+    : DataReader<CPUBackend, AsrSample, AsrSample, true>(spec),
       read_sr_(spec.GetArgument<bool>("read_sample_rate")),
       read_text_(spec.GetArgument<bool>("read_text")),
       read_idxs_(spec.GetArgument<bool>("read_idxs")),
@@ -133,6 +133,7 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
       num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
       thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NemoAsrReader") {
   loader_ = InitLoader<NemoAsrLoader>(spec);
+  this->SetInitialSnapshot();
 
   prefetched_decoded_audio_.resize(prefetch_queue_depth_);
   for (auto& batch : prefetched_decoded_audio_) {
@@ -143,13 +144,13 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
 
 NemoAsrReader::~NemoAsrReader() {
   // Need to stop the prefetch thread before destroying the thread pool
-  DataReader<CPUBackend, AsrSample>::StopPrefetchThread();
+  DataReader<CPUBackend, AsrSample, AsrSample, true>::StopPrefetchThread();
 }
 
 void NemoAsrReader::Prefetch() {
   DomainTimeRange tr("[DALI][NemoAsrReader] Prefetch #" + to_string(curr_batch_producer_),
                       DomainTimeRange::kRed);
-  DataReader<CPUBackend, AsrSample>::Prefetch();
+  DataReader<CPUBackend, AsrSample, AsrSample, true>::Prefetch();
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
   auto &audio_batch = *prefetched_decoded_audio_[curr_batch_producer_];
   int nsamples = static_cast<int>(curr_batch.size());
