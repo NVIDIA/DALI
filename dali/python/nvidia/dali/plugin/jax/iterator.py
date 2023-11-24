@@ -23,8 +23,7 @@ from nvidia.dali.pipeline import Pipeline
 
 from nvidia.dali.plugin.jax.integration import _to_jax_array
 
-from typing import Union, Optional
-from typing import Dict, List
+from typing import Union, Optional, Callable, Type, Dict, List
 
 
 class DALIGenericIterator(_DaliBaseIterator):
@@ -247,16 +246,16 @@ def default_num_threads_value() -> int:
 
 
 def _data_iterator_impl(
-        iterator_type,
-        pipeline_fn=None,
-        output_map=[],
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True,
-        sharding=None):
+        iterator_type: Type[DALIGenericIterator],
+        pipeline_fn: Optional[Callable],
+        output_map: List[str],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+        sharding: Optional[Sharding] = None):
     """ Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
     """
@@ -310,15 +309,15 @@ def _data_iterator_impl(
 
 
 def data_iterator(
-        pipeline_fn=None,
-        output_map=[],
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True,
-        sharding=None):
+        pipeline_fn: Optional[Callable] = None,
+        output_map: List[str] = [],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+        sharding: Optional[Sharding] = None):
     """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
     iterator for JAX.
 

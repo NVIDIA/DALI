@@ -16,9 +16,15 @@ import threading
 
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, _data_iterator_impl
+from nvidia.dali.pipeline import Pipeline
 
 from clu.data.dataset_iterator import ArraySpec, ElementSpec
 import concurrent.futures
+
+from typing import Union, Optional, Callable, Dict, List
+
+import jax
+from jax.sharding import Sharding
 
 
 def get_spec_for_array(jax_array):
@@ -115,15 +121,15 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     """
     def __init__(
             self,
-            pipelines,
-            output_map,
-            size=-1,
-            reader_name=None,
-            auto_reset=False,
-            last_batch_padded=False,
-            last_batch_policy=LastBatchPolicy.FILL,
-            prepare_first_batch=True,
-            sharding=None):
+            pipelines: Union[List[Pipeline], Pipeline],
+            output_map: List[str],
+            size: int = -1,
+            reader_name: Optional[str] = None,
+            auto_reset: Union[str, bool, None] = False,
+            last_batch_padded: bool = False,
+            last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+            prepare_first_batch: bool = True,
+            sharding: Optional[Sharding] = None):
         super().__init__(
             pipelines,
             output_map,
@@ -173,7 +179,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         self._peek = None
         return self._assert_output_shape_and_type(peek)
 
-    def __next__(self):
+    def __next__(self) -> Dict[str, jax.Array]:
         with self._mutex:
             return self._next_with_peek_impl()
 
@@ -229,15 +235,15 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
 
 def peekable_data_iterator(
-        pipeline_fn=None,
-        output_map=[],
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True,
-        sharding=None):
+        pipeline_fn: Optional[Callable] = None,
+        output_map: List[str] = [],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+        sharding: Optional[Sharding] = None):
     """Decorator for DALI pipelines that returns a peekable iterator. Compatible with Google CLU
     PeekableIterator. It supports peeking the next element in the iterator without advancing the
     iterator.
