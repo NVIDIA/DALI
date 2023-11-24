@@ -302,7 +302,7 @@ def peekable_data_iterator(
                 provided, `sharding` should be set to None.
     devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
                 return outputs compatible with pmapped JAX functions.
-                This argument is  mutually exclusive with `sharding` argument. If `sharding`
+                This argument is mutually exclusive with `sharding` argument. If `sharding`
                 is provided, `devices` should be set to None.
 
     Example
