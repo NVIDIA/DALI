@@ -14,13 +14,17 @@
 import jax
 import jax.dlpack
 import jax.numpy as jnp
-from jax.sharding import NamedSharding, PositionalSharding
+from jax.sharding import NamedSharding, PositionalSharding, Sharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali.pipeline import Pipeline
 
 from nvidia.dali.plugin.jax.integration import _to_jax_array
+
+from typing import Union, Optional
+from typing import Dict, List
 
 
 class DALIGenericIterator(_DaliBaseIterator):
@@ -104,15 +108,15 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def __init__(
             self,
-            pipelines,
-            output_map,
-            size=-1,
-            reader_name=None,
-            auto_reset=False,
-            last_batch_padded=False,
-            last_batch_policy=LastBatchPolicy.FILL,
-            prepare_first_batch=True,
-            sharding=None):
+            pipelines: Union[List[Pipeline], Pipeline],
+            output_map: List[str],
+            size: int = -1,
+            reader_name: Optional[str] = None,
+            auto_reset: Union[str, bool, None] = False,
+            last_batch_padded: bool = False,
+            last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+            prepare_first_batch: bool = True,
+            sharding: Optional[Sharding] = None):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         if len(set(output_map)) != len(output_map):
@@ -180,7 +184,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return next_output
 
-    def __next__(self):
+    def __next__(self) -> Dict[str, jax.Array]:
         return self._next_impl()
 
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
@@ -228,7 +232,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 "Shards shapes have to be the same."
 
 
-def default_num_threads_value():
+def default_num_threads_value() -> int:
     """Returns default value for num_threads argument of DALI iterator decorator.
 
 .. note::
@@ -242,7 +246,7 @@ def default_num_threads_value():
     return 4
 
 
-def data_iterator_impl(
+def _data_iterator_impl(
         iterator_type,
         pipeline_fn=None,
         output_map=[],
@@ -401,7 +405,7 @@ def data_iterator(
     Note:
         JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
-    return data_iterator_impl(
+    return _data_iterator_impl(
         DALIGenericIterator,
         pipeline_fn,
         output_map,

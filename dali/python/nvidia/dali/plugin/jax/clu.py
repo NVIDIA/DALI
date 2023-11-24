@@ -15,7 +15,7 @@
 import threading
 
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
-from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, data_iterator_impl
+from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, _data_iterator_impl
 
 from clu.data.dataset_iterator import ArraySpec, ElementSpec
 import concurrent.futures
@@ -317,7 +317,7 @@ def peekable_data_iterator(
     Note:
         JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
-    return data_iterator_impl(
+    return _data_iterator_impl(
         DALIGenericPeekableIterator,
         pipeline_fn,
         output_map,
