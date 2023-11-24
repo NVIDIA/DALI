@@ -642,7 +642,7 @@ def test_es_device_change():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def nan_check_pipeline(source):
-    return next(source)
+    return fn.constant(fdata=next(source), shape=())  # TODO: Constant handling in debug mode
 
 
 def _test_nan_check(values):
