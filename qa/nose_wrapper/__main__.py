@@ -14,6 +14,7 @@ if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.loader.collections = collections.abc
     nose.suite.collections = collections.abc
     nose.plugins.attrib.collections = collections.abc
+
 if sys.version_info >= (3, 11):
 
     def legacy_getargspec(fun):
