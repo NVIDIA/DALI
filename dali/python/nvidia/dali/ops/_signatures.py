@@ -100,8 +100,8 @@ def _arg_type_annotation(arg_dtype):
 
     Parameters
     ----------
-    arg_dtype : _type_
-        _description_
+    arg_dtype : DALIDataType
+        The type information from schema
     """
     if arg_dtype in _types._vector_types:
         scalar_dtype = _types._vector_types[arg_dtype]
@@ -111,7 +111,7 @@ def _arg_type_annotation(arg_dtype):
     return _scalar_element_annotation(arg_dtype)
 
 
-def _get_positional_input_param(schema, idx):
+def _get_positional_input_param(schema, idx, annotation):
     """Get the Parameter representing positional inputs at `idx`. Automatically mark it as
     optional. The DataNode annotation currently hides the possibility of MIS.
 
@@ -122,7 +122,7 @@ def _get_positional_input_param(schema, idx):
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
-    annotation = _DataNode if idx < schema.MinNumInput() else Optional[_DataNode]
+    annotation = annotation if idx < schema.MinNumInput() else Optional[annotation]
     if schema.HasInputDox():
         return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
                          default=default, annotation=annotation)
@@ -131,15 +131,92 @@ def _get_positional_input_param(schema, idx):
                          annotation=annotation)
 
 
-def _get_positional_input_params(schema):
+def _get_annotation_input_regular(schema):
+    """Return the annotation for regular input parameter in DALI, used for the primary overload.
+    A function is used as a global variable can be confused with type alias.
+    TODO(klecki): Extend with TensorLike.
+    """
+    return _DataNode
+
+
+def _get_annotation_return_regular(schema):
+    """Produce the return annotation for DALI operator suitable for primary, non-MIS overload.
+    Note the flattening, single output is not packed in Sequence.
+    """
+    if schema.HasOutputFn():
+        # Dynamic number of outputs, not known at "compile time"
+        return_annotation = Union[_DataNode, Sequence[_DataNode], None]
+    else:
+        # Call it with a dummy spec, as we don't have Output function
+        num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
+        if num_regular_output == 0:
+            return_annotation = None
+        elif num_regular_output == 1:
+            return_annotation = _DataNode
+        else:
+            # Here we could utilize the fact, that the tuple has known length, but we can't
+            # as DALI operators return a list
+            # Also, we don't advertise the actual List type, hence the Sequence.
+            return_annotation = Sequence[_DataNode]
+    return return_annotation
+
+
+def _get_annotation_input_mis(schema):
+    """Return the annotation for multiple input sets, used for the secondary operator overload.
+    A function is used as a global variable can be confused with type alias.
+    Handles special case for operators with one input.
+    """
+    if schema.MinNumInput() == 1 and schema.MaxNumInput() == 1:
+        return List[_DataNode]
+    return Union[_DataNode, List[_DataNode]]
+
+
+def _get_annotation_return_mis(schema):
+    """Annotation for function that handles Multiple input sets overload.
+    Note that DALI does a lot of flattening, so single-element sequences are transformed to
+    just that element.
+    """
+    if schema.HasOutputFn():
+        # Dynamic number of outputs, not known at "compile time"
+        # We can return single or multiple outputs in regular case (same as primary overload),
+        # a list of single outputs or a list of multiple outputs for MIS or None.
+        return_annotation = Union[_DataNode, Sequence[_DataNode], List[_DataNode],
+                                  List[Sequence[_DataNode]], None]
+    else:
+        # Call it with a dummy spec, as we don't have Output function
+        num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
+        if num_regular_output == 0:
+            return_annotation = None
+        elif num_regular_output == 1:
+            # This allows for type hints with single-return operators to work correctly with MIS
+            # as the return type matches the overload for their input type.
+            return_annotation = Union[_DataNode, List[_DataNode]]
+        else:
+            # Here we could utilize the fact, that the tuple has known length, but we can't
+            # as DALI operators return a list
+            # Also, we don't advertise the actual List type, hence the Sequence, but we say
+            # that the outermost return type of MIS is a List.
+            return_annotation = Union[Sequence[_DataNode], List[Sequence[_DataNode]]]
+    return return_annotation
+
+
+def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _DataNode):
     """Get the list of positional only inputs to the operator.
+
+    Parameters
+    ----------
+    input_annotation_gen: Callable[[OpSchema], type annotation]
+        Input type annotation, used to indicate regular inputs or multiple input set overloads.
+        See _get_annotation_* functions.
     """
     param_list = []
     if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(Parameter("input", Parameter.VAR_POSITIONAL, annotation=_DataNode))
+        param_list.append(
+            Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema)))
     else:
         for i in range(schema.MaxNumInput()):
-            param_list.append(_get_positional_input_param(schema, i))
+            param_list.append(
+                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema)))
     return param_list
 
 
@@ -195,7 +272,7 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
     """
     _ = all_args_optional
     return [
-        # TODO(klecki): The default for `device`` is dependant on the input placement (and API).
+        # TODO(klecki): The default for `device` is dependant on the input placement (and API).
         Parameter(name="device", kind=Parameter.KEYWORD_ONLY, default=None,
                   annotation=Optional[str]),
         # The name is truly optional
@@ -204,7 +281,10 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
 
 
 def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
-                    data_node_return=True, all_args_optional=False) -> Signature:
+                    data_node_return=True, all_args_optional=False,
+                    input_annotation_gen=_get_annotation_input_regular,
+                    return_annotation_gen=_get_annotation_return_regular,
+                    filter_annotations=False) -> Signature:
     """Generate a Signature for given schema.
 
     Parameters
@@ -223,35 +303,30 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
+    input_annotation_gen : Callable[[OpSchema], type annotation]
+        Callback generating the annotation to be used for type annotation of inputs.
+    return_annotation_gen : Callable[[OpSchema], type annotation]
+        Callback generating the return type annotation for given schema
     """
     param_list = []
     if include_self:
         param_list.append(Parameter("self", kind=Parameter.POSITIONAL_ONLY))
 
     if include_inputs:
-        param_list.extend(_get_positional_input_params(schema))
+        param_list.extend(
+            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen))
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
         param_list.extend(_get_implicit_keyword_params(schema, all_args_optional=all_args_optional))
 
     if data_node_return:
-        if schema.HasOutputFn():
-            # Dynamic number of outputs, not known at "compile time"
-            return_annotation = Union[_DataNode, Sequence[_DataNode], None]
-        else:
-            # Call it with a dummy spec, as we don't have Output function
-            num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
-            if num_regular_output == 0:
-                return_annotation = None
-            elif num_regular_output == 1:
-                return_annotation = _DataNode
-            else:
-                # Here we could utilize the fact, that the tuple has known length, but we can't
-                # as DALI operators return a list
-                return_annotation = Sequence[_DataNode]
+        return_annotation = return_annotation_gen(schema)
     else:
         return_annotation = None
+    if filter_annotations:
+        param_list = [Parameter(name=p.name, kind=p.kind, default=p.default) for p in param_list]
+        return_annotation = Signature.empty
     return Signature(param_list, return_annotation=return_annotation)
 
 
@@ -268,9 +343,31 @@ def inspect_repr_fixups(signature: str) -> str:
 
 def _gen_fn_signature(schema, schema_name, fn_name):
     """Write the stub of the fn API function with the docstring, for given operator.
+    Include two overloads: with regular inputs and secondary accepting MIS.
+
+    Python resolves the overloads in order of definition, we will match first against the primary
+    overload accepting only the DataNode, and if any of the inputs is a list of such (indicating
+    Multiple Input Sets), we will match the second overload that is more general.
+    The secondary overload has less constrained return type annotation but we have to accept it
+    to not have exponential number of overloads.
+    There is a special case, where the secondary overload with exactly one input accepts only
+    List[DataNode] (see the `_get_annotation_input_mis`). Passing a variable recognized as
+    Union[DataNode, List[DataNode]] to such overload set still resolves correctly under mypy and
+    pylance, resulting again in the Union[DataNode, List[DataNode]] return type (for single output),
+    keeping us in the MIS realm in the simple case.
     """
     return inspect_repr_fixups(f"""
+@overload
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+    ...
+
+
+@overload
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                              input_annotation_gen=_get_annotation_input_mis,
+                              return_annotation_gen=_get_annotation_return_mis)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
@@ -290,8 +387,18 @@ class {cls_name}:
                                  all_args_optional=True)}:
         ...
 
+    @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
+        \"""{_docs._docstring_generator_call(schema_name)}
+        \"""
+        ...
+
+    @overload
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                                 include_self=True, all_args_optional=True,
+                                 input_annotation_gen=_get_annotation_input_mis,
+                                 return_annotation_gen=_get_annotation_return_mis)}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
@@ -316,8 +423,8 @@ _HEADER = """
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Optional
-from typing import Sequence, Any
+from typing import Union, Optional, overload
+from typing import Any, List, Sequence
 
 from nvidia.dali.data_node import DataNode
 
@@ -450,7 +557,7 @@ class StubFileManager:
                 submodules_dict = submodules_dict[submodule]
             direct_submodules = submodules_dict.keys()
             for direct_submodule in direct_submodules:
-                f.write(f"from . import {direct_submodule}\n")
+                f.write(f"from . import {direct_submodule} as {direct_submodule}\n")
 
             f.write("\n\n")
         return self._module_to_file[module_path]

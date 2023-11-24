@@ -15,10 +15,13 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
+import webdataset_base
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
+from dataclasses import dataclass
+from nvidia.dali import tfrecord as tfrec
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -132,6 +135,40 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
 
 # Readers section
 
+def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch, **kwargs):
+    @pipeline_def(batch_size=batch_size, device_id=0,
+                  num_threads=4, enable_checkpointing=True)
+    def pipeline():
+        result = reader(name="Reader", **kwargs)
+        if isinstance(result, list):
+            return tuple(result)
+        else:
+            return result
+
+    p = pipeline()
+    p.build()
+
+    num_shards = kwargs.get('num_shards', 1)
+
+    assert p.reader_meta()['Reader']['epoch_size'] // num_shards > 2, \
+           "Trivial test case: at least 2 samples per shard required"
+
+    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
+    assert iterations_in_epoch >= (iters_into_epoch or 0), "Not enough iterations in epoch"
+
+    for epoch in range(num_epochs):
+        for i in range(iterations_in_epoch):
+            p.run()
+            if iters_into_epoch is not None:
+                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
+                    break
+
+    restored = pipeline(checkpoint=p.checkpoint())
+    restored.build()
+
+    compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
+
+
 @params(
         (1, 3, 0, 1, True, False, False, True),
         (5, 10, 0, 2, True, False, False, True),
@@ -147,53 +184,248 @@ def check_no_input_operator_pytorch(op, device, **kwargs):
         (1, 8, 3, 4, False, True, False, True),
         (2, 11, 2, 5, False, True, False, True),
         (5, 3, 0, 1, True, False, False, True, 4),
-        (2, 10, 0, 2, True, False, False, True, 5),
-        (4, 256, 2, 4, False, False, True, True, 6),
+        (2, 4, 0, 2, True, False, False, True, 5),
+        (4, 5, 2, 4, False, False, True, True, 3),
         (3, 64, 3, 4, False, False, True, False),
         (5, 10, 0, 2, True, False, False, False),
         (1, 3, 0, 1, True, False, False, False),
         (10, 3, 0, 1, True, False, False, False, 1),
         (10, 10, 0, 2, True, False, False, False, 2),
-        (10, 256, 2, 4, False, False, True, False, 3),
+        (10, 4, 2, 4, False, False, True, False, 3),
         (10, 10, 1, 2, False, False, False, False),
         (10, 10, 1, 2, False, False, False, False, 2),
         (7, 10, 0, 2, True, False, True, True, 3, 3),
-        (7, 10, 2, 5, True, False, False, False, 3, 10),
+        (7, 4, 2, 5, True, False, False, False, 3, 2),
         (0, 32, 3, 4, True, False, False, False, 0, 3),
 )
-def test_file_reader(
+def test_file_reader(num_epochs, batch_size, shard_id, num_shards,
+                     random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+                     iters_into_epoch=None, initial_fill=1024):
+
+    check_reader_checkpointing(
+        fn.readers.file, num_epochs, batch_size, iters_into_epoch,
+        file_root=images_dir,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id, num_shards=num_shards,
+        shuffle_after_epoch=shuffle_after_epoch,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+
+# Coco reader is based on file reader and all the strange corner cases are (hopefully) tested there
+@params(
+        (0, 4, 1, 2, True, False, False, False, None),
+        (4, 5, 0, 1, False, True, False, False, 1),
+        (16, 6, 3, 5, False, False, True, False, 2),
+        (6, 7, 2, 3, False, True, False, True, 3),
+)
+def test_coco_reader(
         num_epochs, batch_size, shard_id, num_shards,
         random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
         iters_into_epoch=None, initial_fill=1024):
 
-    @pipeline_def(batch_size=batch_size, device_id=0,
-                  num_threads=4, enable_checkpointing=True)
-    def pipeline():
-        data, label = fn.readers.file(
-            name="Reader", file_root=images_dir,
-            pad_last_batch=pad_last_batch, random_shuffle=random_shuffle,
-            shard_id=shard_id, num_shards=num_shards,
-            shuffle_after_epoch=shuffle_after_epoch,
-            stick_to_shard=stick_to_shard,
-            initial_fill=initial_fill)
+    coco_dir = os.path.join(data_root, 'db', 'coco')
+    coco_images = os.path.join(coco_dir, 'images')
+    coco_annotations = os.path.join(coco_dir, 'instances.json')
 
-        return data, label
+    check_reader_checkpointing(
+        fn.readers.coco, num_epochs, batch_size, iters_into_epoch,
+        file_root=coco_images,
+        annotations_file=coco_annotations,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        shuffle_after_epoch=shuffle_after_epoch,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill,
+        polygon_masks=True,
+        image_ids=True)
 
-    p = pipeline()
-    p.build()
 
-    iterations_in_epoch = calculate_iterations_in_epoch(p, batch_size, num_shards)
-    for epoch in range(num_epochs):
-        for i in range(iterations_in_epoch):
-            p.run()
-            if iters_into_epoch is not None:
-                if epoch == num_epochs - 1 and i == iters_into_epoch - 1:
-                    break
+@params(
+        (0, 1, 0, 1, True, True, True, None),
+        (0, 3, 0, 2, True, True, False, 1),
+        (4, 5, 1, 3, True, False, True, 2),
+        (1, 7, 2, 4, True, False, False, None),
+        (11, 2, 2, 10, False, True, True, 1),
+        (2, 4, 1, 6, False, True, False, 2),
+        (5, 6, 2, 3, False, False, True, None),
+        (3, 8, 4, 5, False, False, False, 1),
+)
+def test_mxnet_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None):
 
-    restored = pipeline(checkpoint=p.checkpoint())
-    restored.build()
+    recordio_dir = os.path.join(data_root, 'db', 'recordio')
+    recordio_rec = os.path.join(recordio_dir, 'train.rec')
+    recordio_idx = os.path.join(recordio_dir, 'train.idx')
 
-    compare_pipelines(p, restored, batch_size, (num_shards + 1) * iterations_in_epoch)
+    check_reader_checkpointing(
+        fn.readers.mxnet, num_epochs, batch_size, iters_into_epoch,
+        path=recordio_rec,
+        index_path=recordio_idx,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard)
+
+
+@params(
+        (0, 1, 0, 1, True, True, True, None),
+        (0, 2, 0, 2, True, True, False, 1),
+        (6, 3, 1, 3, True, False, True, 2),
+        (3, 4, 2, 4, True, False, False, None),
+        (10, 5, 2, 10, False, True, True, 1),
+        (4, 6, 1, 6, False, True, False, 2),
+        (10, 7, 2, 3, False, False, True, None),
+        (2, 8, 4, 5, False, False, False, 1),
+)
+def test_tfrecord_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None):
+
+    tfrecord_dir = os.path.join(data_root, 'db', 'tfrecord')
+    tfrecord = os.path.join(tfrecord_dir, 'train')
+    tfrecord_idx = os.path.join(tfrecord_dir, 'train.idx')
+
+    def tfrecord_wrapper(*args, **kwargs):
+        return fn.readers.tfrecord(*args, **kwargs)["image/encoded"]
+
+    check_reader_checkpointing(
+        tfrecord_wrapper, num_epochs, batch_size, iters_into_epoch,
+        path=tfrecord,
+        index_path=tfrecord_idx,
+        features={
+            "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+            "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
+        },
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard)
+
+
+@params(
+        (1, 1, 0, 3, False, False, False, None),
+        (2, 2, 0, 1, False, False, True, 1),
+        (6, 4, 2, 3, False, True, False, 2),
+        (4, 1, 1, 5, False, True, True, 3),
+        (3, 2, 4, 5, True, False, False, 1),
+        (7, 4, 2, 5, True, False, True, 2),
+        (5, 1, 2, 3, True, True, False, 3),
+        (0, 2, 3, 6, True, True, True, None),
+)
+def test_sequence_reader(num_epochs, batch_size, shard_id, num_shards,
+                         random_shuffle, stick_to_shard, pad_last_batch,
+                         iters_into_epoch=None, initial_fill=1024):
+
+    check_reader_checkpointing(
+        fn.readers.sequence, num_epochs, batch_size, iters_into_epoch,
+        file_root=os.path.join(data_root, 'db', 'sequence', 'frames'),
+        sequence_length=5,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id, num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+
+@params(
+        (1, 3, 0, 1, True, True, True, 1),
+        (5, 5, 1, 3, True, True, False, 2),
+        (6, 7, 2, 3, True, False, True, 3),
+        (5, 3, 0, 1, True, False, False, 1),
+        (7, 5, 2, 3, False, True, True, None),
+        (4, 1, 1, 2, False, True, False, 2),
+        (0, 3, 3, 4, False, False, True, None),
+        (1, 4, 2, 3, False, False, False, 3),
+)
+def test_caffe_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    caffe_dir = os.path.join(data_root, 'db', 'lmdb')
+
+    check_reader_checkpointing(
+        fn.readers.caffe, num_epochs, batch_size, iters_into_epoch,
+        path=caffe_dir,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+
+@params(
+        (1, 2, 0, 2, True, True, True, 1),
+        (4, 4, 1, 2, True, True, False, 2),
+        (5, 6, 0, 2, True, False, True, None),
+        (6, 2, 1, 3, True, False, False, 1),
+        (3, 4, 3, 4, False, True, True, 2),
+        (8, 1, 2, 3, False, True, False, None),
+        (0, 2, 4, 5, False, False, True, None),
+        (3, 3, 1, 3, False, False, False, 2),
+)
+def test_caffe2_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    caffe2_dir = os.path.join(data_root, 'db', 'c2lmdb')
+
+    check_reader_checkpointing(
+        fn.readers.caffe2, num_epochs, batch_size, iters_into_epoch,
+        path=caffe2_dir,
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
+
+
+@params(
+        (10, 1, 1, 8, False, False, False, 3),
+        (3, 2, 0, 1, False, False, True, 4),
+        (3, 4, 4, 7, False, True, False, 5),
+        (0, 8, 2, 6, False, True, True, None),
+        (12, 16, 0, 5, True, False, False, 3),
+        (8, 32, 1, 3, True, False, True, 4),
+        (6, 64, 4, 6, True, True, False, 5),
+        (10, 128, 3, 4, True, True, True, None),
+)
+def test_webdataset_reader(
+        num_epochs, batch_size, shard_id, num_shards,
+        random_shuffle, stick_to_shard, pad_last_batch,
+        iters_into_epoch=None, initial_fill=1024):
+
+    tar_file_paths = [
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
+        os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-2.tar"),
+    ]
+    index_files = [webdataset_base.generate_temp_index_file(tar_file_path)
+                   for tar_file_path in tar_file_paths]
+
+    check_reader_checkpointing(
+        fn.readers.webdataset, num_epochs, batch_size, iters_into_epoch,
+        paths=tar_file_paths,
+        index_paths=[f.name for f in index_files],
+        ext=["jpg", "cls"],
+        pad_last_batch=pad_last_batch,
+        random_shuffle=random_shuffle,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        stick_to_shard=stick_to_shard,
+        initial_fill=initial_fill)
 
 
 @attr('pytorch')
@@ -287,17 +519,120 @@ def test_multiple_readers(num_iters):
     compare_pipelines(p, restored, 1, 20)
 
 
+@dataclass
+class BaseDecoderConfig:
+    shard_id: int
+    num_shards: int
+    stick_to_shard: bool
+    pad_last_batch: bool
+    random_shuffle: bool
+
+
+@dataclass
+class VideoConfig:
+    sequence_length: int
+    stride: int
+    step: int
+
+
+@cartesian_params(
+    (0, 1, 3),
+    (1, 3),
+    (0, 2),
+    (
+        BaseDecoderConfig(shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True,
+                          random_shuffle=True),
+        BaseDecoderConfig(shard_id=4, num_shards=7, stick_to_shard=True, pad_last_batch=True,
+                          random_shuffle=False),
+        BaseDecoderConfig(shard_id=6, num_shards=7, stick_to_shard=False, pad_last_batch=False,
+                          random_shuffle=False),
+        BaseDecoderConfig(shard_id=0, num_shards=2, stick_to_shard=False, pad_last_batch=False,
+                          random_shuffle=True),
+    ),
+    (
+        VideoConfig(sequence_length=3, stride=1, step=-1),
+        VideoConfig(sequence_length=3, stride=1, step=5),
+    ),
+)
+def test_video_reader(num_epochs, batch_size, iters_into_epoch,
+                      config: BaseDecoderConfig, video: VideoConfig):
+
+    files = [os.path.join(get_dali_extra_path(), f'db/video/multiple_framerate/{f}/{f}fps.mp4')
+             for f in (10, 50)]
+
+    check_reader_checkpointing(
+        fn.readers.video, num_epochs, batch_size, iters_into_epoch,
+        device='gpu',
+        filenames=files,
+        labels=list(range(len(files))),
+        normalized=True,
+        random_shuffle=config.random_shuffle,
+        image_type=types.RGB,
+        dtype=types.FLOAT,
+        enable_frame_num=True,
+        enable_timestamps=True,
+        file_list_frame_num=True,
+        file_list_include_preceding_frame=False,
+
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step)
+
+
+@cartesian_params(
+    ('cpu', 'gpu',),
+    (0, 4),
+    (4,),
+    (0, 2),
+    (
+        BaseDecoderConfig(shard_id=1, num_shards=2, stick_to_shard=True, pad_last_batch=True,
+                          random_shuffle=True),
+        BaseDecoderConfig(shard_id=2, num_shards=3, stick_to_shard=False, pad_last_batch=False,
+                          random_shuffle=False),
+    ),
+    (
+        VideoConfig(sequence_length=3, stride=1, step=5),
+    ),
+)
+def test_experimental_video_reader(device, num_epochs, batch_size, iters_into_epoch,
+                                   config: BaseDecoderConfig, video: VideoConfig):
+
+    files = [os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', f'test_{i}.mp4')
+             for i in (1, 2)]
+
+    check_reader_checkpointing(
+        fn.experimental.readers.video, num_epochs, batch_size, iters_into_epoch,
+        device=device,
+        filenames=files,
+        labels=list(range(len(files))),
+        random_shuffle=config.random_shuffle,
+
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step)
+
+
 # Randomized operators section
 # note: fn.decoders.image_random_crop is tested by
 # `check_single_input_operator`
 
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_coin_flip_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.coin_flip, device, shape=shape)
 
@@ -308,20 +643,20 @@ def test_random_normal(device, shape):
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_normal_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.normal, device, shape=shape)
 
 
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_uniform(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
 
 
 @attr('pytorch')
-@cartesian_params(('cpu',), (None, (1,), (10,)))
+@cartesian_params(('cpu', 'gpu'), (None, (1,), (10,)))
 def test_random_uniform_pytorch(device, shape):
-    check_no_input_operator(fn.random.uniform, device, shape=shape)
+    check_no_input_operator_pytorch(fn.random.uniform, device, shape=shape)
 
 
 # Stateless operators section

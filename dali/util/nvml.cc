@@ -33,6 +33,17 @@ float GetDriverVersion() {
   return driver_version;
 }
 
+int GetCudaDriverVersion() {
+  if (!nvmlIsInitialized()) {
+    return 0;
+  }
+
+  int driver_version = 0;
+
+  CUDA_CALL(nvmlSystemGetCudaDriverVersion(&driver_version));
+  return driver_version;
+}
+
 
 }  // namespace impl
 }  // namespace nvml

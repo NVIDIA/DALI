@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,6 +60,11 @@ class IndexedLMDB {
     mdb_size_ = stat.ms_entries;
     LOG_LINE << "lmdb " << num_ << " " << db_path_
              << " has " << mdb_size_ << " entries" << std::endl;
+
+    // We must reset the cursor to the first entry, because mdb_cursor_open doesn't place it there.
+    MDB_val tmp_key, tmp_value;
+    mdb_cursor_get(mdb_cursor_, &tmp_key, &tmp_value, MDB_FIRST);
+
     mdb_index_ = 0;
   }
   size_t GetSize() const { return mdb_size_; }
@@ -140,7 +145,7 @@ static int find_lower_bound(const std::vector<Index>& a, Index x) {
   return -1;
 }
 
-class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
+class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
  public:
   explicit LMDBLoader(const OpSpec& options)
       : Loader(options) {
@@ -199,6 +204,10 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
                 value.mv_size * sizeof(uint8_t));
   }
 
+  void Skip() override {
+    MoveToNextShard(++current_index_);
+  }
+
  protected:
   Index SizeImpl() override {
     return offsets_.size() > 0 ? offsets_.back() : 0;
@@ -219,7 +228,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
   void Reset(bool wrap_to_shard) override {
     // work out how many entries to move forward to handle sharding
     if (wrap_to_shard) {
-      current_index_ = start_index(shard_id_, num_shards_, SizeImpl());
+      current_index_ = start_index(virtual_shard_id_, num_shards_, SizeImpl());
     } else {
       current_index_ = 0;
     }
@@ -228,8 +237,8 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
 
     mdb_[file_index].SeekByIndex(local_index);
   }
-  using Loader<CPUBackend, Tensor<CPUBackend>>::shard_id_;
-  using Loader<CPUBackend, Tensor<CPUBackend>>::num_shards_;
+  using Loader<CPUBackend, Tensor<CPUBackend>, true>::virtual_shard_id_;
+  using Loader<CPUBackend, Tensor<CPUBackend>, true>::num_shards_;
 
   std::vector<IndexedLMDB> mdb_;
 

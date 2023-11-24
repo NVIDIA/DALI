@@ -358,6 +358,10 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   sample_index_++;
 }
 
+void WebdatasetLoader::Skip() {
+  MoveToNextShard(sample_index_++);
+}
+
 Index WebdatasetLoader::SizeImpl() {
   return samples_.size();
 }
@@ -477,7 +481,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {
-  sample_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, samples_.size()) : 0;
+  sample_index_ = wrap_to_shard ? start_index(virtual_shard_id_, num_shards_, samples_.size()) : 0;
 }
 
 }  // namespace dali

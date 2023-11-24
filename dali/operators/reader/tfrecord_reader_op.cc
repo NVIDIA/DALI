@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ void TFRecordReader::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][TFRecordReader] Prefetch #" + to_string(curr_batch_producer_),
                      DomainTimeRange::kRed);
-  DataReader<CPUBackend, Tensor<CPUBackend>>::Prefetch();
+  DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>::Prefetch();
 
   auto idx_loader = dynamic_cast<IndexedFileLoader*>(loader_.get());
   while (idx_loader->AnyWorkLeft()) {

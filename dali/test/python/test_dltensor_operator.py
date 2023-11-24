@@ -678,3 +678,29 @@ def _cupy_flip_with_negative_strides_suite():
         (types.DALIDataType.FLOAT64, 11, (-2, 4, -1)),
     ]:
         yield _cupy_negative_strides_case, dtype, batch_size, steps
+
+
+def verify_pipeline(pipeline, input):
+    assert pipeline is Pipeline.current()
+    return input
+
+
+def test_current_pipeline():
+    pipe1 = Pipeline(13, 4, 0)
+    with pipe1:
+        dummy = types.Constant(numpy.ones((1)))
+        output = fn.dl_tensor_python_function(dummy,
+                                              function=lambda inp: verify_pipeline(pipe1, inp))
+        pipe1.set_outputs(output)
+
+    pipe2 = Pipeline(6, 2, 0)
+    with pipe2:
+        dummy = types.Constant(numpy.ones((1)))
+        output = fn.dl_tensor_python_function(dummy,
+                                              function=lambda inp: verify_pipeline(pipe2, inp))
+        pipe2.set_outputs(output)
+
+    pipe1.build()
+    pipe2.build()
+    pipe1.run()
+    pipe2.run()

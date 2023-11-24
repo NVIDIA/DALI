@@ -127,7 +127,7 @@ bool FramesDecoder::CheckCodecSupport() {
     av_state_->codec_params_->codec_id) != SupportedCodecs.end();
 }
 
-void FramesDecoder::FindVideoStream(bool init_codecs) {
+bool FramesDecoder::FindVideoStream(bool init_codecs) {
   if (init_codecs) {
     size_t i = 0;
 
@@ -145,22 +145,33 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
       }
     }
 
-    DALI_ENFORCE(i < av_state_->ctx_->nb_streams,
-                 make_string("Could not find a valid video stream in a file ", Filename()));
+    if (i >= av_state_->ctx_->nb_streams) {
+      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      return false;
+    }
   } else {
     av_state_->stream_id_ = av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO,
                                                 -1, -1, nullptr, 0);
 
     LOG_LINE << "Best stream " << av_state_->stream_id_ << std::endl;
-    DALI_ENFORCE(av_state_->stream_id_ >= 0,
-                 make_string("Could not find video stream in ", Filename()));
+    if (av_state_->stream_id_ < 0) {
+      DALI_WARN(make_string("Could not find a valid video stream in a file ", Filename()));
+      return false;
+    }
 
     av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
   }
   if (Height() == 0 || Width() == 0) {
-    DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
-    DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
+    if (avformat_find_stream_info(av_state_->ctx_, nullptr) < 0) {
+      DALI_WARN(make_string("Could not find stream information in ", Filename()));
+      return false;
+    }
+    if (Height() == 0 || Width() == 0) {
+      DALI_WARN("Couldn't load video size info.");
+      return false;
+    }
   }
+  return true;
 }
 
 FramesDecoder::FramesDecoder(const std::string &filename)
@@ -172,20 +183,24 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
   int ret = avformat_open_input(&av_state_->ctx_, Filename().c_str(), nullptr, nullptr);
-  DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
-                                     detail::av_error_string(ret)));
+  if (ret != 0) {
+    DALI_WARN(make_string("Failed to open video file ", Filename(), "due to ",
+                          detail::av_error_string(ret)));
+    return;
+  }
 
-  FindVideoStream();
-  DALI_ENFORCE(
-    CheckCodecSupport(),
-    make_string(
-      "Unsupported video codec: ",
-      CodecName(),
-      " in file: ", Filename(),
-      " Supported codecs: h264, HEVC."));
+  if (!FindVideoStream()) {
+    return;
+  }
+  if (!CheckCodecSupport()) {
+    DALI_WARN(make_string("Unsupported video codec: ", CodecName(),
+                          ". Supported codecs: h264, HEVC."));
+    return;
+  }
   InitAvState();
   BuildIndex();
   DetectVfr();
+  is_valid_ = true;
 }
 
 
@@ -218,16 +233,20 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   av_state_->ctx_->pb = av_io_context;
 
   int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
-  DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
-                                     detail::av_error_string(ret)));
+  if (ret != 0) {
+    DALI_WARN(make_string("Failed to open video file ", Filename(), "due to ",
+                          detail::av_error_string(ret)));
+    return;
+  }
 
-  FindVideoStream(init_codecs || build_index);
-  DALI_ENFORCE(
-    CheckCodecSupport(),
-    make_string(
-      "Unsupported video codec: ",
-      CodecName(),
-      ". Supported codecs: h264, HEVC."));
+  if (!FindVideoStream(init_codecs || build_index)) {
+    return;
+  }
+  if (!CheckCodecSupport()) {
+    DALI_WARN(make_string("Unsupported video codec: ", CodecName(),
+                          ". Supported codecs: h264, HEVC."));
+    return;
+  }
   InitAvState(init_codecs || build_index);
 
   // Number of frames is unknown and we do not plan to build the index
@@ -236,11 +255,13 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   }
 
   if (!build_index) {
+    is_valid_ = true;
     return;
   }
 
   BuildIndex();
   DetectVfr();
+  is_valid_ = true;
 }
 
 void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs) {

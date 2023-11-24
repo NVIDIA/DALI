@@ -224,9 +224,10 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
   // open file if needed
   if (!file_data->file_stream) {
     file_data->file_stream = fopen(file_data->filename.c_str(), "r");
-    DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
+    DALI_ENFORCE(file_data->file_stream, make_string("Failed to open video file ",
+                                                     file_data->filename));
     int ret = fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
-    DALI_ENFORCE(ret == 0, make_string("Could not open file ", file_data->filename));
+    DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", file_data->filename));
   }
   auto ret = fread(buf, 1, buf_size, file_data->file_stream);
   if (ret == 0 && std::feof(file_data->file_stream)) {
@@ -242,9 +243,10 @@ static int64_t seek_file(void *opaque, int64_t offset, int whence) {
   // open file if needed
   if (!file_data->file_stream) {
     file_data->file_stream = fopen(file_data->filename.c_str(), "r");
-    DALI_ENFORCE(file_data->file_stream, make_string("Could not open file ", file_data->filename));
+    DALI_ENFORCE(file_data->file_stream, make_string("Failed to open video file ",
+                                                     file_data->filename));
     int ret = fseek(file_data->file_stream, file_data->file_position, SEEK_SET);
-    DALI_ENFORCE(ret == 0, make_string("Could not open file ", file_data->filename));
+    DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", file_data->filename));
   }
   int ret = -1;
   switch (whence) {
@@ -265,6 +267,7 @@ static int64_t seek_file(void *opaque, int64_t offset, int whence) {
 }
 
 VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
+  static VideoFile empty_file = {};
   auto& file = open_files_[filename];
 
   if (file.empty()) {
@@ -295,8 +298,12 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
     AVFormatContext *tmp_raw_fmt_ctx = raw_fmt_ctx.release();
     // if avformat_open_input fails it frees raw_fmt_ctx so we can release it from unique_ptr
     int ret = avformat_open_input(&tmp_raw_fmt_ctx, NULL, NULL, NULL);
-    DALI_ENFORCE(ret >= 0, std::string("Could not open file ") + filename +
-                 " because of " + av_err2str(ret));
+    if (ret < 0) {
+      DALI_WARN(make_string("Failed to open video file ", filename, " because of ",
+                            av_err2str(ret)));
+      open_files_.erase(filename);
+      return empty_file;
+    }
     file.fmt_ctx_ = make_unique_av<AVFormatContext>(tmp_raw_fmt_ctx, avformat_close_input);
     LOG_LINE << "File open " << filename << std::endl;
 
@@ -313,12 +320,17 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
                                   -1, -1, nullptr, 0);
     if (file.vid_stream_idx_ < 0) {
       if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
-        DALI_FAIL(std::string("Could not find stream information in ") + filename);
+        DALI_WARN(make_string("Could not find stream information in ", filename));
+        open_files_.erase(filename);
+        return empty_file;
       }
       file.vid_stream_idx_ = av_find_best_stream(file.fmt_ctx_.get(), AVMEDIA_TYPE_VIDEO,
                                   -1, -1, nullptr, 0);
-      DALI_ENFORCE(file.vid_stream_idx_ >= 0,
-                   std::string("Could not find video stream in ") + filename);
+      if (file.vid_stream_idx_ < 0) {
+        DALI_WARN(make_string("Could not find a valid video stream in a file in ", filename));
+        open_files_.erase(filename);
+        return empty_file;
+      }
     }
     LOG_LINE << "Best stream " << file.vid_stream_idx_ << " found for "
               << filename << std::endl;
@@ -330,8 +342,9 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
 
     if (width == 0 || height == 0) {
       if (avformat_find_stream_info(file.fmt_ctx_.get(), nullptr) < 0) {
-        DALI_FAIL(std::string("Could not find stream information in ")
-                                  + filename);
+        DALI_WARN(make_string("Could not find stream information in ", filename));
+        open_files_.erase(filename);
+        return empty_file;
       }
 
       width = codecpar(stream)->width;
@@ -386,7 +399,11 @@ VideoFile& VideoLoader::get_or_open_file(const std::string &filename) {
       av_packet_unref(&pkt);
     }
 
-    DALI_ENFORCE(ret >= 0, "Unable to read frame from file :" + filename);
+    if (ret < 0) {
+      DALI_WARN(make_string("Unable to read frame from file :", filename));
+      open_files_.erase(filename);
+      return empty_file;
+    }
 
     DALI_ENFORCE(skip_vfr_check_ ||
       almost_equal(av_q2d(file.frame_base_), pkt.duration * av_q2d(file.stream_base_), 2),
@@ -522,6 +539,7 @@ void VideoLoader::read_file() {
 
 
   auto& file = get_or_open_file(req.filename);
+  DALI_ENFORCE(!file.empty(), "Cannot open video file");
   auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
   req.frame_base = file.frame_base_;
 
@@ -761,6 +779,10 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     tensor.first_frame_idx = seq_meta.frame_idx;
     tensor.sequence.SetSourceInfo(file_info_[seq_meta.filename_idx].video_file);
     MoveToNextShard(current_frame_idx_);
+}
+
+void VideoLoader::Skip() {
+  MoveToNextShard(++current_frame_idx_);
 }
 
 Index VideoLoader::SizeImpl() {

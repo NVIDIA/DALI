@@ -593,7 +593,7 @@ DLL_PUBLIC const DeprecatedArgDef &OpSchema::DeprecatedArgMeta(const std::string
 
 
 bool OpSchema::HasOutputFn() const {
-  return static_cast<bool>(output_fn_);
+  return static_cast<bool>(output_fn_) || static_cast<bool>(additional_outputs_fn_);
 }
 
 
