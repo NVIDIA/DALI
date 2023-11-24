@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,7 +325,7 @@ def test_empty_axes():
 def check_pad_wrong_axes(device, wrong_axes_range=None):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
+        fake_data = types.Constant(0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
         axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
         padded = fn.pad(fake_data, axes=axes)
         return padded

@@ -354,8 +354,7 @@ def test_reshape_src_dims_arg():
     for src_dims, rel_shape, shapes, expected_out_shapes in args:
         yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes
         if rel_shape is not None:
-            shape_inp = fn.constant(fdata=rel_shape, dtype=types.FLOAT)
-            yield _testimpl_reshape_src_dims_arg, src_dims, shape_inp, shapes, expected_out_shapes
+            yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes
 
 
 @params(

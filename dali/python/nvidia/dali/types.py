@@ -478,9 +478,14 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
             shape = list(value.shape)  # torch uses torch.Size instead of list
         data = value.flatten().tolist()
     else:
+        def isseq(v):
+            return isinstance(v, (list, tuple))
+
+        if shape is None:
+            shape = (len(value),) if isseq(value) else ()
 
         def _type_from_value_or_list(v):
-            if not isinstance(v, (list, tuple)):
+            if not isseq(v):
                 v = [v]
 
             has_floats = False

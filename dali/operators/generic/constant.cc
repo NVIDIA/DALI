@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ the ``shape`` and ``dtype``, will be taken from the array.
   downgraded to 32-bit.)code")
   .NumInput(0)
   .NumOutput(1)
+  .MakeDocHidden()
   .AddOptionalArg("shape",
                   "The desired shape of the output. If not set, the data is assumed to be 1D",
                   std::vector<int>())
