@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -353,7 +353,7 @@ void FramesDecoder::BuildIndex() {
   int last_keyframe = -1;
   while (ReadRegularFrame(nullptr, false)) {
     IndexEntry entry;
-    entry.is_keyframe = av_state_->frame_->key_frame;
+    entry.is_keyframe = av_state_->frame_->flags & AV_FRAME_FLAG_KEY;
     entry.pts = av_state_->frame_->pts;
     entry.is_flush_frame = false;
 
