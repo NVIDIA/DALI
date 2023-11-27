@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -292,7 +292,7 @@ def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
         out_len = (x_len + subsampling - 1) // subsampling
         m = fn.transforms.scale(scale=[subsampling, 1], center=[0.5, 0])
         x = fn.reshape(x, rel_shape=[1, 1, -1], layout="HWC")  # Layout required by WarpAffine
-        size = fn.cat(nfeatures, out_len)
+        size = fn.stack(nfeatures, out_len)
         x = fn.warp_affine(x, matrix=m, size=size, interp_type=types.INTERP_NN)
         x = fn.reshape(x, rel_shape=[1, 1], layout="ft")
     return x
@@ -309,18 +309,9 @@ def torch_reflect_pad(x, pad_amount, device='cpu'):
     return x
 
 
-def dali_reflect_pad_graph(x, x_len, pad_amount):
-    def flip_1d(x):
-        # TODO(janton): remove the layout trick when Flip supports arbitrary data layouts
-        x = fn.reshape(x, shape=(-1, 1, 1), layout="HWC")
-        x = fn.flip(x, vertical=1)
-        x = fn.reshape(x, shape=(-1,), layout="t")
-        return x
-    pad_start = fn.slice(x, 1, pad_amount, axes=(0,))
-    pad_start = flip_1d(pad_start)
-
-    pad_end = fn.slice(x, x_len - pad_amount - 1, pad_amount, axes=(0,))
-    pad_end = flip_1d(pad_end)
+def dali_reflect_pad_graph(x, pad_amount):
+    pad_start = x[pad_amount:0:-1]
+    pad_end = x[-2:-pad_amount-2:-1]
     x = fn.cat(pad_start, x, pad_end, axis=0)
     return x
 
@@ -364,10 +355,10 @@ def rnnt_train_pipe(files,
     # Silence trimming
     if silence_trim:
         begin, length = fn.nonsilent_region(audio, cutoff_db=-80)
-        audio = fn.slice(audio, begin, length, axes=[0])
+        audio = audio[begin:begin + length]
 
     audio_shape = fn.shapes(audio, dtype=types.INT32)
-    orig_audio_len = fn.slice(audio_shape, 0, 1, axes=(0,))
+    orig_audio_len = audio_shape[0]
 
     # If we couldn't move to GPU earlier, do it now
     if device == 'gpu' and frame_splicing_subsample > 1:
@@ -375,7 +366,7 @@ def rnnt_train_pipe(files,
 
     if pad_amount > 0:
         audio_len = orig_audio_len + 2 * pad_amount
-        padded_audio = dali_reflect_pad_graph(audio, orig_audio_len, pad_amount)
+        padded_audio = dali_reflect_pad_graph(audio, pad_amount)
     else:
         audio_len = orig_audio_len
         padded_audio = audio
