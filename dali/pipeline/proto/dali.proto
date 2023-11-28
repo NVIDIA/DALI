@@ -81,7 +81,13 @@ message Checkpoint {
     optional bytes operator_state = 2;
   }
 
+  message PipelineCheckpoint {
+    optional int64 epoch_idx = 1;
+    optional int64 iteration = 2;
+  }
+
   repeated OpCheckpoint cpts = 1;
+  optional PipelineCheckpoint pipeline_cpt = 2;
 }
 
 // For stateless operators

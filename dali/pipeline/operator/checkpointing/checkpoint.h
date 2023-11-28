@@ -23,6 +23,10 @@
 namespace dali {
 
 class OpGraph;
+struct DLL_PUBLIC PipelineCheckpoint {
+  int epoch_idx;
+  int iter;
+};
 
 /**
  * @brief Aggregation of operator checkpoints for a whole pipeline.
@@ -69,6 +73,8 @@ class DLL_PUBLIC Checkpoint {
    * @brief Deserializes a protobuf message and builds this object.
   */
   DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
+
+  PipelineCheckpoint pipeline_cpt_;
 
  private:
   std::vector<OpCheckpoint> cpts_;

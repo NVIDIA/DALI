@@ -309,8 +309,10 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns a serialized Checkpoint
    */
-  DLL_PUBLIC string SerializedCheckpoint() const {
-    return GetCheckpoint().SerializeToProtobuf(graph_);
+  DLL_PUBLIC string SerializedCheckpoint(const PipelineCheckpoint &pipeline_cpt) const {
+    auto cpt = GetCheckpoint();
+    cpt.pipeline_cpt_ = pipeline_cpt;
+    return cpt.SerializeToProtobuf(graph_);
   }
 
   /**
@@ -332,13 +334,14 @@ class DLL_PUBLIC Pipeline {
    *
    * Should be called before building.
   */
-  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+  DLL_PUBLIC PipelineCheckpoint RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
     DALI_ENFORCE(checkpointing_,
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
     Checkpoint cpt;
     cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
     RestoreFromCheckpoint(cpt);
+    return cpt.pipeline_cpt_;
   }
 
   /**

@@ -269,6 +269,8 @@ class Pipeline(object):
         self._last_iter = False
         self._iter = 0
         self._epoch_idx = 0
+        self._consumer_iter = 0
+        self._consumer_epoch_idx = 0
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
@@ -887,7 +889,17 @@ class Pipeline(object):
 
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
-            self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+            pipeline_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+            self._consumer_epoch_idx = self._epoch_idx = pipeline_cpt.epoch_idx
+            self._consumer_iter = self._iter = pipeline_cpt.iter
+            if self._input_callbacks:
+                for group in self._input_callbacks:
+                    group.current_iter = pipeline_cpt.iter
+                    group.current_sample = pipeline_cpt.iter * self._max_batch_size
+                    if hasattr(group.callback, 'restore'):
+                        idx = group.current_iter if group.batch else group.current_sample
+                        group.callback.restore(pipeline_cpt.epoch_idx, idx)
+
 
     def build(self):
         """Build the pipeline.
@@ -1049,7 +1061,10 @@ class Pipeline(object):
             A list of `TensorList` objects for respective pipeline outputs
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
+            self._consumer_iter += 1
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                self._consumer_iter = 0
+                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             self._gpu_batches_to_consume -= 1
@@ -1487,7 +1502,10 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-        ret = self._pipe.SerializedCheckpoint()
+        pipeline_cpt = b.PipelineCheckpoint()
+        pipeline_cpt.epoch_idx = self._consumer_epoch_idx
+        pipeline_cpt.iter = self._consumer_iter
+        ret = self._pipe.SerializedCheckpoint(pipeline_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
                 checkpoint_file.write(ret)

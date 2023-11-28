@@ -185,6 +185,11 @@ class _CycleIter:
 
 
 class _CycleGenFunc:
+    def restore(self, *args, **kwargs):
+        if hasattr(self.source, 'restore'):
+            self.source.restore(*args, **kwargs)
+
+class _CycleGenFunc():
     def __init__(self, gen_func, mode):
         self.source = gen_func
         self.signaling = mode == "raise"
@@ -296,7 +301,15 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 # in the error message.
                 iterator = iter(source)
             iterable = True
-            callback = lambda: next(iterator)  # noqa E731
+
+            class Callback:
+                def __call__(self):
+                    return next(iterator)
+                def restore(self, *args, **kwargs):
+                    if hasattr(source, 'restore'):
+                        source.restore(*args, **kwargs)
+
+            callback = Callback()
         except TypeError as err:
             if "not iterable" not in str(err):
                 raise err
