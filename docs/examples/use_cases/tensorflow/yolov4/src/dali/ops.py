@@ -92,7 +92,7 @@ def mosaic(images, bboxes, labels, image_size):
         permuted_boxes = dali.fn.permute_batch(bboxes, indices=idx)
         permuted_labels = dali.fn.permute_batch(labels, indices=idx)
         shape = dali.fn.stack(shape_y, shape_x)
-        in_anchor, in_shape, bbx, lbl = dali.fn.random_bbox_crop(
+        in_anchor, _, bbx, lbl = dali.fn.random_bbox_crop(
             permuted_boxes,
             permuted_labels,
             input_shape=image_size,
@@ -103,7 +103,7 @@ def mosaic(images, bboxes, labels, image_size):
         )
 
         # swap coordinates (x, y) -> (y, x)
-        in_anchor = dali.fn.reductions.sum(in_anchor) - in_anchor
+        in_anchor = in_anchor[::-1]
         in_anchor_c = dali.fn.cast(in_anchor, dtype=dali.types.DALIDataType.INT32)
 
         return idx, bbx, lbl, in_anchor_c, shape
@@ -132,9 +132,9 @@ def mosaic(images, bboxes, labels, image_size):
 
     idx = dali.fn.stack(perm_UL, perm_UR, perm_LL, perm_LR)
     out_anchors = dali.fn.stack(
-        dali.fn.stack(zeros_i, zeros_i),
-        dali.fn.stack(zeros_i, pix0_x),
-        dali.fn.stack(pix0_y, zeros_i),
+        dali.fn.stack(0, 0),
+        dali.fn.stack(0, pix0_x),
+        dali.fn.stack(pix0_y, 0),
         dali.fn.stack(pix0_y, pix0_x)
     )
     in_anchors = dali.fn.stack(
