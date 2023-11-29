@@ -53,4 +53,4 @@ add_custom_target(lint-python)
 add_dependencies(lint-python lint-python-flake)
 
 add_custom_target(lint)
-add_dependencies(lint lint-cpp)
+add_dependencies(lint lint-cpp lint-python)
