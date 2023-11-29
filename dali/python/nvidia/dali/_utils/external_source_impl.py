@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,8 +29,10 @@ def import_numpy():
         try:
             import numpy as np
         except ImportError:
-            raise RuntimeError('Could not import numpy. Please make sure you have numpy '
-                               'installed before you use parallel mode.')
+            raise RuntimeError(
+                "Could not import numpy. Please make sure you have numpy "
+                "installed before you use parallel mode."
+            )
 
 
 class SourceKind(Enum):
@@ -40,8 +42,7 @@ class SourceKind(Enum):
 
 
 class SourceDescription:
-    """Keep the metadata about the source parameter that was originally passed
-    """
+    """Keep the metadata about the source parameter that was originally passed"""
 
     def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str, batch_info=False):
         self.source = source
@@ -52,7 +53,7 @@ class SourceDescription:
 
     def __str__(self) -> str:
         if self.kind == SourceKind.CALLABLE:
-            inputs = ("with" if self.has_inputs else "without")
+            inputs = "with" if self.has_inputs else "without"
             return f"Callable source {inputs} inputs: `{self.source}`"
         elif self.kind == SourceKind.ITERABLE:
             return f"Iterable (or iterator) source: `{self.source}` with cycle: `{self.cycle}`."
@@ -62,18 +63,21 @@ class SourceDescription:
 
 _tf_sample_error_msg = (
     "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
-    "DALI TensorCPU representing sample. Got `{}` instead.")
+    "DALI TensorCPU representing sample. Got `{}` instead."
+)
 
 
 _tf_batch_error_msg = (
     "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
     "DALI TensorCPU, list of those types or DALI TensorListCPU representing batch. "
-    "Got `{}` instead.")
+    "Got `{}` instead."
+)
 
 _tf_uniform_error_msg = (
     "Unsupported callback return value. TensorFlow requires that the batches produced by input "
     "datasets or External Source `source` callback in batch mode (that is when batch=True) "
-    " are dense and uniform - this means that every sample has the same shape. Got `{}` instead.")
+    " are dense and uniform - this means that every sample has the same shape. Got `{}` instead."
+)
 
 
 def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
@@ -81,14 +85,18 @@ def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return t
     if isinstance(sample, np.ndarray):
         return True
     if types._is_mxnet_array(sample):
-        if sample.context.device_type != 'cpu':
-            raise TypeError("Unsupported callback return type. "
-                            "GPU tensors are not supported. Got an MXNet GPU tensor.")
+        if sample.context.device_type != "cpu":
+            raise TypeError(
+                "Unsupported callback return type. "
+                "GPU tensors are not supported. Got an MXNet GPU tensor."
+            )
         return True
     if types._is_torch_tensor(sample):
-        if sample.device.type != 'cpu':
-            raise TypeError("Unsupported callback return type. "
-                            "GPU tensors are not supported. Got a PyTorch GPU tensor.")
+        if sample.device.type != "cpu":
+            raise TypeError(
+                "Unsupported callback return type. "
+                "GPU tensors are not supported. Got a PyTorch GPU tensor."
+            )
         return True
     elif isinstance(sample, tensors.TensorCPU):
         return True
@@ -116,14 +124,18 @@ def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{
     if isinstance(sample, np.ndarray):
         return sample
     if types._is_mxnet_array(sample):
-        if sample.context.device_type != 'cpu':
-            raise TypeError("Unsupported callback return type. "
-                            "GPU tensors are not supported. Got an MXNet GPU tensor.")
+        if sample.context.device_type != "cpu":
+            raise TypeError(
+                "Unsupported callback return type. "
+                "GPU tensors are not supported. Got an MXNet GPU tensor."
+            )
         return sample.asnumpy()
     if types._is_torch_tensor(sample):
-        if sample.device.type != 'cpu':
-            raise TypeError("Unsupported callback return type. "
-                            "GPU tensors are not supported. Got a PyTorch GPU tensor.")
+        if sample.device.type != "cpu":
+            raise TypeError(
+                "Unsupported callback return type. "
+                "GPU tensors are not supported. Got a PyTorch GPU tensor."
+            )
         return sample.numpy()
     elif isinstance(sample, tensors.TensorCPU):
         return np.array(sample)
@@ -131,9 +143,10 @@ def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{
 
 
 def batch_to_numpy(
-        batch,
-        error_str="Unsupported callback return type. Got: `{}`.",
-        non_uniform_str="Uniform input is required (batch of tensors of equal shapes), got {}."):
+    batch,
+    error_str="Unsupported callback return type. Got: `{}`.",
+    non_uniform_str="Uniform input is required (batch of tensors of equal shapes), got {}.",
+):
     import_numpy()
     assert_cpu_batch_data_type(batch, error_str)
     if isinstance(batch, tensors.TensorListCPU):
@@ -154,7 +167,7 @@ def batch_to_numpy(
 class _CycleIter:
     def __init__(self, iterable, mode):
         self.source = iterable
-        self.signaling = (mode == "raise")
+        self.signaling = mode == "raise"
 
     def __iter__(self):
         self.it = iter(self.source)
@@ -171,10 +184,10 @@ class _CycleIter:
                 return next(self.it)
 
 
-class _CycleGenFunc():
+class _CycleGenFunc:
     def __init__(self, gen_func, mode):
         self.source = gen_func
-        self.signaling = (mode == "raise")
+        self.signaling = mode == "raise"
 
     def __iter__(self):
         self.it = iter(self.source())
@@ -214,15 +227,20 @@ def _cycle_enabled(cycle):
         return False
     if cycle is True or cycle == "quiet" or cycle == "raise":
         return True
-    raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
+    raise ValueError(
+        """Invalid value {} for the argument `cycle`. Valid values are
   - "no", False or None - cycling disabled
   - "quiet", True - quietly rewind the data
-  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
+  - "raise" - raise StopIteration on each rewind.""".format(
+            repr(cycle)
+        )
+    )
 
 
 def accepted_arg_count(callable):
-    if not (inspect.isfunction(callable) or inspect.ismethod(callable)) \
-            and hasattr(callable, '__call__'):
+    if not (inspect.isfunction(callable) or inspect.ismethod(callable)) and hasattr(
+        callable, "__call__"
+    ):
         callable = callable.__call__
     if not inspect.ismethod(callable):
         implicit_args = 0
@@ -248,9 +266,11 @@ def get_callback_from_source(source, cycle, batch_info=False):
         try:
             if _cycle_enabled(cycle):
                 if inspect.isgenerator(source):
-                    raise TypeError("Cannot cycle through a generator - if the generator is "
-                                    "a result of calling a generator function, "
-                                    "pass that function instead as `source`.")
+                    raise TypeError(
+                        "Cannot cycle through a generator - if the generator is "
+                        "a result of calling a generator function, "
+                        "pass that function instead as `source`."
+                    )
                 if _is_generator_function(source):
                     # We got a generator function, each call returns new "generator iterator"
                     desc = SourceDescription(source, SourceKind.GENERATOR_FUNC, False, cycle)
@@ -281,14 +301,17 @@ def get_callback_from_source(source, cycle, batch_info=False):
             if "not iterable" not in str(err):
                 raise err
             if cycle is not None:
-                raise ValueError("The argument `cycle` can only be specified "
-                                 "if `source` is iterable")
+                raise ValueError(
+                    "The argument `cycle` can only be specified " "if `source` is iterable"
+                )
             if not callable(source):
-                raise TypeError("Source must be callable, "
-                                "iterable or a parameterless generator function")
+                raise TypeError(
+                    "Source must be callable, " "iterable or a parameterless generator function"
+                )
             # We got a callable
-            desc = SourceDescription(source, SourceKind.CALLABLE,
-                                     accepted_arg_count(source) > 0, cycle, batch_info)
+            desc = SourceDescription(
+                source, SourceKind.CALLABLE, accepted_arg_count(source) > 0, cycle, batch_info
+            )
             callback = source
     else:
         desc = None
@@ -314,8 +337,7 @@ def _inspect_data(data, is_batched):
 
 
 def get_batch_iterable_from_callback(source_desc: SourceDescription):
-    """Transform batch callback accepting one argument into an Iterable
-    """
+    """Transform batch callback accepting one argument into an Iterable"""
     first = source_desc.source(types.BatchInfo(0, 0) if source_desc.batch_info else 0)
     dtype, shape = _inspect_data(first, True)
 
@@ -343,15 +365,15 @@ def get_batch_iterable_from_callback(source_desc: SourceDescription):
                     argument = self.iteration
                 result = self.source(argument)
             self.iteration += 1
-            return batch_to_numpy(result, _tf_batch_error_msg,
-                                  non_uniform_str=_tf_uniform_error_msg)
+            return batch_to_numpy(
+                result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+            )
 
     return CallableBatchIterator, dtype, shape
 
 
 def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size):
-    """Transform sample callback accepting one argument into an Iterable
-    """
+    """Transform sample callback accepting one argument into an Iterable"""
     first = source_desc.source(types.SampleInfo(0, 0, 0, 0))
     dtype, shape = _inspect_data(first, False)
 
@@ -390,8 +412,7 @@ def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size
 
 
 def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
-    """Transform callback that doesn't accept arguments into iterable
-    """
+    """Transform callback that doesn't accept arguments into iterable"""
     print("get_iterable_from_callback")
     first = source_desc.source()
     dtype, shape = _inspect_data(first, is_batched)
@@ -412,8 +433,9 @@ def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
             else:
                 result = self.source()
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg,
-                                      non_uniform_str=_tf_uniform_error_msg)
+                return batch_to_numpy(
+                    result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+                )
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 
@@ -457,8 +479,9 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
             else:
                 result = next(self.it)
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg,
-                                      non_uniform_str=_tf_uniform_error_msg)
+                return batch_to_numpy(
+                    result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg
+                )
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 

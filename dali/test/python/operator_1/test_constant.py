@@ -23,13 +23,14 @@ from nvidia.dali import Pipeline
 from test_utils import check_batch
 from test_utils import get_dali_extra_path
 
-jpeg_folder = os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg')
+jpeg_folder = os.path.join(get_dali_extra_path(), "db", "single", "jpeg")
 
 array_interfaces = [(np.array, None)]
 
 try:
     import torch
-    array_interfaces.append((torch.tensor, lambda x: eval('torch.' + x)))
+
+    array_interfaces.append((torch.tensor, lambda x: eval("torch." + x)))
     print("ConstantOp: PyTorch support enabled")
 except ModuleNotFoundError:
     print("ConstantOp: PyTorch support disabled")
@@ -37,6 +38,7 @@ except ModuleNotFoundError:
 
 try:
     import mxnet
+
     array_interfaces.append((mxnet.ndarray.array, None))
     print("ConstantOp: MXNet support enabled")
 except ModuleNotFoundError:
@@ -50,15 +52,23 @@ class ConstantPipeline(Pipeline):
         self.const1 = ops.Constant(device=device, fdata=(1.25, 2.5, 3))
         self.const2 = ops.Constant(device=device, idata=(1, 2, 3, 4), shape=(2, 1, 2))
         self.const3 = ops.Constant(device=device, idata=(-1, 1, 2, 3, 4), dtype=types.UINT8)
-        self.const4 = ops.Constant(device=device, fdata=(0.25, 1.25, 2.25, 3.25, 4.25),
-                                   dtype=types.FLOAT16)
+        self.const4 = ops.Constant(
+            device=device, fdata=(0.25, 1.25, 2.25, 3.25, 4.25), dtype=types.FLOAT16
+        )
         self.const5 = ops.Constant(device=device, fdata=5.5, shape=(100, 100))
         self.const6 = ops.Constant(device=device, idata=-4, shape=(10, 20))
         self.const7 = ops.Constant(device=device, idata=[0, 1, 0], dtype=types.BOOL)
 
     def define_graph(self):
-        return self.const1(), self.const2(), self.const3(), self.const4(), self.const5(), \
-               self.const6(), self.const7()
+        return (
+            self.const1(),
+            self.const2(),
+            self.const3(),
+            self.const4(),
+            self.const5(),
+            self.const6(),
+            self.const7(),
+        )
 
 
 class ConstantFnPipeline(Pipeline):
@@ -73,30 +83,20 @@ class ConstantFnPipeline(Pipeline):
     def define_graph(self):
         device = self.device
         return [
+            types.Constant(device=device, value=(1.25, 2.5, 3)),
+            types.Constant(
+                device=device, value=self.array([[[1, 2]], [[3, 4]]], dtype=self.dtype("int32"))
+            ),
+            types.Constant(
+                device=device, value=self.array([0, 1, 2, 3, 4], dtype=self.dtype("uint8"))
+            ),
             types.Constant(
                 device=device,
-                value=(1.25, 2.5, 3)),
-            types.Constant(
-                device=device,
-                value=self.array([[[1, 2]], [[3, 4]]], dtype=self.dtype('int32'))),
-            types.Constant(
-                device=device,
-                value=self.array([0, 1, 2, 3, 4], dtype=self.dtype('uint8'))),
-            types.Constant(
-                device=device,
-                value=self.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=self.dtype('float16'))),
-            types.Constant(
-                device=device,
-                value=5.5,
-                shape=(100, 100),
-                name="large"),
-            types.Constant(
-                device=device,
-                value=-4,
-                shape=(10, 20)),
-            types.Constant(
-                device=device,
-                value=[False, True, False])
+                value=self.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=self.dtype("float16")),
+            ),
+            types.Constant(device=device, value=5.5, shape=(100, 100), name="large"),
+            types.Constant(device=device, value=-4, shape=(10, 20)),
+            types.Constant(device=device, value=[False, True, False]),
         ]
 
 
@@ -117,7 +117,7 @@ ref = [
     np.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=np.float16),
     np.full([100, 100], 5.5, dtype=np.float32),
     np.full([10, 20], -4, dtype=np.int32),
-    np.array([False, True, False], dtype=bool)
+    np.array([False, True, False], dtype=bool),
 ]
 
 
@@ -156,17 +156,11 @@ def _test_scalar_constant_promotion(device):
         if device == "gpu":
             p1 = p1.gpu()
         p2 = fn.stack(3, with_explicit_dev)
-        return (
-            fn.copy(1.25, device=device),
-            fn.cat(p1, p2)
-        )
+        return (fn.copy(1.25, device=device), fn.cat(p1, p2))
 
     pipe = scalar_constant_pipeline(device)
     pipe.build()
-    ref = [
-        np.array(1.25, dtype=np.float32),
-        np.array([1, 2, 3, 4], dtype=np.int32)
-    ]
+    ref = [np.array(1.25, dtype=np.float32), np.array([1, 2, 3, 4], dtype=np.int32)]
     for iter in range(3):
         out = pipe.run()
         if device == "gpu":
@@ -198,7 +192,7 @@ def test_variable_batch():
     batches = [
         [np.array(1), np.array(2)],
         [np.array(1)],
-        [np.array(1), np.array(2), np.array(3), np.array(4), np.array(5), np.array(5)]
+        [np.array(1), np.array(2), np.array(3), np.array(4), np.array(5), np.array(5)],
     ]
     dummy = fn.external_source(batches, cycle=True)
     val = np.float32([[1, 2], [3, 4]])

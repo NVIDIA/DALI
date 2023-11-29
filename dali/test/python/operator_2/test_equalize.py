@@ -24,7 +24,7 @@ from test_utils import get_dali_extra_path, check_batch
 from nose2.tools import params
 
 data_root = get_dali_extra_path()
-images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+images_dir = os.path.join(data_root, "db", "single", "jpeg")
 
 
 def equalize_cv_baseline(img, layout):
@@ -41,8 +41,9 @@ def equalize_cv_baseline(img, layout):
 
 @pipeline_def
 def images_pipeline(layout, dev):
-    images, _ = fn.readers.file(name="Reader", file_root=images_dir, prefetch_queue_depth=2,
-                                random_shuffle=True, seed=42)
+    images, _ = fn.readers.file(
+        name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
+    )
     decoder = "mixed" if dev == "gpu" else "cpu"
     if layout == "HW":
         images = fn.decoders.image(images, device=decoder, output_type=types.GRAY)
@@ -56,15 +57,21 @@ def images_pipeline(layout, dev):
     return equalized, images
 
 
-@params(*tuple(
-    itertools.product(("cpu", "gpu"),
-                      (("HWC", 1), ("HWC", 32), ("CHW", 1), ("CHW", 7), ("HW", 253), ("HW", 128)))))
+@params(
+    *tuple(
+        itertools.product(
+            ("cpu", "gpu"),
+            (("HWC", 1), ("HWC", 32), ("CHW", 1), ("CHW", 7), ("HW", 253), ("HW", 128)),
+        )
+    )
+)
 def test_image_pipeline(dev, layout_batch_size):
     layout, batch_size = layout_batch_size
     num_iters = 2
 
-    pipe = images_pipeline(num_threads=4, device_id=0, batch_size=batch_size, layout=layout,
-                           dev=dev)
+    pipe = images_pipeline(
+        num_threads=4, device_id=0, batch_size=batch_size, layout=layout, dev=dev
+    )
     pipe.build()
 
     for _ in range(num_iters):
@@ -79,9 +86,8 @@ def test_image_pipeline(dev, layout_batch_size):
         check_batch(equalized, baseline, max_allowed_error=1)
 
 
-@params(("cpu", ), ("gpu", ))
+@params(("cpu",), ("gpu",))
 def test_multichannel(dev):
-
     sizes = [(200, 300), (700, 500), (1024, 200), (200, 1024), (1024, 1024)]
     num_channels = [1, 2, 3, 4, 5, 13]
     # keep len(sizes) and len(num_channels) co-prime to have all combinations

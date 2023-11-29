@@ -48,19 +48,23 @@ def expect_tensor_list(*tls: Union[tensors.TensorListCPU, tensors.TensorListGPU]
 
 
 def test_rn50_pipe():
-
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
-            name="FileReader")
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+        )
         imgs = fn.decoders.image(enc, device="mixed")
         rng = fn.random.coin_flip(probability=0.5)
         resized = fn.random_resized_crop(imgs, size=[224, 224])
-        normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
-                                              output_layout="HWC", crop=(224, 224),
-                                              mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                              std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        normalized = fn.crop_mirror_normalize(
+            resized,
+            mirror=rng,
+            dtype=types.DALIDataType.FLOAT16,
+            output_layout="HWC",
+            crop=(224, 224),
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+        )
         expect_data_node(enc, label, imgs, rng, resized, normalized, label.gpu())
         return normalized, label.gpu()
 
@@ -75,15 +79,16 @@ def test_rn50_pipe():
 
 
 def test_rn50_pipe_mis():
-
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_pipe():
         enc_0, label_0 = fn.readers.file(
             files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
-            name="FileReader_0")
+            name="FileReader_0",
+        )
         enc_1, label_1 = fn.readers.file(
             files=[str(_test_root / "db/single/jpeg/113/snail-4345504_1280.jpg")],
-            name="FileReader_1")
+            name="FileReader_1",
+        )
         imgs = fn.decoders.image([enc_0, enc_1], device="mixed")
         # Such checks are needed if we want mypy to allow unpacking of the return values from
         # MIS invocation. The overload in question returns `DataNode | [DataNode]` and the mentioned
@@ -96,16 +101,32 @@ def test_rn50_pipe_mis():
         # note that mypy type-checks when we pass resized, which is of type
         # DataNode | List[DataNode] into the 1-input CMN, that expects either a DataNode in primary
         # overload, or List[DataNode] in the secondary one.
-        normalized = fn.crop_mirror_normalize(resized, mirror=rng, dtype=types.DALIDataType.FLOAT16,
-                                              output_layout="HWC", crop=(224, 224),
-                                              mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                              std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        normalized = fn.crop_mirror_normalize(
+            resized,
+            mirror=rng,
+            dtype=types.DALIDataType.FLOAT16,
+            output_layout="HWC",
+            crop=(224, 224),
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+        )
         assert isinstance(resized, list)
         assert isinstance(normalized, list)
         normalized_0, normalized_1 = normalized
         label = (label_0 + label_1) * 0.5
-        expect_data_node(enc_0, enc_1, label, imgs[0], imgs[1], rng, resized[0], resized[1],
-                         normalized_0, normalized_1, label.gpu())
+        expect_data_node(
+            enc_0,
+            enc_1,
+            label,
+            imgs[0],
+            imgs[1],
+            rng,
+            resized[0],
+            resized[1],
+            normalized_0,
+            normalized_1,
+            label.gpu(),
+        )
         return normalized_0, normalized_1, label.gpu()
 
     pipe = rn50_pipe()
@@ -119,12 +140,11 @@ def test_rn50_pipe_mis():
 
 
 def test_rn50_ops_pipe():
-
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_ops_pipe():
         Reader = ops.readers.File(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
-            name="FileReader")
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+        )
         Decoder = ops.decoders.Image(device="mixed")
         Rng = ops.random.CoinFlip(probability=0.5)
         Rrc = ops.RandomResizedCrop(device="gpu", size=[224, 224])
@@ -154,9 +174,9 @@ def test_rn50_ops_pipe():
     assert isinstance(labels, tensors.TensorListGPU)
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_copy_tensor_constant():
-    import torch   # type: ignore
+    import torch  # type: ignore
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def const_copy_pipe():
@@ -183,12 +203,11 @@ def test_copy_tensor_constant():
 
 
 def test_cond_pipe():
-
     @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
     def cond_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
-            name="FileReader")
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+        )
         imgs = fn.decoders.image(enc, device="mixed")
         resized = fn.crop(imgs, crop=[224, 224])
         if fn.random.uniform(range=[0, 1]) < 0.25:
@@ -209,14 +228,15 @@ def test_cond_pipe():
 
 
 def test_es_pipe():
-
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def es_pipe():
         single_output = fn.external_source(source=lambda: np.array([0]), batch=False)
-        out_1, out_2 = fn.external_source(source=lambda: (np.array([1]), np.array([2])),
-                                          num_outputs=2, batch=False)
+        out_1, out_2 = fn.external_source(
+            source=lambda: (np.array([1]), np.array([2])), num_outputs=2, batch=False
+        )
         out_3, out_4 = fn.external_source(
-            source=lambda: [np.array([3]), np.array([4])], num_outputs=2, batch=False)
+            source=lambda: [np.array([3]), np.array([4])], num_outputs=2, batch=False
+        )
         expect_data_node(single_output, out_1, out_2, out_3, out_4)
         return single_output, out_1, out_2, out_3, out_4
 
@@ -233,7 +253,6 @@ def test_es_pipe():
 
 
 def test_python_function_pipe():
-
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def fn_pipe():
         ops_fn = ops.PythonFunction(lambda: np.full((10, 1), 0), num_outputs=1)
@@ -246,8 +265,10 @@ def test_python_function_pipe():
         ones = fn.python_function(zeros, function=lambda x: x + np.full((10, 1), 1))
         twos, zeros_2 = cast(
             Sequence[DataNode],
-            fn.python_function(zeros, function=lambda x: (x + np.full((10, 1), 2), x),
-                               num_outputs=2))
+            fn.python_function(
+                zeros, function=lambda x: (x + np.full((10, 1), 2), x), num_outputs=2
+            ),
+        )
         fn.python_function(zeros, function=print, num_outputs=0)
         expect_data_node(zeros, zeros_2, ones, twos)
         return zeros + twos - twos, zeros_2, ones
@@ -262,7 +283,7 @@ def test_python_function_pipe():
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_pytorch_plugin():
     import nvidia.dali.plugin.pytorch as dali_torch
     import torch  # type: ignore
@@ -278,10 +299,13 @@ def test_pytorch_plugin():
         # there is one if we don't touch the num_values.
         ones, zeros_2 = cast(
             Sequence[DataNode],
-            dali_torch.fn.torch_python_function(zeros, function=lambda x: (x + torch.full(
-                (10, 1), 1), x), num_outputs=2))
-        twos = dali_torch.fn.torch_python_function(zeros, function=lambda x: x + torch.full(
-            (10, 1), 2))
+            dali_torch.fn.torch_python_function(
+                zeros, function=lambda x: (x + torch.full((10, 1), 1), x), num_outputs=2
+            ),
+        )
+        twos = dali_torch.fn.torch_python_function(
+            zeros, function=lambda x: x + torch.full((10, 1), 2)
+        )
         dali_torch.fn.torch_python_function(zeros, function=print, num_outputs=0)
         expect_data_node(zeros, zeros_2, ones, twos)
         return zeros + twos - twos, ones
@@ -306,7 +330,7 @@ def test_pytorch_plugin():
         assert np.array_equal(out1_iter, torch.full((2, 10, 1), 1))
 
 
-@attr('numba')
+@attr("numba")
 def test_numba_plugin():
     import nvidia.dali.plugin.numba as dali_numba
 
@@ -317,17 +341,22 @@ def test_numba_plugin():
 
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def numba_pipe():
-        forty_two = fn.external_source(source=lambda x: np.full((2, ), 42, dtype=np.uint8),
-                                       batch=False)
-        out = dali_numba.fn.experimental.numba_function(forty_two, run_fn=double_sample,
-                                                        out_types=[types.DALIDataType.UINT8],
-                                                        in_types=[types.DALIDataType.UINT8],
-                                                        outs_ndim=[1], ins_ndim=[1],
-                                                        batch_processing=False)
+        forty_two = fn.external_source(
+            source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
+        )
+        out = dali_numba.fn.experimental.numba_function(
+            forty_two,
+            run_fn=double_sample,
+            out_types=[types.DALIDataType.UINT8],
+            in_types=[types.DALIDataType.UINT8],
+            outs_ndim=[1],
+            ins_ndim=[1],
+            batch_processing=False,
+        )
         return out
 
     pipe = numba_pipe()
     pipe.build()
-    out, = pipe.run()
+    (out,) = pipe.run()
     expect_tensor_list(out)
     assert np.array_equal(np.array(out.as_tensor()), np.full((2, 2), 84))

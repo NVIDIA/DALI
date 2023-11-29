@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from test_utils import check_batch, get_dali_extra_path, as_array
 
 import PIL.Image
+
 try:
     from PIL.Image.Resampling import NEAREST, BILINEAR, BICUBIC, LANCZOS
 except Exception:
@@ -32,21 +33,21 @@ except Exception:
     from PIL.Image import NEAREST, BILINEAR, BICUBIC, LANCZOS
 
 resample_dali2pil = {
-    types.INTERP_NN:         NEAREST,
+    types.INTERP_NN: NEAREST,
     types.INTERP_TRIANGULAR: BILINEAR,
-    types.INTERP_CUBIC:      BICUBIC,
-    types.INTERP_LANCZOS3:   LANCZOS
+    types.INTERP_CUBIC: BICUBIC,
+    types.INTERP_LANCZOS3: LANCZOS,
 }
 
 test_data_root = get_dali_extra_path()
-db_2d_folder = os.path.join(test_data_root, 'db', 'lmdb')
-db_3d_folder = os.path.join(test_data_root, *'db/3D/MRI/Knee/Jpegs/STU00001'.split('/'))
+db_2d_folder = os.path.join(test_data_root, "db", "lmdb")
+db_3d_folder = os.path.join(test_data_root, *"db/3D/MRI/Knee/Jpegs/STU00001".split("/"))
 
 
-class random_3d_loader():
+class random_3d_loader:
     def __init__(self, batch_size):
         np.random.seed(12345)
-        self.subdirs = ['SER00004', 'SER00006', 'SER00008', 'SER00009', 'SER00011', 'SER00015']
+        self.subdirs = ["SER00004", "SER00006", "SER00008", "SER00009", "SER00011", "SER00015"]
         self.dirs = [os.path.join(db_3d_folder, x) for x in self.subdirs]
         self.batch_size = batch_size
         np.random.seed(1234)
@@ -111,7 +112,7 @@ def resize2D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
     if channel_first:
         out = out.transpose([2, 0, 1])
     if has_overshoot:
-        out = ((out.astype(np.float32) - 64) * 2.0)
+        out = (out.astype(np.float32) - 64) * 2.0
     if dtype == np.uint8:
         out = out.round().clip(0, 255).astype(np.uint8)
     elif dtype == types.FLOAT:
@@ -138,7 +139,8 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
     for z in range(input.shape[0]):
         in_slice = input[z, :, :, 0] if mono else input[z]
         out_slice = np.array(
-            PIL.Image.fromarray(in_slice).resize(sizeXY, box=boxXY, resample=resample))
+            PIL.Image.fromarray(in_slice).resize(sizeXY, box=boxXY, resample=resample)
+        )
         tmp[z] = out_slice[:, :, np.newaxis] if mono else out_slice
 
     # Then, slice along Y and resize XZ slices
@@ -148,12 +150,13 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
     for y in range(size[1]):
         in_slice = tmp[:, y, :, 0] if mono else tmp[:, y]
         out_slice = np.array(
-            PIL.Image.fromarray(in_slice).resize(sizeXZ, box=boxXZ, resample=resample))
+            PIL.Image.fromarray(in_slice).resize(sizeXZ, box=boxXZ, resample=resample)
+        )
         out[:, y, :, :] = out_slice[:, :, np.newaxis] if mono else out_slice
 
     # Restore dynamic range, losing some bit depth
     if has_overshoot:
-        out = ((out.astype(np.float32) - 64) * 2.0)
+        out = (out.astype(np.float32) - 64) * 2.0
     if dtype == np.uint8:
         out = out.round().clip(0, 255).astype(np.uint8)
     elif dtype == types.FLOAT:
@@ -170,19 +173,45 @@ def resize_PIL(dim, channel_first, dtype, interp, data, size, roi_start, roi_end
     dtype = np.uint8 if dtype == types.UINT8 else np.float32
 
     base_func = resize3D_PIL if dim == 3 else resize2D_PIL
-    f = functools.partial(base_func, channel_first=channel_first, dtype=dtype,
-                          resample=pil_resample)
+    f = functools.partial(
+        base_func, channel_first=channel_first, dtype=dtype, resample=pil_resample
+    )
 
-    return dali.fn.python_function(data, size, roi_start, roi_end, function=f,
-                                   batch_processing=False)
+    return dali.fn.python_function(
+        data, size, roi_start, roi_end, function=f, batch_processing=False
+    )
 
 
-def resize_dali(input, channel_first, dtype, interp, mode, size, w, h, d, roi_start, roi_end,
-                minibatch_size, max_size):
-    return fn.resize(input, interp_type=interp, dtype=dtype, mode=mode, resize_x=w, resize_y=h,
-                     resize_z=d, size=size, roi_start=roi_start, roi_end=roi_end,
-                     minibatch_size=minibatch_size, max_size=max_size,
-                     subpixel_scale=False)  # disable subpixel scale so we can use PIL as reference
+def resize_dali(
+    input,
+    channel_first,
+    dtype,
+    interp,
+    mode,
+    size,
+    w,
+    h,
+    d,
+    roi_start,
+    roi_end,
+    minibatch_size,
+    max_size,
+):
+    return fn.resize(
+        input,
+        interp_type=interp,
+        dtype=dtype,
+        mode=mode,
+        resize_x=w,
+        resize_y=h,
+        resize_z=d,
+        size=size,
+        roi_start=roi_start,
+        roi_end=roi_end,
+        minibatch_size=minibatch_size,
+        max_size=max_size,
+        subpixel_scale=False,
+    )  # disable subpixel scale so we can use PIL as reference
     # Note: PIL supports ROI, but, unlike DALI, does not support overscan. DALI routinely overscans
     # on a subpixel level in about half of the cases, when adjusting ROI to keep subpixel aspect
     # ratio. This precludes the use of PIL as reference for subpixel_scale.
@@ -270,8 +299,21 @@ def max_size(dim):
     return 200 if dim == 3 else None
 
 
-def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_input, h_input,
-                d_input, use_size_arg, use_size_input, use_roi):
+def build_pipes(
+    device,
+    dim,
+    batch_size,
+    channel_first,
+    mode,
+    interp,
+    dtype,
+    w_input,
+    h_input,
+    d_input,
+    use_size_arg,
+    use_size_input,
+    use_roi,
+):
     dali_pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     with dali_pipe:
         if dim == 2:
@@ -283,8 +325,9 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
         images_hwc = images_cpu if device == "cpu" else images_cpu.gpu()
 
         if channel_first:
-            images = dali.fn.transpose(images_hwc, perm=[3, 0, 1, 2] if dim == 3 else [2, 0, 1],
-                                       transpose_layout=True)
+            images = dali.fn.transpose(
+                images_hwc, perm=[3, 0, 1, 2] if dim == 3 else [2, 0, 1], transpose_layout=True
+            )
         else:
             images = images_hwc
 
@@ -299,10 +342,13 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
 
         if use_roi:
             # Calculate absolute RoI
-            in_size = fn.slice(fn.shapes(images_cpu),
-                               types.Constant(0, dtype=types.FLOAT, device="cpu"),
-                               types.Constant(dim, dtype=types.FLOAT, device="cpu"), axes=[0],
-                               normalized_shape=False)
+            in_size = fn.slice(
+                fn.shapes(images_cpu),
+                types.Constant(0, dtype=types.FLOAT, device="cpu"),
+                types.Constant(dim, dtype=types.FLOAT, device="cpu"),
+                axes=[0],
+                normalized_shape=False,
+            )
             roi_start = fn.random.uniform(range=(0, 0.4), shape=[dim]) * in_size
             roi_end = fn.random.uniform(range=(0.6, 1.0), shape=[dim]) * in_size
 
@@ -315,9 +361,21 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
             else:
                 size = [300, 400] if dim == 2 else [80, 100, 120]
 
-            resized = resize_dali(images, channel_first, dtype, interp, mode, size, None, None,
-                                  None, roi_start, roi_end, minibatch_size=minibatch_size,
-                                  max_size=max_size(dim))
+            resized = resize_dali(
+                images,
+                channel_first,
+                dtype,
+                interp,
+                mode,
+                size,
+                None,
+                None,
+                None,
+                roi_start,
+                roi_end,
+                minibatch_size=minibatch_size,
+                max_size=max_size(dim),
+            )
         else:
             if w_input:
                 has_w = fn.random.coin_flip(probability=0.8)
@@ -338,9 +396,21 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
                 else:
                     d = 31  # some other fixed value
 
-            resized = resize_dali(images, channel_first, dtype, interp, mode, None, w, h, d,
-                                  roi_start, roi_end, minibatch_size=minibatch_size,
-                                  max_size=max_size(dim))
+            resized = resize_dali(
+                images,
+                channel_first,
+                dtype,
+                interp,
+                mode,
+                None,
+                w,
+                h,
+                d,
+                roi_start,
+                roi_end,
+                minibatch_size=minibatch_size,
+                max_size=max_size(dim),
+            )
 
         outputs = [images, resized]
         if roi_start is not None and roi_end is not None:
@@ -355,8 +425,9 @@ def build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype, w_i
 
         dali_pipe.set_outputs(*outputs)
 
-    pil_pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, exec_async=False,
-                        exec_pipelined=False)
+    pil_pipe = Pipeline(
+        batch_size=batch_size, num_threads=8, device_id=0, exec_async=False, exec_pipelined=False
+    )
     with pil_pipe:
         images = fn.external_source(name="images", layout=layout_str(dim, channel_first))
         sizes = fn.external_source(name="size")
@@ -383,11 +454,36 @@ def interior(array, channel_first):
     return array[tuple(r)]
 
 
-def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_input, h_input, d_input,
-             use_size_arg, use_size_input, use_roi):
-    dali_pipe, pil_pipe = build_pipes(device, dim, batch_size, channel_first, mode, interp, dtype,
-                                      w_input, h_input, d_input, use_size_arg, use_size_input,
-                                      use_roi)
+def _test_ND(
+    device,
+    dim,
+    batch_size,
+    channel_first,
+    mode,
+    interp,
+    dtype,
+    w_input,
+    h_input,
+    d_input,
+    use_size_arg,
+    use_size_input,
+    use_roi,
+):
+    dali_pipe, pil_pipe = build_pipes(
+        device,
+        dim,
+        batch_size,
+        channel_first,
+        mode,
+        interp,
+        dtype,
+        w_input,
+        h_input,
+        d_input,
+        use_size_arg,
+        use_size_input,
+        use_roi,
+    )
 
     first_spatial_dim = 1 if channel_first else 0
 
@@ -411,8 +507,11 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
             roi_start, roi_end = (np.array(x.as_tensor(), dtype=np.float32) for x in get_outputs(2))
         else:
             roi_end = np.stack(
-                [dali_in[i].shape()[first_spatial_dim:first_spatial_dim + dim] for i in
-                 range(batch_size)]).astype(np.float32)
+                [
+                    dali_in[i].shape()[first_spatial_dim : first_spatial_dim + dim]
+                    for i in range(batch_size)
+                ]
+            ).astype(np.float32)
             roi_start = np.zeros([batch_size, dim], dtype=np.float32)
         if use_size_arg:
             size = np.array(get_output().as_tensor(), np.float32)
@@ -422,8 +521,11 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
         roi_size = roi_end - roi_start
 
         dali_out_size = np.stack(
-            [dali_out[i].shape()[first_spatial_dim:first_spatial_dim + dim] for i in
-             range(batch_size)])
+            [
+                dali_out[i].shape()[first_spatial_dim : first_spatial_dim + dim]
+                for i in range(batch_size)
+            ]
+        )
 
         for i in range(batch_size):
             ref_size = ref_output_size(mode, size[i], roi_size[i], max_size(dim))
@@ -469,17 +571,26 @@ def _tests(dim, device):
     # - Cannot test linear against PIL, because PIL uses triangular filter when downscaling
     # - Cannot test Nearest Neighbor because rounding errors cause gross discrepancies (pixel shift)
     for mode in ["default", "stretch", "not_smaller", "not_larger"]:
-        for interp, dtype, channel_first, use_size_arg, use_size_input, w_input, h_input, d_input, use_roi in [  # noqa: E501
+        for (
+            interp,
+            dtype,
+            channel_first,
+            use_size_arg,
+            use_size_input,
+            w_input,
+            h_input,
+            d_input,
+            use_roi,
+        ) in [  # noqa: E501
             (0, types.UINT8, True, False, False, False, False, False, False),
             (1, types.FLOAT, False, False, False, False, True, True, True),
             (0, types.FLOAT, True, False, False, True, True, False, True),
             (1, types.FLOAT, False, False, False, True, False, True, False),
             (0, types.UINT8, True, True, False, False, False, False, True),
-            (1, types.UINT8, False, True, True, False, False, False, False)
+            (1, types.UINT8, False, True, True, False, False, False, False),
         ]:
             interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
-            yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, \
-                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
+            yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
 
 
 def test_2D_gpu():
@@ -504,8 +615,9 @@ def test_3D_cpu():
 
 def _test_stitching(device, dim, channel_first, dtype, interp):
     batch_size = 1 if dim == 3 else 10
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=1, device_id=0, seed=1234,
-                                  prefetch_queue_depth=1)
+    pipe = dali.pipeline.Pipeline(
+        batch_size=batch_size, num_threads=1, device_id=0, seed=1234, prefetch_queue_depth=1
+    )
     with pipe:
         if dim == 2:
             files, labels = dali.fn.readers.caffe(path=db_2d_folder, random_shuffle=True)
@@ -516,8 +628,9 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
         images_hwc = images_cpu if device == "cpu" else images_cpu.gpu()
 
         if channel_first:
-            images = dali.fn.transpose(images_hwc, perm=[3, 0, 1, 2] if dim == 3 else [2, 0, 1],
-                                       transpose_layout=True)
+            images = dali.fn.transpose(
+                images_hwc, perm=[3, 0, 1, 2] if dim == 3 else [2, 0, 1], transpose_layout=True
+            )
         else:
             images = images_hwc
 
@@ -527,8 +640,9 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
         roi_start = [0] * dim
         roi_end = [1] * dim
 
-        resized = fn.resize(images, dtype=dtype, min_filter=interp, mag_filter=interp,
-                            size=out_size_full)
+        resized = fn.resize(
+            images, dtype=dtype, min_filter=interp, mag_filter=interp, size=out_size_full
+        )
 
         outputs = [resized]
 
@@ -543,8 +657,15 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
                     roi_start[-1] = x * 0.5
                     roi_end[-1] = (x + 1) * 0.5
 
-                    part = fn.resize(images, dtype=dtype, interp_type=interp, size=out_size_half,
-                                     roi_start=roi_start, roi_end=roi_end, roi_relative=True)
+                    part = fn.resize(
+                        images,
+                        dtype=dtype,
+                        interp_type=interp,
+                        size=out_size_half,
+                        roi_start=roi_start,
+                        roi_end=roi_end,
+                        roi_relative=True,
+                    )
                     outputs.append(part)
 
         pipe.set_outputs(*outputs)
@@ -564,11 +685,9 @@ def _test_stitching(device, dim, channel_first, dtype, interp):
                 q10 = out[1 + z * 4 + 2].at(i)
                 q11 = out[1 + z * 4 + 3].at(i)
                 if channel_first:
-                    slices.append(np.block([[q00, q01],
-                                            [q10, q11]]))
+                    slices.append(np.block([[q00, q01], [q10, q11]]))
                 else:
-                    slices.append(np.block([[[q00], [q01]],
-                                            [[q10], [q11]]]))
+                    slices.append(np.block([[[q00], [q01]], [[q10], [q11]]]))
             if dim == 3:
                 if channel_first:
                     tiled.append(np.block([[[slices[0]]], [[slices[1]]]]))
@@ -585,8 +704,12 @@ def test_stitching():
         for dim in [3]:
             for dtype in [types.UINT8, types.FLOAT]:
                 for channel_first in [False, True]:
-                    for interp in [types.INTERP_LINEAR, types.INTERP_CUBIC, types.INTERP_TRIANGULAR,
-                                   types.INTERP_LANCZOS3]:
+                    for interp in [
+                        types.INTERP_LINEAR,
+                        types.INTERP_CUBIC,
+                        types.INTERP_TRIANGULAR,
+                        types.INTERP_LANCZOS3,
+                    ]:
                         yield _test_stitching, device, dim, channel_first, dtype, interp
 
 
@@ -605,8 +728,9 @@ def _test_empty_input(dim, device):
 
     in_rel_shapes[::2, :] *= 0  # all zeros in every second sample
 
-    degenerate_images = fn.slice(images, np.zeros([dim]), fn.external_source(lambda: in_rel_shapes),
-                                 axes=list(range(dim)))
+    degenerate_images = fn.slice(
+        images, np.zeros([dim]), fn.external_source(lambda: in_rel_shapes), axes=list(range(dim))
+    )
 
     sizes = np.random.randint(20, 50, [batch_size, dim], dtype=np.int32)
     size_inp = fn.external_source(lambda: [x.astype(np.float32) for x in sizes])
@@ -652,7 +776,7 @@ def _test_very_small_output(dim, device):
     pipe.build()
 
     for it in range(3):
-        out, = pipe.run()
+        (out,) = pipe.run()
         ref_size = [1, 1, 1, 1] if dim == 3 else [1, 1, 3]
         for t in out:
             assert t.shape() == ref_size
@@ -665,22 +789,24 @@ def test_very_small_output():
 
 
 def test_checkerboard_dali_vs_onnx_ref():
-    improc_data_dir = os.path.join(test_data_root, 'db', 'imgproc')
-    ref_dir = os.path.join(improc_data_dir, 'ref', 'resampling')
+    improc_data_dir = os.path.join(test_data_root, "db", "imgproc")
+    ref_dir = os.path.join(improc_data_dir, "ref", "resampling")
 
     # Checker board with shape (22, 22) with 2x2 squares
-    checkerboard_file = os.path.join(improc_data_dir, 'checkerboard_22_22.npy')
+    checkerboard_file = os.path.join(improc_data_dir, "checkerboard_22_22.npy")
     checkerboard = np.load(checkerboard_file)
     assert checkerboard.shape == (22, 22)
 
     out_size = (17, 13)
-    out_size_str = '_'.join([str(n) for n in out_size])
+    out_size_str = "_".join([str(n) for n in out_size])
     ref_resized_linear_filename = os.path.join(ref_dir, f"checkerboard_linear_{out_size_str}.npy")
     ref_resized_linear_antialias_filename = os.path.join(
-        ref_dir, f"checkerboard_linear_antialias_{out_size_str}.npy")
+        ref_dir, f"checkerboard_linear_antialias_{out_size_str}.npy"
+    )
     ref_resized_cubic_filename = os.path.join(ref_dir, f"checkerboard_cubic_{out_size_str}.npy")
     ref_resized_cubic_antialias_filename = os.path.join(
-        ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy")
+        ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy"
+    )
 
     # Reference generated with ONNX reference code. To regenerate uncomment
     # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, \
@@ -718,20 +844,26 @@ def test_checkerboard_dali_vs_onnx_ref():
     ref_data = {
         types.INTERP_LINEAR: {
             antialias_OFF: ref_resized_linear,
-            antialias_ON: ref_resized_linear_antialias
+            antialias_ON: ref_resized_linear_antialias,
         },
         types.INTERP_CUBIC: {
             antialias_OFF: ref_resized_cubic,
-            antialias_ON: ref_resized_cubic_antialias
-        }
+            antialias_ON: ref_resized_cubic_antialias,
+        },
     }
 
     @pipeline_def(batch_size=1, num_threads=3, device_id=0)
     def pipe(device, interp_type, antialias, test_data=checkerboard, out_size=out_size):
         data = types.Constant(test_data, device=device)
         data = fn.expand_dims(data, axes=[2])
-        resized = fn.resize(data, dtype=types.FLOAT, min_filter=interp_type, mag_filter=interp_type,
-                            size=out_size, antialias=antialias)
+        resized = fn.resize(
+            data,
+            dtype=types.FLOAT,
+            min_filter=interp_type,
+            mag_filter=interp_type,
+            size=out_size,
+            antialias=antialias,
+        )
         resized = fn.squeeze(resized, axes=[2])
         return resized
 
@@ -741,26 +873,26 @@ def test_checkerboard_dali_vs_onnx_ref():
 
         p = pipe(device, interp_type, antialias)
         p.build()
-        out, = p.run()
+        (out,) = p.run()
 
         out_dali = as_array(out[0])
         abs_diff = np.abs(ref - out_dali)
         max_error = np.max(abs_diff)
 
         if max_error > 1:
-            suffix_str = 'cubic' if interp_type == types.INTERP_CUBIC else 'linear'
+            suffix_str = "cubic" if interp_type == types.INTERP_CUBIC else "linear"
             img1 = PIL.Image.fromarray(np.clip(ref, 0, 255).astype(np.uint8))
-            img1.save(f'ref_resized_{suffix_str}.png')
+            img1.save(f"ref_resized_{suffix_str}.png")
 
             img2 = PIL.Image.fromarray(np.clip(out_dali, 0, 255).astype(np.uint8))
-            img2.save(f'dali_resized_{suffix_str}.png')
+            img2.save(f"dali_resized_{suffix_str}.png")
 
             img2 = PIL.Image.fromarray(np.clip(127 + abs_diff, 0, 255).astype(np.uint8))
-            img2.save(f'diff_resized_{suffix_str}.png')
+            img2.save(f"diff_resized_{suffix_str}.png")
 
         np.testing.assert_allclose(out_dali, ref, atol=1)
 
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         for interp_type in [types.INTERP_LINEAR, types.INTERP_CUBIC]:
             for antialias in [antialias_OFF, antialias_ON]:
                 yield impl, device, interp_type, antialias

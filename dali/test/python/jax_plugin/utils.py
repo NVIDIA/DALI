@@ -35,9 +35,10 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
         TensorGPU: DALI TensorGPU with provided shape and dtype filled
         with provided value.
     """
+
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = types.Constant(value=np.full(shape, value, dtype), device='gpu')
+        values = types.Constant(value=np.full(shape, value, dtype), device="gpu")
 
         return values
 
@@ -62,10 +63,8 @@ def sequential_pipeline(batch_size, shape):
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
     def sequential_pipeline_def():
         data = fn.external_source(
-            source=numpy_sequential_tensors,
-            num_outputs=1,
-            batch=False,
-            dtype=types.INT32)
+            source=numpy_sequential_tensors, num_outputs=1, batch=False, dtype=types.INT32
+        )
         data = data[0].gpu()
         return data
 
@@ -84,24 +83,22 @@ def pipeline_with_variable_shape_output(batch_size):
             np.full((1, 5), sample_info.idx_in_epoch, dtype=np.int32),
             np.full((1, 3), sample_info.idx_in_epoch, dtype=np.int32),
             np.full((1, 2), sample_info.idx_in_epoch, dtype=np.int32),
-            np.full((1, 4), sample_info.idx_in_epoch, dtype=np.int32)
+            np.full((1, 4), sample_info.idx_in_epoch, dtype=np.int32),
         ]
         return tensors[sample_info.idx_in_epoch % len(tensors)]
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
     def sequential_pipeline_def():
         data = fn.external_source(
-            source=numpy_tensors,
-            num_outputs=1,
-            batch=False,
-            dtype=types.INT32)
+            source=numpy_tensors, num_outputs=1, batch=False, dtype=types.INT32
+        )
         data = data[0].gpu()
         return data
 
     return sequential_pipeline_def()
 
 
-data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db', 'single', 'jpeg')
+data_path = os.path.join(os.environ["DALI_EXTRA_PATH"], "db", "single", "jpeg")
 
 
 def get_all_files_from_directory(dir_path, ext):
@@ -113,16 +110,17 @@ def get_all_files_from_directory(dir_path, ext):
     return file_list
 
 
-file_names = get_all_files_from_directory(data_path, '.jpg')
+file_names = get_all_files_from_directory(data_path, ".jpg")
 file_labels = [*range(len(file_names))]
 
 
 def iterator_function_def(shard_id=0, num_shards=1):
     files, labels = fn.readers.file(
-        name='reader',
+        name="reader",
         files=file_names,
         labels=file_labels,
         shard_id=shard_id,
-        num_shards=num_shards)
+        num_shards=num_shards,
+    )
 
     return labels.gpu()

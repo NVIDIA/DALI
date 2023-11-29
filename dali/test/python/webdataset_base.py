@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,8 +106,9 @@ def generate_temp_index_file(tar_file_path):
     global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
     assert_equal(
-        call([wds2idx_script, tar_file_path, temp_index_file.name],
-             stdout=open(os.devnull, "wb")), 0)
+        call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb")),
+        0,
+    )
     return temp_index_file
 
 

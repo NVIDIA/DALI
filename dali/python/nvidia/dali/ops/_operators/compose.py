@@ -18,7 +18,6 @@ from nvidia.dali.data_node import DataNode as _DataNode
 
 
 class _CompoundOp:
-
     def __init__(self, op_list):
         self._ops = []
         for op in op_list:
@@ -31,8 +30,11 @@ class _CompoundOp:
         inputs = list(inputs)
         for op in self._ops:
             for i in range(len(inputs)):
-                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(
-                        i) != "cpu":
+                if (
+                    inputs[i].device == "cpu"
+                    and op.device == "gpu"
+                    and op.schema.GetInputDevice(i) != "cpu"
+                ):
                     inputs[i] = inputs[i].gpu()
             inputs = op(*inputs, **kwargs)
             kwargs = {}
@@ -47,29 +49,28 @@ class _CompoundOp:
 def Compose(op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]]) -> _CompoundOp:
     """Returns a meta-operator that chains the operations in op_list.
 
-The return value is a callable object which, when called, performs::
+    The return value is a callable object which, when called, performs::
 
-    op_list[n-1](op_list([n-2](...  op_list[0](args))))
+        op_list[n-1](op_list([n-2](...  op_list[0](args))))
 
-Operators can be composed only when all outputs of the previous operator can be processed directly
-by the next operator in the list.
+    Operators can be composed only when all outputs of the previous operator can be processed directly
+    by the next operator in the list.
 
-The example below chains an image decoder and a Resize operation with random square size.
-The  ``decode_and_resize`` object can be called as if it was an operator::
+    The example below chains an image decoder and a Resize operation with random square size.
+    The  ``decode_and_resize`` object can be called as if it was an operator::
 
-    decode_and_resize = ops.Compose([
-        ops.decoders.Image(device="cpu"),
-        ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
-    ])
+        decode_and_resize = ops.Compose([
+            ops.decoders.Image(device="cpu"),
+            ops.Resize(size=fn.random.uniform(range=400,500)), device="gpu")
+        ])
 
-    files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
-    pipe.set_ouputs(decode_and_resize(files), labels)
+        files, labels = fn.readers.caffe(path=caffe_db_folder, seed=1)
+        pipe.set_ouputs(decode_and_resize(files), labels)
 
-If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
-example, ``Compose`` automatically arranges copying the data to GPU memory.
+    If there's a transition from CPU to GPU in the middle of the ``op_list``, as is the case in this
+    example, ``Compose`` automatically arranges copying the data to GPU memory.
 
 
-.. note::
-    This is an experimental feature, subject to change without notice.
-"""
+    .. note::
+        This is an experimental feature, subject to change without notice."""
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)

@@ -18,11 +18,11 @@ from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import _Augmentation, signed_bin
-from nvidia.dali.auto_aug.core._args import \
-    forbid_unused_kwargs as _forbid_unused_kwargs
-from nvidia.dali.auto_aug.core._utils import \
-    get_translations as _get_translations, \
-    pretty_select as _pretty_select
+from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
+from nvidia.dali.auto_aug.core._utils import (
+    get_translations as _get_translations,
+    pretty_select as _pretty_select,
+)
 from nvidia.dali.data_node import DataNode as _DataNode
 
 
@@ -84,9 +84,11 @@ def trivial_augment_wide(
     use_shape = shape is not None
     if use_shape:
         aug_kwargs["shape"] = shape
-    augmentations = get_trivial_augment_wide_suite(use_shape=use_shape,
-                                                   max_translate_abs=max_translate_abs,
-                                                   max_translate_rel=max_translate_rel)
+    augmentations = get_trivial_augment_wide_suite(
+        use_shape=use_shape,
+        max_translate_abs=max_translate_abs,
+        max_translate_rel=max_translate_rel,
+    )
     augmentation_names = set(aug.name for aug in augmentations)
     assert len(augmentation_names) == len(augmentations)
     excluded = excluded or []
@@ -95,15 +97,21 @@ def trivial_augment_wide(
             raise Exception(
                 f"The `{name}` was specified in `excluded`, but the TrivialAugmentWide suite "
                 f"does not contain augmentation with this name. "
-                f"The augmentations in the suite are: {', '.join(augmentation_names)}.")
+                f"The augmentations in the suite are: {', '.join(augmentation_names)}."
+            )
     selected_augments = [aug for aug in augmentations if aug.name not in excluded]
-    return apply_trivial_augment(selected_augments, data, num_magnitude_bins=num_magnitude_bins,
-                                 seed=seed, **aug_kwargs)
+    return apply_trivial_augment(
+        selected_augments, data, num_magnitude_bins=num_magnitude_bins, seed=seed, **aug_kwargs
+    )
 
 
-def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
-                          num_magnitude_bins: int = 31, seed: Optional[int] = None,
-                          **kwargs) -> _DataNode:
+def apply_trivial_augment(
+    augmentations: List[_Augmentation],
+    data: _DataNode,
+    num_magnitude_bins: int = 31,
+    seed: Optional[int] = None,
+    **kwargs,
+) -> _DataNode:
     """
     Applies the list of `augmentations` in TrivialAugment
     (https://arxiv.org/abs/2103.10158) fashion.
@@ -135,26 +143,38 @@ def apply_trivial_augment(augmentations: List[_Augmentation], data: _DataNode,
     """
     if not isinstance(num_magnitude_bins, int) or num_magnitude_bins < 1:
         raise Exception(
-            f"The `num_magnitude_bins` must be a positive integer, got {num_magnitude_bins}.")
+            f"The `num_magnitude_bins` must be a positive integer, got {num_magnitude_bins}."
+        )
     if len(augmentations) == 0:
-        raise Exception("The `augmentations` list cannot be empty. "
-                        "Got empty list in `apply_trivial_augment` call.")
-    magnitude_bin = fn.random.uniform(values=list(range(num_magnitude_bins)), dtype=types.INT32,
-                                      seed=seed)
+        raise Exception(
+            "The `augmentations` list cannot be empty. "
+            "Got empty list in `apply_trivial_augment` call."
+        )
+    magnitude_bin = fn.random.uniform(
+        values=list(range(num_magnitude_bins)), dtype=types.INT32, seed=seed
+    )
     use_signed_magnitudes = any(aug.randomly_negate for aug in augmentations)
     if use_signed_magnitudes:
         magnitude_bin = signed_bin(magnitude_bin, seed=seed)
-    _forbid_unused_kwargs(augmentations, kwargs, 'apply_trivial_augment')
-    op_kwargs = dict(data=data, magnitude_bin=magnitude_bin, num_magnitude_bins=num_magnitude_bins,
-                     **kwargs)
+    _forbid_unused_kwargs(augmentations, kwargs, "apply_trivial_augment")
+    op_kwargs = dict(
+        data=data, magnitude_bin=magnitude_bin, num_magnitude_bins=num_magnitude_bins, **kwargs
+    )
     op_idx = fn.random.uniform(values=list(range(len(augmentations))), seed=seed, dtype=types.INT32)
-    return _pretty_select(augmentations, op_idx, op_kwargs, auto_aug_name='apply_trivial_augment',
-                          ref_suite_name='get_trivial_augment_wide_suite')
+    return _pretty_select(
+        augmentations,
+        op_idx,
+        op_kwargs,
+        auto_aug_name="apply_trivial_augment",
+        ref_suite_name="get_trivial_augment_wide_suite",
+    )
 
 
 def get_trivial_augment_wide_suite(
-        use_shape: bool = False, max_translate_abs: Optional[int] = None,
-        max_translate_rel: Optional[float] = None) -> List[_Augmentation]:
+    use_shape: bool = False,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+) -> List[_Augmentation]:
     """
     Creates a list of 14 augmentations referred as wide augmentation space in TrivialAugment paper
     (https://arxiv.org/abs/2103.10158).
@@ -174,10 +194,15 @@ def get_trivial_augment_wide_suite(
         shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    default_translate_abs, default_translate_rel = 32, 1.
+    default_translate_abs, default_translate_rel = 32, 1.0
     # translations = [translate_x, translate_y] with adjusted magnitude range
-    translations = _get_translations(use_shape, default_translate_abs, default_translate_rel,
-                                     max_translate_abs, max_translate_rel)
+    translations = _get_translations(
+        use_shape,
+        default_translate_abs,
+        default_translate_rel,
+        max_translate_abs,
+        max_translate_rel,
+    )
     # [.augmentation((mag_low, mag_high), randomly_negate_mag, custom_magnitude_to_param_mapping]
     return translations + [
         a.shear_x.augmentation((0, 0.99), True),

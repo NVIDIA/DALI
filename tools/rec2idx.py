@@ -50,11 +50,11 @@ class IndexCreator(mx.recordio.MXRecordIO):
         self.key_type = key_type
         self.fidx = None
         self.idx_path = idx_path
-        super(IndexCreator, self).__init__(uri, 'r')
+        super(IndexCreator, self).__init__(uri, "r")
 
     def open(self):
         super(IndexCreator, self).open()
-        self.fidx = open(self.idx_path, 'w')
+        self.fidx = open(self.idx_path, "w")
 
     def close(self):
         """Closes the record and index files."""
@@ -64,37 +64,36 @@ class IndexCreator(mx.recordio.MXRecordIO):
         self.fidx.close()
 
     def tell(self):
-        """Returns the current position of read head.
-        """
+        """Returns the current position of read head."""
         pos = ctypes.c_size_t()
         check_call(_LIB.MXRecordIOReaderTell(self.handle, ctypes.byref(pos)))
         return pos.value
 
     def create_index(self):
-        """Creates the index file from open record file
-        """
+        """Creates the index file from open record file"""
         self.reset()
         counter = 0
         pre_time = time.time()
         while True:
             if counter % 1000 == 0:
                 cur_time = time.time()
-                print('time:', cur_time - pre_time, ' count:', counter)
+                print("time:", cur_time - pre_time, " count:", counter)
             pos = self.tell()
             cont = self.read()
             if cont is None:
                 break
             key = self.key_type(counter)
-            self.fidx.write('%s\t%d\n' % (str(key), pos))
+            self.fidx.write("%s\t%d\n" % (str(key), pos))
             counter = counter + 1
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='Create an index file from .rec file')
-    parser.add_argument('record', help='path to .rec file.')
-    parser.add_argument('index', help='path to index file.')
+        description="Create an index file from .rec file",
+    )
+    parser.add_argument("record", help="path to .rec file.")
+    parser.add_argument("index", help="path to index file.")
     args = parser.parse_args()
     args.record = os.path.abspath(args.record)
     args.index = os.path.abspath(args.index)
@@ -108,5 +107,5 @@ def main():
     creator.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

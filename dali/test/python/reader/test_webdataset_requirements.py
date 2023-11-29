@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,12 @@ import nvidia.dali as dali
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
 from nose.tools import assert_equal
-from webdataset_base import (generate_temp_extract, generate_temp_index_file,
-                             webdataset_raw_pipeline, file_reader_pipeline)
+from webdataset_base import (
+    generate_temp_extract,
+    generate_temp_index_file,
+    webdataset_raw_pipeline,
+    file_reader_pipeline,
+)
 
 from webdataset_base import test_batch_size  # noqa:F401, this is a parameter used in tests
 
@@ -32,8 +36,9 @@ def test_return_empty():
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = glob(extract_dir.name + "/*")
-    equivalent_files = sorted(equivalent_files,
-                              key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])))  # noqa: 203
+    equivalent_files = sorted(
+        equivalent_files, key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
+    )  # noqa: 203
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -45,8 +50,9 @@ def test_return_empty():
             num_threads=1,
             missing_component_behavior="empty",
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", []], batch_size=test_batch_size, device_id=0,
-                             num_threads=1),
+        file_reader_pipeline(
+            equivalent_files, ["jpg", []], batch_size=test_batch_size, device_id=0, num_threads=1
+        ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -61,9 +67,11 @@ def test_skip_sample():
     equivalent_files = list(
         filter(
             lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]) < 2500,  # noqa: 203
-            sorted(glob(extract_dir.name + "/*"),
-                   key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])),  # noqa: 203
-        ))
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            ),  # noqa: 203
+        )
+    )
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -75,8 +83,9 @@ def test_skip_sample():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", "cls"],
-                             batch_size=test_batch_size, device_id=0, num_threads=1),
+        file_reader_pipeline(
+            equivalent_files, ["jpg", "cls"], batch_size=test_batch_size, device_id=0, num_threads=1
+        ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -115,8 +124,9 @@ def test_different_components():
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = glob(extract_dir.name + "/*")
-    equivalent_files = sorted(equivalent_files,
-                              key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])))  # noqa: 203
+    equivalent_files = sorted(
+        equivalent_files, key=(lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
+    )  # noqa: 203
 
     compare_pipelines(
         webdataset_raw_pipeline(
@@ -127,8 +137,13 @@ def test_different_components():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", {"txt", "cls"}],
-                             batch_size=test_batch_size, device_id=0, num_threads=1),
+        file_reader_pipeline(
+            equivalent_files,
+            ["jpg", {"txt", "cls"}],
+            batch_size=test_batch_size,
+            device_id=0,
+            num_threads=1,
+        ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -169,9 +184,11 @@ def test_wds_sharding():
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
         list(
-            sorted(glob(extract_dir.name +
-                        "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))  # noqa: 203
-            for extract_dir in extract_dirs),
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            )  # noqa: 203
+            for extract_dir in extract_dirs
+        ),
         [],
     )
 
@@ -202,8 +219,9 @@ def test_sharding():
     index_file = generate_temp_index_file(tar_file_path)
 
     extract_dir = generate_temp_extract(tar_file_path)
-    equivalent_files = sorted(glob(extract_dir.name + "/*"),
-                              key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))  # noqa: 203
+    equivalent_files = sorted(
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+    )  # noqa: 203
 
     num_shards = 100
     for shard_id in range(num_shards):
@@ -269,8 +287,9 @@ def test_pax_format():
 def test_case_sensitive_container_format():
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
-                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/case_insensitive/devel-0.tar"
+    )
     index_file = generate_temp_index_file(tar_file_path)
 
     num_shards = 100
@@ -341,8 +360,9 @@ def test_case_sensitive_arg_format():
 def test_case_insensitive_container_format():
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    case_insensitive_tar_file_path = os.path.join(get_dali_extra_path(),
-                                                  "db/webdataset/case_insensitive/devel-0.tar")
+    case_insensitive_tar_file_path = os.path.join(
+        get_dali_extra_path(), "db/webdataset/case_insensitive/devel-0.tar"
+    )
     index_file = generate_temp_index_file(tar_file_path)
 
     num_shards = 100
@@ -419,9 +439,11 @@ def test_index_generation():
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
         list(
-            sorted(glob(extract_dir.name +
-                        "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))  # noqa: 203
-            for extract_dir in extract_dirs),
+            sorted(
+                glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+            )  # noqa: 203
+            for extract_dir in extract_dirs
+        ),
         [],
     )
 

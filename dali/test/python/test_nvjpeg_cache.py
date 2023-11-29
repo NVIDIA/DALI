@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,9 +40,14 @@ class HybridDecoderPipeline(Pipeline):
         policy = None
         if cache_size > 0:
             policy = "threshold"
-        self.decode = ops.decoders.Image(device='mixed', output_type=types.RGB, cache_debug=False,
-                                         cache_size=cache_size, cache_type=policy,
-                                         cache_batch_copy=True)
+        self.decode = ops.decoders.Image(
+            device="mixed",
+            output_type=types.RGB,
+            cache_debug=False,
+            cache_size=cache_size,
+            cache_type=policy,
+            cache_batch_copy=True,
+        )
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
@@ -74,5 +79,5 @@ def main():
     test_nvjpeg_cached()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

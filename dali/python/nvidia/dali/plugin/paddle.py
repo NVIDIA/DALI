@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,21 +26,21 @@ from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 
-assert LooseVersion(paddle.__version__) == LooseVersion('0.0.0') or \
-    LooseVersion(paddle.__version__) >= LooseVersion('2.0.0'), \
-    "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
+assert LooseVersion(paddle.__version__) == LooseVersion("0.0.0") or LooseVersion(
+    paddle.__version__
+) >= LooseVersion("2.0.0"), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
 
 
 dtype_map = {
-    types.DALIDataType.BOOL:    paddle.framework.core.VarDesc.VarType.BOOL,
-    types.DALIDataType.FLOAT:   paddle.framework.core.VarDesc.VarType.FP32,
+    types.DALIDataType.BOOL: paddle.framework.core.VarDesc.VarType.BOOL,
+    types.DALIDataType.FLOAT: paddle.framework.core.VarDesc.VarType.FP32,
     types.DALIDataType.FLOAT64: paddle.framework.core.VarDesc.VarType.FP64,
     types.DALIDataType.FLOAT16: paddle.framework.core.VarDesc.VarType.FP16,
-    types.DALIDataType.UINT8:   paddle.framework.core.VarDesc.VarType.UINT8,
-    types.DALIDataType.INT8:    paddle.framework.core.VarDesc.VarType.INT8,
-    types.DALIDataType.INT16:   paddle.framework.core.VarDesc.VarType.INT16,
-    types.DALIDataType.INT32:   paddle.framework.core.VarDesc.VarType.INT32,
-    types.DALIDataType.INT64:   paddle.framework.core.VarDesc.VarType.INT64
+    types.DALIDataType.UINT8: paddle.framework.core.VarDesc.VarType.UINT8,
+    types.DALIDataType.INT8: paddle.framework.core.VarDesc.VarType.INT8,
+    types.DALIDataType.INT16: paddle.framework.core.VarDesc.VarType.INT16,
+    types.DALIDataType.INT32: paddle.framework.core.VarDesc.VarType.INT32,
+    types.DALIDataType.INT64: paddle.framework.core.VarDesc.VarType.INT64,
 }
 
 
@@ -91,7 +91,7 @@ def recursive_length(tensor, lod_level):
                 result[0].append(length)
                 for i in range(length):
                     _recurse(data.at(i), result[1:], level - 1)
-            elif hasattr(data, 'shape'):
+            elif hasattr(data, "shape"):
                 # handle dense GPU tensors and numpy.ndarray
                 shape = data.shape
                 if callable(shape):
@@ -125,7 +125,7 @@ def lod_tensor_clip(lod_tensor, size):
             lengths = lengths[0:last_len]
             out_seq_len.append(lengths)
             last_len = sum(lengths)
-        output.set(ndarray[0:sum(out_seq_len[-1])], paddle.CPUPlace())
+        output.set(ndarray[0 : sum(out_seq_len[-1])], paddle.CPUPlace())
         output.set_recursive_sequence_lengths(out_seq_len)
     return output
 
@@ -219,18 +219,19 @@ class DALIGenericIterator(_DaliBaseIterator):
     next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 output_map,
-                 size=-1,
-                 reader_name=None,
-                 auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
-
+    def __init__(
+        self,
+        pipelines,
+        output_map,
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        fill_last_batch=None,
+        dynamic_shape=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+    ):
         normalized_map = {}
         for v in output_map:
             if isinstance(v, str):
@@ -241,19 +242,20 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         # check the assert first as _DaliBaseIterator would run the prefetch
         output_map = [isinstance(v, str) and v or v[0] for v in output_map]
-        assert len(set(output_map)) == len(output_map), \
-            "output_map names should be distinct"
+        assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self.output_map = output_map
 
-        _DaliBaseIterator.__init__(self,
-                                   pipelines,
-                                   size,
-                                   reader_name,
-                                   auto_reset,
-                                   fill_last_batch,
-                                   last_batch_padded,
-                                   last_batch_policy,
-                                   prepare_first_batch=prepare_first_batch)
+        _DaliBaseIterator.__init__(
+            self,
+            pipelines,
+            size,
+            reader_name,
+            auto_reset,
+            fill_last_batch,
+            last_batch_padded,
+            last_batch_policy,
+            prepare_first_batch=prepare_first_batch,
+        )
 
         self._counter = 0
 
@@ -265,9 +267,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, "It seems that there is no data in the pipeline. This may happen " \
-                       "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
-                       "greater than the shard size."
+                assert False, (
+                    "It seems that there is no data in the pipeline. This may happen "
+                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                    "greater than the shard size."
+                )
 
     def __next__(self):
         self._ever_consumed = True
@@ -299,8 +303,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             category_lengths = dict()
             for cat, out in category_outputs.items():
                 lod = self.normalized_map[cat]
-                assert out.is_dense_tensor() or lod > 0, \
-                    "non-dense tensor lists must have LoD > 0"
+                assert out.is_dense_tensor() or lod > 0, "non-dense tensor lists must have LoD > 0"
 
                 if lod > 0:
                     # +1 for batch dim
@@ -330,14 +333,12 @@ class DALIGenericIterator(_DaliBaseIterator):
                 lod_tensor._set_dims(category_shapes[cat])
                 seq_len = category_lengths[cat]
                 lod_tensor.set_recursive_sequence_lengths(seq_len)
-                lod_tensor._mutable_data(category_place[cat],
-                                         category_pd_type[cat])
+                lod_tensor._mutable_data(category_place[cat], category_pd_type[cat])
             data_batches[i] = pd_tensors
 
             stream = paddle.device.cuda.current_stream(dev_id).cuda_stream
             for cat, tensor in category_tensors.items():
-                ptr = pd_tensors[cat]._mutable_data(category_place[cat],
-                                                    category_pd_type[cat])
+                ptr = pd_tensors[cat]._mutable_data(category_place[cat], category_pd_type[cat])
                 feed_ndarray(tensor, ptr, stream)
 
         self._schedule_runs()
@@ -356,12 +357,14 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         else:
-            if self._last_batch_policy == LastBatchPolicy.PARTIAL and \
-                                          (self._counter > self._size) and self._size > 0:
+            if (
+                self._last_batch_policy == LastBatchPolicy.PARTIAL
+                and (self._counter > self._size)
+                and self._size > 0
+            ):
                 # First calculate how much data is required to
                 # return exactly self._size entries.
-                diff = self._num_gpus * self.batch_size - (self._counter
-                                                           - self._size)
+                diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
                 num_gpus_to_grab = int(math.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU
@@ -378,8 +381,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 output[-1] = output[-1].copy()
                 for cat in self.output_map:
                     lod_tensor = output[-1][cat]
-                    output[-1][cat] = lod_tensor_clip(
-                        lod_tensor, data_from_last_gpu)
+                    output[-1][cat] = lod_tensor_clip(lod_tensor, data_from_last_gpu)
                 return output
 
         return data_batches
@@ -480,21 +482,27 @@ class DALIClassificationIterator(DALIGenericIterator):
     next iteration will return ``[2, 3]``
     """
 
-    def __init__(self,
-                 pipelines,
-                 size=-1,
-                 reader_name=None,
-                 auto_reset=False,
-                 fill_last_batch=None,
-                 dynamic_shape=False,
-                 last_batch_padded=False,
-                 last_batch_policy=LastBatchPolicy.FILL,
-                 prepare_first_batch=True):
+    def __init__(
+        self,
+        pipelines,
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        fill_last_batch=None,
+        dynamic_shape=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+    ):
         super(DALIClassificationIterator, self).__init__(
-            pipelines, ["data", "label"], size, reader_name=reader_name,
+            pipelines,
+            ["data", "label"],
+            size,
+            reader_name=reader_name,
             auto_reset=auto_reset,
             fill_last_batch=fill_last_batch,
             dynamic_shape=dynamic_shape,
             last_batch_padded=last_batch_padded,
             last_batch_policy=last_batch_policy,
-            prepare_first_batch=prepare_first_batch)
+            prepare_first_batch=prepare_first_batch,
+        )

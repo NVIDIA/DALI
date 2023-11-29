@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,12 @@ import socket
 from contextlib import closing, contextmanager
 import numpy as np
 
-from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, \
-                                                SharedBatchMeta, deserialize_batch
+from nvidia.dali._multiproc.shared_batch import (
+    BufShmChunk,
+    SharedBatchWriter,
+    SharedBatchMeta,
+    deserialize_batch,
+)
 from nvidia.dali._multiproc.shared_queue import ShmQueue
 from nvidia.dali._multiproc.messages import ShmMessageDesc
 
@@ -34,15 +38,21 @@ def check_serialize_deserialize(batch):
         writer = SharedBatchWriter(shm_chunk, batch)
         batch_meta = SharedBatchMeta.from_writer(writer)
         deserialized_batch = deserialize_batch(shm_chunk, batch_meta)
-        assert len(batch) == len(
-            deserialized_batch), "Lengths before and after should be the same"
+        assert len(batch) == len(deserialized_batch), "Lengths before and after should be the same"
         for i in range(len(batch)):
             np.testing.assert_array_equal(batch[i], deserialized_batch[i])
 
 
 def test_serialize_deserialize():
-    for shapes in [[(10)], [(10, 20)], [(10, 20, 3)], [(1), (2)], [(2), (2, 3)],
-                   [(2, 3, 4), (2, 3, 5), (3, 4, 5)], []]:
+    for shapes in [
+        [(10)],
+        [(10, 20)],
+        [(10, 20, 3)],
+        [(1), (2)],
+        [(2), (2, 3)],
+        [(2, 3, 4), (2, 3, 5), (3, 4, 5)],
+        [],
+    ]:
         for dtype in [np.int8, np.float, np.int32]:
             yield check_serialize_deserialize, [np.full(s, 42, dtype=dtype) for s in shapes]
 
@@ -76,8 +86,10 @@ def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
         socket_r, socket_w = socket.socketpair()
     else:
         socket_r = None
-    proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue,
-                                           res_queue, worker_cb, worker_params))
+    proc = mp.Process(
+        target=worker,
+        args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params),
+    )
     proc.start()
     try:
         if start_method == "spawn":
@@ -127,13 +139,18 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         nonlocal count
         count += 1
         return count
-    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) \
-            as (task_queue, res_queue):
+
+    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) as (
+        task_queue,
+        res_queue,
+    ):
         all_msgs = []
         received = 0
         for send_msg, recv_msg in zip(send_msgs, recv_msgs):
-            msgs = [ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i())
-                    for i in range(send_msg)]
+            msgs = [
+                ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i())
+                for i in range(send_msg)
+            ]
             all_msgs.extend(msgs)
             _put_msgs(task_queue, msgs, send_one_by_one)
             for _ in range(recv_msg):
@@ -152,15 +169,14 @@ def test_queue_recv():
     for start_method in ("spawn", "fork"):
         for capacity, send_msg, recv_msg in zip(capacities, send_msgs, recv_msgs):
             for send_one_by_one in (True, False):
-                for worker_params in ({'num_samples': 1}, {'num_samples': None}):
-                    yield _test_queue_recv, start_method, worker_params, capacity, \
-                                            send_msg, recv_msg, send_one_by_one
+                for worker_params in ({"num_samples": 1}, {"num_samples": None}):
+                    yield _test_queue_recv, start_method, worker_params, capacity, send_msg, recv_msg, send_one_by_one
 
 
 def _test_queue_large(start_method, msg_values):
     with setup_queue_and_worker(
-            start_method, len(msg_values), copy_callback,
-            {'num_samples': None}) as (task_queue, res_queue):
+        start_method, len(msg_values), copy_callback, {"num_samples": None}
+    ) as (task_queue, res_queue):
         msg_instances = [ShmMessageDesc(*values) for values in msg_values]
         _put_msgs(task_queue, msg_instances, False)
         for values in msg_values:
@@ -174,9 +190,11 @@ def test_queue_large():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
     max_uint64 = 2**64 - 1
-    msgs = [(max_int32, max_int32, max_int32, max_int32, max_int32),
-            (max_int32, max_int32, max_uint32, max_uint32, max_uint32),
-            (max_int32, max_int32, max_uint64, max_uint64, max_uint64)]
+    msgs = [
+        (max_int32, max_int32, max_int32, max_int32, max_int32),
+        (max_int32, max_int32, max_uint32, max_uint32, max_uint32),
+        (max_int32, max_int32, max_uint64, max_uint64, max_uint64),
+    ]
     for start_method in ("spawn", "fork"):
         for msg in msgs:
             yield _test_queue_large, start_method, [msg]
@@ -185,10 +203,13 @@ def test_queue_large():
 def test_queue_large_failure():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
-    error_message = "Failed to serialize object as C-like structure. " \
-                    "Tried to populate following fields:"
+    error_message = (
+        "Failed to serialize object as C-like structure. " "Tried to populate following fields:"
+    )
     for start_method in ("spawn", "fork"):
-        yield raises(RuntimeError, error_message)(_test_queue_large), \
-            start_method, [(max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)]
-        yield raises(RuntimeError, error_message)(_test_queue_large), \
-            start_method, [(max_int32, max_int32, -1, 0, 0)]
+        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
+            (max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)
+        ]
+        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
+            (max_int32, max_int32, -1, 0, 0)
+        ]

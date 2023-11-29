@@ -20,14 +20,13 @@ from nvidia.dali._autograph.operators import data_structures
 
 
 class ListTest(unittest.TestCase):
+    def test_append_python(self):
+        l = []
+        self.assertEqual(data_structures.list_append(l, 1), [1])
+        self.assertEqual(data_structures.list_append(l, 2), [1, 2])
 
-  def test_append_python(self):
-    l = []
-    self.assertEqual(data_structures.list_append(l, 1), [1])
-    self.assertEqual(data_structures.list_append(l, 2), [1, 2])
-
-  def test_pop_python(self):
-    l = [1, 2, 3]
-    opts = data_structures.ListPopOpts(element_dtype=None, element_shape=())
-    self.assertEqual(data_structures.list_pop(l, None, opts), ([1, 2], 3))
-    self.assertEqual(data_structures.list_pop(l, None, opts), ([1], 2))
+    def test_pop_python(self):
+        l = [1, 2, 3]
+        opts = data_structures.ListPopOpts(element_dtype=None, element_shape=())
+        self.assertEqual(data_structures.list_pop(l, None, opts), ([1, 2], 3))
+        self.assertEqual(data_structures.list_pop(l, None, opts), ([1], 2))

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import torch
 from torch.multiprocessing import Process
+
 # we need this import to check if it is safe to import DALI and not touch the CUDA runtime
 # that could crash forked process
 import nvidia.dali as dali  # noqa:F401
