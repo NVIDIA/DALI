@@ -20,7 +20,7 @@ from typing import Any, Union, TypeAlias, Protocol
 class ArrayInterface(Protocol):
     """
     Protocol representing classes that are compatible with NumPy array interface.
-    Such classes can be used to represent multi-dimensional arrays - that it tensors.
+    Such classes can be used to represent multi-dimensional arrays - that is tensors.
     DALI can accept NumPy, PyTorch and Apache MXNet tensor objects as a constant parameter
     to its operators. Such parameter would be broadcast for all samples in the batch.
     """
@@ -32,7 +32,7 @@ class ArrayInterface(Protocol):
 class CudaArrayInterface(Protocol):
     """
     Protocol representing classes that are compatible with Numba CUDA Array Interface.
-    Such classes can be used to represent multi-dimensional arrays - that it tensors, residing
+    Such classes can be used to represent multi-dimensional arrays - that is tensors, residing
     on the GPU memory. DALI can accept such objects as data source for External Source operator.
     """
 
