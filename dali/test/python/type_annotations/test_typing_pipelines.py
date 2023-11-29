@@ -154,6 +154,34 @@ def test_rn50_ops_pipe():
     assert isinstance(labels, tensors.TensorListGPU)
 
 
+@attr('pytorch')
+def test_copy_tensor_constant():
+    import torch   # type: ignore
+
+    @pipeline_def(batch_size=10, device_id=0, num_threads=4)
+    def const_copy_pipe():
+        const_int = fn.copy(1)
+        const_float = fn.copy(2.0)
+        const_list = fn.copy([2, 3])
+        const_tuple = fn.copy((4, 5))
+        const_torch = fn.copy(torch.full((1, 1), 6))
+        const_np = fn.copy(np.full((1, 1), 7))
+        expect_data_node(const_int, const_float, const_list, const_tuple, const_torch, const_np)
+        return const_int, const_float, const_list, const_tuple, const_torch, const_np
+
+    pipe = const_copy_pipe()
+    expect_pipeline(pipe)
+    pipe.build()
+    const_int, const_float, const_list, const_tuple, const_torch, const_np = pipe.run()
+    expect_tensor_list(const_int, const_float, const_list, const_tuple, const_torch, const_np)
+    assert np.array_equal(np.array(const_int.as_tensor()), np.full((10,), 1))
+    assert np.array_equal(np.array(const_float.as_tensor()), np.full((10,), 2.0))
+    assert np.array_equal(np.array(const_list.as_tensor()), np.full((10, 2), [2, 3]))
+    assert np.array_equal(np.array(const_tuple.as_tensor()), np.full((10, 2), [4, 5]))
+    assert np.array_equal(np.array(const_torch.as_tensor()), np.full((10, 1, 1), 6))
+    assert np.array_equal(np.array(const_np.as_tensor()), np.full((10, 1, 1), 7))
+
+
 def test_cond_pipe():
 
     @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
