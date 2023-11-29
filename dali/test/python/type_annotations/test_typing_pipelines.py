@@ -51,7 +51,8 @@ def test_rn50_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            name="FileReader",
         )
         imgs = fn.decoders.image(enc, device="mixed")
         rng = fn.random.coin_flip(probability=0.5)
@@ -143,7 +144,8 @@ def test_rn50_ops_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4)
     def rn50_ops_pipe():
         Reader = ops.readers.File(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            name="FileReader",
         )
         Decoder = ops.decoders.Image(device="mixed")
         Rng = ops.random.CoinFlip(probability=0.5)
@@ -206,7 +208,8 @@ def test_cond_pipe():
     @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
     def cond_pipe():
         enc, label = fn.readers.file(
-            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")], name="FileReader"
+            files=[str(_test_root / "db/single/jpeg/113/snail-4291306_1280.jpg")],
+            name="FileReader",
         )
         imgs = fn.decoders.image(enc, device="mixed")
         resized = fn.crop(imgs, crop=[224, 224])
@@ -270,17 +273,19 @@ def test_python_function_pipe():
             ),
         )
         fn.python_function(zeros, function=print, num_outputs=0)
+        ten_from_constant = fn.python_function(10, function=lambda y: y)
         expect_data_node(zeros, zeros_2, ones, twos)
-        return zeros + twos - twos, zeros_2, ones
+        return zeros + twos - twos, zeros_2, ones, ten_from_constant
 
     pipe = fn_pipe()
     expect_pipeline(pipe)
     pipe.build()
-    out0, out1, out2 = pipe.run()
-    expect_tensor_list(out0, out1, out2)
+    out0, out1, out2, out3 = pipe.run()
+    expect_tensor_list(out0, out1, out2, out3)
     assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 10, 1), 0))
     assert np.array_equal(np.array(out2.as_tensor()), np.full((2, 10, 1), 1))
+    assert np.array_equal(np.array(out3.as_tensor()), np.full((2,), 10))
 
 
 @attr("pytorch")
@@ -353,10 +358,20 @@ def test_numba_plugin():
             ins_ndim=[1],
             batch_processing=False,
         )
-        return out
+        out_from_const = dali_numba.fn.experimental.numba_function(
+            [42],
+            run_fn=double_sample,
+            out_types=[types.DALIDataType.INT32],
+            in_types=[types.DALIDataType.INT32],
+            outs_ndim=[1],
+            ins_ndim=[1],
+            batch_processing=False,
+        )
+        return out, out_from_const
 
     pipe = numba_pipe()
     pipe.build()
-    (out,) = pipe.run()
-    expect_tensor_list(out)
-    assert np.array_equal(np.array(out.as_tensor()), np.full((2, 2), 84))
+    out0, out1 = pipe.run()
+    expect_tensor_list(out0, out1)
+    assert np.array_equal(np.array(out0.as_tensor()), np.full((2, 2), 84))
+    assert np.array_equal(np.array(out1.as_tensor()), np.full((2, 1), 84))

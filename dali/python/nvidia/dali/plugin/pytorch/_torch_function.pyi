@@ -18,6 +18,7 @@ from typing import Union, Optional
 from typing import Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
+from nvidia.dali._typing import TensorLikeIn
 
 class TorchPythonFunction:
     """Executes a function that is operating on Torch tensors"""
@@ -41,7 +42,7 @@ class TorchPythonFunction:
     def __call__(
         self,
         /,
-        *input: DataNode,
+        *input: Union[DataNode, TensorLikeIn],
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,

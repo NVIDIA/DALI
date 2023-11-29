@@ -17,6 +17,7 @@ from typing import Any, Optional, Union, List, Sequence, Callable
 from nvidia.dali.data_node import DataNode
 
 from nvidia.dali.types import DALIDataType
+from nvidia.dali._typing import TensorLikeIn
 
 class NumbaFunction:
     """Invokes a njit compiled Numba function.
@@ -42,12 +43,12 @@ class NumbaFunction:
     ) -> None: ...
     def __call__(
         self,
-        __input_0: DataNode,
-        __input_1: Optional[DataNode] = None,
-        __input_2: Optional[DataNode] = None,
-        __input_3: Optional[DataNode] = None,
-        __input_4: Optional[DataNode] = None,
-        __input_5: Optional[DataNode] = None,
+        __input_0: Union[DataNode, TensorLikeIn],
+        __input_1: Union[DataNode, TensorLikeIn, None] = None,
+        __input_2: Union[DataNode, TensorLikeIn, None] = None,
+        __input_3: Union[DataNode, TensorLikeIn, None] = None,
+        __input_4: Union[DataNode, TensorLikeIn, None] = None,
+        __input_5: Union[DataNode, TensorLikeIn, None] = None,
         /,
         *,
         run_fn: Optional[Callable[..., None]] = None,
