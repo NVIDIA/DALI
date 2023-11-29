@@ -15,6 +15,7 @@
 #include <cuda_runtime.h>
 #include <tuple>
 #include "dali/core/float16.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu_impl.cuh"
@@ -192,9 +193,14 @@ void SliceFlipNormalizeGPU<Out, In, spatial_ndim, channel_dim>::Run(
     sample.norm_mul = norm_mul_gpu + i * nchannels_;
     sample.fill_values = fill_values_gpu + i * out_nchannels_;
   }
-
+  int max_blocks = 0;
+  if (need_pad) {
+    max_blocks = MaxThreadsPerBlock(SliceNormalizeKernel_2D<Out, In>);
+  } else {
+    max_blocks = MaxThreadsPerBlock(SliceNormalizeKernel_2D_NoPad<Out, In>);
+  }
   block_setup_.SetDefaultBlockSize({64, 64});
-  block_setup_.SetBlockDim(dim3(32, 32, 1));
+  block_setup_.SetBlockDim(dim3(32, max_blocks / 32));
   block_setup_.SetupBlocks(out_shape_orig_, true);
   auto tiles_cpu = block_setup_.Blocks();
   auto grid_dim = block_setup_.GridDim();
