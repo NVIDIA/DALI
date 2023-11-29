@@ -127,9 +127,6 @@ def mosaic(images, bboxes, labels, image_size):
     perm_LR, bboxes_LR, labels_LR, in_anchor_LR, size_LR = \
         generate_tiles(bboxes, labels, pix1_x, pix1_y)
 
-    zeros_i = dali.types.Constant(0)
-    zeros_f = dali.types.Constant(0.0)
-
     idx = dali.fn.stack(perm_UL, perm_UR, perm_LL, perm_LR)
     out_anchors = dali.fn.stack(
         dali.fn.stack(0, 0),
@@ -145,9 +142,9 @@ def mosaic(images, bboxes, labels, image_size):
     )
 
 
-    bboxes_UL = bbox_adjust_ltrb(bboxes_UL, prop0_x, prop0_y, zeros_f, zeros_f)
-    bboxes_UR = bbox_adjust_ltrb(bboxes_UR, prop1_x, prop0_y, prop0_x, zeros_f)
-    bboxes_LL = bbox_adjust_ltrb(bboxes_LL, prop0_x, prop1_y, zeros_f, prop0_y)
+    bboxes_UL = bbox_adjust_ltrb(bboxes_UL, prop0_x, prop0_y, 0.0, 0.0)
+    bboxes_UR = bbox_adjust_ltrb(bboxes_UR, prop1_x, prop0_y, prop0_x, 0.0)
+    bboxes_LL = bbox_adjust_ltrb(bboxes_LL, prop0_x, prop1_y, 0.0, prop0_y)
     bboxes_LR = bbox_adjust_ltrb(bboxes_LR, prop1_x, prop1_y, prop0_x, prop0_y)
     stacked_bboxes = dali.fn.cat(bboxes_UL, bboxes_UR, bboxes_LL, bboxes_LR)
     stacked_labels = dali.fn.cat(labels_UL, labels_UR, labels_LL, labels_LR)
