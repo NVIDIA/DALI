@@ -16,12 +16,12 @@ import threading
 
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, _data_iterator_impl
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, DataNode
 
 from clu.data.dataset_iterator import ArraySpec, ElementSpec
 import concurrent.futures
 
-from typing import Union, Optional, Callable, Dict, List
+from typing import Union, Optional, Callable, Dict, List, Tuple
 
 import jax
 from jax.sharding import Sharding
@@ -211,7 +211,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             complete.
 
         Returns:
-           concurent.futures.Future: future that will return dictionary of jax.Array
+           concurrent.futures.Future: future that will return dictionary of jax.Array
                                      objects with the next element from the iterator.
         """
         if self._pool is None:
@@ -235,7 +235,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
 
 def peekable_data_iterator(
-        pipeline_fn: Optional[Callable] = None,
+        pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]] = None,
         output_map: List[str] = [],
         size: int = -1,
         reader_name: Optional[str] = None,

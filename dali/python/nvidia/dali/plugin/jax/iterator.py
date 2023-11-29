@@ -19,11 +19,11 @@ from jax.sharding import NamedSharding, PositionalSharding, Sharding
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.pipeline import pipeline_def
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, DataNode
 
 from nvidia.dali.plugin.jax.integration import _to_jax_array
 
-from typing import Union, Optional, Callable, Type, Dict, List
+from typing import Union, Optional, Callable, Type, Dict, List, Tuple
 
 
 class DALIGenericIterator(_DaliBaseIterator):
@@ -247,7 +247,7 @@ def default_num_threads_value() -> int:
 
 def _data_iterator_impl(
         iterator_type: Type[DALIGenericIterator],
-        pipeline_fn: Optional[Callable],
+        pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]],
         output_map: List[str],
         size: int = -1,
         reader_name: Optional[str] = None,
@@ -342,7 +342,7 @@ def _data_iterator_impl(
 
 
 def data_iterator(
-        pipeline_fn: Optional[Callable] = None,
+        pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]] = None,
         output_map: List[str] = [],
         size: int = -1,
         reader_name: Optional[str] = None,
