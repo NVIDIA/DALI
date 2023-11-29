@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ def test_color_twist_default_dtype():
     def impl(op, device, type):
         @pipeline_def(batch_size=1, num_threads=3, device_id=0)
         def pipeline():
-            data = fn.constant(idata=255, shape=(10, 10, 3), dtype=type, device=device)
+            data = types.Constant(255, shape=(10, 10, 3), dtype=type, device=device)
             return op(data)
 
         pipe = pipeline()

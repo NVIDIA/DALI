@@ -463,7 +463,7 @@ class CudaHttpPackage(CudaPackage):
 
 
 all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
-                PlainPackage("opencv-python", [PckgVer("4.5.4.60", dependencies=["numpy<1.24"])]),
+                PlainPackage("opencv-python", [PckgVer("4.8.1.78", dependencies=["numpy<1.24"])]),
                 CudaPackage("cupy",
                             {"118": [PckgVer("12.2.0", python_min_ver="3.8",
                                              dependencies=["numpy<1.24"])]},
@@ -485,7 +485,7 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                                        dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("paddlepaddle-gpu",
-                                      {"110": [PckgVer("2.5.0.post118",
+                                      {"110": [PckgVer("2.5.2.post117",
                                                        dependencies=["protobuf<4", "numpy<1.24"])]},
                                       links_index="https://www.paddlepaddle.org.cn/"
                                                   "whl/linux/mkl/avx/stable.html"),

@@ -642,7 +642,7 @@ def test_es_device_change():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def nan_check_pipeline(source):
-    return fn.constant(fdata=next(source))
+    return fn.constant(fdata=next(source), shape=())  # TODO: Constant handling in debug mode
 
 
 def _test_nan_check(values):
@@ -666,7 +666,7 @@ def test_debug_pipeline_conditionals():
     @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=False)
     def pipeline_split_merge():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-        input = fn.constant(idata=[10], shape=[])
+        input = types.Constant(10, device="cpu")  # TODO: Consant handling in debug mode
         true, false = fn._conditional.split(input, predicate=pred)
         output_true = true + 2
         output_false = false + 100
@@ -678,7 +678,7 @@ def test_debug_pipeline_conditionals():
     @pipeline_def(batch_size=8, num_threads=3, device_id=0, enable_conditionals=True)
     def pipeline_cond():
         pred = fn.random.coin_flip(seed=42, dtype=types.BOOL)
-        input = fn.constant(idata=[10], shape=[])
+        input = types.Constant(10, device="cpu")  # TODO: Consant handling in debug mode
         print(f"Pred: {pred}")
         if pred:
             output = input + 2

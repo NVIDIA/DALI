@@ -96,9 +96,9 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+                values compatible with pmapped JAX functions, if multiple pipelines are provided.
 
     Example
     -------
@@ -243,7 +243,8 @@ def peekable_data_iterator(
         last_batch_padded: bool = False,
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
-        sharding: Optional[Sharding] = None):
+        sharding: Optional[Sharding] = None,
+        devices: Optional[List[jax.Device]] = None):
     """Decorator for DALI pipelines that returns a peekable iterator. Compatible with Google CLU
     PeekableIterator. It supports peeking the next element in the iterator without advancing the
     iterator.
@@ -251,7 +252,7 @@ def peekable_data_iterator(
     Parameters
     ----------
     pipeline_fn function:
-                Function to be decorated. It should be comaptible with
+                Function to be decorated. It should be compatible with
                 :meth:`nvidia.dali.pipeline.pipeline_def` decorator.
                 For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
     output_map : list of str
@@ -300,9 +301,15 @@ def peekable_data_iterator(
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
-                build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+                build an output jax.Array for each category. Iterator will return outputs
+                compatible with automatic parallelization in JAX.
+                This argument is mutually exclusive with `devices` argument. If `devices` is
+                provided, `sharding` should be set to None.
+    devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
+                return outputs compatible with pmapped JAX functions.
+                This argument is mutually exclusive with `sharding` argument. If `sharding`
+                is provided, `devices` should be set to None.
 
     Example
     -------
@@ -333,4 +340,5 @@ def peekable_data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding)
+        sharding,
+        devices)

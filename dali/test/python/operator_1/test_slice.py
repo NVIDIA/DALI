@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -895,7 +895,7 @@ def test_empty_axes():
 def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
+        fake_data = types.Constant(0, shape=[10, 10, 3], dtype=types.FLOAT, device=device)
         axes = fn.random.uniform(range=wrong_axes_range, shape=(2,), dtype=types.INT32)
         rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT)
         rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT)
@@ -960,7 +960,7 @@ def test_gpu_args():
 def test_wrong_arg_backend():
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
+        fake_data = types.Constant(0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
         rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device="gpu")
         rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device="gpu")
         sliced = fn.slice(fake_data, rel_start, rel_shape, device="cpu")
@@ -975,7 +975,7 @@ def test_wrong_arg_backend():
 def test_wrong_backend_named_args():
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
+        fake_data = types.Constant(0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
         rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device="gpu")
         rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device="gpu")
         sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, device="cpu")

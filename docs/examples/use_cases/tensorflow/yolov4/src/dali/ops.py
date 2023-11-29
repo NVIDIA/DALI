@@ -1,4 +1,4 @@
-# Copyright 2021 Kacper Kluk, Piotr Kowalewski. All Rights Reserved.
+# Copyright 2021-2023 Kacper Kluk, Piotr Kowalewski. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,10 +61,7 @@ def select(predicate, if_true, if_false):
     joined = dali.fn.cat(if_true, if_false)
     sh = predicate * true_shape + (1 - predicate) * false_shape
 
-    st = dali.fn.cat(
-            dali.fn.slice(true_shape * (1 - predicate), start=[0], shape=[1], axes=[0]),
-            dali.fn.constant(idata=0, shape=[1])
-        )
+    st = dali.fn.stack(true_shape[0] * (1 - predicate), 0)
 
     return dali.fn.slice(joined, start=st, shape=sh, axes=[0,1], out_of_bounds_policy="trim_to_shape")
 

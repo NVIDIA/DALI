@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -107,10 +107,10 @@ DLL_PUBLIC void ParseManifest(std::vector<NemoAsrEntry> &entries, std::istream &
 
 }  // namespace detail
 
-class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
+class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
  public:
   explicit inline NemoAsrLoader(const OpSpec &spec)
-      : Loader<CPUBackend, AsrSample>(spec),
+      : Loader<CPUBackend, AsrSample, true>(spec),
         manifest_filepaths_(spec.GetRepeatedArgument<std::string>("manifest_filepaths")),
         shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
         sample_rate_(spec.GetArgument<float>("sample_rate")),
@@ -150,11 +150,13 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   ~NemoAsrLoader() override = default;
   void PrepareEmpty(AsrSample &sample) override;
   void ReadSample(AsrSample& sample) override;
+  void Skip() override;
 
  protected:
   void PrepareMetadataImpl() override;
   Index SizeImpl() override;
   void Reset(bool wrap_to_shard) override;
+  void RestoreStateImpl(const LoaderStateSnapshot &state) override;
 
  private:
   template <typename OutputType>

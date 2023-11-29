@@ -106,18 +106,23 @@ def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
+    iterator_decorator_args.remove("devices")
 
     # then
     assert iterator_decorator_args == iterator_init_args, \
         "Arguments for the iterator decorator and the iterator __init__ method do not match"
 
-    # Get docs for the docorator "Parameters" section
+    # Get docs for the decorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
+    # Skip everything after `sharding` argument as it differs between the two
     iterator_decorator_docs = inspect.getdoc(data_iterator)
     iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
+    iterator_decorator_docs = iterator_decorator_docs.split("sharding")[0]
 
+    # Get docs for the iterator __init__ method "Parameters" section
     iterator_init_docs = inspect.getdoc(DALIGenericIterator)
     iterator_init_docs = iterator_init_docs.split("output_map")[1]
+    iterator_init_docs = iterator_init_docs.split("sharding")[0]
 
     assert iterator_decorator_docs == iterator_init_docs, \
         "Documentation for the iterator decorator and the iterator __init__ method does not match"

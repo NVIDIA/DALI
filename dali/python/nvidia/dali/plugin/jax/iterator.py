@@ -81,9 +81,9 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+                values compatible with pmapped JAX functions, if multiple pipelines are provided.
 
     Example
     -------
@@ -197,7 +197,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def _build_output_with_device_put(self, next_output, category_name, category_outputs):
         """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
-        with pmppped JAX functions.
+        with pmapped JAX functions.
         """
         category_outputs_devices = tuple(map(
             lambda jax_shard: jax_shard.device(),
@@ -255,10 +255,15 @@ def _data_iterator_impl(
         last_batch_padded: bool = False,
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
-        sharding: Optional[Sharding] = None):
+        sharding: Optional[Sharding] = None,
+        devices: Optional[List[jax.Device]] = None):
     """ Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
     """
+
+    if sharding is not None and devices is not None:
+        raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
+
     def data_iterator_decorator(func):
         def create_iterator(*args, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
@@ -266,13 +271,23 @@ def _data_iterator_impl(
             if 'num_threads' not in wrapper_kwargs:
                 wrapper_kwargs['num_threads'] = default_num_threads_value()
 
-            if sharding is None:
+            if sharding is None and devices is None:
                 if 'device_id' not in wrapper_kwargs:
                     # Due to https://github.com/google/jax/issues/16024 the best we can do is to
                     # assume that the first device is the one we want to use.
                     wrapper_kwargs['device_id'] = 0
 
                 pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
+
+                return iterator_type(
+                    pipelines=pipelines,
+                    output_map=output_map,
+                    size=size,
+                    reader_name=reader_name,
+                    auto_reset=auto_reset,
+                    last_batch_padded=last_batch_padded,
+                    last_batch_policy=last_batch_policy,
+                    prepare_first_batch=prepare_first_batch)
             else:
                 pipelines = []
 
@@ -281,28 +296,46 @@ def _data_iterator_impl(
                 batch_size_per_gpu = global_batch_size // len(jax.devices())
                 wrapper_kwargs['batch_size'] = batch_size_per_gpu
 
-                for id, device in enumerate(jax.local_devices()):
+                devices_to_use = devices if devices is not None else jax.devices()
+
+                for id, device in enumerate(devices_to_use):
                     # How device_id, shard_id and num_shards are used in the pipeline
                     # is affected by: https://github.com/google/jax/issues/16024
+                    # TODO(awolant): Should this match device with index in jax.devices() as id?
+                    # This is connected with pmap experimental `devices` argument.
                     pipeline = pipeline_def_fn(
                         *args,
                         **wrapper_kwargs,
                         device_id=id,
                         shard_id=device.id,
-                        num_shards=len(jax.devices()))
+                        num_shards=len(devices_to_use))
 
                     pipelines.append(pipeline)
 
-            return iterator_type(
-                pipelines=pipelines,
-                output_map=output_map,
-                size=size,
-                reader_name=reader_name,
-                auto_reset=auto_reset,
-                last_batch_padded=last_batch_padded,
-                last_batch_policy=last_batch_policy,
-                prepare_first_batch=prepare_first_batch,
-                sharding=sharding)
+                if sharding is not None:
+                    return iterator_type(
+                        pipelines=pipelines,
+                        output_map=output_map,
+                        size=size,
+                        reader_name=reader_name,
+                        auto_reset=auto_reset,
+                        last_batch_padded=last_batch_padded,
+                        last_batch_policy=last_batch_policy,
+                        prepare_first_batch=prepare_first_batch,
+                        sharding=sharding)
+                elif devices is not None:
+                    return iterator_type(
+                        pipelines=pipelines,
+                        output_map=output_map,
+                        size=size,
+                        reader_name=reader_name,
+                        auto_reset=auto_reset,
+                        last_batch_padded=last_batch_padded,
+                        last_batch_policy=last_batch_policy,
+                        prepare_first_batch=prepare_first_batch)
+
+                raise AssertionError(
+                    "This should not happen. Check `sharding` and `devices` arguments.")
 
         return create_iterator
     return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
@@ -317,7 +350,8 @@ def data_iterator(
         last_batch_padded: bool = False,
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
-        sharding: Optional[Sharding] = None):
+        sharding: Optional[Sharding] = None,
+        devices: Optional[List[jax.Device]] = None):
     """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
     iterator for JAX.
 
@@ -332,7 +366,7 @@ def data_iterator(
     Parameters
     ----------
     pipeline_fn function:
-                Function to be decorated. It should be comaptible with
+                Function to be decorated. It should be compatible with
                 :meth:`nvidia.dali.pipeline.pipeline_def` decorator.
                 For multigpu support it should accept `device_id`, `shard_id` and `num_shards` args.
     output_map : list of str
@@ -381,9 +415,15 @@ def data_iterator(
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
-                build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+                build an output jax.Array for each category. Iterator will return outputs
+                compatible with automatic parallelization in JAX.
+                This argument is mutually exclusive with `devices` argument. If `devices` is
+                provided, `sharding` should be set to None.
+    devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
+                return outputs compatible with pmapped JAX functions.
+                This argument is  mutually exclusive with `sharding` argument. If `sharding`
+                is provided, `devices` should be set to None.
 
     Example
     -------
@@ -414,4 +454,5 @@ def data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding)
+        sharding,
+        devices)
