@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,19 +30,12 @@ namespace dali {
  * @brief Gets the maximum number of threads per block for given kernel function on current device
  */
 template <typename KernelFunction>
-int MaxThreadsPerBlock(KernelFunction *f) {
-  static constexpr int kMaxDevices = 1024;
-  static int max_block_size[kMaxDevices] = {};
-  int device = 0;
-  CUDA_CALL(cudaGetDevice(&device));
-  assert(device >= 0 && device < kMaxDevices);
-  if (!max_block_size[device]) {
-    cudaFuncAttributes attr = {};
-    CUDA_CALL(cudaFuncGetAttributes(&attr, f));
-    max_block_size[device] = attr.maxThreadsPerBlock;
-  }
-  return max_block_size[device];
+inline int MaxThreadsPerBlock(KernelFunction *f) {
+  cudaFuncAttributes attr = {};
+  CUDA_CALL(cudaFuncGetAttributes(&attr, f));
+  return attr.maxThreadsPerBlock;
 }
+
 
 inline const cudaDeviceProp &GetDeviceProperties(int device_id = -1) {
   if (device_id < 0) {
