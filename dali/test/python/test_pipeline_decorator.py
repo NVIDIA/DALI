@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ from test_utils import get_dali_extra_path, compare_pipelines
 import os
 
 data_root = get_dali_extra_path()
-images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+images_dir = os.path.join(data_root, "db", "single", "jpeg")
 
 N_ITER = 2
 
@@ -66,16 +66,26 @@ def test_pipeline_static(flip_vertical, flip_horizontal):
 
 @nottest
 def test_pipeline_runtime(flip_vertical, flip_horizontal):
-    put_combined = pipeline_runtime(flip_vertical, flip_horizontal, batch_size=max_batch_size,
-                                    num_threads=num_threads, device_id=device_id)
+    put_combined = pipeline_runtime(
+        flip_vertical,
+        flip_horizontal,
+        batch_size=max_batch_size,
+        num_threads=num_threads,
+        device_id=device_id,
+    )
     ref = reference_pipeline(flip_vertical, flip_horizontal)
     compare_pipelines(put_combined, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
 @nottest
 def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
-    put_combined = pipeline_static(flip_vertical, flip_horizontal, batch_size=batch_size,
-                                   num_threads=num_threads, device_id=device_id)
+    put_combined = pipeline_static(
+        flip_vertical,
+        flip_horizontal,
+        batch_size=batch_size,
+        num_threads=num_threads,
+        device_id=device_id,
+    )
     ref = reference_pipeline(flip_vertical, flip_horizontal, ref_batch_size=batch_size)
     compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=N_ITER)
 
@@ -130,6 +140,6 @@ def test_is_pipeline_def():
     def pipe_conf():
         return 42
 
-    assert getattr(pipe, '_is_pipeline_def', False)
-    assert getattr(pipe_unconf, '_is_pipeline_def', False)
-    assert getattr(pipe_conf, '_is_pipeline_def', False)
+    assert getattr(pipe, "_is_pipeline_def", False)
+    assert getattr(pipe_unconf, "_is_pipeline_def", False)
+    assert getattr(pipe_conf, "_is_pipeline_def", False)

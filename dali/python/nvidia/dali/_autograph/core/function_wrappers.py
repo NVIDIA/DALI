@@ -23,55 +23,54 @@ from nvidia.dali._autograph.operators import variables
 
 
 class FunctionScope(object):
-  """Context manager that wraps the body of a converted function.
+    """Context manager that wraps the body of a converted function.
 
-  This context manager handles various operations related to the scope of a
-  function:
-    * optional TF name scopes - these name scopes match the name of the
-        function, for easy visualization in tensorBoard;
-    * optional automatic control dependencies - this adds the same mechanism
-        for control dependencies that is used by `@tf.function`; it can be
-        optionally enabled when using `tf.autograph.to_graph`;
-    * tracking of autograph conversion state (whether it's enabled by the user,
-        conversion options);
-  """
+    This context manager handles various operations related to the scope of a
+    function:
+      * optional TF name scopes - these name scopes match the name of the
+          function, for easy visualization in tensorBoard;
+      * optional automatic control dependencies - this adds the same mechanism
+          for control dependencies that is used by `@tf.function`; it can be
+          optionally enabled when using `tf.autograph.to_graph`;
+      * tracking of autograph conversion state (whether it's enabled by the user,
+          conversion options);
+    """
 
-  def __init__(self, function_name, scope_name, options):
-    self.name = scope_name
-    self.options = options
+    def __init__(self, function_name, scope_name, options):
+        self.name = scope_name
+        self.options = options
 
-    if options.user_requested:
-      self.autograph_ctx = ag_ctx.ControlStatusCtx(ag_ctx.Status.ENABLED,
-                                                   options)
-    self.callopts = options.call_options()
+        if options.user_requested:
+            self.autograph_ctx = ag_ctx.ControlStatusCtx(ag_ctx.Status.ENABLED, options)
+        self.callopts = options.call_options()
 
-  def _sanitize(self, name):
-    """See https://www.tensorflow.org/api_docs/python/tf/Graph#name_scope."""
-    # TensorFlow doesn't like leading underscores at the top level.
-    if name and name.startswith('_'):
-      name = 'fn' + name
-    return name
+    def _sanitize(self, name):
+        """See https://www.tensorflow.org/api_docs/python/tf/Graph#name_scope."""
+        # TensorFlow doesn't like leading underscores at the top level.
+        if name and name.startswith("_"):
+            name = "fn" + name
+        return name
 
-  def __enter__(self):
-    if self.options.user_requested:
-      self.autograph_ctx.__enter__()
-    return self
+    def __enter__(self):
+        if self.options.user_requested:
+            self.autograph_ctx.__enter__()
+        return self
 
-  def __exit__(self, exc_type, exc_val, exc_tb):
-    if self.options.user_requested:
-      self.autograph_ctx.__exit__(exc_type, exc_val, exc_tb)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.options.user_requested:
+            self.autograph_ctx.__exit__(exc_type, exc_val, exc_tb)
 
-  def ret(self, value, did_return):
-    """Marks a value as returned from the function guarded by the scope."""
-    del did_return
+    def ret(self, value, did_return):
+        """Marks a value as returned from the function guarded by the scope."""
+        del did_return
 
-    if isinstance(value, variables.UndefinedReturnValue):
-      return None
+        if isinstance(value, variables.UndefinedReturnValue):
+            return None
 
-    return value
+        return value
 
 
 def with_function_scope(thunk, scope_name, options):
-  """Inline version of the FunctionScope context manager."""
-  with FunctionScope('lambda_', scope_name, options) as scope:
-    return thunk(scope)
+    """Inline version of the FunctionScope context manager."""
+    with FunctionScope("lambda_", scope_name, options) as scope:
+        return thunk(scope)

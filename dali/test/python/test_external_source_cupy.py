@@ -51,8 +51,9 @@ def test_external_source_with_iter_cupy_stream():
             pipe.build()
 
             for i in range(10):
-                check_output(pipe.run(),
-                             [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
+                check_output(
+                    pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)]
+                )
 
 
 def test_external_source_mixed_contiguous():
@@ -70,9 +71,11 @@ def test_external_source_mixed_contiguous():
     pipe.set_outputs(fn.external_source(device="gpu", source=generator, no_copy=True))
     pipe.build()
 
-    pattern = "ExternalSource operator should not mix contiguous and noncontiguous inputs. " \
-              "In such a case the internal memory used to gather data in a contiguous chunk of " \
-              "memory would be trashed."
+    pattern = (
+        "ExternalSource operator should not mix contiguous and noncontiguous inputs. "
+        "In such a case the internal memory used to gather data in a contiguous chunk of "
+        "memory would be trashed."
+    )
     with check_output_pattern(pattern):
         for _ in range(iterations):
             pipe.run()
@@ -100,15 +103,15 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
         return data
 
     with pipe:
-        pipe.set_outputs(fn.external_source(get_data, batch=False, device='gpu'))
+        pipe.set_outputs(fn.external_source(get_data, batch=False, device="gpu"))
 
     pipe.build()
     for i in range(10):
-        out, = pipe.run()
+        (out,) = pipe.run()
         assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
 
 
-@attr('multigpu')
+@attr("multigpu")
 def test_cross_device():
     if cp.cuda.runtime.getDeviceCount() > 1:
         for src in [0, 1]:
@@ -123,6 +126,7 @@ def _test_memory_consumption(device, test_case):
 
     if device == "cpu":
         import numpy as np
+
         fw = np
     else:
         fw = cp
@@ -132,24 +136,25 @@ def _test_memory_consumption(device, test_case):
 
         def cb(sample_info):
             return batch[sample_info.idx_in_batch]
+
         return cb
 
     def copy_sample():
-
         def cb(sample_info):
             return fw.full((1024, 1024, 4), sample_info.idx_in_batch, dtype=fw.int32)
+
         return cb
 
     def copy_batch():
-
         def cb():
             return fw.full((batch_size, 1024, 1024, 4), 42, dtype=fw.int32)
+
         return cb
 
     cases = {
-        'no_copy_sample': (no_copy_sample, True, False),
-        'copy_sample': (copy_sample, False, False),
-        'copy_batch': (copy_batch, False, True)
+        "no_copy_sample": (no_copy_sample, True, False),
+        "copy_sample": (copy_sample, False, False),
+        "copy_batch": (copy_batch, False, True),
     }
 
     cb, no_copy, batch_mode = cases[test_case]
@@ -157,6 +162,7 @@ def _test_memory_consumption(device, test_case):
     @pipeline_def
     def pipeline():
         return fn.external_source(source=cb(), device=device, batch=batch_mode, no_copy=no_copy)
+
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     pipe.build()
     for _ in range(num_iters):

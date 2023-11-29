@@ -20,19 +20,12 @@ from nvidia.dali._autograph.operators import conditional_expressions
 
 
 def _basic_expr(cond):
-  return conditional_expressions.if_exp(
-      cond,
-      lambda: 1,
-      lambda: 2,
-      'cond')
+    return conditional_expressions.if_exp(cond, lambda: 1, lambda: 2, "cond")
 
 
 class IfExpTest(unittest.TestCase):
-
-  def test_python(self):
-    self.assertEqual(_basic_expr(True), 1)
-    self.assertEqual(_basic_expr(False), 2)
-    self.assertEqual(
-        conditional_expressions.if_exp(True, lambda: 1, lambda: 2, ''), 1)
-    self.assertEqual(
-        conditional_expressions.if_exp(False, lambda: 1, lambda: 2, ''), 2)
+    def test_python(self):
+        self.assertEqual(_basic_expr(True), 1)
+        self.assertEqual(_basic_expr(False), 2)
+        self.assertEqual(conditional_expressions.if_exp(True, lambda: 1, lambda: 2, ""), 1)
+        self.assertEqual(conditional_expressions.if_exp(False, lambda: 1, lambda: 2, ""), 2)

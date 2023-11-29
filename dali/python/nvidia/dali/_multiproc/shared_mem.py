@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,9 +46,9 @@ class SharedMem:
     def __getattr__(self, key):
         # lazily evaluate and cache 'buf' property, so that it is created only once
         # and only when requested
-        if key == 'buf':
+        if key == "buf":
             buf = self.shm.buf()
-            self.__dict__['buf'] = buf
+            self.__dict__["buf"] = buf
             return buf
         raise AttributeError
 
@@ -94,8 +94,8 @@ class SharedMem:
         via another SharedMem instance (possibly in another process), pass new size and
         trunc=False to simply adjust mmaping of the memory into the current process address space.
         """
-        if 'buf' in self.__dict__:
-            del self.__dict__['buf']
+        if "buf" in self.__dict__:
+            del self.__dict__["buf"]
         self.shm.resize(size, trunc)
         self.capacity = size
 
@@ -111,8 +111,8 @@ class SharedMem:
 
     def close_handle(self):
         """Closes OS handle for underlying shared memory. From now on, the process cannot resize the
-           underlying memory with this handle but still can adjust the mapping if the underlying
-           shared memory is resized, for instance, by another process.
-           This means that call to resize with ``trunc``= True will be illegal.
+        underlying memory with this handle but still can adjust the mapping if the underlying
+        shared memory is resized, for instance, by another process.
+        This means that call to resize with ``trunc``= True will be illegal.
         """
         self.shm.close_handle()

@@ -18,13 +18,18 @@ from pathlib import Path
 
 from nvidia.dali.ops import _signatures
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Produces .pyi stub files for nvidia.dali.fn and nvidia.dali.ops modules')
+        description="Produces .pyi stub files for nvidia.dali.fn and nvidia.dali.ops modules"
+    )
     parser.add_argument(
-        '--wheel_path', type=str,
-        help=('Path to the `nvidia/dali/` directory inside the wheel, before packaging,'
-              ' for example: "/opt/dali/build/dali/python/nvidia/dali".'))
+        "--wheel_path",
+        type=str,
+        help=(
+            "Path to the `nvidia/dali/` directory inside the wheel, before packaging,"
+            ' for example: "/opt/dali/build/dali/python/nvidia/dali".'
+        ),
+    )
     args = parser.parse_args()
 
     print(f"Generating signatures for {args.wheel_path=}")

@@ -66,8 +66,9 @@ def test_select_impls():
         label = types.Constant(np.array(1), device="cpu")
         ops = [rotate, color]
         op_idx = fn.random.uniform(values=list(range(len(ops))))
-        image, label = select(ops, op_idx, image=image, label=label,
-                              unpacking_select=unpacking_select)
+        image, label = select(
+            ops, op_idx, image=image, label=label, unpacking_select=unpacking_select
+        )
         return image, label
 
     pipe_unpacking = pipeline(unpacking_select=True)
@@ -80,19 +81,18 @@ def test_select_impls():
 
 
 def test_dicts():
-
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
     def pipeline():
         pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
         if pred:
-            out = {'out': np.array(2)}
+            out = {"out": np.array(2)}
         else:
-            out = {'out': np.array(1)}
-        return out['out']
+            out = {"out": np.array(1)}
+        return out["out"]
 
     pipe = pipeline()
     pipe.build()
-    out, = pipe.run()
+    (out,) = pipe.run()
     check_batch(out, [i % 2 + 1 for i in range(8)])
 
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
@@ -100,19 +100,18 @@ def test_dicts():
         pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
         data = types.Constant(np.array(42), device="cpu")
         if pred:
-            out = {'out': data - 1}
+            out = {"out": data - 1}
         else:
-            out = {'out': data + 1}
-        return out['out']
+            out = {"out": data + 1}
+        return out["out"]
 
     pipe_op = pipeline_op()
     pipe_op.build()
-    out, = pipe_op.run()
+    (out,) = pipe_op.run()
     check_batch(out, [41 if i % 2 else 43 for i in range(8)])
 
 
 def test_tuples():
-
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
     def pipeline():
         pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
@@ -126,31 +125,38 @@ def test_tuples():
 
     pipe = pipeline()
     pipe.build()
-    a, b, c, = pipe.run()
+    (
+        a,
+        b,
+        c,
+    ) = pipe.run()
     check_batch(a, [42 if i % 2 else -10 for i in range(8)])
     check_batch(b, [52 if i % 2 else 42 for i in range(8)])
     check_batch(c, [62 if i % 2 else 84 for i in range(8)])
 
 
 def test_nesting_error():
-
     @pipeline_def(enable_conditionals=True, num_threads=4, batch_size=8, device_id=0)
     def pipeline():
         pred = fn.external_source(source=lambda x: np.array(x.idx_in_batch % 2), batch=False)
         if pred:
-            out = {'out': np.array(2), 'mismatched': np.array(9999)}
+            out = {"out": np.array(2), "mismatched": np.array(9999)}
         else:
-            out = {'out': np.array(1)}
+            out = {"out": np.array(1)}
         return out
 
     with assert_raises(
-            ValueError, glob=("*Divergent data found in different branches of `if/else` control"
-                              " flow statement. Variables in all code paths are merged into common"
-                              " output batches. The values assigned to a given variable need to"
-                              " have the same nesting structure in every code path"
-                              " (both `if` branches).*"
-                              "*The two structures don't have the same nested structure*"
-                              "*The two dictionaries don't have the same set of keys."
-                              " First structure has keys type=list str=*'out', 'mismatched'*,"
-                              " while second structure has keys type=list str=*'out'*")):
+        ValueError,
+        glob=(
+            "*Divergent data found in different branches of `if/else` control"
+            " flow statement. Variables in all code paths are merged into common"
+            " output batches. The values assigned to a given variable need to"
+            " have the same nesting structure in every code path"
+            " (both `if` branches).*"
+            "*The two structures don't have the same nested structure*"
+            "*The two dictionaries don't have the same set of keys."
+            " First structure has keys type=list str=*'out', 'mismatched'*,"
+            " while second structure has keys type=list str=*'out'*"
+        ),
+    ):
         _ = pipeline()

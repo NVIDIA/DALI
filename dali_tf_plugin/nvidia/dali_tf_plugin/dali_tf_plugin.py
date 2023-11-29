@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,16 +26,19 @@ def load_dali_tf_plugin():
         return _dali_tf_module
 
     import nvidia.dali as dali  # Make sure DALI lib is loaded
+
     assert dali
-    tf_plugins = glob.glob(os.path.join(os.path.dirname(
-        os.path.realpath(__file__)), 'libdali_tf*.so'))
+    tf_plugins = glob.glob(
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "libdali_tf*.so")
+    )
     # Order: 'current', prebuilt for current TF version, prebuilt for other TF versions
     tf_version = re.search(r"(\d+.\d+).\d+", tf.__version__).group(1)
-    tf_version_underscore = tf_version.replace('.', '_')
-    dali_tf_current = list(filter(lambda x: 'current' in x, tf_plugins))
+    tf_version_underscore = tf_version.replace(".", "_")
+    dali_tf_current = list(filter(lambda x: "current" in x, tf_plugins))
     dali_tf_prebuilt_tf_ver = list(filter(lambda x: tf_version_underscore in x, tf_plugins))
     dali_tf_prebuilt_others = list(
-        filter(lambda x: 'current' not in x and tf_version_underscore not in x, tf_plugins))
+        filter(lambda x: "current" not in x and tf_version_underscore not in x, tf_plugins)
+    )
     processed_tf_plugins = dali_tf_current + dali_tf_prebuilt_tf_ver + dali_tf_prebuilt_others
 
     first_error = None
@@ -50,6 +53,7 @@ def load_dali_tf_plugin():
                 first_error = error
     else:
         raise first_error or Exception(
-            'No matching DALI plugin found for installed TensorFlow version')
+            "No matching DALI plugin found for installed TensorFlow version"
+        )
 
     return _dali_tf_module

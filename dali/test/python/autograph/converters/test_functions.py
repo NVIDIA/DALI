@@ -25,93 +25,84 @@ CONSTANT = 1
 
 
 class FunctionTransformer(converter_testing.TestCase):
+    def test_basic(self):
+        def f(l):
+            """Docstring."""
+            a = 1
+            l += a
+            return l
 
-  def test_basic(self):
+        tr = self.transform(f, functions)
 
-    def f(l):
-      """Docstring."""
-      a = 1
-      l += a
-      return l
+        result = tr(CONSTANT)
+        self.assertEqual(2, result)
+        self.assertEqual("Docstring.", tr.__doc__)
 
-    tr = self.transform(f, functions)
+    def test_multiline_docstring(self):
+        def f():
+            """First sentence.
 
-    result = tr(CONSTANT)
-    self.assertEqual(2, result)
-    self.assertEqual('Docstring.', tr.__doc__)
+            Second sentence.
 
-  def test_multiline_docstring(self):
+            Returns:
+              Something.
+            """
+            return CONSTANT
 
-    def f():
-      """First sentence.
+        tr = self.transform(f, functions)
 
-      Second sentence.
+        result = tr()
+        self.assertEqual(CONSTANT, result)
+        self.assertIn("First sentence.", tr.__doc__)
+        self.assertIn("Second sentence.", tr.__doc__)
 
-      Returns:
-        Something.
-      """
-      return CONSTANT
+    def test_nested_functions(self):
+        def f(l):
+            def inner_fn(i):
+                return i + 1
 
-    tr = self.transform(f, functions)
+            l += 1
+            return l, inner_fn(l)
 
-    result = tr()
-    self.assertEqual(CONSTANT, result)
-    self.assertIn('First sentence.', tr.__doc__)
-    self.assertIn('Second sentence.', tr.__doc__)
+        tr = self.transform(f, (functions, return_statements))
 
-  def test_nested_functions(self):
+        first, second = tr(CONSTANT)
 
-    def f(l):
+    def test_conversion_context_preserves_in_inner_functions(self):
+        def inner_fn_callee():
+            self.assertEqual(ag_ctx.control_status_ctx().status, ag_ctx.Status.DISABLED)
 
-      def inner_fn(i):
-        return i + 1
+        def f():
+            def inner_fn():
+                inner_fn_callee()
 
-      l += 1
-      return l, inner_fn(l)
+            with ag_ctx.ControlStatusCtx(
+                ag_ctx.Status.DISABLED, converter.ConversionOptions(recursive=True)
+            ):
+                inner_fn()
 
-    tr = self.transform(f, (functions, return_statements))
+        tr = self.transform(f, functions)
 
-    first, second = tr(CONSTANT)
+        tr()
 
-  def test_conversion_context_preserves_in_inner_functions(self):
+    def test_method(self):
+        class TestClass(object):
+            def f(self, l):
+                def inner_fn(i):
+                    return i + 1
 
-    def inner_fn_callee():
-      self.assertEqual(
-          ag_ctx.control_status_ctx().status, ag_ctx.Status.DISABLED)
+                l += 1
+                return l, inner_fn(l)
 
-    def f():
-      def inner_fn():
-        inner_fn_callee()
-      with ag_ctx.ControlStatusCtx(
-          ag_ctx.Status.DISABLED, converter.ConversionOptions(recursive=True)):
-        inner_fn()
+        tr = self.transform(TestClass.f, (functions, return_statements))
 
-    tr = self.transform(f, functions)
+        first, second = tr(TestClass(), CONSTANT)
 
-    tr()
+    def test_lambda_in_return_value(self):
+        def f():
+            return lambda x: x + 1
 
-  def test_method(self):
+        tr = self.transform(f, functions)
 
-    class TestClass(object):
-
-      def f(self, l):
-
-        def inner_fn(i):
-          return i + 1
-
-        l += 1
-        return l, inner_fn(l)
-
-    tr = self.transform(TestClass.f, (functions, return_statements))
-
-    first, second = tr(TestClass(), CONSTANT)
-
-  def test_lambda_in_return_value(self):
-
-    def f():
-      return lambda x: x + 1
-
-    tr = self.transform(f, functions)
-
-    result_l = tr()
-    self.assertTrue(api.is_autograph_artifact(result_l))
+        result_l = tr()
+        self.assertTrue(api.is_autograph_artifact(result_l))

@@ -42,9 +42,10 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
         TensorGPU: DALI TensorGPU with provided shape and dtype filled
         with provided value.
     """
+
     @pipeline_def(num_threads=1, batch_size=1)
     def dali_pipeline():
-        values = types.Constant(value=np.full(shape, value, dtype), device='gpu')
+        values = types.Constant(value=np.full(shape, value, dtype), device="gpu")
 
         return values
 
@@ -56,8 +57,9 @@ def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
 
 
 def print_devices(process_id):
-    log.info(f"Local devices = {jax.local_device_count()}, "
-             f"global devices = {jax.device_count()}")
+    log.info(
+        f"Local devices = {jax.local_device_count()}, " f"global devices = {jax.device_count()}"
+    )
 
     log.info("All devices: ")
     print_devices_details(jax.devices(), process_id)
@@ -68,8 +70,10 @@ def print_devices(process_id):
 
 def print_devices_details(devices_list, process_id):
     for device in devices_list:
-        log.info(f"Id = {device.id}, platform = {device.platform}, "
-                 f"process_id = {device.process_index}, kind = {device.device_kind}")
+        log.info(
+            f"Id = {device.id}, platform = {device.platform}, "
+            f"process_id = {device.process_index}, kind = {device.device_kind}"
+        )
 
 
 def run_distributed_sharing_test(sharding, process_id):
@@ -78,14 +82,16 @@ def run_distributed_sharing_test(sharding, process_id):
     dali_local_shards = []
     for id, device in enumerate(jax.local_devices()):
         current_shard = dax.integration._to_jax_array(
-            get_dali_tensor_gpu(process_id, (1), np.int32, id))
+            get_dali_tensor_gpu(process_id, (1), np.int32, id)
+        )
 
         assert current_shard.device() == device
 
         dali_local_shards.append(current_shard)
 
     dali_sharded_array = jax.make_array_from_single_device_arrays(
-        shape=(jax.device_count(),), sharding=sharding, arrays=dali_local_shards)
+        shape=(jax.device_count(),), sharding=sharding, arrays=dali_local_shards
+    )
 
     assert len(dali_sharded_array.device_buffers) == jax.local_device_count()
 
@@ -103,8 +109,8 @@ def test_positional_sharding_workflow(process_id):
 
 
 def test_named_sharding_workflow(process_id):
-    mesh = Mesh(jax.devices(), axis_names=('device'))
-    sharding = NamedSharding(mesh, PartitionSpec('device'))
+    mesh = Mesh(jax.devices(), axis_names=("device"))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     run_distributed_sharing_test(sharding=sharding, process_id=process_id)
 
@@ -113,12 +119,10 @@ def test_named_sharding_workflow(process_id):
 
 def run_multiprocess_workflow(process_id=0, cluster_size=1):
     jax.distributed.initialize(
-        coordinator_address="localhost:12321",
-        num_processes=cluster_size,
-        process_id=process_id)
+        coordinator_address="localhost:12321", num_processes=cluster_size, process_id=process_id
+    )
 
-    log.basicConfig(
-        format=f"PID {process_id}: %(message)s", level=log.INFO)
+    log.basicConfig(format=f"PID {process_id}: %(message)s", level=log.INFO)
 
     print_devices(process_id=process_id)
 

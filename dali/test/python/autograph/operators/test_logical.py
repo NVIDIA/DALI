@@ -20,27 +20,26 @@ from nvidia.dali._autograph.operators import logical
 
 
 class LogicalOperatorsTest(unittest.TestCase):
+    def assertNotCalled(self):
+        self.fail("this should not be called")
 
-  def assertNotCalled(self):
-    self.fail('this should not be called')
+    def test_and_python(self):
+        self.assertTrue(logical.and_(lambda: True, lambda: True))
+        self.assertTrue(logical.and_(lambda: [1], lambda: True))
+        self.assertListEqual(logical.and_(lambda: True, lambda: [1]), [1])
 
-  def test_and_python(self):
-    self.assertTrue(logical.and_(lambda: True, lambda: True))
-    self.assertTrue(logical.and_(lambda: [1], lambda: True))
-    self.assertListEqual(logical.and_(lambda: True, lambda: [1]), [1])
+        self.assertFalse(logical.and_(lambda: False, lambda: True))
+        self.assertFalse(logical.and_(lambda: False, self.assertNotCalled))
 
-    self.assertFalse(logical.and_(lambda: False, lambda: True))
-    self.assertFalse(logical.and_(lambda: False, self.assertNotCalled))
+    def test_or_python(self):
+        self.assertFalse(logical.or_(lambda: False, lambda: False))
+        self.assertFalse(logical.or_(lambda: [], lambda: False))
+        self.assertListEqual(logical.or_(lambda: False, lambda: [1]), [1])
 
-  def test_or_python(self):
-    self.assertFalse(logical.or_(lambda: False, lambda: False))
-    self.assertFalse(logical.or_(lambda: [], lambda: False))
-    self.assertListEqual(logical.or_(lambda: False, lambda: [1]), [1])
+        self.assertTrue(logical.or_(lambda: False, lambda: True))
+        self.assertTrue(logical.or_(lambda: True, self.assertNotCalled))
 
-    self.assertTrue(logical.or_(lambda: False, lambda: True))
-    self.assertTrue(logical.or_(lambda: True, self.assertNotCalled))
-
-  def test_not_python(self):
-    self.assertFalse(logical.not_(True))
-    self.assertFalse(logical.not_([1]))
-    self.assertTrue(logical.not_([]))
+    def test_not_python(self):
+        self.assertFalse(logical.not_(True))
+        self.assertFalse(logical.not_([1]))
+        self.assertTrue(logical.not_([]))

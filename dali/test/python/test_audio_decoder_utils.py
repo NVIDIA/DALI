@@ -26,7 +26,8 @@ def rosa_resample(input, in_rate, out_rate):
 
     channels = [
         librosa.resample(np.array(input[:, c]), orig_sr=in_rate, target_sr=out_rate)
-        for c in range(input.shape[1])]
+        for c in range(input.shape[1])
+    ]
     ret = np.zeros(shape=[channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
     for c, a in enumerate(channels):
         ret[:, c] = a

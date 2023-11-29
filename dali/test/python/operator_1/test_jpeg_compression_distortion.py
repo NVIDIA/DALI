@@ -21,8 +21,8 @@ from test_utils import as_array
 import os
 import cv2
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
-images_dir = os.path.join(test_data_root, 'db', 'single', 'tiff')
+test_data_root = os.environ["DALI_EXTRA_PATH"]
+images_dir = os.path.join(test_data_root, "db", "single", "tiff")
 dump_images = False
 dump_broken = False
 sequence_length = 10
@@ -34,18 +34,18 @@ class InputImagesIter(object):
 
         # A bunch of images to be used as frames of a sequence
         filenames = [
-            'cat-3449999_640.tiff',
-            'cat-1046544_640.tiff',
-            'cat-1245673_640.tiff',
-            'cat-300572_640.tiff',
-            'cat-111793_640.tiff',
-            'domestic-cat-726989_640.tiff',
-            'cat-3504008_640.tiff',
-            'cat-3591348_640.tiff',
-            'cat-2184682_640.tiff',
-            'cat-3113513_640.tiff',
+            "cat-3449999_640.tiff",
+            "cat-1046544_640.tiff",
+            "cat-1245673_640.tiff",
+            "cat-300572_640.tiff",
+            "cat-111793_640.tiff",
+            "domestic-cat-726989_640.tiff",
+            "cat-3504008_640.tiff",
+            "cat-3591348_640.tiff",
+            "cat-2184682_640.tiff",
+            "cat-3113513_640.tiff",
         ]
-        self.files = [os.path.join(images_dir, '0', filename) for filename in filenames]
+        self.files = [os.path.join(images_dir, "0", filename) for filename in filenames]
         shuffle(self.files)
 
     def _load_next(self):
@@ -77,7 +77,7 @@ class InputImagesIter(object):
 def _compare_to_cv_distortion(in_img, out_img, q, no):
     bgr = cv2.cvtColor(in_img, cv2.COLOR_RGB2BGR)
     encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), q]
-    _, encoded_img = cv2.imencode('.jpg', bgr, params=encode_params)
+    _, encoded_img = cv2.imencode(".jpg", bgr, params=encode_params)
 
     decoded_img_bgr = cv2.imdecode(encoded_img, cv2.IMREAD_COLOR)
     decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
@@ -87,8 +87,9 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
 
     if dump_images or (dump_broken and not diff_in_range):
         i, j = no
-        cv2.imwrite(f"./reference_q{q}_sample{i}_{j}.bmp",
-                    cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
+        cv2.imwrite(
+            f"./reference_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB)
+        )
         cv2.imwrite(f"./output_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
 
     assert diff_in_range, f"Absolute difference with the reference is too big: {np.average(diff)}"
@@ -96,34 +97,35 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
 
 def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
     @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
-    def jpeg_distortion_pipe(device='cpu', quality=None):
-        if layout == 'FHWC':
+    def jpeg_distortion_pipe(device="cpu", quality=None):
+        if layout == "FHWC":
             iii = InputImagesIter(sequence_length)
-            in_tensors = fn.external_source(source=iii, layout='FHWC', batch=False)
+            in_tensors = fn.external_source(source=iii, layout="FHWC", batch=False)
         else:
             encoded, _ = fn.readers.file(file_root=images_dir)
-            in_tensors = fn.decoders.image(encoded, device='cpu')
+            in_tensors = fn.decoders.image(encoded, device="cpu")
 
-        inputs = in_tensors.gpu() if device == 'gpu' else in_tensors
+        inputs = in_tensors.gpu() if device == "gpu" else in_tensors
         if quality is None:
             quality = fn.random.uniform(range=[1, 99], dtype=types.INT32)
         out_tensors = fn.jpeg_compression_distortion(inputs, quality=quality)
         return (out_tensors, in_tensors, quality)
 
-    pipe = jpeg_distortion_pipe(device=device, quality=quality, batch_size=batch_size,
-                                num_threads=2, device_id=0)
+    pipe = jpeg_distortion_pipe(
+        device=device, quality=quality, batch_size=batch_size, num_threads=2, device_id=0
+    )
     pipe.build()
     for _ in range(3):
         out = pipe.run()
         assert out[0].layout() == layout
-        out_data = out[0].as_cpu() if device == 'gpu' else out[0]
+        out_data = out[0].as_cpu() if device == "gpu" else out[0]
         in_data = out[1]
         quality = out[2]
         for i in range(batch_size):
             out_tensor = np.array(out_data[i])
             in_tensor = np.array(in_data[i])
             q = int(np.array(quality[i]))
-            if layout == 'FHWC':
+            if layout == "FHWC":
                 for j in range(in_tensor.shape[0]):
                     _compare_to_cv_distortion(in_tensor[j], out_tensor[j], q, (i, j))
             else:
@@ -132,18 +134,18 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
 
 def test_jpeg_compression_distortion():
     for batch_size in [1, 15]:
-        for device in ['cpu', 'gpu']:
+        for device in ["cpu", "gpu"]:
             for quality in [2, None, 50]:
-                for layout in ['HWC', 'FHWC']:
+                for layout in ["HWC", "FHWC"]:
                     yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
 
 
 def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality):
     @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
-    def jpeg_distortion_pipe(device='cpu', quality=None):
+    def jpeg_distortion_pipe(device="cpu", quality=None):
         iii = InputImagesIter(seq_len)
-        inputs = fn.external_source(source=iii, layout='FHWC', batch=False)
-        if device == 'gpu':
+        inputs = fn.external_source(source=iii, layout="FHWC", batch=False)
+        if device == "gpu":
             inputs = inputs.gpu()
         if quality is None:
             quality = fn.random.uniform(range=[1, 99], dtype=types.INT32)
@@ -173,7 +175,12 @@ def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, 
 def test_jpeg_compression_distortion_sequence():
     seq_len = 10
     for batch_size in [1, 15]:
-        for device in ['cpu', 'gpu']:
+        for device in ["cpu", "gpu"]:
             for quality in [2, None, 50]:
-                yield _testimpl_jpeg_compression_distortion_sequence, batch_size, device, \
-                      seq_len, quality
+                yield (
+                    _testimpl_jpeg_compression_distortion_sequence,
+                    batch_size,
+                    device,
+                    seq_len,
+                    quality,
+                )

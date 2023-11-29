@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,16 +30,20 @@ class ExtCallbackTorch(utils.ExtCallback):
         return torch.tensor(super().__call__(sample_info))
 
 
-@raises(RuntimeError, "Error*starting Python worker threads for*parallel External Source*"
-                      "Cannot fork*CUDA has been initialized*"
-                      "*start_py_workers*fork*spawn*")
+@raises(
+    RuntimeError,
+    "Error*starting Python worker threads for*parallel External Source*"
+    "Cannot fork*CUDA has been initialized*"
+    "*start_py_workers*fork*spawn*",
+)
 def test_pytorch_cuda_context():
     # Create a dummy torch CUDA tensor so we acquire CUDA context
-    cuda0 = torch.device('cuda:0')
+    cuda0 = torch.device("cuda:0")
     _ = torch.ones([1, 1], dtype=torch.float32, device=cuda0)
     callback = utils.ExtCallback((4, 5), 10, np.int32)
-    pipe = utils.create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='fork',
-                             parallel=True)
+    pipe = utils.create_pipe(
+        callback, "cpu", 5, py_num_workers=6, py_start_method="fork", parallel=True
+    )
     pipe.start_py_workers()
 
 
@@ -49,14 +53,18 @@ def test_pytorch():
 
 class ExtCallbackTorchCuda(utils.ExtCallback):
     def __call__(self, sample_info):
-        return torch.tensor(super().__call__(sample_info), device=torch.device('cuda:0'))
+        return torch.tensor(super().__call__(sample_info), device=torch.device("cuda:0"))
 
 
-@raises(Exception, "Exception traceback received from worker thread*"
-                   "TypeError: Unsupported callback return type. GPU tensors*not supported*"
-                   "Got*PyTorch GPU tensor")
+@raises(
+    Exception,
+    "Exception traceback received from worker thread*"
+    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
+    "Got*PyTorch GPU tensor",
+)
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
-    pipe = utils.create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='spawn',
-                             parallel=True)
+    pipe = utils.create_pipe(
+        callback, "cpu", 5, py_num_workers=6, py_start_method="spawn", parallel=True
+    )
     utils.build_and_run_pipeline(pipe)

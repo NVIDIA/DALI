@@ -19,9 +19,10 @@ from nvidia.dali import types
 from nvidia.dali.auto_aug import augmentations as a
 from nvidia.dali.auto_aug.core import _Augmentation, Policy, signed_bin
 from nvidia.dali.auto_aug.core._args import forbid_unused_kwargs as _forbid_unused_kwargs
-from nvidia.dali.auto_aug.core._utils import \
-    get_translations as _get_translations, \
-    pretty_select as _pretty_select
+from nvidia.dali.auto_aug.core._utils import (
+    get_translations as _get_translations,
+    pretty_select as _pretty_select,
+)
 from nvidia.dali.data_node import DataNode as _DataNode
 
 try:
@@ -29,12 +30,13 @@ try:
 except ImportError:
     raise RuntimeError(
         "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
-        "Please install numpy to use the examples.")
+        "Please install numpy to use the examples."
+    )
 
 
 def auto_augment(
     data: _DataNode,
-    policy_name: str = 'image_net',
+    policy_name: str = "image_net",
     shape: Optional[Union[_DataNode, Tuple[int, int]]] = None,
     fill_value: Optional[int] = 128,
     interp_type: Optional[types.DALIInterpType] = None,
@@ -86,27 +88,29 @@ def auto_augment(
         A batch of transformed samples.
     """
     predefined_policies = {
-        'image_net': get_image_net_policy,
-        'reduced_image_net': get_reduced_image_net_policy,
-        'svhn': get_svhn_policy,
-        'reduced_cifar10': get_reduced_cifar10_policy,
+        "image_net": get_image_net_policy,
+        "reduced_image_net": get_reduced_image_net_policy,
+        "svhn": get_svhn_policy,
+        "reduced_cifar10": get_reduced_cifar10_policy,
     }
-    policies_without_translation = ('reduced_image_net', )
+    policies_without_translation = ("reduced_image_net",)
     shape_related_args = (
-        (shape, 'shape'),
-        (max_translate_abs, 'max_translate_abs'),
-        (max_translate_rel, 'max_translate_rel'),
+        (shape, "shape"),
+        (max_translate_abs, "max_translate_abs"),
+        (max_translate_rel, "max_translate_rel"),
     )
     if not isinstance(policy_name, str) or policy_name not in predefined_policies:
         policies_str = ", ".join([f"`{name}`" for name in predefined_policies.keys()])
         raise Exception(
-            f"The `policy_name` must be a string that takes one of the values: {policies_str}")
+            f"The `policy_name` must be a string that takes one of the values: {policies_str}"
+        )
     if policy_name in policies_without_translation:
         shape_arg = next((name for arg, name in shape_related_args if arg is not None), None)
         if shape_arg is not None:
             raise Exception(
                 f"The policy `{policy_name}` does not contain any augmentations that rely on the "
-                f"image shape. The `{shape_arg}` argument must not be specified in that case.")
+                f"image shape. The `{shape_arg}` argument must not be specified in that case."
+            )
 
     aug_kwargs = {"fill_value": fill_value, "interp_type": interp_type}
     use_shape = shape is not None
@@ -116,9 +120,11 @@ def auto_augment(
     if policy_name in policies_without_translation:
         policy = predefined_policies[policy_name]()
     else:
-        policy = predefined_policies[policy_name](use_shape=use_shape,
-                                                  max_translate_abs=max_translate_abs,
-                                                  max_translate_rel=max_translate_rel)
+        policy = predefined_policies[policy_name](
+            use_shape=use_shape,
+            max_translate_abs=max_translate_abs,
+            max_translate_rel=max_translate_rel,
+        )
 
     return apply_auto_augment(policy, data, seed, **aug_kwargs)
 
@@ -140,12 +146,21 @@ def auto_augment_image_net(
     specified to ``'image_net'``.
     See :meth:`~nvidia.dali.auto_aug.auto_augment.auto_augment` function for details.
     """
-    return auto_augment(data, "image_net", shape, fill_value, interp_type, max_translate_abs,
-                        max_translate_rel, seed)
+    return auto_augment(
+        data,
+        "image_net",
+        shape,
+        fill_value,
+        interp_type,
+        max_translate_abs,
+        max_translate_rel,
+        seed,
+    )
 
 
-def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = None,
-                       **kwargs) -> _DataNode:
+def apply_auto_augment(
+    policy: Policy, data: _DataNode, seed: Optional[int] = None, **kwargs
+) -> _DataNode:
     """
     Applies AutoAugment (https://arxiv.org/abs/1805.09501) augmentation scheme to the
     provided batch of samples.
@@ -173,29 +188,42 @@ def apply_auto_augment(policy: Policy, data: _DataNode, seed: Optional[int] = No
     if len(policy.sub_policies) == 0:
         raise Exception(f"Cannot run empty policy. Got {policy} in `apply_auto_augment` call.")
     max_policy_len = max(len(sub_policy) for sub_policy in policy.sub_policies)
-    should_run = fn.random.uniform(range=[0, 1], shape=(max_policy_len, ), dtype=types.FLOAT,
-                                   seed=seed)
-    sub_policy_id = fn.random.uniform(values=list(range(len(policy.sub_policies))), seed=seed,
-                                      dtype=types.INT32)
+    should_run = fn.random.uniform(
+        range=[0, 1], shape=(max_policy_len,), dtype=types.FLOAT, seed=seed
+    )
+    sub_policy_id = fn.random.uniform(
+        values=list(range(len(policy.sub_policies))), seed=seed, dtype=types.INT32
+    )
     run_probabilities = _sub_policy_to_probability_map(policy)[sub_policy_id]
     magnitude_bins = _sub_policy_to_magnitude_bin_map(policy)[sub_policy_id]
     aug_ids, augmentations = _sub_policy_to_augmentation_map(policy)
     aug_ids = aug_ids[sub_policy_id]
     if any(aug.randomly_negate for aug in policy.augmentations.values()):
-        magnitude_bins = signed_bin(magnitude_bins, seed=seed, shape=(max_policy_len, ))
-    _forbid_unused_kwargs(policy.augmentations.values(), kwargs, 'apply_auto_augment')
+        magnitude_bins = signed_bin(magnitude_bins, seed=seed, shape=(max_policy_len,))
+    _forbid_unused_kwargs(policy.augmentations.values(), kwargs, "apply_auto_augment")
     for stage_id in range(max_policy_len):
         if should_run[stage_id] < run_probabilities[stage_id]:
-            op_kwargs = dict(data=data, magnitude_bin=magnitude_bins[stage_id],
-                             num_magnitude_bins=policy.num_magnitude_bins, **kwargs)
-            data = _pretty_select(augmentations[stage_id], aug_ids[stage_id], op_kwargs,
-                                  auto_aug_name='apply_auto_augment',
-                                  ref_suite_name='get_image_net_policy')
+            op_kwargs = dict(
+                data=data,
+                magnitude_bin=magnitude_bins[stage_id],
+                num_magnitude_bins=policy.num_magnitude_bins,
+                **kwargs,
+            )
+            data = _pretty_select(
+                augmentations[stage_id],
+                aug_ids[stage_id],
+                op_kwargs,
+                auto_aug_name="apply_auto_augment",
+                ref_suite_name="get_image_net_policy",
+            )
     return data
 
 
-def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                         max_translate_rel: Optional[float] = None) -> Policy:
+def get_image_net_policy(
+    use_shape: bool = False,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+) -> Policy:
     """
     Creates augmentation policy tuned for the ImageNet as described in
     AutoAugment paper (https://arxiv.org/abs/1805.09501).
@@ -217,9 +245,14 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
         shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    default_translate_abs, default_translate_rel = 250, 1.
-    _, translate_y = _get_translations(use_shape, default_translate_abs, default_translate_rel,
-                                       max_translate_abs, max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.0
+    _, translate_y = _get_translations(
+        use_shape,
+        default_translate_abs,
+        default_translate_rel,
+        max_translate_abs,
+        max_translate_rel,
+    )
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -231,7 +264,9 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
     equalize = a.equalize
     auto_contrast = a.auto_contrast
     return Policy(
-        name="ImageNetPolicy", num_magnitude_bins=11, sub_policies=[
+        name="ImageNetPolicy",
+        num_magnitude_bins=11,
+        sub_policies=[
             [(equalize, 0.8, None), (shear_y, 0.8, 4)],
             [(color, 0.4, 9), (equalize, 0.6, None)],
             [(color, 0.4, 1), (rotate, 0.6, 8)],
@@ -257,11 +292,15 @@ def get_image_net_policy(use_shape: bool = False, max_translate_abs: Optional[in
             [(posterize, 0.8, 2), (solarize, 0.6, 10)],
             [(solarize, 0.6, 8), (equalize, 0.6, None)],
             [(color, 0.8, 6), (rotate, 0.4, 5)],
-        ])
+        ],
+    )
 
 
-def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                               max_translate_rel: Optional[float] = None) -> Policy:
+def get_reduced_cifar10_policy(
+    use_shape: bool = False,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+) -> Policy:
     """
     Creates augmentation policy tuned with the reduced CIFAR-10 as described
     in AutoAugment paper (https://arxiv.org/abs/1805.09501).
@@ -283,10 +322,14 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
         shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    default_translate_abs, default_translate_rel = 250, 1.
-    translate_x, translate_y = _get_translations(use_shape, default_translate_abs,
-                                                 default_translate_rel, max_translate_abs,
-                                                 max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.0
+    translate_x, translate_y = _get_translations(
+        use_shape,
+        default_translate_abs,
+        default_translate_rel,
+        max_translate_abs,
+        max_translate_rel,
+    )
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
     brightness = a.brightness.augmentation((0.1, 1.9), False, None)
@@ -299,7 +342,9 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
     equalize = a.equalize
     auto_contrast = a.auto_contrast
     return Policy(
-        name="ReducedCifar10Policy", num_magnitude_bins=11, sub_policies=[
+        name="ReducedCifar10Policy",
+        num_magnitude_bins=11,
+        sub_policies=[
             [(invert, 0.1, None), (contrast, 0.2, 6)],
             [(rotate, 0.7, 2), (translate_x, 0.3, 9)],
             [(sharpness, 0.8, 1), (sharpness, 0.9, 3)],
@@ -325,11 +370,15 @@ def get_reduced_cifar10_policy(use_shape: bool = False, max_translate_abs: Optio
             [(auto_contrast, 0.9, None), (solarize, 0.8, 3)],
             [(equalize, 0.8, None), (invert, 0.1, None)],
             [(translate_y, 0.7, 9), (auto_contrast, 0.9, None)],
-        ])
+        ],
+    )
 
 
-def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = None,
-                    max_translate_rel: Optional[float] = None) -> Policy:
+def get_svhn_policy(
+    use_shape: bool = False,
+    max_translate_abs: Optional[int] = None,
+    max_translate_rel: Optional[float] = None,
+) -> Policy:
     """
     Creates augmentation policy tuned with the SVHN as described
     in AutoAugment paper (https://arxiv.org/abs/1805.09501).
@@ -351,10 +400,14 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
         shape in the translation augmentations. If a tuple is specified, the first component limits
         height, the second the width. Defaults to 1.
     """
-    default_translate_abs, default_translate_rel = 250, 1.
-    translate_x, translate_y = _get_translations(use_shape, default_translate_abs,
-                                                 default_translate_rel, max_translate_abs,
-                                                 max_translate_rel)
+    default_translate_abs, default_translate_rel = 250, 1.0
+    translate_x, translate_y = _get_translations(
+        use_shape,
+        default_translate_abs,
+        default_translate_rel,
+        max_translate_abs,
+        max_translate_rel,
+    )
     shear_x = a.shear_x.augmentation((0, 0.3), True)
     shear_y = a.shear_y.augmentation((0, 0.3), True)
     rotate = a.rotate.augmentation((0, 30), True)
@@ -364,7 +417,9 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
     equalize = a.equalize
     auto_contrast = a.auto_contrast
     return Policy(
-        name="SvhnPolicy", num_magnitude_bins=11, sub_policies=[
+        name="SvhnPolicy",
+        num_magnitude_bins=11,
+        sub_policies=[
             [(shear_x, 0.9, 4), (invert, 0.2, None)],
             [(shear_y, 0.9, 8), (invert, 0.7, None)],
             [(equalize, 0.6, None), (solarize, 0.6, 6)],
@@ -390,7 +445,8 @@ def get_svhn_policy(use_shape: bool = False, max_translate_abs: Optional[int] = 
             [(shear_x, 0.7, 9), (translate_y, 0.8, 3)],
             [(shear_y, 0.8, 5), (auto_contrast, 0.7, None)],
             [(shear_x, 0.7, 2), (invert, 0.1, None)],
-        ])
+        ],
+    )
 
 
 def get_reduced_image_net_policy() -> Policy:
@@ -412,38 +468,43 @@ def get_reduced_image_net_policy() -> Policy:
     auto_contrast = a.auto_contrast
     return Policy(
         name="ReducedImageNetPolicy",
-        num_magnitude_bins=11, sub_policies=[[(posterize, 0.4, 8), (rotate, 0.6, 9)],
-                                             [(solarize, 0.6, 5), (auto_contrast, 0.6, None)],
-                                             [(equalize, 0.8, None), (equalize, 0.6, None)],
-                                             [(posterize, 0.6, 7), (posterize, 0.6, 6)],
-                                             [(equalize, 0.4, None), (solarize, 0.2, 4)],
-                                             [(equalize, 0.4, None), (rotate, 0.8, 8)],
-                                             [(solarize, 0.6, 3), (equalize, 0.6, None)],
-                                             [(posterize, 0.8, 5), (equalize, 1.0, None)],
-                                             [(rotate, 0.2, 3), (solarize, 0.6, 8)],
-                                             [(equalize, 0.6, None), (posterize, 0.4, 6)],
-                                             [(rotate, 0.8, 8), (color, 0.4, 0)],
-                                             [(rotate, 0.4, 9), (equalize, 0.6, None)],
-                                             [(equalize, 0.8, None)],
-                                             [(invert, 0.6, None), (equalize, 1.0, None)],
-                                             [(color, 0.6, 4), (contrast, 1.0, 8)],
-                                             [(rotate, 0.8, 8), (color, 1.0, 2)],
-                                             [(color, 0.8, 8), (solarize, 0.8, 7)],
-                                             [(sharpness, 0.4, 7), (invert, 0.6, None)],
-                                             [(shear_x, 0.6, 5), (equalize, 1.0, None)],
-                                             [(color, 0.4, 0), (equalize, 0.6, None)],
-                                             [(equalize, 0.4, None), (solarize, 0.2, 4)],
-                                             [(solarize, 0.6, 5), (auto_contrast, 0.6, None)],
-                                             [(invert, 0.6, None), (equalize, 1.0, None)],
-                                             [(color, 0.6, 4), (contrast, 1.0, 8)],
-                                             [(equalize, 0.8, None), (equalize, 0.6, None)]])
+        num_magnitude_bins=11,
+        sub_policies=[
+            [(posterize, 0.4, 8), (rotate, 0.6, 9)],
+            [(solarize, 0.6, 5), (auto_contrast, 0.6, None)],
+            [(equalize, 0.8, None), (equalize, 0.6, None)],
+            [(posterize, 0.6, 7), (posterize, 0.6, 6)],
+            [(equalize, 0.4, None), (solarize, 0.2, 4)],
+            [(equalize, 0.4, None), (rotate, 0.8, 8)],
+            [(solarize, 0.6, 3), (equalize, 0.6, None)],
+            [(posterize, 0.8, 5), (equalize, 1.0, None)],
+            [(rotate, 0.2, 3), (solarize, 0.6, 8)],
+            [(equalize, 0.6, None), (posterize, 0.4, 6)],
+            [(rotate, 0.8, 8), (color, 0.4, 0)],
+            [(rotate, 0.4, 9), (equalize, 0.6, None)],
+            [(equalize, 0.8, None)],
+            [(invert, 0.6, None), (equalize, 1.0, None)],
+            [(color, 0.6, 4), (contrast, 1.0, 8)],
+            [(rotate, 0.8, 8), (color, 1.0, 2)],
+            [(color, 0.8, 8), (solarize, 0.8, 7)],
+            [(sharpness, 0.4, 7), (invert, 0.6, None)],
+            [(shear_x, 0.6, 5), (equalize, 1.0, None)],
+            [(color, 0.4, 0), (equalize, 0.6, None)],
+            [(equalize, 0.4, None), (solarize, 0.2, 4)],
+            [(solarize, 0.6, 5), (auto_contrast, 0.6, None)],
+            [(invert, 0.6, None), (equalize, 1.0, None)],
+            [(color, 0.6, 4), (contrast, 1.0, 8)],
+            [(equalize, 0.8, None), (equalize, 0.6, None)],
+        ],
+    )
 
 
 def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    prob = np.array([[0. for _ in range(max_policy_len)] for _ in range(len(sub_policies))],
-                    dtype=np.float32)
+    prob = np.array(
+        [[0.0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.float32
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
             prob[sub_policy_id, stage_idx] = p
@@ -453,8 +514,9 @@ def _sub_policy_to_probability_map(policy: Policy) -> _DataNode:
 def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
     sub_policies = policy.sub_policies
     max_policy_len = max(len(sub_policy) for sub_policy in sub_policies)
-    magnitude_bin = np.array([[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))],
-                             dtype=np.int32)
+    magnitude_bin = np.array(
+        [[0 for _ in range(max_policy_len)] for _ in range(len(sub_policies))], dtype=np.int32
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (aug_name, p, mag) in enumerate(sub_policy):
             # use dummy value instead of None, it will be ignored anyway
@@ -464,7 +526,8 @@ def _sub_policy_to_magnitude_bin_map(policy: Policy) -> _DataNode:
 
 
 def _sub_policy_to_augmentation_matrix_map(
-        policy: Policy) -> Tuple[np.ndarray, List[List[_Augmentation]]]:
+    policy: Policy,
+) -> Tuple[np.ndarray, List[List[_Augmentation]]]:
     """
     Creates a matrix of operators to be called for given sub policy at given stage.
     The output is a tuple `(m, augments)`, where `augments` is a list of augmentations per stage
@@ -488,11 +551,17 @@ def _sub_policy_to_augmentation_matrix_map(
                     stage_augments_list.append(aug)
         augmentations.append(stage_augments_list + [a.identity])
     identity_id = [len(stage_augments) - 1 for stage_augments in augmentations]
-    augment_to_id = [{augmentation: i
-                      for i, augmentation in enumerate(stage_augments)}
-                     for stage_augments in augmentations]
-    augments_by_id = np.array([[identity_id[stage_idx] for stage_idx in range(max_policy_len)]
-                               for _ in range(len(sub_policies))], dtype=np.int32)
+    augment_to_id = [
+        {augmentation: i for i, augmentation in enumerate(stage_augments)}
+        for stage_augments in augmentations
+    ]
+    augments_by_id = np.array(
+        [
+            [identity_id[stage_idx] for stage_idx in range(max_policy_len)]
+            for _ in range(len(sub_policies))
+        ],
+        dtype=np.int32,
+    )
     for sub_policy_id, sub_policy in enumerate(sub_policies):
         for stage_idx, (augment, p, mag) in enumerate(sub_policy):
             augments_by_id[sub_policy_id, stage_idx] = augment_to_id[stage_idx][augment]

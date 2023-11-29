@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ import jax
 from distutils.version import LooseVersion
 from .iterator import DALIGenericIterator, data_iterator
 
-assert sys.version_info.major == 3 and sys.version_info.minor >= 8, \
-    "DALI JAX support requires Python 3.8 or above"
+assert (
+    sys.version_info.major == 3 and sys.version_info.minor >= 8
+), "DALI JAX support requires Python 3.8 or above"
 
 
-assert LooseVersion(jax.__version__) >= LooseVersion('0.4.11'), \
-    "DALI JAX support requires JAX 0.4.11 or above"
+assert LooseVersion(jax.__version__) >= LooseVersion(
+    "0.4.11"
+), "DALI JAX support requires JAX 0.4.11 or above"
 
 
 __all__ = ["DALIGenericIterator", "data_iterator"]

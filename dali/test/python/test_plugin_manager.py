@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,6 +72,7 @@ class CustomPipeline(Pipeline):
 class TestLoadedPlugin(unittest.TestCase):
     def test_sysconfig_provides_non_empty_flags(self):
         import nvidia.dali.sysconfig as dali_sysconfig
+
         assert "" != dali_sysconfig.get_include_flags()
         assert "" != dali_sysconfig.get_compile_flags()
         assert "" != dali_sysconfig.get_link_flags()
@@ -119,5 +120,5 @@ class TestLoadedPlugin(unittest.TestCase):
         ops.readers.TFRecord(path="dummy", index_path="dummy", features={})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

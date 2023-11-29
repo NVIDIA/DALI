@@ -37,17 +37,16 @@ def test_jax_peekable_iterator_peek():
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ["data"], reader_name="reader")
 
     # then
-    assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
+    assert iterator.element_spec == {"data": ArraySpec(dtype=jnp.int32, shape=batch_shape)}
 
     for i in range(5):
         peeked_output = iterator.peek()
         output = iterator.next()
 
-        assert jnp.array_equal(
-            output['data'], peeked_output['data'])
+        assert jnp.array_equal(output["data"], peeked_output["data"])
 
 
 def test_jax_peekable_iterator_peek_async_result_before_next():
@@ -55,10 +54,10 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ["data"], reader_name="reader")
 
     # then
-    assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
+    assert iterator.element_spec == {"data": ArraySpec(dtype=jnp.int32, shape=batch_shape)}
 
     for i in range(5):
         peeked_output = iterator.peek_async()
@@ -66,20 +65,20 @@ def test_jax_peekable_iterator_peek_async_result_before_next():
         output = iterator.next()
 
         assert jnp.array_equal(
-            output['data'], peeked_output['data']), \
-            f"output: {output['data']}, peeked_output: {peeked_output['data']}"
+            output["data"], peeked_output["data"]
+        ), f"output: {output['data']}, peeked_output: {peeked_output['data']}"
 
 
 def test_jax_peekable_iterator_peek_async_result_after_next():
-    '''This test is not deterministic, but it should pass most of the time.'''
+    """This test is not deterministic, but it should pass most of the time."""
     # given
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
 
     # when
-    iterator = DALIPeekableIterator([pipe], ['data'], reader_name='reader')
+    iterator = DALIPeekableIterator([pipe], ["data"], reader_name="reader")
 
     # then
-    assert iterator.element_spec == {'data': ArraySpec(dtype=jnp.int32, shape=batch_shape)}
+    assert iterator.element_spec == {"data": ArraySpec(dtype=jnp.int32, shape=batch_shape)}
 
     for i in range(5):
         peeked_output = iterator.peek_async()
@@ -88,8 +87,8 @@ def test_jax_peekable_iterator_peek_async_result_after_next():
         peeked_output = peeked_output.result()
 
         assert jnp.array_equal(
-            output['data'], peeked_output['data']), \
-            f"output: {output['data']}, peeked_output: {peeked_output['data']}"
+            output["data"], peeked_output["data"]
+        ), f"output: {output['data']}, peeked_output: {peeked_output['data']}"
 
 
 @raises(ValueError, glob="The shape or type of the output changed between iterations.")
@@ -98,7 +97,7 @@ def test_jax_peekable_iterator_with_variable_shapes_pipeline():
     batch_size = 1
     pipe = pipeline_with_variable_shape_output(batch_size)
 
-    iterator = DALIPeekableIterator([pipe], ['data'], size=batch_size*100)
+    iterator = DALIPeekableIterator([pipe], ["data"], size=batch_size * 100)
     iterator.next()
 
     # when

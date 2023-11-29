@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from nose_utils import raises, assert_raises
 from nose import SkipTest
 
 test_data_root = get_dali_extra_path()
-images_dir = os.path.join(test_data_root, 'db', 'imgproc')
+images_dir = os.path.join(test_data_root, "db", "imgproc")
 
 is_of_supported_var = None
 
@@ -37,15 +37,17 @@ def is_of_supported(device_id=0):
     driver_version_major = 0
     try:
         import pynvml
+
         pynvml.nvmlInit()
-        driver_version = pynvml.nvmlSystemGetDriverVersion().decode('utf-8')
-        driver_version_major = int(driver_version.split('.')[0])
+        driver_version = pynvml.nvmlSystemGetDriverVersion().decode("utf-8")
+        driver_version_major = int(driver_version.split(".")[0])
     except ModuleNotFoundError:
         print("NVML not found")
 
     # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
     is_of_supported_var = get_arch(device_id) >= 7.5 and (
-        platform.machine() == "x86_64" or driver_version_major < 495)
+        platform.machine() == "x86_64" or driver_version_major < 495
+    )
     return is_of_supported_var
 
 
@@ -59,7 +61,7 @@ def get_mapping(shape):
     dnorm = np.linalg.norm(d, ord=2, axis=2)
     dexp1 = dnorm * (7 / np.sqrt(w * w + h * h))
     dexp2 = dnorm * (9 / np.sqrt(w * w + h * h))
-    mag = np.exp(-dexp1 ** 2) - np.exp(-dexp2 ** 2)
+    mag = np.exp(-(dexp1**2)) - np.exp(-(dexp2**2))
     od = d + 0
     od[:, :, 0] = d[:, :, 0] * (1 - mag) + d[:, :, 1] * mag
     od[:, :, 1] = d[:, :, 1] * (1 - mag) + d[:, :, 0] * mag
@@ -70,12 +72,12 @@ def get_mapping(shape):
 
 
 def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
-    img = cv2.imread(os.path.join(images_dir, 'alley.png'))
+    img = cv2.imread(os.path.join(images_dir, "alley.png"))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     if sample_info.idx_in_epoch % 2:
         img = cv2.resize(
-            img, dsize=(img.shape[0] // 2, img.shape[1] // 2),
-            interpolation=cv2.INTER_AREA)
+            img, dsize=(img.shape[0] // 2, img.shape[1] // 2), interpolation=cv2.INTER_AREA
+        )
 
     xy, ofs = get_mapping(img.shape[:2])
     remap = (xy + ofs - np.array([[[0.5, 0.5]]])).astype(np.float32)
@@ -94,29 +96,40 @@ def of_pipeline(output_grid=1, hint_grid=1, use_temporal_hints=False):
     if hint_grid is not None:
         seq, hint = fn.external_source(
             lambda info: load_frames(info, hint_grid),
-            layout=["FHWC", "FHWC"], batch=False, num_outputs=2)
+            layout=["FHWC", "FHWC"],
+            batch=False,
+            num_outputs=2,
+        )
 
         of = fn.optical_flow(
-            seq.gpu(), hint.gpu(), device="gpu", output_grid=output_grid,
-            hint_grid=hint_grid, enable_temporal_hints=use_temporal_hints)
+            seq.gpu(),
+            hint.gpu(),
+            device="gpu",
+            output_grid=output_grid,
+            hint_grid=hint_grid,
+            enable_temporal_hints=use_temporal_hints,
+        )
     else:
         seq = fn.external_source(
-            lambda info: load_frames(info, hint_grid),
-            layout="FHWC", batch=False)
+            lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False
+        )
         of = fn.optical_flow(
-            seq.gpu(), device="gpu", output_grid=output_grid,
-            enable_temporal_hints=use_temporal_hints)
+            seq.gpu(),
+            device="gpu",
+            output_grid=output_grid,
+            enable_temporal_hints=use_temporal_hints,
+        )
     return seq, of
 
 
 def make_colorwheel():
-    '''
+    """
     Generates a color wheel for optical flow visualization as presented in:
         Baker et al. "A Database and Evaluation Methodology for Optical Flow" (ICCV, 2007)
         URL: http://vision.middlebury.edu/flow/flowEval-iccv07.pdf
     According to the C++ source code of Daniel Scharstein
     According to the Matlab source code of Deqing Sun
-    '''
+    """
 
     RY = 15
     YG = 6
@@ -134,29 +147,29 @@ def make_colorwheel():
     colorwheel[0:RY, 1] = np.floor(255 * np.arange(0, RY) / RY)
     col = col + RY
     # YG
-    colorwheel[col:col + YG, 0] = 255 - np.floor(255 * np.arange(0, YG) / YG)
-    colorwheel[col:col + YG, 1] = 255
+    colorwheel[col : col + YG, 0] = 255 - np.floor(255 * np.arange(0, YG) / YG)
+    colorwheel[col : col + YG, 1] = 255
     col = col + YG
     # GC
-    colorwheel[col:col + GC, 1] = 255
-    colorwheel[col:col + GC, 2] = np.floor(255 * np.arange(0, GC) / GC)
+    colorwheel[col : col + GC, 1] = 255
+    colorwheel[col : col + GC, 2] = np.floor(255 * np.arange(0, GC) / GC)
     col = col + GC
     # CB
-    colorwheel[col:col + CB, 1] = 255 - np.floor(255 * np.arange(CB) / CB)
-    colorwheel[col:col + CB, 2] = 255
+    colorwheel[col : col + CB, 1] = 255 - np.floor(255 * np.arange(CB) / CB)
+    colorwheel[col : col + CB, 2] = 255
     col = col + CB
     # BM
-    colorwheel[col:col + BM, 2] = 255
-    colorwheel[col:col + BM, 0] = np.floor(255 * np.arange(0, BM) / BM)
+    colorwheel[col : col + BM, 2] = 255
+    colorwheel[col : col + BM, 0] = np.floor(255 * np.arange(0, BM) / BM)
     col = col + BM
     # MR
-    colorwheel[col:col + MR, 2] = 255 - np.floor(255 * np.arange(MR) / MR)
-    colorwheel[col:col + MR, 0] = 255
+    colorwheel[col : col + MR, 2] = 255 - np.floor(255 * np.arange(MR) / MR)
+    colorwheel[col : col + MR, 0] = 255
     return colorwheel
 
 
 def flow_compute_color(u, v, convert_to_bgr=False):
-    '''
+    """
     Applies the flow color wheel to (possibly clipped) flow components u and v.
     According to the C++ source code of Daniel Scharstein
     According to the Matlab source code of Deqing Sun
@@ -164,7 +177,7 @@ def flow_compute_color(u, v, convert_to_bgr=False):
     :param v: np.ndarray, input vertical flow
     :param convert_to_bgr: bool, whether to change ordering and output BGR instead of RGB
     :return:
-    '''
+    """
 
     flow_image = np.zeros((u.shape[0], u.shape[1], 3), np.uint8)
 
@@ -186,7 +199,7 @@ def flow_compute_color(u, v, convert_to_bgr=False):
         col1 = tmp[k1] / 255.0
         col = (1 - f) * col0 + f * col1
 
-        idx = (rad <= 1)
+        idx = rad <= 1
         col[idx] = 1 - rad[idx] * (1 - col[idx])
         col[~idx] = col[~idx] * 0.75  # out of range?
 
@@ -198,17 +211,17 @@ def flow_compute_color(u, v, convert_to_bgr=False):
 
 
 def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
-    '''
+    """
     Expects a two dimensional flow image of shape [H,W,2]
     According to the C++ source code of Daniel Scharstein
     According to the Matlab source code of Deqing Sun
     :param flow_uv: np.ndarray of shape [H,W,2]
     :param clip_flow: float, maximum clipping value for flow
     :return:
-    '''
+    """
 
-    assert flow_uv.ndim == 3, 'input flow must have three dimensions'
-    assert flow_uv.shape[2] == 2, 'input flow must have shape [H,W,2]'
+    assert flow_uv.ndim == 3, "input flow must have three dimensions"
+    assert flow_uv.shape[2] == 2, "input flow must have shape [H,W,2]"
 
     if clip_flow is not None:
         flow_uv = np.clip(flow_uv, 0, clip_flow)
@@ -231,18 +244,26 @@ interactive = False
 
 def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
     batch_size = 3
-    pipe = of_pipeline(batch_size=batch_size, num_threads=3, device_id=0, output_grid=output_grid,
-                       hint_grid=hint_grid, use_temporal_hints=use_temporal_hints)
+    pipe = of_pipeline(
+        batch_size=batch_size,
+        num_threads=3,
+        device_id=0,
+        output_grid=output_grid,
+        hint_grid=hint_grid,
+        use_temporal_hints=use_temporal_hints,
+    )
     pipe.build()
     if get_arch() < 8:
         if output_grid != 4:
-            assert_raises(RuntimeError, pipe.run,
-                          glob="grid size: * is not supported, supported are:")
-            raise SkipTest('Skipped as grid size is not supported for this arch')
+            assert_raises(
+                RuntimeError, pipe.run, glob="grid size: * is not supported, supported are:"
+            )
+            raise SkipTest("Skipped as grid size is not supported for this arch")
         elif hint_grid not in [4, 8, None]:
-            assert_raises(RuntimeError, pipe.run,
-                          glob="hint grid size: * is not supported, supported are:")
-            raise SkipTest('Skipped as hint grid size is not supported for this arch')
+            assert_raises(
+                RuntimeError, pipe.run, glob="hint grid size: * is not supported, supported are:"
+            )
+            raise SkipTest("Skipped as hint grid size is not supported for this arch")
 
     for _ in range(2):
         out = pipe.run()
@@ -268,7 +289,7 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
 
 def test_optflow():
     if not is_of_supported():
-        raise SkipTest('Optical Flow is not supported on this platform')
+        raise SkipTest("Optical Flow is not supported on this platform")
     for output_grid in [1, 2, 4]:
         hint_grid = random.choice([None, 1, 2, 4, 8])
         for use_temporal_hints in [True, False]:

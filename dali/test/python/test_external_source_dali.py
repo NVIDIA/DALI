@@ -30,12 +30,12 @@ def build_src_pipe(device, layout=None):
     batches = [
         [
             np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
-            np.array([[10, 20], [30, 40], [50, 60]], dtype=np.float32)
+            np.array([[10, 20], [30, 40], [50, 60]], dtype=np.float32),
         ],
         [
             np.array([[9, 10], [11, 12]], dtype=np.float32),
-            np.array([[100, 200, 300, 400, 500]], dtype=np.float32)
-        ]
+            np.array([[100, 200, 300, 400, 500]], dtype=np.float32),
+        ],
     ]
 
     src_pipe = Pipeline(len(batches), 1, 0)
@@ -53,9 +53,14 @@ def _test_feed_input(device, is_serialized):
     if is_serialized:
         serialized = dst_pipe.serialize()
         dst_pipe = None
-        dst_pipe = Pipeline.deserialize(serialized_pipeline=serialized, batch_size=batch_size,
-                                        num_threads=1, device_id=0, exec_async=False,
-                                        exec_pipelined=False)
+        dst_pipe = Pipeline.deserialize(
+            serialized_pipeline=serialized,
+            batch_size=batch_size,
+            num_threads=1,
+            device_id=0,
+            exec_async=False,
+            exec_pipelined=False,
+        )
         dst_pipe.build()
     else:
         dst_pipe.build()
@@ -104,7 +109,8 @@ def _test_scalar(device, as_tensors):
     batch_size = 4
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(
-        source=lambda i: [np.float32(i * 10 + i + 1) for i in range(batch_size)], device=device)
+        source=lambda i: [np.float32(i * 10 + i + 1) for i in range(batch_size)], device=device
+    )
     src_pipe.set_outputs(src_ext)
 
     src_pipe.build()
@@ -129,7 +135,6 @@ def test_scalar():
 
 
 class BatchCb:
-
     def __init__(self, batch_info, batch_size, epoch_size):
         self.batch_info = batch_info
         self.batch_size = batch_size
@@ -137,8 +142,9 @@ class BatchCb:
 
     def __call__(self, arg):
         if self.batch_info:
-            assert isinstance(arg, types.BatchInfo), \
-                f"Expected BatchInfo instance as cb argument, got {arg}"
+            assert isinstance(
+                arg, types.BatchInfo
+            ), f"Expected BatchInfo instance as cb argument, got {arg}"
             iteration = arg.iteration
             epoch_idx = arg.epoch_idx
         else:
@@ -151,7 +157,6 @@ class BatchCb:
 
 
 class SampleCb:
-
     def __init__(self, batch_size, epoch_size):
         self.batch_size = batch_size
         self.epoch_size = epoch_size
@@ -159,9 +164,15 @@ class SampleCb:
     def __call__(self, sample_info):
         if sample_info.iteration >= self.epoch_size:
             raise StopIteration
-        return np.array([
-            sample_info.idx_in_epoch, sample_info.idx_in_batch,
-            sample_info.iteration, sample_info.epoch_idx], dtype=np.int32)
+        return np.array(
+            [
+                sample_info.idx_in_epoch,
+                sample_info.idx_in_batch,
+                sample_info.iteration,
+                sample_info.epoch_idx,
+            ],
+            dtype=np.int32,
+        )
 
 
 def _test_batch_info_flag_default(cb, batch_size):
@@ -179,7 +190,8 @@ def test_batch_info_flag_default():
     yield _test_batch_info_flag_default, cb_int, batch_size
     cb_batch_info = BatchCb(True, batch_size, 1)
     yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(
-        _test_batch_info_flag_default), cb_batch_info, batch_size
+        _test_batch_info_flag_default
+    ), cb_batch_info, batch_size
 
 
 def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
@@ -197,9 +209,9 @@ def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
                 if batch_mode:
                     expected = np.array([iteration, epoch_idx if batch_info else -1])
                 else:
-                    expected = np.array([
-                        iteration * batch_size + sample_i,
-                        sample_i, iteration, epoch_idx])
+                    expected = np.array(
+                        [iteration * batch_size + sample_i, sample_i, iteration, epoch_idx]
+                    )
                 np.testing.assert_array_equal(sample, expected)
         try:
             pipe.run()
@@ -221,14 +233,12 @@ def test_epoch_idx():
 
 def test_dtype_arg():
     batch_size = 2
-    src_data = [
-        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
-    ]
+    src_data = [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
     src_pipe.build()
-    out, = src_pipe.run()
+    (out,) = src_pipe.run()
     for i in range(batch_size):
         t = out.at(i)
         assert t.dtype == np.uint8
@@ -238,12 +248,15 @@ def test_dtype_arg():
 def test_dtype_arg_multioutput():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
-         [np.ones((120, 120, 3), dtype=np.float32)] * batch_size]
+        [
+            [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+            [np.ones((120, 120, 3), dtype=np.float32)] * batch_size,
+        ]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
-                                           dtype=[DALIDataType.UINT8, DALIDataType.FLOAT])
+    src_ext, src_ext2 = fn.external_source(
+        source=src_data, num_outputs=2, dtype=[DALIDataType.UINT8, DALIDataType.FLOAT]
+    )
     src_pipe.set_outputs(src_ext, src_ext2)
     src_pipe.build()
     out1, out2 = src_pipe.run()
@@ -259,9 +272,7 @@ def test_dtype_arg_multioutput():
 @raises(RuntimeError, glob="ExternalSource expected data of type uint8 and got: float")
 def test_incorrect_dtype_arg():
     batch_size = 2
-    src_data = [
-        [np.ones((120, 120, 3), dtype=np.float32)] * batch_size
-    ]
+    src_data = [[np.ones((120, 120, 3), dtype=np.float32)] * batch_size]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
     src_pipe.set_outputs(src_ext)
@@ -269,14 +280,17 @@ def test_incorrect_dtype_arg():
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the "
-                           "previous iteration. Type in the previous iteration was float and "
-                           "the current type is uint8.")
+@raises(
+    RuntimeError,
+    glob="Type of the data fed to the external source has changed from the "
+    "previous iteration. Type in the previous iteration was float and "
+    "the current type is uint8.",
+)
 def test_changing_dtype():
     batch_size = 2
     src_data = [
         [np.ones((120, 120, 3), dtype=np.float32)] * batch_size,
-        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
+        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data)
@@ -288,9 +302,7 @@ def test_changing_dtype():
 
 def test_ndim_arg():
     batch_size = 2
-    src_data = [
-        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
-    ]
+    src_data = [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, ndim=3)
     src_ext2 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, layout="HWC")
@@ -307,19 +319,22 @@ def test_ndim_arg():
 def test_ndim_arg_multioutput():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
-         [np.ones((120, 120), dtype=np.float32)] * batch_size]
+        [
+            [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+            [np.ones((120, 120), dtype=np.float32)] * batch_size,
+        ]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src1_ext, src1_ext2 = fn.external_source(
-        source=src_data, num_outputs=2,
-        dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
-        ndim=[3, 2])
+        source=src_data, num_outputs=2, dtype=[DALIDataType.UINT8, DALIDataType.FLOAT], ndim=[3, 2]
+    )
 
     src2_ext, src2_ext2 = fn.external_source(
-        source=src_data, num_outputs=2,
+        source=src_data,
+        num_outputs=2,
         dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
-        layout=["HWC", "HW"])
+        layout=["HWC", "HW"],
+    )
 
     src_pipe.set_outputs(src1_ext, src1_ext2, src2_ext, src2_ext2)
     src_pipe.build()
@@ -338,13 +353,15 @@ def test_ndim_arg_multioutput():
 def test_layout_ndim_match():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
-         [np.ones((120, 120), dtype=np.uint8)] * batch_size]
+        [
+            [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+            [np.ones((120, 120), dtype=np.uint8)] * batch_size,
+        ]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
-                                            dtype=DALIDataType.UINT8, layout=["HWC", "HW"],
-                                            ndim=[3, 2])
+    src_ext1, src_ext2 = fn.external_source(
+        source=src_data, num_outputs=2, dtype=DALIDataType.UINT8, layout=["HWC", "HW"], ndim=[3, 2]
+    )
     src_pipe.set_outputs(src_ext1, src_ext2)
     src_pipe.build()
     out1, out2 = src_pipe.run()
@@ -355,8 +372,11 @@ def test_layout_ndim_match():
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
 
 
-@raises(RuntimeError, glob="Number of dimensions in the provided layout does not match the ndim "
-                           "argument. The arguments provided:\n ndim = 2,\n layout: \"HWC\".")
+@raises(
+    RuntimeError,
+    glob="Number of dimensions in the provided layout does not match the ndim "
+    'argument. The arguments provided:\n ndim = 2,\n layout: "HWC".',
+)
 def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)
@@ -368,25 +388,31 @@ def test_ndim_layout_mismatch():
 def test_ndim_data_mismatch():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
-         [np.ones((120, 120), dtype=np.uint8)] * batch_size]
+        [
+            [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+            [np.ones((120, 120), dtype=np.uint8)] * batch_size,
+        ]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
-                                            dtype=DALIDataType.UINT8, ndim=3)
+    src_ext1, src_ext2 = fn.external_source(
+        source=src_data, num_outputs=2, dtype=DALIDataType.UINT8, ndim=3
+    )
     src_pipe.set_outputs(src_ext1, src_ext2)
     src_pipe.build()
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Number of dimensions of the data fed to the external source has "
-                           "changed from previous iteration. Dimensionality in the previous "
-                           "iteration was 3 and the current is 2.")
+@raises(
+    RuntimeError,
+    glob="Number of dimensions of the data fed to the external source has "
+    "changed from previous iteration. Dimensionality in the previous "
+    "iteration was 3 and the current is 2.",
+)
 def test_ndim_changing():
     batch_size = 2
     src_data = [
         [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
-        [np.ones((120, 120), dtype=np.uint8)] * batch_size
+        [np.ones((120, 120), dtype=np.uint8)] * batch_size,
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
@@ -396,7 +422,7 @@ def test_ndim_changing():
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Expected data with layout: \"H\" and got: \"W\"")
+@raises(RuntimeError, glob='Expected data with layout: "H" and got: "W"')
 def test_layout_data_mismatch():
     src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
@@ -405,9 +431,12 @@ def test_layout_data_mismatch():
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
-                           "previous iteration. Layout in the previous iteration was \"W\" "
-                           "and the current is \"H\".")
+@raises(
+    RuntimeError,
+    glob="Layout of the data fed to the external source has changed from "
+    'previous iteration. Layout in the previous iteration was "W" '
+    'and the current is "H".',
+)
 def test_layout_changing():
     src_pipe = Pipeline(1, 1, 0)
     src_pipe.set_outputs(fn.external_source(name="input"))
@@ -423,7 +452,7 @@ def test_layout_set_as_arg():
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))])
-    out, = src_pipe.run()
+    (out,) = src_pipe.run()
     assert out.layout() == "H"
 
 
@@ -440,7 +469,6 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
         return tuple(rand_elem() for _ in range(num_outputs))
 
     def sample_cb_source(sample_info):
-
         def rand_sample():
             return np.float32(np_rng.uniform(-1, 1, shape=(10, 100, 3)))
 
@@ -454,7 +482,6 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
             yield rand_tuple(rand_batch)
 
     class IteratorSource:
-
         def __iter__(self):
             return self
 
@@ -462,17 +489,20 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
             return rand_tuple(rand_batch)
 
     sources = {
-        'sample_cb_source': sample_cb_source,
-        'batch_cb_source': batch_cb_source,
-        'gen_fun_source': gen_fun_source,
-        'generator': gen_fun_source(),
-        'IteratorSource': IteratorSource()
+        "sample_cb_source": sample_cb_source,
+        "batch_cb_source": batch_cb_source,
+        "gen_fun_source": gen_fun_source,
+        "generator": gen_fun_source(),
+        "IteratorSource": IteratorSource(),
     }
 
     @pipeline_def
     def pipeline():
-        outputs = fn.external_source(source=sources[source_type], num_outputs=num_outputs,
-                                     batch=source_type != "sample_cb_source")
+        outputs = fn.external_source(
+            source=sources[source_type],
+            num_outputs=num_outputs,
+            batch=source_type != "sample_cb_source",
+        )
         assert len(outputs) == num_outputs
         utilized_outputs = (out for out, is_used in zip(outputs, usage_mask) if is_used)
         return tuple(fn.gaussian_blur(out, window_size=3) for out in utilized_outputs)
@@ -487,7 +517,8 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
         pruned_str = f"outputs at the indices {pruned_idx_str} are"
     expected_error_msg = (
         f"The external source node '*{source_type}*' produces {num_outputs} outputs, "
-        f"but the {pruned_str} not used.")
+        f"but the {pruned_str} not used."
+    )
     with assert_warns(Warning, glob=expected_error_msg):
         pipe.build()
 
@@ -497,8 +528,13 @@ def test_partially_utilized_external_source_warning():
 
     def sources():
         while True:
-            for source in ('sample_cb_source', 'batch_cb_source', 'gen_fun_source', 'generator',
-                           'IteratorSource'):
+            for source in (
+                "sample_cb_source",
+                "batch_cb_source",
+                "gen_fun_source",
+                "generator",
+                "IteratorSource",
+            ):
                 yield source
 
     source_type = sources()
@@ -519,7 +555,6 @@ def _test_partially_utilized_es_old_style(usage_mask):
     batch = np.array(list(range(batch_size * 1024))).reshape(batch_size, 16, 16, 4)
 
     class OldStylePipe(Pipeline):
-
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.inp = ops.ExternalSource(num_outputs=num_outputs)
@@ -529,7 +564,8 @@ def _test_partially_utilized_es_old_style(usage_mask):
             self.all_inputs = self.inp()
             assert len(self.all_inputs) == num_outputs
             self.utilized_inputs = [
-                inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used]
+                inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used
+            ]
             return tuple(self.gb(inp) for inp in self.utilized_inputs)
 
         def iter_setup(self):
@@ -560,8 +596,8 @@ def _test_non_utilized_external_source_pruning(num_outputs):
     @pipeline_def
     def pipeline():
         outputs = fn.external_source(  # noqa F841
-            source=sample_cb_source, batch=False,
-            num_outputs=num_outputs)
+            source=sample_cb_source, batch=False, num_outputs=num_outputs
+        )
         data = fn.random.uniform(range=(0, 255), shape=(300, 100, 3))
         img = fn.reshape(data, layout="HWC")
         return fn.gaussian_blur(img, window_size=3)
@@ -597,9 +633,10 @@ def to_tensor_list_gpu(data):
     @pipeline_def(batch_size=len(data), num_threads=4, device_id=0, prefetch_queue_depth=1)
     def convert_pipe():
         return fn.external_source(source=[data], device="gpu")
+
     pipe = convert_pipe()
     pipe.build()
-    out, = pipe.run()
+    (out,) = pipe.run()
     return out
 
 
@@ -616,13 +653,13 @@ def test_repeat_last():
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
         np.array([42], dtype=np.int32),
-        np.array([666], dtype=np.int32)
+        np.array([666], dtype=np.int32),
     ]
     data2 = [
         np.array([11], dtype=np.int32),
         np.array([33], dtype=np.int32),
         np.array([422], dtype=np.int32),
-        np.array([6666], dtype=np.int32)
+        np.array([6666], dtype=np.int32),
     ]
     data1_gpu = to_tensor_list_gpu(data1)
     data2_gpu = to_tensor_list_gpu(data2)
@@ -664,13 +701,13 @@ def test_repeat_last_queue():
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
         np.array([42], dtype=np.int32),
-        np.array([666], dtype=np.int32)
+        np.array([666], dtype=np.int32),
     ]
     data2 = [
         np.array([11], dtype=np.int32),
         np.array([33], dtype=np.int32),
         np.array([422], dtype=np.int32),
-        np.array([6666], dtype=np.int32)
+        np.array([6666], dtype=np.int32),
     ]
     data3 = data1
 
@@ -712,7 +749,7 @@ def _check_repeat_last_var_batch(device):
         np.array([1], dtype=np.int32),
         np.array([3], dtype=np.int32),
         np.array([42], dtype=np.int32),
-        np.array([666], dtype=np.int32)
+        np.array([666], dtype=np.int32),
     ]
     data2 = [
         np.array([11], dtype=np.int32),
@@ -749,7 +786,7 @@ def _check_repeat_last_var_batch(device):
 
 
 def test_repeat_last_var_batch():
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield _check_repeat_last_var_batch, device
 
 
@@ -759,15 +796,21 @@ def _check_blocking(device):
 
     @pipeline_def
     def test_pipeline():
-        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
-                                  device=device)
+        data = fn.external_source(
+            dtype=types.INT32, name="test_source", blocking=True, device=device
+        )
         return data
 
     rng = default_rng()
     data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
 
-    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
-                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe = test_pipeline(
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+        seed=12,
+        prefetch_queue_depth=prefetch_queue_depth,
+    )
     pipe.build()
     pipe.feed_input("test_source", data_to_feed)
 
@@ -785,7 +828,7 @@ def _check_blocking(device):
 
 
 def test_blocking():
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield _check_blocking, device
 
 
@@ -795,15 +838,21 @@ def _blocking_destructor(device):
 
     @pipeline_def
     def test_pipeline():
-        data = fn.external_source(dtype=types.INT32, name="test_source", blocking=True,
-                                  device=device)
+        data = fn.external_source(
+            dtype=types.INT32, name="test_source", blocking=True, device=device
+        )
         return data
 
     rng = default_rng()
     data_to_feed = rng.random(size=(batch_size, 4, 6, 2)).astype(dtype=np.int32)
 
-    pipe = test_pipeline(batch_size=batch_size, num_threads=2, device_id=0, seed=12,
-                         prefetch_queue_depth=prefetch_queue_depth)
+    pipe = test_pipeline(
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+        seed=12,
+        prefetch_queue_depth=prefetch_queue_depth,
+    )
     pipe.build()
     # feed one input to pipeline can return something
     pipe.feed_input("test_source", data_to_feed)
@@ -813,5 +862,5 @@ def _blocking_destructor(device):
 
 
 def test_blocking_destructor():
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield _blocking_destructor, device

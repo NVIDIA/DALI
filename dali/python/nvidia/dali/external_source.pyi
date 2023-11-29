@@ -18,14 +18,19 @@ from typing import Sequence, Any, Callable, Iterable
 from nvidia.dali.data_node import DataNode
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
-
 class ExternalSource:
-
     # The `source` parameter represents the Union of types accepted by the `fn.external_source`,
     # check the comment there for the explanation.
     def __init__(
         self,
-        source: Optional[Union[Callable[..., Any], Iterable[Any], Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
+        source: Optional[
+            Union[
+                Callable[..., Any],
+                Iterable[Any],
+                Callable[..., Sequence[Any]],
+                Iterable[Sequence[Any]],
+            ]
+        ] = None,
         num_outputs: Optional[int] = None,
         *,
         batch: Optional[bool] = None,
@@ -43,13 +48,18 @@ class ExternalSource:
         no_copy: Optional[bool] = None,
         prefetch_queue_depth: Optional[int] = 1,
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
-    ) -> None:
-        ...
-
+    ) -> None: ...
     def __call__(
         self,
         *,
-        source: Optional[Union[Callable[..., Any], Iterable[Any], Callable[..., Sequence[Any]], Iterable[Sequence[Any]]]] = None,
+        source: Optional[
+            Union[
+                Callable[..., Any],
+                Iterable[Any],
+                Callable[..., Sequence[Any]],
+                Iterable[Sequence[Any]],
+            ]
+        ] = None,
         batch: Optional[bool] = None,
         batch_info: Optional[bool] = False,
         dtype: Union[Sequence[DALIDataType], DALIDataType, None] = None,
@@ -64,9 +74,7 @@ class ExternalSource:
         no_copy: Optional[bool] = None,
         prefetch_queue_depth: Optional[int] = 1,
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
-    ) -> DataNode:
-        ...
-
+    ) -> DataNode: ...
 
 # The overload representing a call without specifying `num_outputs`. It expects a function
 # returning a tensor or a batch of tensors directly, corresponding to exactly one DataNode output.
@@ -91,9 +99,7 @@ def external_source(
     no_copy: Optional[bool] = None,
     prefetch_queue_depth: Optional[int] = 1,
     bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
-) -> DataNode:
-    ...
-
+) -> DataNode: ...
 
 # The overload representing a call with `num_outputs` specified. It expects a function
 # returning a tuple/sequence of tensors or batches, corresponding to a tuple of `num_outputs`
@@ -120,5 +126,4 @@ def external_source(
     no_copy: Optional[bool] = None,
     prefetch_queue_depth: Optional[int] = 1,
     bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
-) -> Sequence[DataNode]:
-    ...
+) -> Sequence[DataNode]: ...

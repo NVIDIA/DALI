@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class _MetaArithmetic(type):
 
 
 class arithmetic(metaclass=_MetaArithmetic):
-    """ Context-manager that enabled/disables arithmetic operators on TensorLists.
+    """Context-manager that enabled/disables arithmetic operators on TensorLists.
     Can also be used as a function with global setting.
 
     Examples:
@@ -69,12 +69,12 @@ class arithmetic(metaclass=_MetaArithmetic):
     def __exit__(self, type, value, traceback):
         arithmetic._enabled = self.prev
 
-    __name__ = 'arithmetic'
+    __name__ = "arithmetic"
     _enabled = False
 
 
 class rng_state(_create_module_class()):
-    """ Manager class for stateful operators. This object holds a cache of reusable operators.
+    """Manager class for stateful operators. This object holds a cache of reusable operators.
     Operators are initialized with deterministic seeds generated according to the ``seed`` argument
     and are reused when you call the same operator with the same scalar parameters.
 
@@ -97,4 +97,4 @@ class rng_state(_create_module_class()):
             # Create attributes imitating submodules, e.g. `random`, `noise`.
             setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
 
-    __name__ = 'rng_state'
+    __name__ = "rng_state"
