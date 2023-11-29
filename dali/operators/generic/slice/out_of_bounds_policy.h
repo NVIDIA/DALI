@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,14 +22,6 @@
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
-
-template <bool inclusive_end>
-DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
-  if (inclusive_end)  // check idx is within [0, data_extent]
-    return static_cast<uint64_t>(idx) > static_cast<uint64_t>(data_extent);
-  else                // check idx is within [0, data_extent)
-    return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
-}
 
 /**
  * @brief Determines what to do if slice parameters point to outside of the input bounds
@@ -84,9 +76,14 @@ void ApplySliceBoundsPolicy(OutOfBoundsPolicy policy, const TensorShape<Dims> &i
     case OutOfBoundsPolicy::Error:
     default:
       for (int d = 0; d < input_shape.size(); d++) {
-        // start within [0, extent), and end within [0, extent]
-        if (is_out_of_bounds<false>(slice_anchor[d], input_shape[d]) ||
-            is_out_of_bounds<true>(slice_anchor[d] + slice_shape[d], input_shape[d])) {
+        auto range_bound_valid = [](int64_t bound, int64_t data_extent) {
+          // Check if the given range bound is valid - unlike index, a bound equal to the extent
+          // is valid and may serve as a valid lower bound if the requested range is empty.
+          return static_cast<uint64_t>(bound) > static_cast<uint64_t>(data_extent);
+        };
+
+        if (range_bound_valid(slice_anchor[d], input_shape[d]) ||
+            range_bound_valid(slice_anchor[d] + slice_shape[d], input_shape[d])) {
           DALI_FAIL(make_string(
               "Slice can't be placed out of bounds with current policy. Got: input_shape={",
               input_shape, "}, slice_anchor={", slice_anchor, "}, slice_shape={", slice_shape,

@@ -307,11 +307,14 @@ void SliceKernel(ExecutionEngine &exec_engine,
   if (req_nblocks < 0)
     req_nblocks = exec_engine.NumThreads() * 8;
 
+  int64_t total_sz = volume(out_shape);
+  if (total_sz == 0)
+    return;  // the result is empty - nothing to do!
+
   // If the output and input data type is the same and the slice arguments take the whole extent
   // of the input, then we can simply run memcpy.
   if (CanRunPlainCopy<OutputType, InputType, Dims>(out_strides, in_strides,
                                                    out_shape, in_shape, args)) {
-    int64_t total_sz = volume(out_shape);
     int64_t nbytes = total_sz * sizeof(OutputType);
     int nblocks = std::min<int64_t>(req_nblocks, div_ceil(total_sz, min_blk_sz));
     assert(nblocks > 0);

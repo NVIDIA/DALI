@@ -24,6 +24,7 @@ from test_utils import compare_pipelines, \
                        generator_random_data, \
                        as_array
 from nose_utils import assert_raises
+from nose2.tools import params
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -955,6 +956,29 @@ def test_gpu_args():
     batch_size = 10
     num_threads = 3
     check_rel_start_rel_shape("gpu", batch_size, num_threads, args_device="gpu")
+
+
+@params(
+    ("cpu", False),
+    ("gpu", False),
+    ("cpu", True),
+    ("gpu", True),
+)
+def test_empty_input(device, use_empty_input):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0 if device == "gpu" else None)
+    def make_pipe():
+        inp = [] if use_empty_input else [42]
+        inp = np.array(inp, dtype="int")
+        x = types.Constant(inp, device=device)
+        anchor = 0 if use_empty_input else 1
+        return fn.slice(x, anchor, 0, axes=[0])
+
+    p = make_pipe()
+    p.build()
+    o, = p.run()
+    if device == "gpu":
+        o = o.as_cpu()
+    assert np.array_equal(o[0], [])
 
 
 def test_wrong_arg_backend():

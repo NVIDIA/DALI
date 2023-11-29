@@ -305,3 +305,15 @@ def test_multiple_skipped_dims():
         x = inp.at(i)
         assert np.array_equal(x[1, :, :, 1], cpu.at(i))
         assert np.array_equal(x[1, :, :, 1], gpu.as_cpu().at(i))
+
+
+def test_empty_slice():
+    data = [np.full((4, 5), 123), np.full((0, 1), 42)]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[0:0, 0:1])
+    pipe.build()
+    inp, cpu, gpu = pipe.run()
+    for i in range(len(inp)):
+        x = inp.at(i)
+        assert np.array_equal(x[0:0, 0:1], cpu.at(i))
+        assert np.array_equal(x[0:0, 0:1], gpu.as_cpu().at(i))
