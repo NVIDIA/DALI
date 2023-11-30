@@ -166,9 +166,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             self._first_batch = None
             return batch
 
-        pipelines_outputs = (
-            self._get_outputs()
-        )  # Can be accessed by outputs[device_id][output_id]
+        pipelines_outputs = self._get_outputs()  # Can be accessed by outputs[device_id][output_id]
 
         next_output = dict()
         for category_id, category_name in enumerate(self.output_map):
@@ -179,9 +177,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             else:
                 self._assert_shards_shapes(category_outputs)
                 if self._sharding is not None:
-                    next_output[category_name] = self._build_output_with_sharding(
-                        category_outputs
-                    )
+                    next_output[category_name] = self._build_output_with_sharding(category_outputs)
                 else:
                     next_output[category_name] = self._build_output_with_device_put(
                         next_output, category_name, category_outputs
@@ -205,9 +201,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return category_outputs
 
-    def _build_output_with_device_put(
-        self, next_output, category_name, category_outputs
-    ):
+    def _build_output_with_device_put(self, next_output, category_name, category_outputs):
         """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
         with pmapped JAX functions.
         """
@@ -276,9 +270,7 @@ def _data_iterator_impl(
     """
 
     if sharding is not None and devices is not None:
-        raise ValueError(
-            "Only one of `sharding` and `devices` arguments can be provided."
-        )
+        raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
 
     def data_iterator_decorator(func):
         def create_iterator(*args, **wrapper_kwargs):
@@ -360,9 +352,7 @@ def _data_iterator_impl(
 
         return create_iterator
 
-    return (
-        data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
-    )
+    return data_iterator_decorator(pipeline_fn) if pipeline_fn else data_iterator_decorator
 
 
 def data_iterator(
