@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -420,10 +420,8 @@ class NormalizeImplGPU {
         "shape passed to Setup");
   }
 
-  template <typename Desc, typename KernelFunc>
-  std::pair<dim3, dim3>
-  GetLaunchParams(const TensorListShape<> &data_shape, KernelFunc func) const {
-    int max_block = MaxThreadsPerBlock(func);
+  template <typename Desc>
+  std::pair<dim3, dim3> GetLaunchParams(const TensorListShape<> &data_shape, int max_block) const {
     int optimum_block = std::is_same<Desc, Op_Scalar>::value ? 1024 : 256;
     int64_t block = std::min(max_block, optimum_block);
     int64_t max_size = 0;
@@ -448,7 +446,8 @@ class NormalizeImplGPU {
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
-    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, &NormalizeKernel<Desc>);
+    int max_block = MaxThreadsPerBlockStatic(NormalizeKernel<Desc>);
+    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
     NormalizeKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, global_scale, shift);
     CUDA_CALL(cudaGetLastError());
   }
@@ -462,7 +461,8 @@ class NormalizeImplGPU {
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
-    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, NormalizeInvStdDevKernel<Desc>);
+    int max_block = MaxThreadsPerBlockStatic(NormalizeInvStdDevKernel<Desc>);
+    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
     NormalizeInvStdDevKernel<<<grid, block, 0, ctx.gpu.stream>>>(
       gpu_descs, epsilon, global_scale, shift);
     CUDA_CALL(cudaGetLastError());

@@ -20,6 +20,7 @@
 
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cassert>
+#include <type_traits>
 #include <vector>
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
@@ -29,13 +30,33 @@ namespace dali {
 /**
  * @brief Gets the maximum number of threads per block for given kernel function on current device
  */
+template <typename KernelFunction, KernelFunction *f>
+int MaxThreadsPerBlockStaticImpl() {
+  static constexpr int kMaxDevices = 1024;
+  static int max_block_size[kMaxDevices] = {};
+  int device = 0;
+  CUDA_CALL(cudaGetDevice(&device));
+  assert(device >= 0 && device < kMaxDevices);
+  if (!max_block_size[device]) {
+    cudaFuncAttributes attr = {};
+    CUDA_CALL(cudaFuncGetAttributes(&attr, f));
+    max_block_size[device] = attr.maxThreadsPerBlock;
+  }
+  return max_block_size[device];
+}
+
+/**
+ * @brief Gets the maximum number of threads per block for given kernel function on current device
+ */
 template <typename KernelFunction>
-inline int MaxThreadsPerBlock(KernelFunction *f) {
+int MaxThreadsPerBlock(KernelFunction *f) {
   cudaFuncAttributes attr = {};
   CUDA_CALL(cudaFuncGetAttributes(&attr, f));
   return attr.maxThreadsPerBlock;
 }
 
+#define MaxThreadsPerBlockStatic(func) \
+  MaxThreadsPerBlockStaticImpl<std::remove_reference_t<decltype(*func)>, func>()
 
 inline const cudaDeviceProp &GetDeviceProperties(int device_id = -1) {
   if (device_id < 0) {
