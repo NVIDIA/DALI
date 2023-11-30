@@ -22,8 +22,8 @@ from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.python_function_plugin import current_dali_stream
 
-test_data_root = os.environ['DALI_EXTRA_PATH']
-images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
+test_data_root = os.environ["DALI_EXTRA_PATH"]
+images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
 
 
 def setup_pytorch():
@@ -31,6 +31,7 @@ def setup_pytorch():
     global torch
     import torch
     import torch.utils.dlpack as torch_dlpack
+
     global torch_stream
     torch_stream = torch.cuda.Stream()
 
@@ -47,22 +48,16 @@ def setup_cupy():
     global mix_channels_kernel
     global gray_scale_kernel
     import cupy as cupy
+
     cupy_stream = cupy.cuda.Stream()
-    square_diff_kernel = cupy.ElementwiseKernel(
-        'T x, T y',
-        'T z',
-        'z = x*x - y*y',
-        'square_diff'
-    )
+    square_diff_kernel = cupy.ElementwiseKernel("T x, T y", "T z", "z = x*x - y*y", "square_diff")
 
     mix_channels_kernel = cupy.ElementwiseKernel(
-        'uint8 x, uint8 y',
-        'uint8 z',
-        'z = (i % 3) ? x : y',
-        'mix_channels'
+        "uint8 x, uint8 y", "uint8 z", "z = (i % 3) ? x : y", "mix_channels"
     )
 
-    gray_scale_kernel = cupy.RawKernel(r'''
+    gray_scale_kernel = cupy.RawKernel(
+        r"""
     extern "C" __global__
     void gray_scale(float *output, const unsigned char *input, long long height, long long width) {
         int tidx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -74,7 +69,9 @@ def setup_cupy():
             output[tidy * width + tidx] = 0.299 * r + 0.59 * g + 0.11 * b;
         }
     }
-    ''', 'gray_scale')
+    """,
+        "gray_scale",
+    )
 
 
 def random_seed():
@@ -92,8 +89,9 @@ class CommonPipeline(Pipeline):
     def __init__(self, device):
         super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED, prefetch_queue_depth=2)
         self.input = ops.readers.File(file_root=images_dir)
-        self.decode = ops.decoders.Image(device='mixed' if device == 'gpu' else 'cpu',
-                                         output_type=types.RGB, hw_decoder_load=0)
+        self.decode = ops.decoders.Image(
+            device="mixed" if device == "gpu" else "cpu", output_type=types.RGB, hw_decoder_load=0
+        )
         self.resize = ops.Resize(resize_x=400, resize_y=400, device=device)
         self.flip = ops.Flip(device=device)
 
@@ -116,8 +114,9 @@ class LoadingPipeline(CommonPipeline):
 class DLTensorOpPipeline(CommonPipeline):
     def __init__(self, function, device, synchronize=True):
         super(DLTensorOpPipeline, self).__init__(device)
-        self.op = ops.DLTensorPythonFunction(function=function, device=device, num_outputs=2,
-                                             synchronize_stream=synchronize)
+        self.op = ops.DLTensorPythonFunction(
+            function=function, device=device, num_outputs=2, synchronize_stream=synchronize
+        )
 
     def define_graph(self):
         im = self.load()
@@ -130,8 +129,9 @@ def pytorch_adapter(fun, in1, in2):
         tin1 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in1]
         tin2 = [torch_dlpack.from_dlpack(dltensor) for dltensor in in2]
         tout1, tout2 = fun(tin1, tin2)
-        out1, out2 = [torch_dlpack.to_dlpack(tout) for tout in tout1], \
-                     [torch_dlpack.to_dlpack(tout) for tout in tout2]
+        out1, out2 = [torch_dlpack.to_dlpack(tout) for tout in tout1], [
+            torch_dlpack.to_dlpack(tout) for tout in tout2
+        ]
     torch_stream.synchronize()
     return out1, out2
 
@@ -151,7 +151,7 @@ def common_case(wrapped_fun, device, compare, synchronize=True):
         pre1, pre2 = load_pipe.run()
         post1, post2 = op_pipe.run()
 
-        if device == 'gpu':
+        if device == "gpu":
             pre1 = pre1.as_cpu()
             pre2 = pre2.as_cpu()
             post1 = post1.as_cpu()
@@ -176,8 +176,9 @@ def pytorch_case(fun, device):
 def simple_pytorch_op(in1, in2):
     fin1 = [t.to(dtype=torch.float) for t in in1]
     fin2 = [t.to(dtype=torch.float) for t in in2]
-    return [fin1[i] + fin2[i] for i in range(len(fin1))], \
-           [fin1[i] - fin2[i] for i in range(len(fin1))]
+    return [fin1[i] + fin2[i] for i in range(len(fin1))], [
+        fin1[i] - fin2[i] for i in range(len(fin1))
+    ]
 
 
 def pytorch_red_channel_op(in1, in2):
@@ -187,7 +188,7 @@ def pytorch_red_channel_op(in1, in2):
 def test_pytorch():
     setup_pytorch()
     for testcase in [simple_pytorch_op, pytorch_red_channel_op]:
-        for device in ['cpu', 'gpu']:
+        for device in ["cpu", "gpu"]:
             yield pytorch_case, testcase, device
 
     yield from _gpu_sliced_torch_suite()
@@ -198,8 +199,9 @@ def mxnet_adapter(fun, in1, in2):
     tin1 = [mxnd.from_dlpack(dltensor) for dltensor in in1]
     tin2 = [mxnd.from_dlpack(dltensor) for dltensor in in2]
     tout1, tout2 = fun(tin1, tin2)
-    return [mxnd.to_dlpack_for_read(tout) for tout in tout1], \
-           [mxnd.to_dlpack_for_read(tout) for tout in tout2]
+    return [mxnd.to_dlpack_for_read(tout) for tout in tout1], [
+        mxnd.to_dlpack_for_read(tout) for tout in tout2
+    ]
 
 
 def mxnet_wrapper(fun):
@@ -229,12 +231,12 @@ def mxnet_slice(in1, in2):
 
 
 def mxnet_cast(in1, in2):
-    return [mxnd.cast(t, dtype='float32') for t in in1], [mxnd.cast(t, dtype='int64') for t in in2]
+    return [mxnd.cast(t, dtype="float32") for t in in1], [mxnd.cast(t, dtype="int64") for t in in2]
 
 
 def test_mxnet():
     for testcase in [mxnet_flatten, mxnet_slice, mxnet_cast]:
-        for device in ['cpu', 'gpu']:
+        for device in ["cpu", "gpu"]:
             yield mxnet_case, testcase, device
 
 
@@ -243,8 +245,7 @@ def cupy_adapter_sync(fun, in1, in2):
         tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
         tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
         tout1, tout2 = fun(tin1, tin2)
-        out1, out2 = [tout.toDlpack() for tout in tout1], \
-                     [tout.toDlpack() for tout in tout2]
+        out1, out2 = [tout.toDlpack() for tout in tout1], [tout.toDlpack() for tout in tout2]
     cupy_stream.synchronize()
     return out1, out2
 
@@ -253,8 +254,7 @@ def cupy_adapter(fun, in1, in2):
     tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
     tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
     tout1, tout2 = fun(tin1, tin2)
-    return [tout.toDlpack() for tout in tout1], \
-           [tout.toDlpack() for tout in tout2]
+    return [tout.toDlpack() for tout in tout1], [tout.toDlpack() for tout in tout2]
 
 
 def cupy_wrapper(fun, synchronize):
@@ -281,25 +281,29 @@ def cupy_compare(fun, synchronize, pre1, pre2, post1, post2):
 
 
 def cupy_case(fun, synchronize=True):
-    common_case(cupy_wrapper(fun, synchronize), 'gpu',
-                partial(cupy_compare, fun, synchronize), synchronize)
+    common_case(
+        cupy_wrapper(fun, synchronize), "gpu", partial(cupy_compare, fun, synchronize), synchronize
+    )
 
 
 def cupy_simple(in1, in2):
     fin1 = [arr.astype(cupy.float32) for arr in in1]
     fin2 = [arr.astype(cupy.float32) for arr in in2]
-    return [cupy.sin(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], \
-           [cupy.cos(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
+    return [cupy.sin(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], [
+        cupy.cos(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)
+    ]
 
 
 def gray_scale_call(input):
     height = input.shape[0]
     width = input.shape[1]
     output = cupy.ndarray((height, width), dtype=cupy.float32)
-    gray_scale_kernel(grid=((height + 31) // 32, (width + 31) // 32),
-                      block=(32, 32),
-                      stream=cupy.cuda.get_current_stream(),
-                      args=(output, input, height, width))
+    gray_scale_kernel(
+        grid=((height + 31) // 32, (width + 31) // 32),
+        block=(32, 32),
+        stream=cupy.cuda.get_current_stream(),
+        args=(output, input, height, width),
+    )
     return output
 
 
@@ -377,49 +381,53 @@ def get_sliced_torch_case(case_name):
         ((181, 1097, 1), (slice(2, None, None), slice(1093), slice(None))),
     ]
 
-    prime_grey_images = [((199, 23), (slice(None, 173, None), slice(None, 19, None))),
-                         ((373, 373), (slice(None, 331, None), slice(42, None, None))),
-                         ((1097, 181), (slice(114, None, None), slice(None, 157, None))),
-                         ((61, 227), (slice(None, 53, None), slice(28, None, None))),
-                         ((1097, 61), (slice(114, None, None), slice(None, 53, None))),
-                         ((181, 199), (slice(None, 157, None), slice(None, 173, None))),
-                         ((1097, 1097), (slice(114, None, None), slice(None, 983, None))),
-                         ((373, 227), (slice(42, None, None), slice(None, 199, None))),
-                         ((227, 173), (slice(None, 199, None), slice(None, 151, None))),
-                         ((227, 173), (slice(None, 199, None), slice(22, None, None))),
-                         ((401, 173), (slice(42, None, None), slice(None, 151, None))),
-                         ((107, 23), (slice(18, None, None), slice(None, 19, None))),
-                         ((23, 199), (slice(4, None, None), slice(26, None, None))),
-                         ((199, 23), (slice(26, None, None), slice(4, None, None))),
-                         ((227, 23), (slice(None, 199, None), slice(None, 19, None))),
-                         ((23, 23), (slice(4, None, None), slice(4, None, None))),
-                         ((167, 181), (slice(18, None, None), slice(24, None, None))),
-                         ((167, 181), (slice(18, None, None), slice(24, None, None))),
-                         ((181, 227), (slice(None, 157, None), slice(None, 199, None))),
-                         ((401, 199), (slice(None, 359, None), slice(None, 173, None))),
-                         ((107, 181), (slice(None, 89, None), slice(None, 157, None))),
-                         ((173, 61), (slice(None, 151, None), slice(8, None, None))),
-                         ((227, 167), (slice(None, 199, None), slice(18, None, None))),
-                         ((173, 401), (slice(22, None, None), slice(None, 359, None))),
-                         ((23, 227), (slice(4, None, None), slice(28, None, None))),
-                         ((227, 23), (slice(28, None, None), slice(4, None, None))),
-                         ((373, 373), (slice(42, None, None), slice(None, 331, None))),
-                         ((61, 107), (slice(None, 53, None), slice(18, None, None))),
-                         ((181, 61), (slice(24, None, None), slice(None, 53, None))),
-                         ((107, 181), (slice(None, 89, None), slice(24, None, None))),
-                         ((401, 23), (slice(42, None, None), slice(4, None, None))),
-                         ((373, 401), (slice(None, 331, None), slice(42, None, None)))]
+    prime_grey_images = [
+        ((199, 23), (slice(None, 173, None), slice(None, 19, None))),
+        ((373, 373), (slice(None, 331, None), slice(42, None, None))),
+        ((1097, 181), (slice(114, None, None), slice(None, 157, None))),
+        ((61, 227), (slice(None, 53, None), slice(28, None, None))),
+        ((1097, 61), (slice(114, None, None), slice(None, 53, None))),
+        ((181, 199), (slice(None, 157, None), slice(None, 173, None))),
+        ((1097, 1097), (slice(114, None, None), slice(None, 983, None))),
+        ((373, 227), (slice(42, None, None), slice(None, 199, None))),
+        ((227, 173), (slice(None, 199, None), slice(None, 151, None))),
+        ((227, 173), (slice(None, 199, None), slice(22, None, None))),
+        ((401, 173), (slice(42, None, None), slice(None, 151, None))),
+        ((107, 23), (slice(18, None, None), slice(None, 19, None))),
+        ((23, 199), (slice(4, None, None), slice(26, None, None))),
+        ((199, 23), (slice(26, None, None), slice(4, None, None))),
+        ((227, 23), (slice(None, 199, None), slice(None, 19, None))),
+        ((23, 23), (slice(4, None, None), slice(4, None, None))),
+        ((167, 181), (slice(18, None, None), slice(24, None, None))),
+        ((167, 181), (slice(18, None, None), slice(24, None, None))),
+        ((181, 227), (slice(None, 157, None), slice(None, 199, None))),
+        ((401, 199), (slice(None, 359, None), slice(None, 173, None))),
+        ((107, 181), (slice(None, 89, None), slice(None, 157, None))),
+        ((173, 61), (slice(None, 151, None), slice(8, None, None))),
+        ((227, 167), (slice(None, 199, None), slice(18, None, None))),
+        ((173, 401), (slice(22, None, None), slice(None, 359, None))),
+        ((23, 227), (slice(4, None, None), slice(28, None, None))),
+        ((227, 23), (slice(28, None, None), slice(4, None, None))),
+        ((373, 373), (slice(42, None, None), slice(None, 331, None))),
+        ((61, 107), (slice(None, 53, None), slice(18, None, None))),
+        ((181, 61), (slice(24, None, None), slice(None, 53, None))),
+        ((107, 181), (slice(None, 89, None), slice(24, None, None))),
+        ((401, 23), (slice(42, None, None), slice(4, None, None))),
+        ((373, 401), (slice(None, 331, None), slice(42, None, None))),
+    ]
 
-    vid = [((17, ) + shape, (slice(None), ) + sl) for shape, sl in prime_images]
+    vid = [((17,) + shape, (slice(None),) + sl) for shape, sl in prime_images]
 
-    ndim_11 = [(tuple(3 if i == j else 1 for j in range(11)) + shape, ((slice(None), ) * 11) + sl)
-               for i, (shape, sl) in enumerate(prime_images)]
+    ndim_11 = [
+        (tuple(3 if i == j else 1 for j in range(11)) + shape, ((slice(None),) * 11) + sl)
+        for i, (shape, sl) in enumerate(prime_images)
+    ]
 
     cases = {
         "slice_images": prime_images,
         "slice_grey_images": prime_grey_images,
         "slice_vid": vid,
-        "slice_ndim_11": ndim_11
+        "slice_ndim_11": ndim_11,
     }
     shape_slices = cases[case_name]
     shapes, slices = tuple(zip(*shape_slices))
@@ -428,7 +436,6 @@ def get_sliced_torch_case(case_name):
 
 
 def _gpu_sliced_torch_case(case_name, dtype, g):
-
     shapes, slices = get_sliced_torch_case(case_name)
     input_batch = get_random_torch_batch(g, shapes, dtype)
     assert len(input_batch) == len(shapes)
@@ -447,13 +454,14 @@ def _gpu_sliced_torch_case(case_name, dtype, g):
     @pipeline_def(batch_size=len(input_batch), num_threads=4, device_id=0)
     def pipeline():
         data = fn.external_source(lambda: input_batch)
-        data = fn.dl_tensor_python_function(data.gpu(), batch_processing=True,
-                                            function=sliced_tensor, synchronize_stream=False)
+        data = fn.dl_tensor_python_function(
+            data.gpu(), batch_processing=True, function=sliced_tensor, synchronize_stream=False
+        )
         return data
 
     p = pipeline()
     p.build()
-    out, = p.run()
+    (out,) = p.run()
 
     out = [numpy.array(sample) for sample in out.as_cpu()]
     ref = [numpy.array(sample)[sl] for sample, sl in zip(input_batch, slices)]
@@ -462,7 +470,6 @@ def _gpu_sliced_torch_case(case_name, dtype, g):
 
 
 def _gpu_sliced_torch_suite():
-
     g = torch.Generator()
     g.manual_seed(42)
 
@@ -517,7 +524,8 @@ def get_permute_extents_case(case_name):
 
     if case_name == "image_random_permutation":
         prime_images_rnd_permuted = list(
-            zip(prime_images, [permuted_extents(3) for _ in range(len(prime_images))]))
+            zip(prime_images, [permuted_extents(3) for _ in range(len(prime_images))])
+        )
         assert len(prime_images_rnd_permuted) == len(prime_images)
         return prime_images_rnd_permuted
 
@@ -542,34 +550,38 @@ def get_permute_extents_case(case_name):
         ]
 
         prime_vid_like_transposed_channel = list(
-            zip(prime_vid_like, [(3, 0, 1, 2)] * len(prime_vid_like)))
+            zip(prime_vid_like, [(3, 0, 1, 2)] * len(prime_vid_like))
+        )
         assert len(prime_vid_like_transposed_channel) == len(prime_vid_like)
         return prime_vid_like_transposed_channel
 
     if case_name == "ndim_6_permute_outermost_3":
         # optimization to early stop translation of flat output index to flat input index
         # should kick in, test if that's fine
-        ndim_6_transpose_outermost = [(permuted([3, 5, 7, 11, 13, 17]), permuted_extents(3) +
-                                       (3, 4, 5)) for _ in range(5)]
+        ndim_6_transpose_outermost = [
+            (permuted([3, 5, 7, 11, 13, 17]), permuted_extents(3) + (3, 4, 5)) for _ in range(5)
+        ]
         assert len(ndim_6_transpose_outermost) == 5
         return ndim_6_transpose_outermost
 
     if case_name == "ndim_6_permute_all":
-        ndim_6_rnd_permuted = [(permuted([3, 5, 7, 11, 13, 17]), permuted_extents(6))
-                               for _ in range(32)]
+        ndim_6_rnd_permuted = [
+            (permuted([3, 5, 7, 11, 13, 17]), permuted_extents(6)) for _ in range(32)
+        ]
         assert len(ndim_6_rnd_permuted) == 32
         return ndim_6_rnd_permuted
 
     if case_name == "ndim_15_permute_all":
         # max ndim supported
-        ndim_15_rnd_permuted = [(permuted([3, 5, 7, 11, 13, 17, 1, 1, 1, 1, 1, 1, 1, 1,
-                                           1]), permuted_extents(15)) for _ in range(32)]
+        ndim_15_rnd_permuted = [
+            (permuted([3, 5, 7, 11, 13, 17, 1, 1, 1, 1, 1, 1, 1, 1, 1]), permuted_extents(15))
+            for _ in range(32)
+        ]
         assert len(ndim_15_rnd_permuted) == 32
         return ndim_15_rnd_permuted
 
 
 def _gpu_permuted_extents_torch_case(case_name, dtype, g):
-
     shapes_perms = get_permute_extents_case(case_name)
     shapes, perms = tuple(zip(*shapes_perms))
     assert len(shapes) == len(perms) == len(shapes_perms)
@@ -590,13 +602,14 @@ def _gpu_permuted_extents_torch_case(case_name, dtype, g):
     @pipeline_def(batch_size=len(input_batch), num_threads=4, device_id=0)
     def pipeline():
         data = fn.external_source(lambda: input_batch)
-        data = fn.dl_tensor_python_function(data.gpu(), batch_processing=True,
-                                            function=permuted_tensors, synchronize_stream=False)
+        data = fn.dl_tensor_python_function(
+            data.gpu(), batch_processing=True, function=permuted_tensors, synchronize_stream=False
+        )
         return data
 
     p = pipeline()
     p.build()
-    out, = p.run()
+    (out,) = p.run()
 
     out = [numpy.array(sample) for sample in out.as_cpu()]
     ref = [numpy.array(sample).transpose(perm) for sample, perm in zip(input_batch, perms)]
@@ -605,25 +618,23 @@ def _gpu_permuted_extents_torch_case(case_name, dtype, g):
 
 
 def _gpu_permuted_extents_torch_suite():
-
     g = torch.Generator()
     g.manual_seed(44)
 
     for case_name in (
-            "transpose_channels_image",
-            "transpose_hw_image",
-            "image_random_permutation",
-            "transpose_channels_video",
-            "ndim_6_permute_outermost_3",
-            "ndim_6_permute_all",
-            "ndim_15_permute_all",
+        "transpose_channels_image",
+        "transpose_hw_image",
+        "image_random_permutation",
+        "transpose_channels_video",
+        "ndim_6_permute_outermost_3",
+        "ndim_6_permute_all",
+        "ndim_15_permute_all",
     ):
         for dtype in (torch.uint8, torch.int16, torch.int32, torch.float64):
             yield _gpu_permuted_extents_torch_case, case_name, dtype, g
 
 
 def _cupy_negative_strides_case(dtype, batch_size, steps):
-
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
     def baseline_pipeline():
         img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
@@ -646,8 +657,9 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
         img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
         img = fn.decoders.image(img, device="mixed")
         img = fn.cast(img, dtype=dtype)
-        img = fn.dl_tensor_python_function(img, batch_processing=True, function=flip_cupy,
-                                           synchronize_stream=False)
+        img = fn.dl_tensor_python_function(
+            img, batch_processing=True, function=flip_cupy, synchronize_stream=False
+        )
         return img
 
     p = pipeline()
@@ -656,8 +668,8 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
     baseline.build()
 
     for _ in range(5):
-        batch, = p.run()
-        baseline_batch, = baseline.run()
+        (batch,) = p.run()
+        (baseline_batch,) = baseline.run()
         batch = [numpy.array(sample) for sample in batch.as_cpu()]
         baseline_batch = [numpy.array(sample) for sample in baseline_batch.as_cpu()]
         assert len(batch) == len(baseline_batch) == batch_size
@@ -689,15 +701,17 @@ def test_current_pipeline():
     pipe1 = Pipeline(13, 4, 0)
     with pipe1:
         dummy = types.Constant(numpy.ones((1)))
-        output = fn.dl_tensor_python_function(dummy,
-                                              function=lambda inp: verify_pipeline(pipe1, inp))
+        output = fn.dl_tensor_python_function(
+            dummy, function=lambda inp: verify_pipeline(pipe1, inp)
+        )
         pipe1.set_outputs(output)
 
     pipe2 = Pipeline(6, 2, 0)
     with pipe2:
         dummy = types.Constant(numpy.ones((1)))
-        output = fn.dl_tensor_python_function(dummy,
-                                              function=lambda inp: verify_pipeline(pipe2, inp))
+        output = fn.dl_tensor_python_function(
+            dummy, function=lambda inp: verify_pipeline(pipe2, inp)
+        )
         pipe2.set_outputs(output)
 
     pipe1.build()

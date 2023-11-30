@@ -41,9 +41,7 @@ def test_plain_indexing():
         assert np.array_equal(x[1, 1], gpu.as_cpu().at(i))
 
 
-def _test_indexing(
-    data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None
-):
+def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
     src = fn.external_source(data_gen, layout=input_layout)
     pipe = index_pipe(src, dali_index_func)
     pipe.build()
@@ -295,8 +293,10 @@ def test_ellipsis_not_implemented():
 
 
 def test_multiple_skipped_dims():
-    data = [np.arange(64, dtype=np.float32).reshape(4, 2, 2, 4),
-            np.arange(120, dtype=np.float32).reshape(4, 2, 3, 5)]
+    data = [
+        np.arange(64, dtype=np.float32).reshape(4, 2, 2, 4),
+        np.arange(120, dtype=np.float32).reshape(4, 2, 3, 5),
+    ]
     src = fn.external_source(lambda: data, layout="ABCD")
     pipe = index_pipe(src, lambda x: x[1, :, :, 1])
     pipe.build()
@@ -305,3 +305,15 @@ def test_multiple_skipped_dims():
         x = inp.at(i)
         assert np.array_equal(x[1, :, :, 1], cpu.at(i))
         assert np.array_equal(x[1, :, :, 1], gpu.as_cpu().at(i))
+
+
+def test_empty_slice():
+    data = [np.full((4, 5), 123), np.full((0, 1), 42)]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[0:0, 0:1])
+    pipe.build()
+    inp, cpu, gpu = pipe.run()
+    for i in range(len(inp)):
+        x = inp.at(i)
+        assert np.array_equal(x[0:0, 0:1], cpu.at(i))
+        assert np.array_equal(x[0:0, 0:1], gpu.as_cpu().at(i))

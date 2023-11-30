@@ -1,5 +1,5 @@
 # Copyright 2020 The TensorFlow Runtime Authors
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ def function_header(return_type, name, args):
         # handle arrays and function (or array of) pointer and reference to an array differently
         # as well
         # int[], int (*)(), int (*[])(), int (&)[5]
-        match = re.search(r'\[|\)', arg_type)
+        match = re.search(r"\[|\)", arg_type)
         if match:
             pos = match.span()[0]
             print(arg_type[:pos])
@@ -46,17 +46,15 @@ def function_header(return_type, name, args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate dynamic loading stubs for CUDA and HIP APIs.')
-    parser.add_argument('--unique_prefix', default="", type=str,
-                        help='Unique prefix for used in the stub')
+        description="Generate dynamic loading stubs for CUDA and HIP APIs."
+    )
     parser.add_argument(
-        'input', nargs='?', type=argparse.FileType('r'))
-    parser.add_argument(
-        'output', nargs='?', type=argparse.FileType('w'))
-    parser.add_argument(
-        'header', nargs='?', type=str, default=None)
-    parser.add_argument(
-        'extra_args', nargs='*', type=str, default=None)
+        "--unique_prefix", default="", type=str, help="Unique prefix for used in the stub"
+    )
+    parser.add_argument("input", nargs="?", type=argparse.FileType("r"))
+    parser.add_argument("output", nargs="?", type=argparse.FileType("w"))
+    parser.add_argument("header", nargs="?", type=str, default=None)
+    parser.add_argument("extra_args", nargs="*", type=str, default=None)
     args = parser.parse_args()
 
     config = json.load(args.input)
@@ -72,7 +70,10 @@ def main():
                            reinterpret_cast<FuncPtr>(LOAD_SYMBOL_FUNC("{1}")) :
                            {1}NotFound;
   return func_ptr({3});
-}}\n""" % (config['calling_conv'], config['calling_conv'])
+}}\n""" % (
+        config["calling_conv"],
+        config["calling_conv"],
+    )
 
     prolog = """
 void *{0}LoadSymbol(const char *name);
@@ -91,8 +92,8 @@ void *{0}LoadSymbol(const char *name);
         if diag.severity in [diag.Warning, diag.Fatal]:
             raise Exception(str(diag))
 
-    for extra_i in config['extra_include']:
-        args.output.write('#include {}\n'.format(extra_i))
+    for extra_i in config["extra_include"]:
+        args.output.write("#include {}\n".format(extra_i))
     args.output.write(prolog.format(args.unique_prefix))
 
     all_definition = set()
@@ -112,8 +113,11 @@ void *{0}LoadSymbol(const char *name);
         function_name = cursor.spelling
 
         # make sure that we deal  only with functions with no definition
-        if function_name not in config['functions'] or function_name in all_definition or \
-           function_name not in all_declaration:
+        if (
+            function_name not in config["functions"]
+            or function_name in all_definition
+            or function_name not in all_declaration
+        ):
             continue
 
         # make sure that we deal with every function only once
@@ -122,19 +126,24 @@ void *{0}LoadSymbol(const char *name);
         arg_types = [arg.type.spelling for arg in cursor.get_arguments()]
         arg_names = [arg.spelling for arg in cursor.get_arguments()]
 
-        return_type = config['functions'][function_name].get(
-            'return_type', config['return_type'])
-        not_found_error = config['functions'][function_name].get(
-            'not_found_error', config['not_found_error'])
+        return_type = config["functions"][function_name].get("return_type", config["return_type"])
+        not_found_error = config["functions"][function_name].get(
+            "not_found_error", config["not_found_error"]
+        )
 
         header = function_header(return_type, function_name, zip(arg_types, arg_names))
 
-        implementation = function_impl.format(header, function_name, ', '.join(arg_types),
-                                              ', '.join(arg_names), return_type=return_type,
-                                              not_found_error=not_found_error)
+        implementation = function_impl.format(
+            header,
+            function_name,
+            ", ".join(arg_types),
+            ", ".join(arg_names),
+            return_type=return_type,
+            not_found_error=not_found_error,
+        )
 
         args.output.write(implementation)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

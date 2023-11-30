@@ -18,11 +18,11 @@ from nvidia.dali._autograph.utils import hooks
 
 
 def if_exp(cond, if_true, if_false, expr_repr):
-  if hooks._DISPATCH.detect_overload_if_exp(cond):
-    return hooks._DISPATCH.if_exp(cond, if_true, if_false, expr_repr)
-  else:
-    return _py_if_exp(cond, if_true, if_false)
+    if hooks._DISPATCH.detect_overload_if_exp(cond):
+        return hooks._DISPATCH.if_exp(cond, if_true, if_false, expr_repr)
+    else:
+        return _py_if_exp(cond, if_true, if_false)
 
 
 def _py_if_exp(cond, if_true, if_false):
-  return if_true() if cond else if_false()
+    return if_true() if cond else if_false()

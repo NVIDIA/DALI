@@ -19,15 +19,15 @@ from typing import Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
 
-
 class TorchPythonFunction:
     """Executes a function that is operating on Torch tensors"""
 
     def __init__(
         self,
         /,
-        function: Optional[Callable[..., Union[torch.Tensor, Tuple[torch.Tensor, ...],
-                                               None]]] = None,
+        function: Optional[
+            Callable[..., Union[torch.Tensor, Tuple[torch.Tensor, ...], None]]
+        ] = None,
         num_outputs: int = 1,
         device: str = "cpu",
         batch_processing: bool = False,
@@ -37,9 +37,7 @@ class TorchPythonFunction:
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
         name: Optional[str] = None,
-    ) -> None:
-        ...
-
+    ) -> None: ...
     def __call__(
         self,
         /,
@@ -48,5 +46,4 @@ class TorchPythonFunction:
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
         name: Optional[str] = None,
-    ) -> Union[DataNode, Sequence[DataNode], None]:
-        ...
+    ) -> Union[DataNode, Sequence[DataNode], None]: ...

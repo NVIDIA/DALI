@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import nose.inspector
 import nose.loader
 import nose.suite
 import nose.plugins.attrib
+
 if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.case.collections = collections.abc
     nose.inspector.collections = collections.abc
@@ -47,7 +48,8 @@ def get_pattern(glob=None, regex=None, match_case=None):
 
     if glob is not None and regex is not None:
         raise ValueError(
-            "You should specify at most one of `glob` and `regex` parameters but not both")
+            "You should specify at most one of `glob` and `regex` parameters but not both"
+        )
 
     if glob is not None:
         pattern = glob_to_regex(glob)
@@ -55,7 +57,8 @@ def get_pattern(glob=None, regex=None, match_case=None):
         if match_case is not None and not isinstance(regex, str):
             raise ValueError(
                 "Regex must be a string if `match_case` is specified when "
-                "calling assert_raises_pattern")
+                "calling assert_raises_pattern"
+            )
         pattern = regex
 
     if isinstance(pattern, str) and not match_case:  # ignore case by default
@@ -65,7 +68,6 @@ def get_pattern(glob=None, regex=None, match_case=None):
 
 
 def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kwargs):
-
     """
     Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
     Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception
@@ -84,7 +86,6 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
 
 
 def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs):
-
     if glob is None and regex is None:
         return tools.assert_warns(exception, *args, **kwargs)
 
@@ -93,7 +94,6 @@ def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=Non
 
 
 def raises(exception, glob=None, regex=None, match_case=None):
-
     """
     To assert that the test case raises Exception with the message matching given glob pattern
         @raises(Exception, "abc * def")
@@ -117,7 +117,6 @@ def raises(exception, glob=None, regex=None, match_case=None):
     """
 
     def decorator(func):
-
         def new_func(*args, **kwargs):
             with assert_raises(exception, glob=glob, regex=regex, match_case=match_case):
                 return func(*args, **kwargs)

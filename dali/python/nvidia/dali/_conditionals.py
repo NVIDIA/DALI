@@ -76,7 +76,8 @@ class _StackEntry:
 
     @property
     def produced(self):
-        """Access the set of hashes of DataNodes produced in the scope of currently selected branch.
+        """
+        Access the set of hashes of DataNodes produced in the scope of currently selected branch.
         """
         if self.branch == _Branch.TrueBranch:
             return self.produced_true
@@ -87,7 +88,8 @@ class _StackEntry:
 
     @produced.setter
     def produced(self, value):
-        """Access the set of hashes of DataNodes produced in the scope of currently selected branch.
+        """
+        Access the set of hashes of DataNodes produced in the scope of currently selected branch
         """
         if self.branch == _Branch.TrueBranch:
             self.produced_true = value
@@ -109,8 +111,10 @@ class _StackEntry:
                 flat_list = [item for sublist in data_node for item in sublist]
                 self.add_produced(flat_list)
         else:
-            raise ValueError(f"Unexpected operator result to register: {data_node}. Expected up to"
-                             " two-level nesting of DataNode.")
+            raise ValueError(
+                f"Unexpected operator result to register: {data_node}. Expected up to"
+                " two-level nesting of DataNode."
+            )
 
     def add_split(self, source_data_node, producer_node, true_node, false_node):
         """Register the outputs of split node that were produced from the source_data_node
@@ -134,11 +138,14 @@ class _StackEntry:
         self.produced_false |= {_data_node_repr(false_node)}
 
     def __str__(self):
-        return (f"StackEntry: pred={self.predicate}, branch={self.branch}, splits={self.splits},"
-                f" produced={self.produced}")
+        return (
+            f"StackEntry: pred={self.predicate}, branch={self.branch}, splits={self.splits},"
+            f" produced={self.produced}"
+        )
 
     def has(self, data_node):
-        """Check if this DataNode was either produced in this scope or already split for this scope.
+        """
+        Check if this DataNode was either produced in this scope or already split for this scope.
         """
         if _data_node_repr(data_node) in self.produced:
             return True
@@ -242,8 +249,8 @@ class _ConditionStack:
         """
         assert 0 <= stack_level and stack_level < self.stack_depth() - 1
         produced_data_node = self._stack[stack_level].get(data_node)
-        bottom = self._stack[:stack_level + 1]
-        top = self._stack[stack_level + 1:]
+        bottom = self._stack[: stack_level + 1]
+        top = self._stack[stack_level + 1 :]
         self._stack = bottom
         while top:
             current_entry = top.pop(0)
@@ -251,12 +258,18 @@ class _ConditionStack:
 
             # Do not automatically register the outputs in the current scope, we track them below
             # in their respective branches.
-            logging.log(9, (f"{self._indent()}[IF] Inserting split"
-                            f" at {self.stack_depth() -1}:"
-                            f" split({produced_data_node}, predicate={predicate}."))
+            logging.log(
+                9,
+                (
+                    f"{self._indent()}[IF] Inserting split"
+                    f" at {self.stack_depth() -1}:"
+                    f" split({produced_data_node}, predicate={predicate}."
+                ),
+            )
             self._is_registration_allowed = False
-            true_node, false_node = fn._conditional.split(produced_data_node, predicate=predicate,
-                                                          _if_stmt=True)
+            true_node, false_node = fn._conditional.split(
+                produced_data_node, predicate=predicate, _if_stmt=True
+            )
             self._is_registration_allowed = True
 
             # Record the result of splitting the `data_node` that we are trying to look up
@@ -275,8 +288,13 @@ class _ConditionStack:
         conditions. Caches the previously processed DataNodes to not do repeated splitting.
         """
         stack_level = self._find_closest(data_node)
-        logging.log(8, (f"{self._indent()}[IF/Input] {data_node} accessed at level"
-                        f" {self.stack_depth() - 1} found at {stack_level}."))
+        logging.log(
+            8,
+            (
+                f"{self._indent()}[IF/Input] {data_node} accessed at level"
+                f" {self.stack_depth() - 1} found at {stack_level}."
+            ),
+        )
         # We already have it cached or produced in this scope.
         if stack_level == self.stack_depth() - 1:
             return self.top().get(data_node)
@@ -332,14 +350,19 @@ class _ConditionStack:
 
     def _indent(self):
         """Helper for indenting the log messages to resemble visited scopes"""
-        return '  ' * (self.stack_depth() - 1)
+        return "  " * (self.stack_depth() - 1)
 
 
 @contextmanager
 def _cond_manager(predicate):
     actual_predicate = this_condition_stack().push_predicate(predicate)
-    logging.log(7, (f"{this_condition_stack()._indent()}[IF]: {predicate}"
-                    f" at {this_condition_stack().stack_depth() - 1}"))
+    logging.log(
+        7,
+        (
+            f"{this_condition_stack()._indent()}[IF]: {predicate}"
+            f" at {this_condition_stack().stack_depth() - 1}"
+        ),
+    )
     # Return it so we can use it in merge
     yield actual_predicate
     this_condition_stack().pop()
@@ -348,8 +371,13 @@ def _cond_manager(predicate):
 @contextmanager
 def _cond_true():
     this_condition_stack().track_true_branch()
-    logging.log(7, (f"{this_condition_stack()._indent()}[IF]: `if` branch"
-                    f" at {this_condition_stack().stack_depth() - 1}"))
+    logging.log(
+        7,
+        (
+            f"{this_condition_stack()._indent()}[IF]: `if` branch"
+            f" at {this_condition_stack().stack_depth() - 1}"
+        ),
+    )
     yield
     this_condition_stack().no_branch()
 
@@ -357,8 +385,13 @@ def _cond_true():
 @contextmanager
 def _cond_false():
     this_condition_stack().track_false_branch()
-    logging.log(7, (f"{this_condition_stack()._indent()}[IF]: `else` branch"
-                    f" at {this_condition_stack().stack_depth() - 1}"))
+    logging.log(
+        7,
+        (
+            f"{this_condition_stack()._indent()}[IF]: `else` branch"
+            f" at {this_condition_stack().stack_depth() - 1}"
+        ),
+    )
     yield
     this_condition_stack().no_branch()
 
@@ -371,21 +404,24 @@ def _cond_merge(split_predicate):
 
 
 def conditionals_enabled():
-    """Check (within a Pipeline context) if the conditionals are enabled.
-    """
+    """Check (within a Pipeline context) if the conditionals are enabled."""
     from nvidia.dali._debug_mode import _PipelineDebug
+
     current_pipeline = _PipelineDebug.current()
-    enabled = getattr(current_pipeline, '_conditionals_enabled', False)
+    enabled = getattr(current_pipeline, "_conditionals_enabled", False)
     return enabled
 
 
 def this_condition_stack():
     """Return the condition stack of current Pipeline"""
     from nvidia.dali._debug_mode import _PipelineDebug
+
     current_pipeline = _PipelineDebug.current()
     if current_pipeline._condition_stack is None:
-        raise ValueError("Cannot access current condition stack when conditionals"
-                         " were not enabled for a given pipeline.")
+        raise ValueError(
+            "Cannot access current condition stack when conditionals"
+            " were not enabled for a given pipeline."
+        )
     return current_pipeline._condition_stack
 
 
@@ -482,18 +518,22 @@ def _verify_branch_outputs(outputs, symbol_names, branch_name):
     """Verifies variables output by a conditional branch for consistency."""
     common_explanation = (
         "Encountered inconsistent outputs out of the `if/else` control flow statement."
-        " Variables need to be initialized in every code path (both `if` branches).")
+        " Variables need to be initialized in every code path (both `if` branches)."
+    )
     for name, output in zip(symbol_names, outputs):
         if isinstance(output, variables.Undefined):
-            raise RuntimeError(f"{common_explanation} Variable '{name}' must also be initialized"
-                               f" in the `{branch_name}` branch.")
+            raise RuntimeError(
+                f"{common_explanation} Variable '{name}' must also be initialized"
+                f" in the `{branch_name}` branch."
+            )
         if isinstance(output, variables.UndefinedReturnValue):
-            raise RuntimeError(f"{common_explanation} The `{branch_name}` branch must also have"
-                               f" a return statement.")
+            raise RuntimeError(
+                f"{common_explanation} The `{branch_name}` branch must also have"
+                f" a return statement."
+            )
 
 
 class DaliOperatorOverload(_autograph.OperatorBase):
-
     def detect_overload_ld(self, v):
         return isinstance(v, _DataNode)
 
@@ -537,15 +577,17 @@ class DaliOperatorOverload(_autograph.OperatorBase):
             # We execute the merge _after_ both branches, and pretend for a moment, that it
             # can see those values produced in child scopes.
             with _cond_merge(split_predicate):
-                err_msg = ("Divergent data found in different branches of `if/else` control flow"
-                           " statement. Variables in all code paths are merged into common output"
-                           " batches. The values assigned to a given variable need to have the same"
-                           " nesting structure in every code path (both `if` branches).\n"
-                           "For example, if we define a variable as a tuple in one branch, it must"
-                           " be defined as a tuple of the same length in the other branch - the"
-                           " contents of the tuples may be different. If we define a variable as"
-                           " a dictionary, the other branch must define it as a dictionary with the"
-                           " same set of keys, the values may be different.\n")
+                err_msg = (
+                    "Divergent data found in different branches of `if/else` control flow"
+                    " statement. Variables in all code paths are merged into common output"
+                    " batches. The values assigned to a given variable need to have the same"
+                    " nesting structure in every code path (both `if` branches).\n"
+                    "For example, if we define a variable as a tuple in one branch, it must"
+                    " be defined as a tuple of the same length in the other branch - the"
+                    " contents of the tuples may be different. If we define a variable as"
+                    " a dictionary, the other branch must define it as a dictionary with the"
+                    " same set of keys, the values may be different.\n"
+                )
 
                 try:
                     tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
@@ -557,12 +599,18 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                     raise TypeError(err_msg + str(e)) from None
 
                 def merge_branches(new_body_val, new_orelse_val):
-                    logging.log(9, (f"{this_condition_stack()._indent()}[IF] Inserting merge"
-                                    f" at {this_condition_stack().stack_depth() -1}:"
-                                    f" merge({new_body_val}, {new_orelse_val}, predicate="
-                                    f"{split_predicate}."))
-                    return fn._conditional.merge(new_body_val, new_orelse_val,
-                                                 predicate=split_predicate)
+                    logging.log(
+                        9,
+                        (
+                            f"{this_condition_stack()._indent()}[IF] Inserting merge"
+                            f" at {this_condition_stack().stack_depth() -1}:"
+                            f" merge({new_body_val}, {new_orelse_val}, predicate="
+                            f"{split_predicate}."
+                        ),
+                    )
+                    return fn._conditional.merge(
+                        new_body_val, new_orelse_val, predicate=split_predicate
+                    )
 
                 output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
 
@@ -591,19 +639,22 @@ class DaliOperatorOverload(_autograph.OperatorBase):
         #   and_output = b()
         # else:
         #   and_output = a_val
-        a_validated = fn._conditional.validate_logical(a_value, expression_name="and",
-                                                       expression_side="left")
+        a_validated = fn._conditional.validate_logical(
+            a_value, expression_name="and", expression_side="left"
+        )
         with _cond_manager(a_validated) as split_predicate:
             with _cond_true():
                 b_value = b()
-                b_validated = fn._conditional.validate_logical(b_value, expression_name="and",
-                                                               expression_side="right")
+                b_validated = fn._conditional.validate_logical(
+                    b_value, expression_name="and", expression_side="right"
+                )
                 body_outputs = apply_conditional_split(b_validated)
             with _cond_false():
                 else_outputs = apply_conditional_split(split_predicate)
             with _cond_merge(split_predicate):
-                merged = fn._conditional.merge(body_outputs, else_outputs,
-                                               predicate=split_predicate)
+                merged = fn._conditional.merge(
+                    body_outputs, else_outputs, predicate=split_predicate
+                )
 
         this_condition_stack().register_data_nodes([merged], False)
         return merged
@@ -617,19 +668,22 @@ class DaliOperatorOverload(_autograph.OperatorBase):
         #   or_output = a_val
         # else:
         #   or_output = b()
-        a_validated = fn._conditional.validate_logical(a_value, expression_name="or",
-                                                       expression_side="left")
+        a_validated = fn._conditional.validate_logical(
+            a_value, expression_name="or", expression_side="left"
+        )
         with _cond_manager(a_validated) as split_predicate:
             with _cond_true():
                 body_outputs = apply_conditional_split(split_predicate)
             with _cond_false():
                 b_value = b()
-                b_validated = fn._conditional.validate_logical(b_value, expression_name="or",
-                                                               expression_side="right")
+                b_validated = fn._conditional.validate_logical(
+                    b_value, expression_name="or", expression_side="right"
+                )
                 else_outputs = apply_conditional_split(b_validated)
             with _cond_merge(split_predicate):
-                merged = fn._conditional.merge(body_outputs, else_outputs,
-                                               predicate=split_predicate)
+                merged = fn._conditional.merge(
+                    body_outputs, else_outputs, predicate=split_predicate
+                )
 
         this_condition_stack().register_data_nodes([merged], False)
         return merged
@@ -637,5 +691,8 @@ class DaliOperatorOverload(_autograph.OperatorBase):
 
 _OVERLOADS = DaliOperatorOverload()
 
-_autograph.initialize_autograph(_OVERLOADS, convert_modules=["nvidia.dali.auto_aug"],
-                                do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"])
+_autograph.initialize_autograph(
+    _OVERLOADS,
+    convert_modules=["nvidia.dali.auto_aug"],
+    do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"],
+)

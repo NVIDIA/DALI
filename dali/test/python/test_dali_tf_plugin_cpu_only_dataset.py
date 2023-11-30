@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,16 +37,17 @@ def test_dali_tf_dataset_cpu_only():
 
     batch_size = 3
     value = random.randint(0, 1000)
-    pipe = get_dali_pipe(batch_size=batch_size,
-                         device_id=types.CPU_ONLY_DEVICE_ID,
-                         num_threads=1,
-                         value=value)
-    with tf.device('/cpu'):
-        ds = dali_tf.DALIDataset(pipe,
-                                 device_id=types.CPU_ONLY_DEVICE_ID,
-                                 batch_size=1,
-                                 output_dtypes=tf.int32,
-                                 output_shapes=[1])
+    pipe = get_dali_pipe(
+        batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value
+    )
+    with tf.device("/cpu"):
+        ds = dali_tf.DALIDataset(
+            pipe,
+            device_id=types.CPU_ONLY_DEVICE_ID,
+            batch_size=1,
+            output_dtypes=tf.int32,
+            output_shapes=[1],
+        )
     ds = iter(ds)
     data = next(ds)
     assert data == np.array([value])

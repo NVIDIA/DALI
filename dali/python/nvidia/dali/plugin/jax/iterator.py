@@ -172,9 +172,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         next_output = dict()
         for category_id, category_name in enumerate(self.output_map):
-            category_outputs = self._gather_outputs_for_category(
-                pipelines_outputs, category_id
-            )
+            category_outputs = self._gather_outputs_for_category(pipelines_outputs, category_id)
 
             if self._num_gpus == 1:
                 next_output[category_name] = category_outputs[0]
@@ -244,9 +242,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def _assert_shards_shapes(self, category_outputs):
         for shard in category_outputs:
-            assert (
-                shard.shape == category_outputs[0].shape
-            ), "Shards shapes have to be the same."
+            assert shard.shape == category_outputs[0].shape, "Shards shapes have to be the same."
 
 
 def default_num_threads_value() -> int:
@@ -329,7 +325,7 @@ def _data_iterator_impl(
                         **wrapper_kwargs,
                         device_id=id,
                         shard_id=device.id,
-                        num_shards=len(devices_to_use)
+                        num_shards=len(devices_to_use),
                     )
 
                     pipelines.append(pipeline)

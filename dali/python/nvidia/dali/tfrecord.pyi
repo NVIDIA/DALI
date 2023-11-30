@@ -20,24 +20,20 @@ float32: int
 int64: int
 string: int
 
-
 class Feature:
     """
     TFRecord feature. Use the nvidia.dali.tfrecord.FixedLenFeature
     and nvidia.dali.tfrecord.VarLenFeature helper functions to obtain the instances.
     """
 
-
 def FixedLenFeature(__shape: List[int], __dtype: int, __default_value: object, /) -> Feature:
     """Equivalent of TensorFlow's FixedLenFeature"""
     ...
-
 
 @overload
 def VarLenFeature(__dtype: int, __default_value: object, /) -> Feature:
     """Equivalent of TensorFlow's VarLenFeature"""
     ...
-
 
 @overload
 def VarLenFeature(__partial_shape: List[int], __dtype: int, __default_value: object, /) -> Feature:

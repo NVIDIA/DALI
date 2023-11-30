@@ -1,13 +1,16 @@
-# AutoGraph uses 2 spaces, thus it requires a separate flake8 config
+# per-file-ignore do not work well with absolute path (or more complex paths),
+# so just disable them by a special config
 [flake8]
-indent-size = 2
 color = auto
 count = True
 doctests = False
-max-doc-length = 100
 max-line-length = 100
 statistics = True
+# E203 - whitespace before ':' - PEP8 non-compliant warning in slicing expressions
+# W503 - Line break occurred before a binary operator, replaced by W504
 # E741 - ambiguous variable name 'l'
 # E731 - do not assign a lambda expression, use a def
 # F401 - 'autograph.operators....' imported but unused - used to bring types into another module
-extend-ignore = E741,E731,F401
+extend-ignore = E203,E741,E731,F401
+# W504 - Line break occurred after a binary operator
+extend-select = W504

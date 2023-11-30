@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def failure_test_trigger():
-    raise RuntimeError("This test is intended to always fail to allow for verification"
-                       " of CI scripting.")
+    raise RuntimeError(
+        "This test is intended to always fail to allow for verification" " of CI scripting."
+    )

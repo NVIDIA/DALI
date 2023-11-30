@@ -15,8 +15,14 @@
 from nvidia.dali import _conditionals
 
 from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali.types import (DALIDataType as _DALIDataType, Constant as _Constant, ScalarConstant
-                               as _ScalarConstant, _bool_types, _int_like_types, _float_types)
+from nvidia.dali.types import (
+    DALIDataType as _DALIDataType,
+    Constant as _Constant,
+    ScalarConstant as _ScalarConstant,
+    _bool_types,
+    _int_like_types,
+    _float_types,
+)
 
 
 def _is_boolean_like(input):
@@ -104,7 +110,8 @@ def _to_type_desc(input):
     raise TypeError(
         f"Constant argument to arithmetic operation not supported. "
         f"Got {str(type(input))}, expected "
-        f"a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
+        f"a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'."
+    )
 
 
 # Group inputs into categories_idxs, edges of type ``edge_type``,
@@ -150,10 +157,12 @@ def _group_inputs(inputs, edge_type=_DataNode):
             categories_idxs.append(("real", len(reals)))
             reals.append(input)
         else:
-            raise TypeError(f"Argument to arithmetic operation not supported."
-                            f"Got {str(type(input))}, expected a return value from other"
-                            f"DALI Operator  or a constant value of type 'bool', 'int', "
-                            f"'float' or 'nvidia.dali.types.Constant'.")
+            raise TypeError(
+                f"Argument to arithmetic operation not supported."
+                f"Got {str(type(input))}, expected a return value from other"
+                f"DALI Operator  or a constant value of type 'bool', 'int', "
+                f"'float' or 'nvidia.dali.types.Constant'."
+            )
 
     if len(integers) == 0:
         integers = None
@@ -186,13 +195,18 @@ def _arithm_op(name, *inputs):
     Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
     """
     import nvidia.dali.ops  # Allow for late binding of the ArithmeticGenericOp from parent module.
+
     categories_idxs, edges, integers, reals = _group_inputs(inputs)
     input_desc = _generate_input_desc(categories_idxs, integers, reals)
     expression_desc = "{}({})".format(name, input_desc)
     dev = nvidia.dali.ops._choose_device(edges)
     # Create "instance" of operator
-    op = nvidia.dali.ops.ArithmeticGenericOp(device=dev, expression_desc=expression_desc,
-                                             integer_constants=integers, real_constants=reals)
+    op = nvidia.dali.ops.ArithmeticGenericOp(
+        device=dev,
+        expression_desc=expression_desc,
+        integer_constants=integers,
+        real_constants=reals,
+    )
     # If we are on gpu, we must mark all inputs as gpu
     if dev == "gpu":
         dev_inputs = list(edge.gpu() for edge in edges)

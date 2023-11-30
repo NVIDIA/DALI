@@ -15,7 +15,7 @@
 from nvidia.dali import backend as _b
 from nvidia.dali import ops
 
-_internal_schemas = ['_TFRecordReader', 'readers___TFRecord']
+_internal_schemas = ["_TFRecordReader", "readers___TFRecord"]
 
 
 def tfrecord_enabled():
@@ -29,8 +29,8 @@ def tfrecord_enabled():
     return False
 
 
-class _TFRecordReaderImpl():
-    """ custom wrappers around ops """
+class _TFRecordReaderImpl:
+    """custom wrappers around ops"""
 
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
@@ -79,7 +79,7 @@ class _TFRecordReaderImpl():
         if self._name is not None:
             args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
 
-        self._preserve = (self._preserve or args.get("preserve", False) or self._schema.IsNoPrune())
+        self._preserve = self._preserve or args.get("preserve", False) or self._schema.IsNoPrune()
 
         feature_names = []
         features = []
@@ -101,8 +101,8 @@ class _TFRecordReaderImpl():
 
 
 class TFRecordReader(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _internal_schema_name = '_TFRecordReader'
+    _internal_schema_name = "_TFRecordReader"
 
 
 class TFRecord(_TFRecordReaderImpl, metaclass=ops._DaliOperatorMeta):
-    _internal_schema_name = 'readers___TFRecord'
+    _internal_schema_name = "readers___TFRecord"

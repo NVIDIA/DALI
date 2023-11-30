@@ -41,15 +41,15 @@ ops._wrap_op(TorchPythonFunction, "fn", __name__)
 
 
 to_torch_type = {
-    types.DALIDataType.FLOAT:   torch.float32,
+    types.DALIDataType.FLOAT: torch.float32,
     types.DALIDataType.FLOAT64: torch.float64,
     types.DALIDataType.FLOAT16: torch.float16,
-    types.DALIDataType.UINT8:   torch.uint8,
-    types.DALIDataType.INT8:    torch.int8,
-    types.DALIDataType.BOOL:    torch.bool,
-    types.DALIDataType.INT16:   torch.int16,
-    types.DALIDataType.INT32:   torch.int32,
-    types.DALIDataType.INT64:   torch.int64
+    types.DALIDataType.UINT8: torch.uint8,
+    types.DALIDataType.INT8: torch.int8,
+    types.DALIDataType.BOOL: torch.bool,
+    types.DALIDataType.INT16: torch.int16,
+    types.DALIDataType.INT32: torch.int32,
+    types.DALIDataType.INT64: torch.int64,
 }
 
 
@@ -75,12 +75,16 @@ def feed_ndarray(
     """
     dali_type = to_torch_type[dali_tensor.dtype]
 
-    assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-                                    " doesn't match the element type of the target PyTorch Tensor: "
-                                    "{} vs {}".format(dali_type, arr.dtype))
-    assert dali_tensor.shape() == list(arr.size()), \
-        ("Shapes do not match: DALI tensor has size {0}, but PyTorch Tensor has size {1}".
-            format(dali_tensor.shape(), list(arr.size())))
+    assert dali_type == arr.dtype, (
+        "The element type of DALI Tensor/TensorList"
+        " doesn't match the element type of the target PyTorch Tensor: "
+        "{} vs {}".format(dali_type, arr.dtype)
+    )
+    assert dali_tensor.shape() == list(
+        arr.size()
+    ), "Shapes do not match: DALI tensor has size {0}, but PyTorch Tensor has size {1}".format(
+        dali_tensor.shape(), list(arr.size())
+    )
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
@@ -195,21 +199,22 @@ class DALIGenericIterator(_DaliBaseIterator):
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
     ) -> None:
-
         # check the assert first as _DaliBaseIterator would run the prefetch
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
         self._output_categories = set(output_map)
         self.output_map = output_map
 
-        _DaliBaseIterator.__init__(self,
-                                   pipelines,
-                                   size,
-                                   reader_name,
-                                   auto_reset,
-                                   fill_last_batch,
-                                   last_batch_padded,
-                                   last_batch_policy,
-                                   prepare_first_batch=prepare_first_batch)
+        _DaliBaseIterator.__init__(
+            self,
+            pipelines,
+            size,
+            reader_name,
+            auto_reset,
+            fill_last_batch,
+            last_batch_padded,
+            last_batch_policy,
+            prepare_first_batch=prepare_first_batch,
+        )
 
         self._first_batch = None
         if self._prepare_first_batch:
@@ -219,9 +224,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, "It seems that there is no data in the pipeline. This may happen " \
-                       "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
-                       "greater than the shard size."
+                assert False, (
+                    "It seems that there is no data in the pipeline. This may happen "
+                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                    "greater than the shard size."
+                )
 
     def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True
@@ -252,22 +259,24 @@ class DALIGenericIterator(_DaliBaseIterator):
             category_torch_type = dict()
             category_device = dict()
             torch_gpu_device = None
-            torch_cpu_device = torch.device('cpu')
+            torch_cpu_device = torch.device("cpu")
             # check category and device
             for category in self._output_categories:
                 category_torch_type[category] = to_torch_type[category_tensors[category].dtype]
                 if type(category_tensors[category]) is TensorGPU:
                     if not torch_gpu_device:
-                        torch_gpu_device = torch.device('cuda', dev_id)
+                        torch_gpu_device = torch.device("cuda", dev_id)
                     category_device[category] = torch_gpu_device
                 else:
                     category_device[category] = torch_cpu_device
 
             pyt_tensors = dict()
             for category in self._output_categories:
-                pyt_tensors[category] = torch.empty(category_shapes[category],
-                                                    dtype=category_torch_type[category],
-                                                    device=category_device[category])
+                pyt_tensors[category] = torch.empty(
+                    category_shapes[category],
+                    dtype=category_torch_type[category],
+                    device=category_device[category],
+                )
 
             data_batches[i] = pyt_tensors
 
@@ -296,8 +305,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         else:
-            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
-                                          self._counter > self._size) and self._size > 0:
+            if (
+                self._last_batch_policy == LastBatchPolicy.PARTIAL
+                and (self._counter > self._size)
+                and self._size > 0
+            ):
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
@@ -428,15 +440,18 @@ class DALIClassificationIterator(DALIGenericIterator):
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
     ) -> None:
-        super(DALIClassificationIterator, self).__init__(pipelines, ["data", "label"],
-                                                         size,
-                                                         reader_name=reader_name,
-                                                         auto_reset=auto_reset,
-                                                         fill_last_batch=fill_last_batch,
-                                                         dynamic_shape=dynamic_shape,
-                                                         last_batch_padded=last_batch_padded,
-                                                         last_batch_policy=last_batch_policy,
-                                                         prepare_first_batch=prepare_first_batch)
+        super(DALIClassificationIterator, self).__init__(
+            pipelines,
+            ["data", "label"],
+            size,
+            reader_name=reader_name,
+            auto_reset=auto_reset,
+            fill_last_batch=fill_last_batch,
+            dynamic_shape=dynamic_shape,
+            last_batch_padded=last_batch_padded,
+            last_batch_policy=last_batch_policy,
+            prepare_first_batch=prepare_first_batch,
+        )
 
 
 class DALIRaggedIterator(_DaliBaseIterator):
@@ -555,17 +570,17 @@ class DALIRaggedIterator(_DaliBaseIterator):
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
     ) -> None:
-
         # check the assert first as _DaliBaseIterator would run the prefetch
         self._output_tags = {
             DALIRaggedIterator.DENSE_TAG,
             DALIRaggedIterator.SPARSE_LIST_TAG,
-            DALIRaggedIterator.SPARSE_COO_TAG
+            DALIRaggedIterator.SPARSE_COO_TAG,
         }
 
         assert len(set(output_map)) == len(output_map), "output_map names should be distinct"
-        assert output_types is None or set(output_types) <= self._output_tags, \
-            "Only DENSE_TAG, SPARSE_LIST_TAG and SPARSE_COO_TAG are allowed"
+        assert (
+            output_types is None or set(output_types) <= self._output_tags
+        ), "Only DENSE_TAG, SPARSE_LIST_TAG and SPARSE_COO_TAG are allowed"
 
         self.output_map = output_map
         self._outputs_types = output_types
@@ -578,7 +593,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
             fill_last_batch,
             last_batch_padded,
             last_batch_policy,
-            prepare_first_batch
+            prepare_first_batch,
         )
 
         self._first_batch = None
@@ -589,9 +604,11 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, "It seems that there is no data in the pipeline. This may happen " \
-                       "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
-                       "greater than the shard size."
+                assert False, (
+                    "It seems that there is no data in the pipeline. This may happen "
+                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                    "greater than the shard size."
+                )
 
     def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True
@@ -618,11 +635,13 @@ class DALIRaggedIterator(_DaliBaseIterator):
             category_torch_type = dict()
             category_device = dict()
             torch_gpu_device = None
-            torch_cpu_device = torch.device('cpu')
+            torch_cpu_device = torch.device("cpu")
 
             for j, (category, out) in enumerate(category_outputs.items()):
-                if self._outputs_types is None or \
-                   self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG:
+                if (
+                    self._outputs_types is None
+                    or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
+                ):
                     category_tensors[category] = out.as_tensor()
                     category_shapes[category] = category_tensors[category].shape()
                 else:
@@ -635,32 +654,40 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # check device
                 if type(out) is TensorListGPU:
                     if not torch_gpu_device:
-                        torch_gpu_device = torch.device('cuda', dev_id)
+                        torch_gpu_device = torch.device("cuda", dev_id)
                     category_device[category] = torch_gpu_device
                 else:
                     category_device[category] = torch_cpu_device
 
             pyt_tensors = dict()
             for j, category in enumerate(self.output_map):
-                if self._outputs_types is None or \
-                   self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG:
-                    pyt_tensors[category] = torch.empty(category_shapes[category],
-                                                        dtype=category_torch_type[category],
-                                                        device=category_device[category])
+                if (
+                    self._outputs_types is None
+                    or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
+                ):
+                    pyt_tensors[category] = torch.empty(
+                        category_shapes[category],
+                        dtype=category_torch_type[category],
+                        device=category_device[category],
+                    )
                 else:
                     pyt_tensors[category] = [
-                       torch.empty(shape,
-                                   dtype=category_torch_type[category],
-                                   device=category_device[category])
-                       for shape in category_shapes[category]
+                        torch.empty(
+                            shape,
+                            dtype=category_torch_type[category],
+                            device=category_device[category],
+                        )
+                        for shape in category_shapes[category]
                     ]
 
             data_batches[i] = pyt_tensors
 
             # Copy data from DALI Tensors to torch tensors
             for j, (category, tensor) in enumerate(category_tensors.items()):
-                if self._outputs_types is None or \
-                   self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG:
+                if (
+                    self._outputs_types is None
+                    or self._outputs_types[j] == DALIRaggedIterator.DENSE_TAG
+                ):
                     if isinstance(tensor, (TensorGPU, TensorListGPU)):
                         # Using same cuda_stream used by torch.zeros to set the memory
                         stream = torch.cuda.current_stream(device=pyt_tensors[category].device)
@@ -708,8 +735,11 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 return output
 
         else:
-            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
-                                          self._counter > self._size) and self._size > 0:
+            if (
+                self._last_batch_policy == LastBatchPolicy.PARTIAL
+                and (self._counter > self._size)
+                and self._size > 0
+            ):
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,11 +68,14 @@ def test_slice_ops():
 def test_python_function():
     pipe = dali.pipeline.Pipeline(3, 1, 0, exec_async=False, exec_pipelined=False)
     with pipe:
+
         def func(inp):
             ret = [x * x for x in inp]
             return ret
-        out_cpu = fn.python_function(np.array([[1, 2], [3, 4]]),
-                                     function=func, batch_processing=True)
+
+        out_cpu = fn.python_function(
+            np.array([[1, 2], [3, 4]]), function=func, batch_processing=True
+        )
         pipe.set_outputs(out_cpu)
     pipe.build()
     o = pipe.run()
@@ -83,9 +86,9 @@ def test_arithm_ops():
     pipe = dali.pipeline.Pipeline(1, 1, None)
     with pipe:
         in1 = fn.external_source([[np.uint8([[1, 2], [3, 4]])]])
-        pipe.set_outputs(in1 + np.array([[10, 20], [30, 40]]),
-                         in1 + np.array(5),
-                         in1 + np.uint8(100))
+        pipe.set_outputs(
+            in1 + np.array([[10, 20], [30, 40]]), in1 + np.array(5), in1 + np.uint8(100)
+        )
     pipe.build()
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[11, 22], [33, 44]]))
