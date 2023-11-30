@@ -20,7 +20,9 @@ Inception V3, suitable for images with around 299 x 299
 
 Reference:
 
-Szegedy, Christian, et al. "Rethinking the Inception Architecture for Computer Vision." arXiv preprint arXiv:1512.00567 (2015).
+Szegedy, Christian, et al.
+"Rethinking the Inception Architecture for Computer Vision."
+arXiv preprint arXiv:1512.00567 (2015).
 """
 import mxnet as mx
 import numpy as np

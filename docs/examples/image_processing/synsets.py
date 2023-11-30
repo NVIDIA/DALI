@@ -1,3 +1,4 @@
+# flake8: noqa
 imagenet_synsets = {
     0: "tench, Tinca tinca",
     1: "goldfish, Carassius auratus",

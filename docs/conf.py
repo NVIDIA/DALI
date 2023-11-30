@@ -18,7 +18,6 @@ import sys
 import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
 from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
-from sphinx.util import inspect
 from builtins import str
 from enum import Enum
 import re
@@ -36,7 +35,7 @@ version_long = "0.0.0"
 with open("../VERSION") as f:
     version_long = f.readline()
 
-version_short = re.match("^[\d]+\.[\d]+", version_long).group(0)
+version_short = re.match(r"^[\d]+\.[\d]+", version_long).group(0)
 
 git_sha = os.getenv("GIT_SHA")
 
@@ -48,7 +47,7 @@ if not git_sha:
             .replace("'", "")
             .strip()
         )
-    except:
+    except:  # noqa: E722
         git_sha = "0000000"
 
 git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
@@ -98,14 +97,12 @@ else:
     html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
 version = (
     version
-    + """<br/>
-Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
-    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{2}>main (unstable)</option>
+    + f"""<br/>
+Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {option_nr}">
+    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{release_opt}>Current release</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{main_opt}>main (unstable)</option>
     <option value="https://docs.nvidia.com/deeplearning/dali/archives.html">Older releases</option>
-</select>""".format(
-        option_nr, release_opt, main_opt
-    )
+</select>"""  # noqa: E501
 )
 
 # -- General configuration ---------------------------------------------------
@@ -303,24 +300,6 @@ extlinks = {
     ),
 }
 
-
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
-from typing import get_type_hints
-
-
 _dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
@@ -349,8 +328,9 @@ class EnumDocumenter(ClassDocumenter):
         the ones we're interested in.
         We can do the sorting here based on the values, and pass through in self.sort_members()
         """
-        # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value` member
-        # returned by get_object_members(). Here we are filtering the list, to keep only enum members
+        # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value`
+        # member returned by get_object_members().
+        # Here we are filtering the list, to keep only enum members
         filtered = [member for member in members if member[0] in self.object.__members__.keys()]
 
         filtered = super().filter_members(filtered, want_all)

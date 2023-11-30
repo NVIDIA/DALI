@@ -29,8 +29,8 @@ Reference:
     Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke
     arXiv.1602.07261
 """
-import mxnet as mx
-import numpy as np
+import mxnet as mx  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, suffix=""):

@@ -20,7 +20,8 @@ Adapted from https://github.com/tornadomeet/ResNet/blob/master/symbol_resnet.py
 Original author Wei Wu
 
 Implemented the following paper:
-Saining Xie, Ross Girshick, Piotr Dollar, Zhuowen Tu, Kaiming He. "Aggregated Residual Transformations for Deep Neural Network"
+Saining Xie, Ross Girshick, Piotr Dollar, Zhuowen Tu, Kaiming He.
+"Aggregated Residual Transformations for Deep Neural Network"
 """
 import mxnet as mx
 import numpy as np
@@ -57,7 +58,8 @@ def residual_unit(
         Workspace used in convolution operator
     """
     if bottle_neck:
-        # the same as https://github.com/facebook/fb.resnet.torch#notes, a bit difference with origin paper
+        # the same as https://github.com/facebook/fb.resnet.torch#notes,
+        # a bit difference with origin paper
 
         conv1 = mx.sym.Convolution(
             data=data,
@@ -295,7 +297,7 @@ def get_symbol(
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
     """
-    image_shape = [int(l) for l in image_shape.split(",")]
+    image_shape = [int(dim) for dim in image_shape.split(",")]
     (nchannel, height, width) = image_shape
     if height <= 32:
         num_stages = 3

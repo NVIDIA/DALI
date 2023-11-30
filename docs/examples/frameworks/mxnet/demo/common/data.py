@@ -16,7 +16,6 @@
 # under the License.
 
 import mxnet as mx
-import random
 from mxnet.io import DataBatch, DataIter
 import numpy as np
 
@@ -160,7 +159,7 @@ class SyntheticDataIter(DataIter):
 
 
 def get_rec_iter(args, kv=None):
-    image_shape = tuple([int(l) for l in args.image_shape.split(",")])
+    image_shape = tuple([int(dim) for dim in args.image_shape.split(",")])
     if "benchmark" in args and args.benchmark:
         data_shape = (args.batch_size,) + image_shape
         train = SyntheticDataIter(args.num_classes, data_shape, 1000, np.float32)

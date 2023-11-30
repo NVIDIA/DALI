@@ -37,7 +37,7 @@ def _get_lr_scheduler(args, kv):
         pwr = float(re.sub("pow[- ]*", "", args.lr_step_epochs))
         poly_sched = mx.lr_scheduler.PolyScheduler(max_up, lr, pwr)
         return (lr, poly_sched)
-    step_epochs = [int(l) for l in args.lr_step_epochs.split(",")]
+    step_epochs = [int(lr) for lr in args.lr_step_epochs.split(",")]
     lr = args.lr
     for s in step_epochs:
         if begin_epoch >= s:
@@ -121,7 +121,10 @@ def add_fit_args(parser):
         "--loss",
         type=str,
         default="",
-        help="show the cross-entropy or nll loss. ce strands for cross-entropy, nll-loss stands for likelihood loss",
+        help=(
+            "show the cross-entropy or nll loss."
+            " ce strands for cross-entropy, nll-loss stands for likelihood loss"
+        ),
     )
     train.add_argument(
         "--test-io", type=int, default=0, help="1 means test reading speed without training"

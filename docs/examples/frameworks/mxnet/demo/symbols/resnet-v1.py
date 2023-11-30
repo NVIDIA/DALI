@@ -273,9 +273,10 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype="
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/symbol_resnet.py
     (Original author Wei Wu) by Antti-Pekka Hynninen
     Implementing the original resnet ILSVRC 2015 winning network from:
-    Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun. "Deep Residual Learning for Image Recognition"
+    Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun.
+    "Deep Residual Learning for Image Recognition"
     """
-    image_shape = [int(l) for l in image_shape.split(",")]
+    image_shape = [int(dim) for dim in image_shape.split(",")]
     (nchannel, height, width) = image_shape
     if height <= 28:
         num_stages = 3

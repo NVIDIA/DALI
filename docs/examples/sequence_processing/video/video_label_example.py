@@ -61,8 +61,10 @@ def video_pipe(file_root):
         image_type=types.YCbCr,
         dtype=types.FLOAT,
     )
-    # instead of file_root, path to text file with pairs video_filepath label_value can be provided
-    # self.input = fn.readers.video(device="gpu", file_list = "file_list.txt", sequence_length=COUNT, ...)
+    # instead of file_root, path to text file with pairs video_filepath label_value can be provided:
+    # self.input = fn.readers.video(
+    #     device="gpu", file_list="file_list.txt", sequence_length=COUNT, ...
+    # )
     return video, label
 
 

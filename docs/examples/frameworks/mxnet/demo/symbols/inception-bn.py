@@ -184,7 +184,7 @@ def SimpleFactory(data, ch_1x1, ch_3x3, name, attr):
 
 
 def get_symbol(num_classes, image_shape, **kwargs):
-    image_shape = [int(l) for l in image_shape.split(",")]
+    image_shape = [int(dim) for dim in image_shape.split(",")]
     (nchannel, height, width) = image_shape
     # attr = {'force_mirroring': 'true'}
     attr = {}

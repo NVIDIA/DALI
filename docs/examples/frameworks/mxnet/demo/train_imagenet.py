@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import argparse
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-from common import find_mxnet, data, fit
-from common.util import download_file
-import mxnet as mx
+from common import find_mxnet, data, fit  # noqa: F401, E402
+from common.util import download_file  # noqa: F401, E402
+import mxnet as mx  # noqa: F401, E402
 
 if __name__ == "__main__":
     # parse args

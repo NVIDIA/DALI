@@ -57,7 +57,8 @@ def residual_unit(
         Workspace used in convolution operator
     """
     if bottle_neck:
-        # the same as https://github.com/facebook/fb.resnet.torch#notes, a bit difference with origin paper
+        # the same as https://github.com/facebook/fb.resnet.torch#notes,
+        # a bit difference with origin paper
         bn1 = mx.sym.BatchNorm(
             data=data, fix_gamma=False, eps=2e-5, momentum=bn_mom, name=name + "_bn1"
         )
@@ -267,7 +268,7 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype="
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
     """
-    image_shape = [int(l) for l in image_shape.split(",")]
+    image_shape = [int(dim) for dim in image_shape.split(",")]
     (nchannel, height, width) = image_shape
     if height <= 28:
         num_stages = 3

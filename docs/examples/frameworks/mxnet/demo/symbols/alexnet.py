@@ -18,7 +18,9 @@
 """
 Reference:
 
-Krizhevsky, Alex, Ilya Sutskever, and Geoffrey E. Hinton. "Imagenet classification with deep convolutional neural networks." Advances in neural information processing systems. 2012.
+Krizhevsky, Alex, Ilya Sutskever, and Geoffrey E. Hinton.
+"Imagenet classification with deep convolutional neural networks."
+Advances in neural information processing systems. 2012.
 """
 import mxnet as mx
 import numpy as np

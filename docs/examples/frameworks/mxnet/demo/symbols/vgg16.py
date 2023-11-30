@@ -9,7 +9,7 @@ import mxnet as mx
 
 
 def get_symbol(num_classes, **kwargs):
-    ## define alexnet
+    # define alexnet
     data = mx.symbol.Variable(name="data")
     # group 1
     conv1_1 = mx.symbol.Convolution(
