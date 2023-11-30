@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,18 +25,23 @@ def random_shape(max_shape, diff=100):
     return np.array([np.random.randint(s - diff, s) for s in max_shape], dtype=np.int32)
 
 
-def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None,
-                    use_shape_like_input=False):
+def check_coin_flip(
+    device="cpu", batch_size=32, max_shape=[1e5], p=None, use_shape_like_input=False
+):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
-        def shape_gen_f(): return random_shape(max_shape)
+
+        def shape_gen_f():
+            return random_shape(max_shape)
+
         shape_arg = None
         inputs = []
         shape_out = None
         if max_shape is not None:
             if use_shape_like_input:
-                shape_like_in = dali.fn.external_source(lambda: np.zeros(shape_gen_f()),
-                                                        device=device, batch=False)
+                shape_like_in = dali.fn.external_source(
+                    lambda: np.zeros(shape_gen_f()), device=device, batch=False
+                )
                 inputs += [shape_like_in]
                 shape_out = dali.fn.shapes(shape_like_in)
             else:
@@ -66,11 +71,7 @@ def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None,
 
 def test_coin_flip():
     batch_size = 8
-    for device in ['cpu', 'gpu']:
-        for max_shape, use_shape_like_in in [
-            ([100000], False),
-            ([100000], True),
-            (None, False)
-        ]:
+    for device in ["cpu", "gpu"]:
+        for max_shape, use_shape_like_in in [([100000], False), ([100000], True), (None, False)]:
             for probability in [None, 0.7, 0.5, 0.0, 1.0]:
                 yield check_coin_flip, device, batch_size, max_shape, probability, use_shape_like_in

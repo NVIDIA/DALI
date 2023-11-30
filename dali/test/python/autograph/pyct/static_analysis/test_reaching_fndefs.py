@@ -28,24 +28,24 @@ from nvidia.dali._autograph.pyct.static_analysis import reaching_fndefs
 
 
 class ReachingFndefsAnalyzerTest(unittest.TestCase):
+    def _parse_and_analyze(self, test_fn):
+        # TODO(mdan): Use a custom FunctionTransformer here.
+        node, source = parser.parse_entity(test_fn, future_features=())
+        entity_info = transformer.EntityInfo(
+            name=test_fn.__name__,
+            source_code=source,
+            source_file=None,
+            future_features=(),
+            namespace={},
+        )
+        node = qual_names.resolve(node)
+        namer = naming.Namer({})
+        ctx = transformer.Context(entity_info, namer, None)
+        node = activity.resolve(node, ctx)
+        graphs = cfg.build(node)
+        node = reaching_definitions.resolve(node, ctx, graphs)
+        node = reaching_fndefs.resolve(node, ctx, graphs)
+        return node
 
-  def _parse_and_analyze(self, test_fn):
-    # TODO(mdan): Use a custom FunctionTransformer here.
-    node, source = parser.parse_entity(test_fn, future_features=())
-    entity_info = transformer.EntityInfo(
-        name=test_fn.__name__,
-        source_code=source,
-        source_file=None,
-        future_features=(),
-        namespace={})
-    node = qual_names.resolve(node)
-    namer = naming.Namer({})
-    ctx = transformer.Context(entity_info, namer, None)
-    node = activity.resolve(node, ctx)
-    graphs = cfg.build(node)
-    node = reaching_definitions.resolve(node, ctx, graphs)
-    node = reaching_fndefs.resolve(node, ctx, graphs)
-    return node
-
-  def assertHasFnDefs(self, node):
-    anno.getanno(node, anno.Static.DEFINED_FNS_IN)
+    def assertHasFnDefs(self, node):
+        anno.getanno(node, anno.Static.DEFINED_FNS_IN)

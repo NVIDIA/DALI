@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ from test_utils import compare_pipelines, get_dali_extra_path
 
 
 def general_corner_case(
-        test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
+    test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
 ):
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
@@ -33,7 +33,7 @@ def general_corner_case(
 
     extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = sorted(
-        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1: s.rfind(".")])
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
     )
 
     compare_pipelines(
@@ -46,7 +46,7 @@ def general_corner_case(
             batch_size=test_batch_size,
             device_id=0,
             num_threads=1,
-            **kwargs
+            **kwargs,
         ),
         base.file_reader_pipeline(
             equivalent_files,
@@ -54,7 +54,7 @@ def general_corner_case(
             batch_size=test_batch_size,
             device_id=0,
             num_threads=1,
-            **kwargs
+            **kwargs,
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
@@ -237,9 +237,7 @@ def test_argument_errors():
 
 
 def general_index_error(
-        index_file_contents,
-        tar_file_path="db/webdataset/MNIST/devel-0.tar",
-        ext="jpg"
+    index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
 ):
     index_file = tempfile.NamedTemporaryFile()
     index_file.write(index_file_contents)
@@ -259,9 +257,12 @@ def general_index_error(
 
 def test_index_errors():
     assert_raises(RuntimeError, general_index_error, b"", glob="no version signature found")
-    assert_raises(RuntimeError, general_index_error, b"v0.1",
-                  glob="Unsupported version of the index file (v0.1).",
-                  )
+    assert_raises(
+        RuntimeError,
+        general_index_error,
+        b"v0.1",
+        glob="Unsupported version of the index file (v0.1).",
+    )
     assert_raises(RuntimeError, general_index_error, b"v1.1", glob="no sample count found")
     assert_raises(
         RuntimeError, general_index_error, b"v1.1 -1", glob="sample count must be positive"

@@ -55,8 +55,11 @@ def test_and():
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
-        return (boolean_input_0 & boolean_input_1, boolean_input_0 & const_F,
-                const_T & boolean_input_1)
+        return (
+            boolean_input_0 & boolean_input_1,
+            boolean_input_0 & const_F,
+            const_T & boolean_input_1,
+        )
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def and_pipe():
@@ -64,8 +67,11 @@ def test_and():
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
-        return (boolean_input_0 and boolean_input_1, boolean_input_0 and const_F, const_T
-                and boolean_input_1)
+        return (
+            boolean_input_0 and boolean_input_1,
+            boolean_input_0 and const_F,
+            const_T and boolean_input_1,
+        )
 
     pipes = [regular_pipe(), and_pipe()]
     for pipe in pipes:
@@ -84,8 +90,11 @@ def test_or():
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
-        return (boolean_input_0 | boolean_input_1, boolean_input_0 | const_F,
-                const_T | boolean_input_1)
+        return (
+            boolean_input_0 | boolean_input_1,
+            boolean_input_0 | const_F,
+            const_T | boolean_input_1,
+        )
 
     @pipeline_def(enable_conditionals=True, **kwargs)
     def or_pipe():
@@ -93,8 +102,11 @@ def test_or():
         boolean_input_1 = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=9)
         const_F = types.Constant(np.array(False), device="cpu")
         const_T = types.Constant(np.array(True), device="cpu")
-        return (boolean_input_0 or boolean_input_1, boolean_input_0 or const_F, const_T
-                or boolean_input_1)
+        return (
+            boolean_input_0 or boolean_input_1,
+            boolean_input_0 or const_F,
+            const_T or boolean_input_1,
+        )
 
     pipes = [regular_pipe(), or_pipe()]
     for pipe in pipes:
@@ -182,7 +194,7 @@ def test_lazy_eval_with_oob():
 
 
 def logical_true_false_random():
-    """ Return an External Source that returns batch of [True, False, <random booleans>]
+    """Return an External Source that returns batch of [True, False, <random booleans>]
     so we always have at least one sample that is True or False.
     Otherwise we may end up with fully short-cutting part of the expression we want to test.
     """
@@ -225,11 +237,15 @@ def test_error_input(expression):
     # We can make a valid graph with `not` op directly, the rest (`and`, `or`) is basically lowered
     # to `if` statements and thus checked by graph via argument input placement validation.
     with assert_raises(
-            RuntimeError, regex=("Logical expression `.*` is restricted to scalar \\(0-d tensors\\)"
-                                 " inputs of `bool` type, that are placed on CPU."
-                                 " Got a GPU input .*in logical expression.*|"
-                                 "Named arguments inputs to operators must be CPU data nodes."
-                                 " However, a GPU data node was provided")):
+        RuntimeError,
+        regex=(
+            "Logical expression `.*` is restricted to scalar \\(0-d tensors\\)"
+            " inputs of `bool` type, that are placed on CPU."
+            " Got a GPU input .*in logical expression.*|"
+            "Named arguments inputs to operators must be CPU data nodes."
+            " However, a GPU data node was provided"
+        ),
+    ):
         pipe = gpu_input()
         pipe.build()
         pipe.run()
@@ -241,9 +257,13 @@ def test_error_input(expression):
         return expression(stacked)
 
     with assert_raises(
-            RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
-                                " inputs*, that are placed on CPU. Got a 1-d input"
-                                " *in logical expression.")):
+        RuntimeError,
+        glob=(
+            "Logical expression `*` is restricted to scalar (0-d tensors)"
+            " inputs*, that are placed on CPU. Got a 1-d input"
+            " *in logical expression."
+        ),
+    ):
         pipe = non_scalar_input()
         pipe.build()
         pipe.run()
@@ -272,17 +292,31 @@ def test_non_boolean_input_error(expression):
         return expression(input)
 
     with assert_raises(
-            RuntimeError, glob=("Logical expression `*` is restricted to scalar (0-d tensors)"
-                                " inputs of `bool` type, that are placed on CPU. Got an input"
-                                " of type `int32` *in logical expression.")):
+        RuntimeError,
+        glob=(
+            "Logical expression `*` is restricted to scalar (0-d tensors)"
+            " inputs of `bool` type, that are placed on CPU. Got an input"
+            " of type `int32` *in logical expression."
+        ),
+    ):
         pipe = non_bool_input()
         pipe.build()
         pipe.run()
 
 
 boolable_types = [
-    bool, np.uint8, np.uint16, np.uint32, np.uint64, np.int8, np.int16, np.int32, np.int64,
-    np.float16, np.float32, np.float64
+    bool,
+    np.uint8,
+    np.uint16,
+    np.uint32,
+    np.uint64,
+    np.int8,
+    np.int16,
+    np.int32,
+    np.int64,
+    np.float16,
+    np.float32,
+    np.float64,
 ]
 
 
@@ -309,7 +343,7 @@ def test_not_any_type(input_type):
 
     pipe = non_bool_input()
     pipe.build()
-    batch, = pipe.run()
+    (batch,) = pipe.run()
 
     target = [False if i < batch_size / 2 else True for i in range(batch_size)]
     check_batch(batch, target)

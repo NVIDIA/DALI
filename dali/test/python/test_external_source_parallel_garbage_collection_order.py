@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from test_utils import get_dali_extra_path
 import numpy as np
 
 data_root = get_dali_extra_path()
-jpeg_file = os.path.join(data_root, 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
+jpeg_file = os.path.join(data_root, "db", "single", "jpeg", "510", "ship-1083562_640.jpg")
 batch_size = 4
 
 
@@ -44,8 +44,13 @@ def _test_no_segfault(method, workers_num):
     py_pool are garbage collected before pipeline's backend
     """
     pipe = simple_pipeline(
-        py_start_method=method, py_num_workers=workers_num,
-        batch_size=batch_size, num_threads=4, prefetch_queue_depth=2, device_id=0)
+        py_start_method=method,
+        py_num_workers=workers_num,
+        batch_size=batch_size,
+        num_threads=4,
+        prefetch_queue_depth=2,
+        device_id=0,
+    )
     pipe.build()
     pipe.run()
 
@@ -54,7 +59,7 @@ def test_no_segfault():
     import multiprocessing
     import signal
 
-    for method in ['fork', 'spawn']:
+    for method in ["fork", "spawn"]:
         # Repeat test a few times as garbage collection order failure is subject to race condition
         # and tended to exit properly once in a while
         for _ in range(2):

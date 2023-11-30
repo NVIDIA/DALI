@@ -26,21 +26,19 @@ from utils import get_dali_tensor_gpu, sequential_pipeline
 
 
 @cartesian_params(
-    (np.float32, np.int32),               # dtypes to test
-    ([], [1], [10], [2, 4], [1, 2, 3]),   # shapes to test
-    (1, -99))                             # values to test
+    (np.float32, np.int32),  # dtypes to test
+    ([], [1], [10], [2, 4], [1, 2, 3]),  # shapes to test
+    (1, -99),
+)  # values to test
 def test_dali_tensor_gpu_to_jax_array(dtype, shape, value):
     # given
-    dali_tensor_gpu = get_dali_tensor_gpu(
-        value=value, shape=shape, dtype=dtype)
+    dali_tensor_gpu = get_dali_tensor_gpu(value=value, shape=shape, dtype=dtype)
 
     # when
     jax_array = dax.integration._to_jax_array(dali_tensor_gpu)
 
     # then
-    assert jax.numpy.array_equal(
-        jax_array,
-        jax.numpy.full(shape, value, dtype))
+    assert jax.numpy.array_equal(jax_array, jax.numpy.full(shape, value, dtype))
 
     # Make sure JAX array is backed by the GPU
     assert jax_array.device() == jax.devices()[0]
@@ -69,4 +67,6 @@ def test_dali_sequential_tensors_to_jax_array():
                 jax.numpy.full(
                     shape[1:],  # TODO(awolant): Explain/fix shape consistency
                     batch_id * batch_size + i,
-                    np.int32))
+                    np.int32,
+                ),
+            )

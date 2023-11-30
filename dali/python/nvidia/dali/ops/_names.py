@@ -17,7 +17,7 @@ from nvidia.dali import fn as _functional
 
 def _schema_name(cls):
     """Extract the name of the schema from Operator class."""
-    return getattr(cls, 'schema_name', cls.__name__)
+    return getattr(cls, "schema_name", cls.__name__)
 
 
 def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
@@ -44,10 +44,10 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     """
     # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
     namespace_delim = "__"
-    op_full_name = op_schema_name.replace(namespace_delim, '.')
-    *submodule, op_name = op_full_name.split('.')
+    op_full_name = op_schema_name.replace(namespace_delim, ".")
+    *submodule, op_name = op_full_name.split(".")
     if make_hidden:
-        submodule = [*submodule, 'hidden']
+        submodule = [*submodule, "hidden"]
     if api == "ops":
         return op_full_name, submodule, op_name
     else:

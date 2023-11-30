@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,17 +22,9 @@ import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
 
-names = [
-  "/tmp/dali_test_1C.wav",
-  "/tmp/dali_test_2C.wav",
-  "/tmp/dali_test_4C.wav"
-]
+names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
 
-freqs = [
-  np.array([0.02]),
-  np.array([0.01, 0.012]),
-  np.array([0.01, 0.012, 0.013, 0.014])
-]
+freqs = [np.array([0.02]), np.array([0.01, 0.012]), np.array([0.01, 0.012, 0.013, 0.014])]
 rates = [16000, 22050, 12347]
 lengths = [10000, 54321, 12345]
 
@@ -52,17 +44,31 @@ rate2 = 12999
 
 class DecoderPipeline(Pipeline):
     def __init__(self):
-        super().__init__(batch_size=8, num_threads=3, device_id=0,
-                         exec_async=True, exec_pipelined=True,
-                         output_dtype=[types.INT16, types.INT16, types.INT16, types.FLOAT,
-                                       types.FLOAT, types.FLOAT, types.FLOAT, types.FLOAT],
-                         output_ndim=[2, 2, 1, 1, 0, 0, 0, 0])
+        super().__init__(
+            batch_size=8,
+            num_threads=3,
+            device_id=0,
+            exec_async=True,
+            exec_pipelined=True,
+            output_dtype=[
+                types.INT16,
+                types.INT16,
+                types.INT16,
+                types.FLOAT,
+                types.FLOAT,
+                types.FLOAT,
+                types.FLOAT,
+                types.FLOAT,
+            ],
+            output_ndim=[2, 2, 1, 1, 0, 0, 0, 0],
+        )
         self.file_source = ops.ExternalSource()
         self.plain_decoder = ops.decoders.Audio(dtype=types.INT16)
         self.resampling_decoder = ops.decoders.Audio(sample_rate=rate1, dtype=types.INT16)
         self.downmixing_decoder = ops.decoders.Audio(downmix=True, dtype=types.INT16)
-        self.resampling_downmixing_decoder = ops.decoders.Audio(sample_rate=rate2, downmix=True,
-                                                                quality=50, dtype=types.FLOAT)
+        self.resampling_downmixing_decoder = ops.decoders.Audio(
+            sample_rate=rate2, downmix=True, quality=50, dtype=types.FLOAT
+        )
 
     def define_graph(self):
         self.raw_file = self.file_source()
@@ -70,8 +76,16 @@ class DecoderPipeline(Pipeline):
         dec_res, rates_res = self.resampling_decoder(self.raw_file)
         dec_mix, rates_mix = self.downmixing_decoder(self.raw_file)
         dec_res_mix, rates_res_mix = self.resampling_downmixing_decoder(self.raw_file)
-        out = [dec_plain, dec_res, dec_mix, dec_res_mix,
-               rates_plain, rates_res, rates_mix, rates_res_mix]
+        out = [
+            dec_plain,
+            dec_res,
+            dec_mix,
+            dec_res_mix,
+            rates_plain,
+            rates_res,
+            rates_mix,
+            rates_res_mix,
+        ]
         return out
 
     def iter_setup(self):
@@ -140,8 +154,9 @@ batch_size_alias_test = 16
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
     encoded, _ = fn.readers.file(files=fnames)
-    decoded, rates = decoder_op(encoded, sample_rate=sample_rate, downmix=downmix, quality=quality,
-                                dtype=dtype)
+    decoded, rates = decoder_op(
+        encoded, sample_rate=sample_rate, downmix=downmix, quality=quality, dtype=dtype
+    )
     return decoded, rates
 
 
@@ -169,8 +184,8 @@ def check_audio_decoder_correctness(fmt, dtype):
         decoded, _ = fn.decoders.audio(encoded, dtype=dtype, downmix=downmix)
         return decoded
 
-    audio_files = get_files(os.path.join('db', 'audio', fmt), fmt)
-    npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
+    audio_files = get_files(os.path.join("db", "audio", fmt), fmt)
+    npy_files = [os.path.splitext(fpath)[0] + ".npy" for fpath in audio_files]
     pipe = audio_decoder_pipe(audio_files, dtype)
     pipe.build()
     for it in range(niterations):
@@ -182,7 +197,7 @@ def check_audio_decoder_correctness(fmt, dtype):
                 ref = np.expand_dims(ref, 1)
             arr = np.array(data[0][s])
             assert arr.shape == ref.shape
-            if fmt == 'ogg':
+            if fmt == "ogg":
                 # For OGG Vorbis, we consider errors any value that is off by more than 1
                 # TODO(janton): There is a bug in libsndfile that produces underflow/overflow.
                 #               Remove this when the bug is fixed.
@@ -198,5 +213,5 @@ def check_audio_decoder_correctness(fmt, dtype):
 
 def test_audio_decoder_correctness():
     dtype = types.INT16
-    for fmt in ['wav', 'flac', 'ogg']:
+    for fmt in ["wav", "flac", "ogg"]:
         yield check_audio_decoder_correctness, fmt, dtype

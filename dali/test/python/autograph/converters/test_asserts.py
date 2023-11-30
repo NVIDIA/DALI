@@ -21,14 +21,12 @@ from nvidia.dali._autograph.core import converter_testing
 
 
 class AssertsTest(converter_testing.TestCase):
+    def test_basic(self):
+        def f(a):
+            assert a, "testmsg"
+            return a
 
-  def test_basic(self):
+        tr = self.transform(f, (functions, asserts, return_statements))
 
-    def f(a):
-      assert a, 'testmsg'
-      return a
-
-    tr = self.transform(f, (functions, asserts, return_statements))
-
-    with self.assertRaisesRegex(AssertionError, 'testmsg'):
-      _ = tr(False)
+        with self.assertRaisesRegex(AssertionError, "testmsg"):
+            _ = tr(False)

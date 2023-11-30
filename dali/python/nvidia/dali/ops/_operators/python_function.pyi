@@ -17,7 +17,6 @@ from typing import Any, Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
 
-
 class PythonFunction:
     """
     Executes a Python function.
@@ -42,9 +41,7 @@ class PythonFunction:
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
         name: Optional[str] = None,
-    ) -> None:
-        ...
-
+    ) -> None: ...
     def __call__(
         self,
         /,
@@ -56,7 +53,6 @@ class PythonFunction:
     ) -> Union[DataNode, Sequence[DataNode], None]:
         """See :meth:`nvidia.dali.ops.PythonFunction` class for complete information."""
         ...
-
 
 class DLTensorPythonFunction:
     """
@@ -86,9 +82,7 @@ class DLTensorPythonFunction:
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
         name: Optional[str] = None,
-    ) -> None:
-        ...
-
+    ) -> None: ...
     def __call__(
         self,
         /,
@@ -100,7 +94,6 @@ class DLTensorPythonFunction:
     ) -> None:
         """See :meth:`nvidia.dali.ops.DLTensorPythonFunction` class for complete information."""
         ...
-
 
 @overload
 def python_function(
@@ -126,7 +119,6 @@ def python_function(
     # This is just a stub of the documentation, for details use help() or visit the html docs.
     ...
 
-
 @overload
 def python_function(
     *input: DataNode,
@@ -151,7 +143,6 @@ def python_function(
     """
     # This is just a stub of the documentation, for details use help() or visit the html docs.
     ...
-
 
 @overload
 def dl_tensor_python_function(
@@ -180,7 +171,6 @@ def dl_tensor_python_function(
     """
     # This is just a stub of the documentation, for details use help() or visit the html docs.
     ...
-
 
 @overload
 def dl_tensor_python_function(

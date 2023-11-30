@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
@@ -34,26 +34,23 @@ def setup_test_nemo_asr_reader_cpu():
         data = []
         for idx in range(len(names)):
             entry_i = {}
-            entry_i['audio_filepath'] = names[idx]
-            entry_i['duration'] = lengths[idx] * (1.0 / rates[idx])
+            entry_i["audio_filepath"] = names[idx]
+            entry_i["duration"] = lengths[idx] * (1.0 / rates[idx])
             entry_i["text"] = texts[idx]
             data.append(entry_i)
-        with open(manifest_file, 'w') as f:
+        with open(manifest_file, "w") as f:
             for entry in data:
                 json.dump(entry, f)
-                f.write('\n')
+                f.write("\n")
+
     nemo_asr_manifest = os.path.join(dir_name, "nemo_asr_manifest.json")
     names = [
         os.path.join(dir_name, "dali_test_1C.wav"),
         os.path.join(dir_name, "dali_test_2C.wav"),
-        os.path.join(dir_name, "dali_test_4C.wav")
+        os.path.join(dir_name, "dali_test_4C.wav"),
     ]
 
-    freqs = [
-        np.array([0.02]),
-        np.array([0.01, 0.012]),
-        np.array([0.01, 0.012, 0.013, 0.014])
-    ]
+    freqs = [np.array([0.02]), np.array([0.01, 0.012]), np.array([0.01, 0.012, 0.013, 0.014])]
     rates = [22050, 22050, 12347]
     lengths = [10000, 54321, 12345]
 
@@ -92,7 +89,7 @@ def setup_test_numpy_reader_cpu():
 
     def create_numpy_file(filename, shape, typ, fortran_order):
         # generate random array
-        arr = rng.random(shape) * 10.
+        arr = rng.random(shape) * 10.0
         arr = arr.astype(typ)
         if fortran_order:
             arr = np.asfortranarray(arr)
@@ -111,49 +108,51 @@ def setup_test_numpy_reader_cpu():
 @pipeline_def
 def pipeline_arithm_ops_cpu(source):
     data = fn.external_source(source=source, layout="HWC")
-    processed = (data * 2,
-                 data + 2,
-                 data - 2,
-                 data / 2,
-                 data // 2,
-                 data ** 2,
-                 data == 2,
-                 data != 2,
-                 data < 2,
-                 data <= 2,
-                 data > 2,
-                 data >= 2,
-                 data & 2,
-                 data | 2,
-                 data ^ 2,
-                 dmath.abs(data),
-                 dmath.fabs(data),
-                 dmath.floor(data),
-                 dmath.ceil(data),
-                 dmath.pow(data, 2),
-                 dmath.fpow(data, 1.5),
-                 dmath.min(data, 2),
-                 dmath.max(data, 50),
-                 dmath.clamp(data, 10, 50),
-                 dmath.sqrt(data),
-                 dmath.rsqrt(data),
-                 dmath.cbrt(data),
-                 dmath.exp(data),
-                 dmath.exp(data),
-                 dmath.log(data),
-                 dmath.log2(data),
-                 dmath.log10(data),
-                 dmath.sin(data),
-                 dmath.cos(data),
-                 dmath.tan(data),
-                 dmath.asin(data),
-                 dmath.acos(data),
-                 dmath.atan(data),
-                 dmath.atan2(data, 3),
-                 dmath.sinh(data),
-                 dmath.cosh(data),
-                 dmath.tanh(data),
-                 dmath.asinh(data),
-                 dmath.acosh(data),
-                 dmath.atanh(data))
+    processed = (
+        data * 2,
+        data + 2,
+        data - 2,
+        data / 2,
+        data // 2,
+        data**2,
+        data == 2,
+        data != 2,
+        data < 2,
+        data <= 2,
+        data > 2,
+        data >= 2,
+        data & 2,
+        data | 2,
+        data ^ 2,
+        dmath.abs(data),
+        dmath.fabs(data),
+        dmath.floor(data),
+        dmath.ceil(data),
+        dmath.pow(data, 2),
+        dmath.fpow(data, 1.5),
+        dmath.min(data, 2),
+        dmath.max(data, 50),
+        dmath.clamp(data, 10, 50),
+        dmath.sqrt(data),
+        dmath.rsqrt(data),
+        dmath.cbrt(data),
+        dmath.exp(data),
+        dmath.exp(data),
+        dmath.log(data),
+        dmath.log2(data),
+        dmath.log10(data),
+        dmath.sin(data),
+        dmath.cos(data),
+        dmath.tan(data),
+        dmath.asin(data),
+        dmath.acos(data),
+        dmath.atan(data),
+        dmath.atan2(data, 3),
+        dmath.sinh(data),
+        dmath.cosh(data),
+        dmath.tanh(data),
+        dmath.asinh(data),
+        dmath.acosh(data),
+        dmath.atanh(data),
+    )
     return processed

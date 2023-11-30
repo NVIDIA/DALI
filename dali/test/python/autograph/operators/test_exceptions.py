@@ -20,30 +20,29 @@ from nvidia.dali._autograph.operators import exceptions
 
 
 class ExceptionsTest(unittest.TestCase):
+    def test_assert_python_untriggered(self):
+        side_effect_trace = []
 
-  def test_assert_python_untriggered(self):
-    side_effect_trace = []
+        def expression_with_side_effects():
+            side_effect_trace.append(object())
+            return "test message"
 
-    def expression_with_side_effects():
-      side_effect_trace.append(object())
-      return 'test message'
+        exceptions.assert_stmt(True, expression_with_side_effects)
 
-    exceptions.assert_stmt(True, expression_with_side_effects)
+        self.assertListEqual(side_effect_trace, [])
 
-    self.assertListEqual(side_effect_trace, [])
+    def test_assert_python_triggered(self):
+        if not __debug__:
+            # Python assertions only be tested when in debug mode.
+            return
 
-  def test_assert_python_triggered(self):
-    if not __debug__:
-      # Python assertions only be tested when in debug mode.
-      return
+        side_effect_trace = []
+        tracer = object()
 
-    side_effect_trace = []
-    tracer = object()
+        def expression_with_side_effects():
+            side_effect_trace.append(tracer)
+            return "test message"
 
-    def expression_with_side_effects():
-      side_effect_trace.append(tracer)
-      return 'test message'
-
-    with self.assertRaisesRegex(AssertionError, 'test message'):
-      exceptions.assert_stmt(False, expression_with_side_effects)
-    self.assertListEqual(side_effect_trace, [tracer])
+        with self.assertRaisesRegex(AssertionError, "test message"):
+            exceptions.assert_stmt(False, expression_with_side_effects)
+        self.assertListEqual(side_effect_trace, [tracer])

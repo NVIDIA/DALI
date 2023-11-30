@@ -18,11 +18,7 @@ from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
 
-_special_case_mapping = {
-    "b_box": "bbox",
-    "mx_net": "mxnet",
-    "tf_record": "tfrecord"
-}
+_special_case_mapping = {"b_box": "bbox", "mx_net": "mxnet", "tf_record": "tfrecord"}
 
 
 def _handle_special_case(s):
@@ -45,22 +41,22 @@ def _to_snake_case(pascal):
                 out += c
             else:
                 # do not add another leading underscore
-                if len(out) > 0 and out[-1] != '_':
-                    out += '_'
+                if len(out) > 0 and out[-1] != "_":
+                    out += "_"
                 if nupper > 1:
-                    out += pascal[start:i - 1].lower() + '_'
+                    out += pascal[start : i - 1].lower() + "_"
                 out += pascal[i - 1].lower()
                 out += c
                 nupper = 0
             start = i + 1
         else:
-            out += pascal[start:i + 1].lower()
+            out += pascal[start : i + 1].lower()
             start = i + 1
             nupper = 0
 
     if nupper > 0:
         if len(out) and out[-1].islower():
-            out += '_'
+            out += "_"
         out += pascal[start:].lower()
     out = _handle_special_case(out)
     return out
@@ -69,6 +65,7 @@ def _to_snake_case(pascal):
 def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def op_wrapper(*inputs, **kwargs):
         import nvidia.dali.ops
+
         init_args, call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
@@ -83,22 +80,24 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
     def fn_wrapper(*inputs, **kwargs):
         from nvidia.dali._debug_mode import _PipelineDebug
+
         current_pipeline = _PipelineDebug.current()
-        if getattr(current_pipeline, '_debug_on', False):
+        if getattr(current_pipeline, "_debug_on", False):
             return current_pipeline._wrap_op_call(op_class, wrapper_name, *inputs, **kwargs)
         else:
             return op_wrapper(*inputs, **kwargs)
 
     from nvidia.dali.ops import _signatures
     from nvidia.dali import backend as _b
+
     fn_wrapper.__name__ = wrapper_name
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc
     schema = _b.TryGetSchema(op_class.schema_name)
     if schema is not None:
-        fn_wrapper.__signature__ = _signatures._call_signature(schema, include_inputs=True,
-                                                               include_kwargs=True,
-                                                               filter_annotations=True)
+        fn_wrapper.__signature__ = _signatures._call_signature(
+            schema, include_inputs=True, include_kwargs=True, filter_annotations=True
+        )
     fn_wrapper._schema_name = op_class.schema_name
     fn_wrapper._generated = getattr(op_class, "_generated", False)
     return fn_wrapper
@@ -121,8 +120,9 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     wrapper_name = _to_snake_case(op_class.__name__)
 
     # Add operator to eager API.
-    eager_utils._wrap_eager_op(op_class, submodule, parent_module,
-                               wrapper_name, wrapper_doc, make_hidden)
+    eager_utils._wrap_eager_op(
+        op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden
+    )
 
     if parent_module is None:
         fn_module = sys.modules[__name__]

@@ -68,11 +68,13 @@ _DataNode = _create_annotation_placeholder("DataNode")
 _DALIDataType = _create_annotation_placeholder("DALIDataType")
 _DALIImageType = _create_annotation_placeholder("DALIImageType")
 _DALIInterpType = _create_annotation_placeholder("DALIInterpType")
+_TensorLikeIn = _create_annotation_placeholder("TensorLikeIn")
+_TensorLikeArg = _create_annotation_placeholder("TensorLikeArg")
 
 _enum_mapping = {
     types.DALIDataType: _DALIDataType,
     types.DALIImageType: _DALIImageType,
-    types.DALIInterpType: _DALIInterpType
+    types.DALIInterpType: _DALIInterpType,
 }
 
 _MAX_INPUT_SPELLED_OUT = 10
@@ -124,11 +126,16 @@ def _get_positional_input_param(schema, idx, annotation):
     default = Parameter.empty if idx < schema.MinNumInput() else None
     annotation = annotation if idx < schema.MinNumInput() else Optional[annotation]
     if schema.HasInputDox():
-        return Parameter(f"__{schema.GetInputName(idx)}", kind=Parameter.POSITIONAL_ONLY,
-                         default=default, annotation=annotation)
+        return Parameter(
+            f"__{schema.GetInputName(idx)}",
+            kind=Parameter.POSITIONAL_ONLY,
+            default=default,
+            annotation=annotation,
+        )
     else:
-        return Parameter(f"__input_{idx}", kind=Parameter.POSITIONAL_ONLY, default=default,
-                         annotation=annotation)
+        return Parameter(
+            f"__input_{idx}", kind=Parameter.POSITIONAL_ONLY, default=default, annotation=annotation
+        )
 
 
 def _get_annotation_input_regular(schema):
@@ -136,7 +143,7 @@ def _get_annotation_input_regular(schema):
     A function is used as a global variable can be confused with type alias.
     TODO(klecki): Extend with TensorLike.
     """
-    return _DataNode
+    return Union[_DataNode, _TensorLikeIn]
 
 
 def _get_annotation_return_regular(schema):
@@ -168,7 +175,7 @@ def _get_annotation_input_mis(schema):
     """
     if schema.MinNumInput() == 1 and schema.MaxNumInput() == 1:
         return List[_DataNode]
-    return Union[_DataNode, List[_DataNode]]
+    return Union[List[_DataNode], _DataNode, _TensorLikeIn]
 
 
 def _get_annotation_return_mis(schema):
@@ -180,8 +187,9 @@ def _get_annotation_return_mis(schema):
         # Dynamic number of outputs, not known at "compile time"
         # We can return single or multiple outputs in regular case (same as primary overload),
         # a list of single outputs or a list of multiple outputs for MIS or None.
-        return_annotation = Union[_DataNode, Sequence[_DataNode], List[_DataNode],
-                                  List[Sequence[_DataNode]], None]
+        return_annotation = Union[
+            _DataNode, Sequence[_DataNode], List[_DataNode], List[Sequence[_DataNode]], None
+        ]
     else:
         # Call it with a dummy spec, as we don't have Output function
         num_regular_output = schema.CalculateOutputs(_b.OpSpec(""))
@@ -212,17 +220,18 @@ def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _Data
     param_list = []
     if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
         param_list.append(
-            Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema)))
+            Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema))
+        )
     else:
         for i in range(schema.MaxNumInput()):
             param_list.append(
-                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema)))
+                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+            )
     return param_list
 
 
 def _get_keyword_params(schema, all_args_optional=False):
-    """Get the list of annotated keyword Parameters to the operator.
-    """
+    """Get the list of annotated keyword Parameters to the operator."""
     param_list = []
     for arg in schema.GetArgumentNames():
         if schema.IsDeprecatedArg(arg):
@@ -232,7 +241,11 @@ def _get_keyword_params(schema, all_args_optional=False):
         kw_annotation = _arg_type_annotation(arg_dtype)
         is_arg_input = schema.IsTensorArgument(arg)
 
-        annotation = Union[_DataNode, kw_annotation] if is_arg_input else kw_annotation
+        if is_arg_input:
+            annotation = Union[_DataNode, _TensorLikeArg, kw_annotation]
+        else:
+            annotation = kw_annotation
+
         if schema.IsArgumentOptional(arg):
             # In DALI arguments can always accept optional, and the propagation of such argument
             # is skipped. Passing None is equivalent to not providing the argument at all,
@@ -257,8 +270,8 @@ def _get_keyword_params(schema, all_args_optional=False):
                 default = None
 
         param_list.append(
-            Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default,
-                      annotation=annotation))
+            Parameter(name=arg, kind=Parameter.KEYWORD_ONLY, default=default, annotation=annotation)
+        )
 
     # We omit the **kwargs, as we already specified all possible parameters:
     # param_list.append(Parameter("kwargs", Parameter.VAR_KEYWORD))
@@ -273,18 +286,25 @@ def _get_implicit_keyword_params(schema, all_args_optional=False):
     _ = all_args_optional
     return [
         # TODO(klecki): The default for `device` is dependant on the input placement (and API).
-        Parameter(name="device", kind=Parameter.KEYWORD_ONLY, default=None,
-                  annotation=Optional[str]),
+        Parameter(
+            name="device", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]
+        ),
         # The name is truly optional
         Parameter(name="name", kind=Parameter.KEYWORD_ONLY, default=None, annotation=Optional[str]),
     ]
 
 
-def _call_signature(schema, include_inputs=True, include_kwargs=True, include_self=False,
-                    data_node_return=True, all_args_optional=False,
-                    input_annotation_gen=_get_annotation_input_regular,
-                    return_annotation_gen=_get_annotation_return_regular,
-                    filter_annotations=False) -> Signature:
+def _call_signature(
+    schema,
+    include_inputs=True,
+    include_kwargs=True,
+    include_self=False,
+    data_node_return=True,
+    all_args_optional=False,
+    input_annotation_gen=_get_annotation_input_regular,
+    return_annotation_gen=_get_annotation_return_regular,
+    filter_annotations=False,
+) -> Signature:
     """Generate a Signature for given schema.
 
     Parameters
@@ -314,7 +334,8 @@ def _call_signature(schema, include_inputs=True, include_kwargs=True, include_se
 
     if include_inputs:
         param_list.extend(
-            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen))
+            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen)
+        )
 
     if include_kwargs:
         param_list.extend(_get_keyword_params(schema, all_args_optional=all_args_optional))
@@ -341,9 +362,20 @@ def inspect_repr_fixups(signature: str) -> str:
     return signature.replace("NoneType", "None")
 
 
-def _gen_fn_signature(schema, schema_name, fn_name):
-    """Write the stub of the fn API function with the docstring, for given operator.
-    Include two overloads: with regular inputs and secondary accepting MIS.
+def _gen_fn_signature_no_input(schema, schema_name, fn_name):
+    """In case of no input, we don't have overload set, as there is no MIS involved,
+    we write only the default signature, without involving @overload decorator.
+    """
+    return f"""
+def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
+    \"""{_docs._docstring_generator_fn(schema_name)}
+    \"""
+    ...
+"""
+
+
+def _gen_fn_signature_with_inputs(schema, schema_name, fn_name):
+    """Generate primary and secondary overload (for regular and MIS cases).
 
     Python resolves the overloads in order of definition, we will match first against the primary
     overload accepting only the DataNode, and if any of the inputs is a list of such (indicating
@@ -356,7 +388,7 @@ def _gen_fn_signature(schema, schema_name, fn_name):
     pylance, resulting again in the Union[DataNode, List[DataNode]] return type (for single output),
     keeping us in the MIS realm in the simple case.
     """
-    return inspect_repr_fixups(f"""
+    return f"""
 @overload
 def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True)}:
     \"""{_docs._docstring_generator_fn(schema_name)}
@@ -371,22 +403,38 @@ def {fn_name}{_call_signature(schema, include_inputs=True, include_kwargs=True,
     \"""{_docs._docstring_generator_fn(schema_name)}
     \"""
     ...
-""")
+"""
 
 
-def _gen_ops_signature(schema, schema_name, cls_name):
-    """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
-    operator.
+def _gen_fn_signature(schema, schema_name, fn_name):
+    """Write the stub of the fn API function with the docstring, for given operator.
+    Include two overloads: with regular inputs and secondary accepting MIS.
+    If there are no inputs, we have only one signature.
     """
-    return inspect_repr_fixups(f"""
-class {cls_name}:
-    \"""{_docs._docstring_generator(schema_name)}
-    \"""
-    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
-                                 include_self=True, data_node_return=False,
-                                 all_args_optional=True)}:
-        ...
+    if schema.MaxNumInput() == 0:
+        return inspect_repr_fixups(_gen_fn_signature_no_input(schema, schema_name, fn_name))
+    else:
+        return inspect_repr_fixups(_gen_fn_signature_with_inputs(schema, schema_name, fn_name))
 
+
+def _gen_ops_call_signature_no_input(schema, schema_name):
+    """In case of no input, we don't have overload set, as there is no MIS involved,
+    we write only the default call signature, without involving @overload decorator.
+    """
+    return f"""
+    def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
+                                 include_self=True, all_args_optional=True)}:
+        \"""{_docs._docstring_generator_call(schema_name)}
+        \"""
+        ...
+"""
+
+
+def _gen_ops_call_signature_with_inputs(schema, schema_name):
+    """Generate primary and secondary overload (for regular and MIS cases).
+    Read _gen_fn_signature_with_inputs docstring for details - this is the same thing for ops API.
+    """
+    return f"""
     @overload
     def __call__{_call_signature(schema, include_inputs=True, include_kwargs=True,
                                  include_self=True, all_args_optional=True)}:
@@ -402,7 +450,28 @@ class {cls_name}:
         \"""{_docs._docstring_generator_call(schema_name)}
         \"""
         ...
-""")
+"""
+
+
+def _gen_ops_signature(schema, schema_name, cls_name):
+    """Write the stub of the fn API class with the docstring, __init__ and __call__ for given
+    operator.
+    """
+    return inspect_repr_fixups(
+        f"""
+class {cls_name}:
+    \"""{_docs._docstring_generator(schema_name)}
+    \"""
+    def __init__{_call_signature(schema, include_inputs=False, include_kwargs=True,
+                                 include_self=True, data_node_return=False,
+                                 all_args_optional=True)}:
+        ...
+
+{(_gen_ops_call_signature_no_input(schema, schema_name)
+  if schema.MaxNumInput() == 0
+  else _gen_ops_call_signature_with_inputs(schema, schema_name))}
+"""
+    )
 
 
 # Preamble with license and helper imports for the stub file.
@@ -425,6 +494,8 @@ _HEADER = """
 
 from typing import Union, Optional, overload
 from typing import Any, List, Sequence
+
+from nvidia.dali._typing import TensorLikeIn, TensorLikeArg
 
 from nvidia.dali.data_node import DataNode
 
@@ -498,7 +569,7 @@ def _group_signatures(api: str):
         "python_only": [],
         "hidden_or_internal": [],
         "python_wrapper": [],
-        "generated": []
+        "generated": [],
     }
 
     api_module = fn if api == "fn" else ops
@@ -528,7 +599,6 @@ def _group_signatures(api: str):
 
 
 class StubFileManager:
-
     def __init__(self, nvidia_dali_path: Path, api: str):
         self._module_to_file = {}
         self._nvidia_dali_path = nvidia_dali_path
@@ -580,27 +650,29 @@ def gen_all_signatures(nvidia_dali_path, api):
     nvidia_dali_path = Path(nvidia_dali_path)
 
     with closing(StubFileManager(nvidia_dali_path, api)) as stub_manager:
-
         sig_groups = _group_signatures(api)
 
         # Python-only and the manually defined ones are reexported from their respective modules
-        for (schema_name, op) in sig_groups["python_only"] + sig_groups["python_wrapper"]:
+        for schema_name, op in sig_groups["python_only"] + sig_groups["python_wrapper"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
 
-            stub_manager.get(module_nesting).write(f"\n\nfrom {op._impl_module} import"
-                                                   f" ({op.__name__} as {op.__name__})\n\n")
+            stub_manager.get(module_nesting).write(
+                f"\n\nfrom {op._impl_module} import" f" ({op.__name__} as {op.__name__})\n\n"
+            )
 
         # we do not go over sig_groups["hidden_or_internal"] at all as they are supposed to not be
         # directly visible
 
         # Runtime generated classes use fully specified stubs.
-        for (schema_name, op) in sig_groups["generated"]:
+        for schema_name, op in sig_groups["generated"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
             schema = _b.TryGetSchema(schema_name)
 
             if api == "fn":
                 stub_manager.get(module_nesting).write(
-                    _gen_fn_signature(schema, schema_name, op_name))
+                    _gen_fn_signature(schema, schema_name, op_name)
+                )
             else:
                 stub_manager.get(module_nesting).write(
-                    _gen_ops_signature(schema, schema_name, op_name))
+                    _gen_ops_signature(schema, schema_name, op_name)
+                )

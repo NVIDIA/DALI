@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ to_torch_type = {
     types.DALIDataType.INT8: torch.int8,
     types.DALIDataType.INT16: torch.int16,
     types.DALIDataType.INT32: torch.int32,
-    types.DALIDataType.INT64: torch.int64
+    types.DALIDataType.INT64: torch.int64,
 }
 
 
@@ -66,13 +66,16 @@ def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     else:
         dali_tensor = tensor_or_tl
 
-    assert dali_type == arr.dtype, (f"The element type of DALI Tensor/TensorList "
-                                    f"doesn't match the element type of the target PyTorch Tensor: "
-                                    f"{dali_type} vs {arr.dtype}")
+    assert dali_type == arr.dtype, (
+        f"The element type of DALI Tensor/TensorList "
+        f"doesn't match the element type of the target PyTorch Tensor: "
+        f"{dali_type} vs {arr.dtype}"
+    )
 
     assert dali_tensor.shape() == list(arr.size()), (
         f"Shapes do not match: DALI tensor has size {dali_tensor.shape()}, "
-        f"but PyTorch Tensor has size {list(arr.size())}")
+        f"but PyTorch Tensor has size {list(arr.size())}"
+    )
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
@@ -100,8 +103,9 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
 
     def ref_tensor(batch_size, sample_shape, start_value):
         volume = np.prod(sample_shape)
-        sample0 = torch.arange(start_value, start_value + volume, dtype=torch.int32,
-                               device="cuda:0").reshape(shape)
+        sample0 = torch.arange(
+            start_value, start_value + volume, dtype=torch.int32, device="cuda:0"
+        ).reshape(shape)
         return torch.stack([sample0 + i for i in range(batch_size)])
 
     def check(arr, ref):
@@ -126,7 +130,7 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
             # of the next iteration starts immediately
             pipe.schedule_run()
             pipe.schedule_run()
-            out, = pipe.share_outputs()
+            (out,) = pipe.share_outputs()
             # do something time-consuming on the torch stream to give DALI time
             # to clobber the buffer
             hog = [torch.sqrt(x) for x in hog]
@@ -135,7 +139,7 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
             feed_ndarray(copy_source, arr, stream.cuda_stream, non_blocking)
             pipe.release_outputs()
             # drain
-            _, = pipe.share_outputs()
+            (_,) = pipe.share_outputs()
             pipe.release_outputs()
             # if no appropriate synchronization is done, the array is likely
             # clobbered with the results from the second iteration
