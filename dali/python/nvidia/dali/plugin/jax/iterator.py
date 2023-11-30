@@ -14,13 +14,16 @@
 import jax
 import jax.dlpack
 import jax.numpy as jnp
-from jax.sharding import NamedSharding, PositionalSharding
+from jax.sharding import NamedSharding, PositionalSharding, Sharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali.pipeline import Pipeline, DataNode
 
 from nvidia.dali.plugin.jax.integration import _to_jax_array
+
+from typing import Union, Optional, Callable, Type, Dict, List, Tuple
 
 
 class DALIGenericIterator(_DaliBaseIterator):
@@ -104,15 +107,15 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     def __init__(
         self,
-        pipelines,
-        output_map,
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True,
-        sharding=None,
+        pipelines: Union[List[Pipeline], Pipeline],
+        output_map: List[str],
+        size: int = -1,
+        reader_name: Optional[str] = None,
+        auto_reset: Union[str, bool, None] = False,
+        last_batch_padded: bool = False,
+        last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+        prepare_first_batch: bool = True,
+        sharding: Optional[Sharding] = None,
     ):
         # check the assert first as _DaliBaseIterator would run the prefetch
         if len(set(output_map)) != len(output_map):
@@ -185,7 +188,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         return next_output
 
-    def __next__(self):
+    def __next__(self) -> Dict[str, jax.Array]:
         return self._next_impl()
 
     def _gather_outputs_for_category(self, pipelines_outputs, category_id):
@@ -236,7 +239,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             assert shard.shape == category_outputs[0].shape, "Shards shapes have to be the same."
 
 
-def default_num_threads_value():
+def default_num_threads_value() -> int:
     """Returns default value for num_threads argument of DALI iterator decorator.
 
     .. note::
@@ -249,18 +252,18 @@ def default_num_threads_value():
     return 4
 
 
-def data_iterator_impl(
-    iterator_type,
-    pipeline_fn=None,
-    output_map=[],
-    size=-1,
-    reader_name=None,
-    auto_reset=False,
-    last_batch_padded=False,
-    last_batch_policy=LastBatchPolicy.FILL,
-    prepare_first_batch=True,
-    sharding=None,
-    devices=None,
+def _data_iterator_impl(
+    iterator_type: Type[DALIGenericIterator],
+    pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]],
+    output_map: List[str],
+    size: int = -1,
+    reader_name: Optional[str] = None,
+    auto_reset: Union[str, bool, None] = False,
+    last_batch_padded: bool = False,
+    last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+    prepare_first_batch: bool = True,
+    sharding: Optional[Sharding] = None,
+    devices: Optional[List[jax.Device]] = None,
 ):
     """Implementation of the data_iterator decorator. It is extracted to a separate function
     to be reused by the peekable iterator decorator.
@@ -353,16 +356,16 @@ def data_iterator_impl(
 
 
 def data_iterator(
-    pipeline_fn=None,
-    output_map=[],
-    size=-1,
-    reader_name=None,
-    auto_reset=False,
-    last_batch_padded=False,
-    last_batch_policy=LastBatchPolicy.FILL,
-    prepare_first_batch=True,
-    sharding=None,
-    devices=None,
+    pipeline_fn: Optional[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]] = None,
+    output_map: List[str] = [],
+    size: int = -1,
+    reader_name: Optional[str] = None,
+    auto_reset: Union[str, bool, None] = False,
+    last_batch_padded: bool = False,
+    last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
+    prepare_first_batch: bool = True,
+    sharding: Optional[Sharding] = None,
+    devices: Optional[List[jax.Device]] = None,
 ):
     """Decorator for DALI iterator for JAX. Decorated function when called returns DALI
     iterator for JAX.
@@ -456,7 +459,7 @@ def data_iterator(
     Note:
         JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
-    return data_iterator_impl(
+    return _data_iterator_impl(
         DALIGenericIterator,
         pipeline_fn,
         output_map,
