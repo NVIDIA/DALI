@@ -1069,25 +1069,35 @@ class UnindexedDummyCallback(UnindexedDummySourceBase):
     def __call__(self):
         return self.next()
 
-class UnindexedDummyIterable(UnindexedDummySourceBase):
+class UnindexedDummyIterator(UnindexedDummySourceBase):
     def __next__(self):
         return self.next()
 
     def __iter__(self):
         return self
 
+class UnindexedDummyIterable:
+    def __init__(self, *args, **kwargs):
+        self.iterator = UnindexedDummyIterator(*args, **kwargs)
+
+    def __iter__(self):
+        return self.iterator
+
+    def restore(self, *args, **kwargs):
+        return self.iterator.restore(*args, **kwargs)
 
 @cartesian_params(
     ((3, 8), (4, 2),),  # (epoch size, batch size)
     (3, 13),  # test iterations
-    ('callable', 'iterator'),  # source type
+    ('callable', 'iterator', 'iterable'),  # source type
     ('raise', 'quiet', 'cycle'),  # cycle policy
     ('idx', 'sample_info', 'batch_info'),  # indexing mode
 )
 def test_external_source_unindexed(dataset_info, iterations, source_kind, cycle, mode):
     source_classes = {
         'callable': UnindexedDummyCallback,
-        'iterator': UnindexedDummyIterable
+        'iterator': UnindexedDummyIterator,
+        'iterable': UnindexedDummyIterable
     }
     epoch_size, batch_size = dataset_info
     def source_factory():
