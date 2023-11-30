@@ -1,10 +1,16 @@
 # DALI Coding Style Guide
 
-This document describes DALI Coding Style Guide. Rules specified here take precedence
-over [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) which should
-be followed in the remaining cases.
+This document describes DALI Coding Style Guide.
 
-The code should always pass the current `make lint` check.
+DALI's C++ code follows [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
+with the exceptions detailed below.
+
+DALI's Python code uses [Black](https://github.com/psf/black) for formatting, with the configuration
+specified in the `pyproject.toml` file, and is checked with [flake8](https://github.com/PyCQA/flake8)
+linter according to the `.flake8` configuration file.
+
+The code should always pass the current `make lint` check, where C++ code and Python formatting
+are verified.
 
 ## Changes compared to Google C++ Style Guide
 
@@ -13,7 +19,8 @@ C++ idioms or language features it is discouraged.
 
 ### C++ Version
 
-DALI uses C++14 standard as this is the most recent version supported with CUDA.
+DALI uses C++17 standard as this is the most recent version supported with CUDA versions used
+in the project.
 
 ### Line length
 
@@ -27,8 +34,8 @@ and introduces ugly code like `foo(&bar)` or `(*buf)[i]`.
 
 ### Test suites naming guide
 
-We use GTest for most of testing code in DALI. Names of TestSuites should start with a capital letter and end with `Test`. 
-Additionally, both suite and case name mustn't contain underscores (`_`). 
+We use GTest for most of testing code in DALI. Names of TestSuites should start with a capital letter and end with `Test`.
+Additionally, both suite and case name mustn't contain underscores (`_`).
 For details on the latter, cf. [GTest FAQ](https://github.com/google/googletest/blob/master/googletest/docs/faq.md#why-should-test-suite-names-and-test-names-not-contain-underscore).
 Examples:
 ```
