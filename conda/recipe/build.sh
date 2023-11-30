@@ -114,21 +114,21 @@ fname_with_sha256() {
 }
 
 DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.59"
-    "$PREFIX/lib/libavcodec.so.59"
-    "$PREFIX/lib/libavfilter.so.8"
-    "$PREFIX/lib/libavutil.so.57"
-    "$PREFIX/lib/libswscale.so.6"
+    "$PREFIX/lib/libavformat.so.60"
+    "$PREFIX/lib/libavcodec.so.60"
+    "$PREFIX/lib/libavfilter.so.9"
+    "$PREFIX/lib/libavutil.so.58"
+    "$PREFIX/lib/libswscale.so.7"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
 )
 
 DEPS_SONAME=(
-    "libavformat.so.59"
-    "libavcodec.so.59"
-    "libavfilter.so.8"
-    "libavutil.so.57"
-    "libswscale.so.6"
+    "libavformat.so.60"
+    "libavcodec.so.60"
+    "libavfilter.so.9"
+    "libavutil.so.58"
+    "libswscale.so.7"
     "libcvcuda.so.0"
     "libnvcv_types.so.0"
 )

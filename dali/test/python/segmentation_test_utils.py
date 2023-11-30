@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,19 +16,22 @@ import numpy as np
 import random
 
 
-def make_batch_select_masks(batch_size,
-                            npolygons_range=(1, 10),
-                            nvertices_range=(3, 40),
-                            vertex_ndim=2,
-                            vertex_dtype=np.float32):
+def make_batch_select_masks(
+    batch_size,
+    npolygons_range=(1, 10),
+    nvertices_range=(3, 40),
+    vertex_ndim=2,
+    vertex_dtype=np.float32,
+):
     polygons = []
     vertices = []
     selected_masks = []
     for _ in range(batch_size):
         nmasks = random.randint(*npolygons_range)
         available_masks = list(range(nmasks))
-        selected_masks.append(np.array(
-            random.sample(available_masks, random.randint(1, nmasks)), dtype=np.int32))
+        selected_masks.append(
+            np.array(random.sample(available_masks, random.randint(1, nmasks)), dtype=np.int32)
+        )
         vertex_count = 0
         mask_id = 0
         curr_polygons = np.zeros([nmasks, 3], dtype=np.int32)
@@ -44,14 +47,9 @@ def make_batch_select_masks(batch_size,
                     low=np.iinfo(vertex_dtype).min,
                     high=np.iinfo(vertex_dtype).max,
                     size=(vertex_count, vertex_ndim),
-                    dtype=vertex_dtype
+                    dtype=vertex_dtype,
                 )
             )
         else:
-            vertices.append(
-                np.array(
-                    np.random.rand(vertex_count, vertex_ndim),
-                    dtype=vertex_dtype
-                )
-            )
+            vertices.append(np.array(np.random.rand(vertex_count, vertex_ndim), dtype=vertex_dtype))
     return polygons, vertices, selected_masks

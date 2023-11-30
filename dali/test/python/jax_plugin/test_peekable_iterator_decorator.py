@@ -28,13 +28,9 @@ batch_shape = (batch_size, 1)
 
 def test_dali_iterator_decorator_all_pipeline_args_in_call():
     # given
-    iter = peekable_data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        reader_name='reader')(
-            batch_size=batch_size,
-            device_id=0,
-            num_threads=4)
+    iter = peekable_data_iterator(iterator_function_def, output_map=["data"], reader_name="reader")(
+        batch_size=batch_size, device_id=0, num_threads=4
+    )
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -42,16 +38,11 @@ def test_dali_iterator_decorator_all_pipeline_args_in_call():
 
 def test_dali_iterator_decorator_declarative():
     # given
-    @peekable_data_iterator(
-        output_map=['data'],
-        reader_name='reader')
+    @peekable_data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function():
         return iterator_function_def()
 
-    iter = iterator_function(
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
+    iter = iterator_function(num_threads=4, device_id=0, batch_size=batch_size)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -59,17 +50,11 @@ def test_dali_iterator_decorator_declarative():
 
 def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     # given
-    @peekable_data_iterator(
-        output_map=['data'],
-        reader_name='reader')
+    @peekable_data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function(num_shards):
         return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(
-        num_shards=2,
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
+    iter = iterator_function(num_shards=2, num_threads=4, device_id=0, batch_size=batch_size)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -93,18 +78,25 @@ def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(peekable_data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
+    iterator_decorator_args.remove("devices")
 
     # then
-    assert iterator_decorator_args == iterator_init_args, \
-        "Arguments for the iterator decorator and the iterator __init__ method do not match"
+    assert (
+        iterator_decorator_args == iterator_init_args
+    ), "Arguments for the iterator decorator and the iterator __init__ method do not match"
 
     # Get docs for the docorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
+    # Skip everything after `sharding` argument as it differs between the two
     iterator_decorator_docs = inspect.getdoc(peekable_data_iterator)
     iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
+    iterator_decorator_docs = iterator_decorator_docs.split("sharding")[0]
 
+    # Get docs for the iterator __init__ method "Parameters" section
     iterator_init_docs = inspect.getdoc(DALIGenericPeekableIterator)
     iterator_init_docs = iterator_init_docs.split("output_map")[1]
+    iterator_init_docs = iterator_init_docs.split("sharding")[0]
 
-    assert iterator_decorator_docs == iterator_init_docs, \
-        "Documentation for the iterator decorator and the iterator __init__ method does not match"
+    assert (
+        iterator_decorator_docs == iterator_init_docs
+    ), "Documentation for the iterator decorator and the iterator __init__ method does not match"

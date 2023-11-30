@@ -20,42 +20,42 @@ from nvidia.dali._autograph.utils import hooks
 
 
 def assert_stmt(expression1, expression2):
-  """Functional form of an assert statement.
+    """Functional form of an assert statement.
 
-  This follows the semantics of the Python assert statement, however the
-  concrete implementations may deviate from it. See the respective
-  implementation for details.
+    This follows the semantics of the Python assert statement, however the
+    concrete implementations may deviate from it. See the respective
+    implementation for details.
 
-  In general, the assert statement should not be used for control flow.
-  Furthermore, it is encouraged that the assertion expressions should not have
-  side effects.
+    In general, the assert statement should not be used for control flow.
+    Furthermore, it is encouraged that the assertion expressions should not have
+    side effects.
 
-  Args:
-    expression1: Any
-    expression2: Callable[[], Any], returns the expression to include in the
-        error message when expression1 evaluates to False. When expression1 is
-        True, the result of expression2 will not be evaluated, however,
-        expression2 itself may be evaluated in some implementations.
+    Args:
+      expression1: Any
+      expression2: Callable[[], Any], returns the expression to include in the
+          error message when expression1 evaluates to False. When expression1 is
+          True, the result of expression2 will not be evaluated, however,
+          expression2 itself may be evaluated in some implementations.
 
-  Returns:
-    Any, implementation-dependent.
+    Returns:
+      Any, implementation-dependent.
 
-  Raises:
-    ValueError: if any arguments are illegal.
-  """
-  if not callable(expression2):
-    raise ValueError('{} must be a callable'.format(expression2))
-  args, _, keywords, _ = inspect.getargspec(expression2)
-  if args or keywords:
-    raise ValueError('{} may not have any arguments'.format(expression2))
+    Raises:
+      ValueError: if any arguments are illegal.
+    """
+    if not callable(expression2):
+        raise ValueError("{} must be a callable".format(expression2))
+    args, _, keywords, *_ = inspect.getfullargspec(expression2)
+    if args or keywords:
+        raise ValueError("{} may not have any arguments".format(expression2))
 
-  if hooks._DISPATCH.detect_overload_assert_stmt(expression1):
-    return hooks._DISPATCH.assert_stmt(expression1, expression2)
-  else:
-    return _py_assert_stmt(expression1, expression2)
+    if hooks._DISPATCH.detect_overload_assert_stmt(expression1):
+        return hooks._DISPATCH.assert_stmt(expression1, expression2)
+    else:
+        return _py_assert_stmt(expression1, expression2)
 
 
 def _py_assert_stmt(expression1, expression2):
-  """Overload of assert_stmt that executes a Python assert statement."""
-  assert expression1, expression2()
-  return None
+    """Overload of assert_stmt that executes a Python assert statement."""
+    assert expression1, expression2()
+    return None

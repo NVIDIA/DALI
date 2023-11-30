@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class Structure:
 
     @classmethod
     def setup_struct(cls):
-        if '_struct_desc' not in cls.__dict__:
+        if "_struct_desc" not in cls.__dict__:
             cls._struct_desc = "@" + "".join(field_type for _, field_type in cls._fields)
             cls._struct = struct.Struct(cls._struct_desc)
 
@@ -62,7 +62,9 @@ class Structure:
             raise RuntimeError(
                 "Failed to serialize object as C-like structure. "
                 "Tried to populate following fields: `{}` with respective values: `{}` ".format(
-                    self._fields, self.get_values())) from e
+                    self._fields, self.get_values()
+                )
+            ) from e
 
     def unpack_from(self, buf, offset):
         values = self._struct.unpack_from(buf, offset)

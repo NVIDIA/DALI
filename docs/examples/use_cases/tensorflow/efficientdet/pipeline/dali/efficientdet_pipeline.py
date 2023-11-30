@@ -176,6 +176,10 @@ class EfficientDetPipeline:
         enc_bboxes_layers = []
         enc_classes_layers = []
 
+        if self._device == "gpu":
+            enc_bboxes = enc_bboxes.gpu()
+            enc_classes = enc_classes.gpu()
+
         count = 0
         for level in range(self._anchors.min_level, self._anchors.max_level + 1):
             feat_size = self._anchors.feat_sizes[level]
@@ -187,24 +191,14 @@ class EfficientDetPipeline:
 
             enc_bboxes_layers.append(
                 dali.fn.reshape(
-                    dali.fn.slice(
-                        enc_bboxes,
-                        (count, 0),
-                        (steps, 4),
-                        axes=[0, 1],
-                        device=self._device,
-                    ),
+                    enc_bboxes[count:count + steps, 0:4],
                     shape=[feat_size["height"], feat_size["width"], -1],
-                    device=self._device,
                 )
             )
             enc_classes_layers.append(
                 dali.fn.reshape(
-                    dali.fn.slice(
-                        enc_classes, count, steps, axes=[0], device=self._device
-                    ),
+                    enc_classes[count:count + steps],
                     shape=[feat_size["height"], feat_size["width"], -1],
-                    device=self._device,
                 )
             )
 

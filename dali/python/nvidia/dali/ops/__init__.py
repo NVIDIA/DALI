@@ -25,18 +25,31 @@ from nvidia.dali import fn as _functional
 from nvidia.dali import internal as _internal
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali.types import (_type_name_convert_to_string, _type_convert_value,  # noqa: F401
-                               _default_converter, _vector_element_type,  # noqa: F401
-                               ScalarConstant as _ScalarConstant, Constant as _Constant)
+from nvidia.dali.types import (  # noqa: F401
+    _type_name_convert_to_string,
+    _type_convert_value,
+    _default_converter,
+    _vector_element_type,
+    ScalarConstant as _ScalarConstant,
+    Constant as _Constant,
+)
 from nvidia.dali import _conditionals
 
-from nvidia.dali.ops import (_registry, _names, _docs, _operator_utils)  # noqa: F401
+from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
 
 # reexpose what was previously visible:
-from nvidia.dali.ops._registry import (cpu_ops, mixed_ops, gpu_ops, register_cpu_op,  # noqa: F401
-                                       register_gpu_op)  # noqa: F401
-from nvidia.dali.ops._names import (_op_name, _process_op_name, _schema_name)
-from nvidia.dali.ops._operator_utils import (_build_input_sets, _repack_output_sets, )
+from nvidia.dali.ops._registry import (  # noqa: F401
+    cpu_ops,
+    mixed_ops,
+    gpu_ops,
+    register_cpu_op,
+    register_gpu_op,
+)
+from nvidia.dali.ops._names import _op_name, _process_op_name, _schema_name
+from nvidia.dali.ops._operator_utils import (
+    _build_input_sets,
+    _repack_output_sets,
+)
 
 
 class _OpCounter(object):
@@ -54,10 +67,10 @@ class _OpCounter(object):
 
 
 def _instantiate_constant_node(constant: _ScalarConstant, device: str):
-    """Generate a DataNode (creating a Constant operator) based on the provided ScalarConstant.
-    """
-    return _Constant(device=device, value=constant.value, dtype=constant.dtype,
-                     shape=constant.shape)
+    """Generate a DataNode (creating a Constant operator) based on the provided ScalarConstant."""
+    return _Constant(
+        device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape
+    )
 
 
 # TODO(klecki): The curse of multiple input sets and optimization prohibits us from using this
@@ -94,10 +107,12 @@ def _handle_constant(value, device, input_name, op_name):
     try:
         value = _Constant(value, device=device)
     except Exception as e:
-        raise TypeError(f"when calling operator {op_name}: "
-                        f"expected inputs of type `DataNode` or convertible to "
-                        f"constant nodes. Received input `{input_name}` of type "
-                        f"'{type(value).__name__}'.") from e
+        raise TypeError(
+            f"when calling operator {op_name}: "
+            f"expected inputs of type `DataNode` or convertible to "
+            f"constant nodes. Received input `{input_name}` of type "
+            f"'{type(value).__name__}'."
+        ) from e
     return value
 
 
@@ -171,13 +186,15 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
         if not schema.IsDeprecatedArg(arg_name):
             continue
         meta = schema.DeprecatedArgMeta(arg_name)
-        new_name = meta['renamed_to']
-        removed = meta['removed']
-        msg = meta['msg']
+        new_name = meta["renamed_to"]
+        removed = meta["removed"]
+        msg = meta["msg"]
         if new_name:
             if new_name in kwargs:
-                raise TypeError(f"Operator {op_name} got an unexpected '{arg_name}' deprecated"
-                                f" argument when '{new_name}' was already provided")
+                raise TypeError(
+                    f"Operator {op_name} got an unexpected '{arg_name}' deprecated"
+                    f" argument when '{new_name}' was already provided"
+                )
             kwargs[new_name] = kwargs[arg_name]
             del kwargs[arg_name]
         elif removed:
@@ -243,7 +260,8 @@ def _resolve_double_definitions(current, previous, keep_old=True):
 
 
 def _process_arguments(schema, spec, kwargs, operator_name):
-    """Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling
+    """
+    Process arguments: validate, deprecate and add to spec, handling appropriate data marshalling.
     """
     kwargs = _handle_arg_deprecations(schema, kwargs, operator_name)
     _add_spec_args(schema, spec, kwargs)
@@ -289,7 +307,8 @@ def _process_inputs(schema, spec, inputs, operator_name):
         raise ValueError(
             f"Operator {operator_name} expects "
             f"from {schema.MinNumInput()} to {schema.MaxNumInput()} inputs, "
-            f"but received {len(inputs)}.")
+            f"but received {len(inputs)}."
+        )
     if not inputs:
         return []
     for inp in inputs:
@@ -363,8 +382,9 @@ class _OperatorInstance(object):
         _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
 
         self._inputs = _process_inputs(op._schema, self._spec, inputs, type(op).__name__)
-        self._inputs += _process_argument_inputs(op._schema, self._spec, arg_inputs,
-                                                 type(op).__name__)
+        self._inputs += _process_argument_inputs(
+            op._schema, self._spec, arg_inputs, type(op).__name__
+        )
 
         _handle_op_deprecation(self._op.schema, type(op).__name__)
 
@@ -389,7 +409,7 @@ class _OperatorInstance(object):
         if name is not None:
             self._name = name
         else:
-            self._name = '__' + type(self._op).__name__ + "_" + str(self._counter.id)
+            self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
 
     def _generate_outputs(self):
         pipeline = _Pipeline.current()
@@ -401,8 +421,9 @@ class _OperatorInstance(object):
         else:
             output_device = "cpu"
 
-        num_output = (self._op.schema.CalculateOutputs(self._spec)
-                      + self._op.schema.CalculateAdditionalOutputs(self._spec))
+        num_output = self._op.schema.CalculateOutputs(
+            self._spec
+        ) + self._op.schema.CalculateAdditionalOutputs(self._spec)
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
@@ -459,7 +480,6 @@ class _OperatorInstance(object):
 
 
 class _DaliOperatorMeta(type):
-
     @property
     def __doc__(self):
         return _docs._docstring_generator(_names._schema_name(self))
@@ -470,13 +490,12 @@ def _check_arg_input(schema, op_name, name):
         expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
         raise TypeError(
             f"The argument `{name}` for operator `{op_name}` should not be a `DataNode` but a "
-            f"{expected_type_name}")
+            f"{expected_type_name}"
+        )
 
 
 def python_op_factory(name, schema_name=None):
-
     class Operator(metaclass=_DaliOperatorMeta):
-
         def __init__(self, *, device="cpu", **kwargs):
             schema_name = _schema_name(type(self))
             self._spec = _b.OpSpec(schema_name)
@@ -531,8 +550,9 @@ def python_op_factory(name, schema_name=None):
             if self._name is not None:
                 args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
 
-            self._preserve = (self._preserve or args.get("preserve", False)
-                              or self._schema.IsNoPrune())
+            self._preserve = (
+                self._preserve or args.get("preserve", False) or self._schema.IsNoPrune()
+            )
 
             # Adding argument inputs is fully delayed into call, so we just do the check
             arg_inputs = _resolve_double_definitions(arg_inputs, self._call_args)
@@ -542,7 +562,8 @@ def python_op_factory(name, schema_name=None):
             op_instances = []
             for input_set in input_sets:
                 op_instances.append(
-                    _OperatorInstance(input_set, arg_inputs, args, self._init_args, self))
+                    _OperatorInstance(input_set, arg_inputs, args, self._init_args, self)
+                )
 
             # Tie the instances together
             relation_id = op_instances[0].id
@@ -567,8 +588,9 @@ def python_op_factory(name, schema_name=None):
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
-    return _functional._wrap_op(op_class, submodule, parent_module,
-                                _docs._docstring_generator_fn(op_class.schema_name))
+    return _functional._wrap_op(
+        op_class, submodule, parent_module, _docs._docstring_generator_fn(op_class.schema_name)
+    )
 
 
 def _load_ops():
@@ -604,23 +626,25 @@ def Reload():
 
 
 def _load_readers_tfrecord():
-    """After backend ops are loaded, load the TFRecord readers (if they are available).
-    """
+    """After backend ops are loaded, load the TFRecord readers (if they are available)."""
     from nvidia.dali.ops._operators import tfrecord
 
     if not tfrecord.tfrecord_enabled():
         return
 
     tfrecord._TFRecordReaderImpl.__call__.__doc__ = _docs._docstring_generator_call(
-        "readers__TFRecord")
+        "readers__TFRecord"
+    )
 
-    _registry.register_cpu_op('readers__TFRecord')
-    _registry.register_cpu_op('TFRecordReader')
+    _registry.register_cpu_op("readers__TFRecord")
+    _registry.register_cpu_op("TFRecordReader")
 
     ops_module = sys.modules[__name__]
 
-    for op_reg_name, op_class in [('readers__TFRecord', tfrecord.TFRecord),
-                                  ('TFRecordReader', tfrecord.TFRecordReader)]:
+    for op_reg_name, op_class in [
+        ("readers__TFRecord", tfrecord.TFRecord),
+        ("TFRecordReader", tfrecord.TFRecordReader),
+    ]:
         op_class.schema_name = op_reg_name
         _, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
@@ -659,9 +683,11 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
             return True
         # One level of nesting for Multiple Input Sets. It must be a List[DataNode/ScalarConstant]
         # with at least one DataNode.
-        return (isinstance(x, (list))
-                and any(isinstance(y, _DataNode) for y in x)
-                and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x))
+        return (
+            isinstance(x, (list))
+            and any(isinstance(y, _DataNode) for y in x)
+            and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
+        )
 
     def get_input_device(schema, input_idx):
         default_input_device = "gpu" if device == "gpu" else "cpu"
@@ -684,10 +710,12 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
             try:
                 inp = _Constant(inp, device=get_input_device(schema, idx))
             except Exception as ex:
-                raise TypeError(f"when calling operator {op_name}: "
-                                f"expected inputs of type `DataNode`, list of `DataNode` "
-                                f"or convertible to constant nodes. Received "
-                                f"input `{idx}` of type '{type(inp).__name__}'.") from ex
+                raise TypeError(
+                    f"when calling operator {op_name}: "
+                    f"expected inputs of type `DataNode`, list of `DataNode` "
+                    f"or convertible to constant nodes. Received "
+                    f"input `{idx}` of type '{type(inp).__name__}'."
+                ) from ex
 
         if not isinstance(inp, _DataNode):
             dev = get_input_device(schema, idx)
@@ -711,8 +739,11 @@ _internal._adjust_operator_module(ExternalSource, sys.modules[__name__], [])
 # Expose the PythonFunction family of classes and generate the fn bindings for them
 from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
     PythonFunctionBase,  # noqa: F401
-    PythonFunction, DLTensorPythonFunction, _dlpack_to_array,  # noqa: F401
-    _dlpack_from_array)  # noqa: F401
+    PythonFunction,
+    DLTensorPythonFunction,
+    _dlpack_to_array,  # noqa: F401
+    _dlpack_from_array,
+)  # noqa: F401
 
 _internal._adjust_operator_module(PythonFunction, sys.modules[__name__], [])
 _internal._adjust_operator_module(DLTensorPythonFunction, sys.modules[__name__], [])
@@ -725,11 +756,14 @@ from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
 
 _internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 
-_registry.register_cpu_op('Compose')
-_registry.register_gpu_op('Compose')
+_registry.register_cpu_op("Compose")
+_registry.register_gpu_op("Compose")
 
-from nvidia.dali.ops._operators.math import (_arithm_op, _group_inputs,  # noqa: E402, F401
-                                             _generate_input_desc)  # noqa: F401
+from nvidia.dali.ops._operators.math import (  # noqa: F401, E402
+    _arithm_op,
+    _group_inputs,
+    _generate_input_desc,
+)
 
 
 # Discover and generate bindings for all regular operators.

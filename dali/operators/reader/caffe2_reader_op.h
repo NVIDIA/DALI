@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,12 +21,13 @@
 
 namespace dali {
 
-class Caffe2Reader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
+class Caffe2Reader : public DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true> {
  public:
   explicit Caffe2Reader(const OpSpec& spec)
-  : DataReader<CPUBackend, Tensor<CPUBackend>>(spec) {
+  : DataReader<CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true>(spec) {
     loader_ = InitLoader<LMDBLoader>(spec);
     parser_.reset(new Caffe2Parser(spec));
+    this->SetInitialSnapshot();
   }
 
   void RunImpl(SampleWorkspace &ws) override {
@@ -35,7 +36,7 @@ class Caffe2Reader : public DataReader<CPUBackend, Tensor<CPUBackend>> {
   }
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, Tensor<CPUBackend>, Tensor<CPUBackend>, true);
 };
 
 }  // namespace dali

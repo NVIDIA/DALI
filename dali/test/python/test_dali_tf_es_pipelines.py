@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -113,8 +113,7 @@ class DenseIterator:
 
 
 class FiniteIterator:
-    """Used to wrap RandomlyShapedDataIterator to add iteration counts and finite data size
-    """
+    """Used to wrap RandomlyShapedDataIterator to add iteration counts and finite data size"""
 
     def __init__(self, iterator, iter_limit):
         self.iterator = iterator
@@ -141,8 +140,9 @@ def get_iterable(dtype, iter_limit=1000, batch_size=None, dense=True):
     bs = 1 if batch_size is None else batch_size
     max_shape = (20, 20)
     min_shape = max_shape  # if dense else None
-    result = FiniteIterator(iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)),
-                            iter_limit)
+    result = FiniteIterator(
+        iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)), iter_limit
+    )
     if batch_size is None:
         return UnwrapIterator(iter(result))
     else:
@@ -182,8 +182,9 @@ es_configurations = [
 
 
 def get_external_source_pipe(es_args, dtype, es_device):
-    def get_pipeline_desc(batch_size, num_threads, device, device_id, shard_id, num_shards,
-                          def_for_dataset):
+    def get_pipeline_desc(
+        batch_size, num_threads, device, device_id, shard_id, num_shards, def_for_dataset
+    ):
         pipe = Pipeline(batch_size, num_threads, device_id)
         with pipe:
             # Our callbacks may have state, to be able to run it twice, once in Dataset and once
@@ -201,13 +202,15 @@ def get_external_source_pipe(es_args, dtype, es_device):
 def external_source_to_tf_dataset(pipe_desc, device_str):  # -> tf.data.Dataset
     pipe, _, dtypes = pipe_desc
     with tf.device(device_str):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(input_datasets=None,
-                                                                  pipeline=pipe,
-                                                                  batch_size=pipe.max_batch_size,
-                                                                  output_shapes=None,
-                                                                  output_dtypes=dtypes,
-                                                                  num_threads=pipe.num_threads,
-                                                                  device_id=pipe.device_id)
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            input_datasets=None,
+            pipeline=pipe,
+            batch_size=pipe.max_batch_size,
+            output_shapes=None,
+            output_dtypes=dtypes,
+            num_threads=pipe.num_threads,
+            device_id=pipe.device_id,
+        )
     return dali_dataset
 
 
@@ -225,9 +228,12 @@ def gen_tf_with_dali_external_source(test_run):
                 for dev, es_dev in [("cpu", "cpu"), ("gpu", "cpu"), ("gpu", "gpu")]:
                     for iter_limit in [3, 9, 10, 11, 100]:
                         bs = 12 if is_batched else None
-                        es_args = {'source': get_callback(dtype, iter_limit, bs, dense),
-                                   'batch': is_batched,
-                                   'cycle': cycle,
-                                   'batch_info': batch_info}
-                        yield test_run, dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), \
-                            iter_limit, dense
+                        es_args = {
+                            "source": get_callback(dtype, iter_limit, bs, dense),
+                            "batch": is_batched,
+                            "cycle": cycle,
+                            "batch_info": batch_info,
+                        }
+                        yield test_run, dev, es_args, es_dev, tf.dtypes.as_dtype(
+                            dtype
+                        ), iter_limit, dense

@@ -30,9 +30,9 @@ from test_utils import get_dali_extra_path
 from test_utils import to_array
 
 
-def get_img_files(data_path, subdir='*', ext=None):
+def get_img_files(data_path, subdir="*", ext=None):
     if subdir is None:
-        subdir = ''
+        subdir = ""
     if ext:
         if isinstance(ext, (list, tuple)):
             files = []
@@ -48,26 +48,39 @@ def get_img_files(data_path, subdir='*', ext=None):
 
 
 @pipeline_def
-def decoder_pipe(data_path, device, use_fast_idct=False, memory_stats=False,
-                 jpeg_fancy_upsampling=False):
+def decoder_pipe(
+    data_path, device, use_fast_idct=False, memory_stats=False, jpeg_fancy_upsampling=False
+):
     inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
-    decoded = fn.decoders.image(inputs, device=device, output_type=types.RGB,
-                                use_fast_idct=use_fast_idct, memory_stats=memory_stats,
-                                jpeg_fancy_upsampling=jpeg_fancy_upsampling)
+    decoded = fn.decoders.image(
+        inputs,
+        device=device,
+        output_type=types.RGB,
+        use_fast_idct=use_fast_idct,
+        memory_stats=memory_stats,
+        jpeg_fancy_upsampling=jpeg_fancy_upsampling,
+    )
 
     return decoded, labels
 
 
 test_data_root = get_dali_extra_path()
-good_path = 'db/single'
-misnamed_path = 'db/single/missnamed'
-test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
-test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
+good_path = "db/single"
+misnamed_path = "db/single/missnamed"
+test_good_path = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"}
+test_misnamed_path = {"jpeg", "png", "tiff", "pnm", "bmp"}
 
 
 def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False):
-    pipe = decoder_pipe(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0,
-                        device=device, memory_stats=memory_stats, prefetch_queue_depth=1)
+    pipe = decoder_pipe(
+        data_path=data_path,
+        batch_size=batch,
+        num_threads=threads,
+        device_id=0,
+        device=device,
+        memory_stats=memory_stats,
+        prefetch_queue_depth=1,
+    )
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
@@ -77,7 +90,7 @@ def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False)
 
 
 def test_image_decoder():
-    for device in {'cpu', 'mixed'}:
+    for device in {"cpu", "mixed"}:
         for batch_size in {1, 10}:
             for img_type in test_good_path:
                 for threads in {1, random.choice([2, 3, 4])}:
@@ -95,9 +108,9 @@ def create_decoder_slice_pipeline(data_path, device):
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    images_sliced_1 = fn.decoders.image_slice(jpegs, anchor, shape, device=device,
-                                              hw_decoder_load=0.7, output_type=types.RGB,
-                                              axes=(0, 1))
+    images_sliced_1 = fn.decoders.image_slice(
+        jpegs, anchor, shape, device=device, hw_decoder_load=0.7, output_type=types.RGB, axes=(0, 1)
+    )
 
     images = fn.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
     images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
@@ -114,9 +127,15 @@ def create_decoder_crop_pipeline(data_path, device):
     w = 242
     h = 230
 
-    images_crop_1 = fn.decoders.image_crop(jpegs, device=device, output_type=types.RGB,
-                                           hw_decoder_load=0.7, crop=(w, h), crop_pos_x=crop_pos_x,
-                                           crop_pos_y=crop_pos_y)
+    images_crop_1 = fn.decoders.image_crop(
+        jpegs,
+        device=device,
+        output_type=types.RGB,
+        hw_decoder_load=0.7,
+        crop=(w, h),
+        crop_pos_x=crop_pos_x,
+        crop_pos_y=crop_pos_y,
+    )
 
     images = fn.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
 
@@ -133,7 +152,8 @@ def create_decoder_random_crop_pipeline(data_path, device):
     w = 242
     h = 230
     images_random_crop_1 = fn.decoders.image_random_crop(
-        jpegs, device=device, output_type=types.RGB, hw_decoder_load=0.7, seed=seed)
+        jpegs, device=device, output_type=types.RGB, hw_decoder_load=0.7, seed=seed
+    )
     images_random_crop_1 = fn.resize(images_random_crop_1, size=(w, h))
 
     images = fn.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
@@ -144,8 +164,14 @@ def create_decoder_random_crop_pipeline(data_path, device):
 
 def run_decode_fused(test_fun, path, img_type, batch, device, threads, validation_fun):
     data_path = os.path.join(test_data_root, path, img_type)
-    pipe = test_fun(data_path=data_path, batch_size=batch, num_threads=threads, device_id=0,
-                    device=device, prefetch_queue_depth=1)
+    pipe = test_fun(
+        data_path=data_path,
+        batch_size=batch,
+        num_threads=threads,
+        device_id=0,
+        device=device,
+        prefetch_queue_depth=1,
+    )
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for _ in range(iters):
@@ -162,12 +188,14 @@ def test_image_decoder_fused():
     for test_fun in [
         create_decoder_slice_pipeline,
         create_decoder_crop_pipeline,
-        create_decoder_random_crop_pipeline
+        create_decoder_random_crop_pipeline,
     ]:
         # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results
         # HW decoder + slice vs fused which in this case is executed by the hybrid backend
-        if test_fun == create_decoder_random_crop_pipeline or \
-                nvidia.dali.backend.GetNvjpegVersion() < 11040:
+        if (
+            test_fun == create_decoder_random_crop_pipeline
+            or nvidia.dali.backend.GetNvjpegVersion() < 11040
+        ):
             # random_resized_crop can properly handle border as it has pixels that are cropped out,
             # while plain resize following image_decoder_random_crop cannot do that
             # and must duplicate the border pixels
@@ -176,29 +204,53 @@ def test_image_decoder_fused():
 
             validation_fun = mean_close
         else:
+
             def mean_close(x, y):
                 return np.allclose(x, y)
 
             validation_fun = mean_close
-        for device in {'cpu', 'mixed'}:
+        for device in {"cpu", "mixed"}:
             for img_type in test_good_path:
-                yield run_decode_fused, test_fun, good_path, img_type, batch_size, \
-                      device, threads, validation_fun
+                yield (
+                    run_decode_fused,
+                    test_fun,
+                    good_path,
+                    img_type,
+                    batch_size,
+                    device,
+                    threads,
+                    validation_fun,
+                )
 
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device=device, use_fast_idct=False),
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device='cpu', use_fast_idct=True),
+        decoder_pipe(
+            data_path=data_path,
+            batch_size=batch_size,
+            num_threads=3,
+            device_id=0,
+            device=device,
+            use_fast_idct=False,
+        ),
+        decoder_pipe(
+            data_path=data_path,
+            batch_size=batch_size,
+            num_threads=3,
+            device_id=0,
+            device="cpu",
+            use_fast_idct=True,
+        ),
         # average difference should be no bigger than off-by-3
-        batch_size=batch_size, N_iterations=3, eps=3)
+        batch_size=batch_size,
+        N_iterations=3,
+        eps=3,
+    )
 
 
 def test_FastDCT():
-    for device in {'cpu', 'mixed'}:
+    for device in {"cpu", "mixed"}:
         for batch_size in {1, 8}:
             for img_type in test_good_path:
                 yield check_FastDCT_body, batch_size, img_type, device
@@ -207,37 +259,60 @@ def test_FastDCT():
 def check_fancy_upsampling_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device=device, jpeg_fancy_upsampling=True),
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device='cpu'),
-        batch_size=batch_size, N_iterations=3, eps=1)
+        decoder_pipe(
+            data_path=data_path,
+            batch_size=batch_size,
+            num_threads=3,
+            device_id=0,
+            device=device,
+            jpeg_fancy_upsampling=True,
+        ),
+        decoder_pipe(
+            data_path=data_path, batch_size=batch_size, num_threads=3, device_id=0, device="cpu"
+        ),
+        batch_size=batch_size,
+        N_iterations=3,
+        eps=1,
+    )
 
 
 @params(1, 8)
 def test_fancy_upsampling(batch_size):
     if nvidia.dali.backend.GetNvjpegVersion() < 12001:
         from nose import SkipTest
+
         raise SkipTest("nvJPEG doesn't support fancy upsampling in this version")
-    data_path = os.path.join(test_data_root, good_path, 'jpeg')
+    data_path = os.path.join(test_data_root, good_path, "jpeg")
     compare_pipelines(
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device='mixed', jpeg_fancy_upsampling=True),
-        decoder_pipe(data_path=data_path, batch_size=batch_size, num_threads=3,
-                     device_id=0, device='cpu'),
-        batch_size=batch_size, N_iterations=3, eps=1)
+        decoder_pipe(
+            data_path=data_path,
+            batch_size=batch_size,
+            num_threads=3,
+            device_id=0,
+            device="mixed",
+            jpeg_fancy_upsampling=True,
+        ),
+        decoder_pipe(
+            data_path=data_path, batch_size=batch_size, num_threads=3, device_id=0, device="cpu"
+        ),
+        batch_size=batch_size,
+        N_iterations=3,
+        eps=1,
+    )
 
 
 def test_image_decoder_memory_stats():
-    device = 'mixed'
-    img_type = 'jpeg'
+    device = "mixed"
+    img_type = "jpeg"
 
     def check(img_type, size, device, threads):
         data_path = os.path.join(test_data_root, good_path, img_type)
         # largest allocation should match our (in this case) memory padding settings
         # (assuming no reallocation was needed here as the hint is big enough)
-        pattern = r'Device memory: \d+ allocations, largest = 16777216 bytes\n.*' \
-                  r'Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n'
+        pattern = (
+            r"Device memory: \d+ allocations, largest = 16777216 bytes\n.*"
+            r"Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n"
+        )
         with check_output_pattern(pattern):
             run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
@@ -256,17 +331,20 @@ def img_decoder_pipe(device, out_type, files):
     return decoded
 
 
-def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*', ext=None):
+def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*", ext=None):
     eps = 1
-    if file_fmt == 'jpeg' or file_fmt == 'mixed':
+    if file_fmt == "jpeg" or file_fmt == "mixed":
         eps = 4
-    if (file_fmt == 'jpeg2k' or file_fmt == 'mixed') and img_out_type == types.YCbCr:
+    if (file_fmt == "jpeg2k" or file_fmt == "mixed") and img_out_type == types.YCbCr:
         eps = 6
     files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
     compare_pipelines(
         img_decoder_pipe("cpu", out_type=img_out_type, files=files),
         img_decoder_pipe("mixed", out_type=img_out_type, files=files),
-        batch_size=batch_size_test, N_iterations=3, eps=eps)
+        batch_size=batch_size_test,
+        N_iterations=3,
+        eps=eps,
+    )
 
 
 def test_image_decoder_consistency():
@@ -275,9 +353,11 @@ def test_image_decoder_consistency():
             path = os.path.join(good_path, file_fmt)
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
 
-        for file_fmt, path, ext in [("tiff", "db/single/multichannel/tiff_multichannel", 'tif'),
-                                    ("jpeg2k", "db/single/multichannel/with_alpha", 'jp2'),
-                                    ("png", "db/single/multichannel/with_alpha", 'png')]:
+        for file_fmt, path, ext in [
+            ("tiff", "db/single/multichannel/tiff_multichannel", "tif"),
+            ("jpeg2k", "db/single/multichannel/with_alpha", "jp2"),
+            ("png", "db/single/multichannel/with_alpha", "png"),
+        ]:
             subdir = None  # In those paths the images are not organized in subdirs
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
 
@@ -294,17 +374,16 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     pipe = pipe(device, out_type=out_type, files=files)
     pipe.build()
     out, shape = pipe.run()
-    if device == 'mixed':
+    if device == "mixed":
         out = out.as_cpu()
     out = np.array(out[0])
     shape = np.array(shape[0])
     expected_channels = 4 if out_type == types.ANY_DATA else 1 if out_type == types.GRAY else 3
-    assert out.shape[2] == expected_channels, \
-        f"Expected {expected_channels} but got {out.shape[2]}"
+    assert out.shape[2] == expected_channels, f"Expected {expected_channels} but got {out.shape[2]}"
 
 
 def test_image_decoder_tiff_with_alpha_16bit():
-    for device in ['cpu', 'mixed']:
+    for device in ["cpu", "mixed"]:
         for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
             path = "db/single/multichannel/with_alpha_16bit"
             for ext in [("png", "tiff", "jp2")]:
@@ -314,8 +393,9 @@ def test_image_decoder_tiff_with_alpha_16bit():
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_pipe_with_name(decoder_op, file_root, device, use_fast_idct):
     encoded, _ = fn.readers.file(file_root=file_root)
-    decoded = decoder_op(encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct,
-                         seed=42)
+    decoded = decoder_op(
+        encoded, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct, seed=42
+    )
     return decoded
 
 
@@ -327,9 +407,11 @@ def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
 
 def test_image_decoder_alias():
     data_path = os.path.join(test_data_root, good_path, "jpeg")
-    for new_op, old_op in [(fn.decoders.image, fn.image_decoder),
-                           (fn.decoders.image_crop, fn.image_decoder_crop),
-                           (fn.decoders.image_random_crop, fn.image_decoder_random_crop)]:
+    for new_op, old_op in [
+        (fn.decoders.image, fn.image_decoder),
+        (fn.decoders.image_crop, fn.image_decoder_crop),
+        (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
+    ]:
         for device in ["cpu", "mixed"]:
             for use_fast_idct in [True, False]:
                 yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct
@@ -338,10 +420,11 @@ def test_image_decoder_alias():
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
 def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
     encoded, _ = fn.readers.file(file_root=file_root)
-    start = types.Constant(np.array([0., 0.]))
+    start = types.Constant(np.array([0.0, 0.0]))
     end = types.Constant(np.array([0.5, 0.5]))
-    decoded = decoder_op(encoded, start, end, device=device, output_type=types.RGB,
-                         use_fast_idct=use_fast_idct)
+    decoded = decoder_op(
+        encoded, start, end, device=device, output_type=types.RGB, use_fast_idct=use_fast_idct
+    )
     return decoded
 
 
@@ -370,12 +453,13 @@ def _testimpl_image_decoder_crop_error_oob(device):
 
     p = pipe(device)
     p.build()
-    assert_raises(RuntimeError, p.run,
-                  glob='cropping window*..*..*is not valid for image dimensions*[*x*]')
+    assert_raises(
+        RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
+    )
 
 
 def test_image_decoder_crop_error_oob():
-    for device in ['cpu', 'mixed']:
+    for device in ["cpu", "mixed"]:
         yield _testimpl_image_decoder_crop_error_oob, device
 
 
@@ -390,12 +474,13 @@ def _testimpl_image_decoder_slice_error_oob(device):
 
     p = pipe(device)
     p.build()
-    assert_raises(RuntimeError, p.run,
-                  glob='cropping window*..*..*is not valid for image dimensions*[*x*]')
+    assert_raises(
+        RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
+    )
 
 
 def test_image_decoder_slice_error_oob():
-    for device in ['cpu', 'mixed']:
+    for device in ["cpu", "mixed"]:
         yield _testimpl_image_decoder_slice_error_oob, device
 
 
@@ -423,14 +508,15 @@ def test_tiff_palette():
     def pipe():
         encoded, _ = fn.readers.file(files=[normal, palette])
         peeked_shapes = fn.peek_image_shape(encoded)
-        decoded = fn.decoders.image(encoded, device='cpu')
+        decoded = fn.decoders.image(encoded, device="cpu")
         return decoded, peeked_shapes
 
     p = pipe()
     p.build()
     imgs, peeked_shapes = p.run()
-    assert (peeked_shapes.at(0) == peeked_shapes.at(1)).all(), \
-        "Invalid peeked shape of palette TIFF"
+    assert (
+        peeked_shapes.at(0) == peeked_shapes.at(1)
+    ).all(), "Invalid peeked shape of palette TIFF"
 
-    delta = np.abs(imgs.at(0).astype('float') - imgs.at(1).astype('float'))/256
+    delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ from nvidia.dali import reducers
 
 
 class _DaliPickle:
-
     @staticmethod
     def dumps(obj, protocol=None, **kwargs):
         f = io.BytesIO()
@@ -32,12 +31,11 @@ class _DaliPickle:
 
 
 class _CustomPickler:
-
     @classmethod
     def create(cls, py_callback_pickler):
         if py_callback_pickler is None or isinstance(py_callback_pickler, cls):
             return py_callback_pickler
-        if hasattr(py_callback_pickler, 'dumps') and hasattr(py_callback_pickler, 'loads'):
+        if hasattr(py_callback_pickler, "dumps") and hasattr(py_callback_pickler, "loads"):
             return cls.create_from_reducer(py_callback_pickler)
         if isinstance(py_callback_pickler, (tuple, list)):
             params = [None] * 3
@@ -70,7 +68,7 @@ def pickle_by_value(fun):
     rather than by reference, which would be a default behavior of Python's pickler.
     """
     if inspect.isfunction(fun):
-        setattr(fun, '_dali_pickle_by_value', True)
+        setattr(fun, "_dali_pickle_by_value", True)
         return fun
     else:
         raise TypeError("Only functions can be explicitely set to be pickled by value")

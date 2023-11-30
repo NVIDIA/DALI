@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,12 @@ from nvidia.dali.plugin.pytorch import DALIClassificationIterator
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from test_RN50_external_source_parallel_utils import (
-    parse_test_arguments, external_source_parallel_pipeline, external_source_pipeline,
-    file_reader_pipeline, get_pipe_factories)
+    parse_test_arguments,
+    external_source_parallel_pipeline,
+    external_source_pipeline,
+    file_reader_pipeline,
+    get_pipe_factories,
+)
 from test_utils import AverageMeter
 
 # This test requires significant amount of shared memory to be able to pass
@@ -50,17 +54,21 @@ def reduce_tensor(tensor):
 
 
 def training_test(args):
-    """Run ExternalSource pipelines along RN18 network. Based on simplified RN50 Pytorch sample. """
+    """Run ExternalSource pipelines along RN18 network. Based on simplified RN50 Pytorch sample."""
 
     args.distributed = False
     args.world_size = 1
     args.gpu = 0
     args.distributed_initialized = False
-    if 'WORLD_SIZE' in os.environ:
-        args.distributed = int(os.environ['WORLD_SIZE']) > 1
+    if "WORLD_SIZE" in os.environ:
+        args.distributed = int(os.environ["WORLD_SIZE"]) > 1
 
-    test_pipe_factories = get_pipe_factories(args.test_pipes, external_source_parallel_pipeline,
-                                             file_reader_pipeline, external_source_pipeline)
+    test_pipe_factories = get_pipe_factories(
+        args.test_pipes,
+        external_source_parallel_pipeline,
+        file_reader_pipeline,
+        external_source_pipeline,
+    )
 
     for pipe_factory in test_pipe_factories:
         pipe = pipe_factory(
@@ -73,7 +81,8 @@ def training_test(args):
             py_start_method=args.worker_init,
             py_num_workers=args.py_workers,
             source_mode=args.source_mode,
-            read_encoded=args.dali_decode, )
+            read_encoded=args.dali_decode,
+        )
 
         # Start the pipeline workers first, before any CUDA call. The first pipeline factory
         # is the one with Parallel External Source that needs that.
@@ -82,7 +91,7 @@ def training_test(args):
         if args.distributed and not args.distributed_initialized:
             args.gpu = args.local_rank
             torch.cuda.set_device(args.gpu)
-            torch.distributed.init_process_group(backend='nccl', init_method='env://')
+            torch.distributed.init_process_group(backend="nccl", init_method="env://")
             args.world_size = torch.distributed.get_world_size()
             args.distributed_initialized = True
 
@@ -103,12 +112,16 @@ def training_test(args):
             expected_iters = args.benchmark_iters
 
         if pipe_factory == file_reader_pipeline:
-            iterator = DALIClassificationIterator([pipe], reader_name="Reader",
-                                                  last_batch_policy=LastBatchPolicy.DROP,
-                                                  auto_reset=True)
+            iterator = DALIClassificationIterator(
+                [pipe],
+                reader_name="Reader",
+                last_batch_policy=LastBatchPolicy.DROP,
+                auto_reset=True,
+            )
         else:
-            iterator = DALIClassificationIterator([pipe], size=samples_no * args.world_size,
-                                                  auto_reset=True)
+            iterator = DALIClassificationIterator(
+                [pipe], size=samples_no * args.world_size, auto_reset=True
+            )
 
         if args.local_rank == 0:
             print("RUN {}".format(pipe_factory.__name__))
@@ -145,8 +158,10 @@ def training_test(args):
                     data_time.update((time.time() - end) / 50)
                     end = time.time()
                     if args.local_rank == 0:
-                        template_string = "{} {}/ {}, avg time: {} [s], worst time: {} [s], " \
-                                          "speed: {} [img/s], loss: {}, loss_avg: {}"
+                        template_string = (
+                            "{} {}/ {}, avg time: {} [s], worst time: {} [s], "
+                            "speed: {} [img/s], loss: {}, loss_avg: {}"
+                        )
                         print(
                             template_string.format(
                                 pipe_factory.__name__,
@@ -156,8 +171,9 @@ def training_test(args):
                                 data_time.max_val,
                                 args.batch_size * args.world_size / data_time.avg,
                                 reduced_loss.item(),
-                                losses.avg
-                            ))
+                                losses.avg,
+                            )
+                        )
                 if j >= expected_iters:
                     break
 

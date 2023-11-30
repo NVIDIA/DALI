@@ -26,13 +26,9 @@ batch_size = 3
 
 def test_dali_iterator_decorator_functional():
     # given
-    iter = data_iterator(
-        iterator_function_def,
-        output_map=['data'],
-        reader_name='reader')(
-            batch_size=batch_size,
-            device_id=0,
-            num_threads=4)
+    iter = data_iterator(iterator_function_def, output_map=["data"], reader_name="reader")(
+        batch_size=batch_size, device_id=0, num_threads=4
+    )
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -40,16 +36,11 @@ def test_dali_iterator_decorator_functional():
 
 def test_dali_iterator_decorator_declarative():
     # given
-    @data_iterator(
-        output_map=['data'],
-        reader_name='reader')
+    @data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function():
         return iterator_function_def()
 
-    iter = iterator_function(
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
+    iter = iterator_function(num_threads=4, device_id=0, batch_size=batch_size)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -57,14 +48,11 @@ def test_dali_iterator_decorator_declarative():
 
 def test_dali_iterator_decorator_declarative_with_default_args():
     # given
-    @data_iterator(
-        output_map=['data'],
-        reader_name='reader')
+    @data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function():
         return iterator_function_def()
 
-    iter = iterator_function(
-        batch_size=batch_size)
+    iter = iterator_function(batch_size=batch_size)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -72,17 +60,11 @@ def test_dali_iterator_decorator_declarative_with_default_args():
 
 def test_dali_iterator_decorator_declarative_pipeline_fn_with_argument():
     # given
-    @data_iterator(
-        output_map=['data'],
-        reader_name='reader')
+    @data_iterator(output_map=["data"], reader_name="reader")
     def iterator_function(num_shards):
         return iterator_function_def(num_shards=num_shards)
 
-    iter = iterator_function(
-        num_shards=2,
-        num_threads=4,
-        device_id=0,
-        batch_size=batch_size)
+    iter = iterator_function(num_shards=2, num_threads=4, device_id=0, batch_size=batch_size)
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -106,18 +88,25 @@ def test_iterator_decorator_api_match_iterator_init():
     # given the list of arguments for the iterator decorator
     iterator_decorator_args = inspect.getfullargspec(data_iterator).args
     iterator_decorator_args.remove("pipeline_fn")
+    iterator_decorator_args.remove("devices")
 
     # then
-    assert iterator_decorator_args == iterator_init_args, \
-        "Arguments for the iterator decorator and the iterator __init__ method do not match"
+    assert (
+        iterator_decorator_args == iterator_init_args
+    ), "Arguments for the iterator decorator and the iterator __init__ method do not match"
 
-    # Get docs for the docorator "Parameters" section
+    # Get docs for the decorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
+    # Skip everything after `sharding` argument as it differs between the two
     iterator_decorator_docs = inspect.getdoc(data_iterator)
     iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]
+    iterator_decorator_docs = iterator_decorator_docs.split("sharding")[0]
 
+    # Get docs for the iterator __init__ method "Parameters" section
     iterator_init_docs = inspect.getdoc(DALIGenericIterator)
     iterator_init_docs = iterator_init_docs.split("output_map")[1]
+    iterator_init_docs = iterator_init_docs.split("sharding")[0]
 
-    assert iterator_decorator_docs == iterator_init_docs, \
-        "Documentation for the iterator decorator and the iterator __init__ method does not match"
+    assert (
+        iterator_decorator_docs == iterator_init_docs
+    ), "Documentation for the iterator decorator and the iterator __init__ method does not match"

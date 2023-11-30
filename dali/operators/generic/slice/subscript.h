@@ -80,8 +80,7 @@ struct SubscriptArg {
       DALIDataType type_id = inp.type();
       TYPE_SWITCH(type_id, type2id, T, (INTEGER_TYPES), (
         for (int i = 0; i < n; i++) {
-          // TODO(michalz): Add tensor<T> and mutable_tensor<T> to TensorList?
-          values[i] = ConvertSat<int64_t>(static_cast<const T*>(inp.raw_tensor(i))[0]);
+          values[i] = ConvertSat<int64_t>(inp.tensor<T>(i)[0]);
         }
       ), DALI_FAIL(make_string("Array index must be of integral type. Got: ", type_id)));  // NOLINT
     } else if (src == ArgSource::Value) {
@@ -99,11 +98,11 @@ struct SubscriptInfo {
 
     if (at.IsDefined()) {
       if (lo.IsDefined() || hi.IsDefined()) {
-        DALI_FAIL(make_string("The subscript for dimension ", i,
+        DALI_FAIL(make_string("Internal error: The subscript for dimension ", i,
                               " must not be specified both as an index and as a range."));
       }
       if (step.IsDefined()) {
-        DALI_FAIL(make_string("The subscript for dimension ", i,
+        DALI_FAIL(make_string("Internal error: The subscript for dimension ", i,
                               " was specified as index - it cannot have a step."));
       }
     }
@@ -156,7 +155,7 @@ class TensorSubscript : public StatelessOperator<Backend> {
     if (spec_.TryGetArgument(nsub_declared_, "num_subscripts")) {
       DALI_ENFORCE(
           nsub_declared_ >= nsub,
-          make_string("The internal argument `num_subscripts` "
+          make_string("Internal error: The internal argument `num_subscripts` "
                       "declares fewer (",
                       nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
     } else {
@@ -239,12 +238,17 @@ class TensorSubscript : public StatelessOperator<Backend> {
                                 " while processing sample #", i));
         }
 
-        if (lo < 0)
-          lo += in_extent;
-        if (hi < 0)
-          hi += in_extent;
-        lo = clamp(lo, 0_i64, in_extent - 1);
-        hi = clamp(hi, 0_i64, in_extent);
+        if (in_extent > 0) {
+          if (lo < 0)
+            lo += in_extent;
+          if (hi < 0)
+            hi += in_extent;
+          lo = clamp(lo, 0_i64, in_extent - 1);
+          hi = clamp(hi, 0_i64, in_extent);
+        } else {
+          lo = hi = 0;
+        }
+
         start_.tensor_shape_span(i)[d] = lo;
 
         if (step < 0 && !s.hi.IsDefined()) {

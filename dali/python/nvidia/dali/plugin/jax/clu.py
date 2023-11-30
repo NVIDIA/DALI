@@ -22,11 +22,9 @@ import concurrent.futures
 
 
 def get_spec_for_array(jax_array):
-    '''Utility to get ArraySpec for given JAX array.'''
+    """Utility to get ArraySpec for given JAX array."""
 
-    return ArraySpec(
-        shape=jax_array.shape,
-        dtype=jax_array.dtype)
+    return ArraySpec(shape=jax_array.shape, dtype=jax_array.dtype)
 
 
 class DALIGenericPeekableIterator(DALIGenericIterator):
@@ -90,9 +88,9 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+                values compatible with pmapped JAX functions, if multiple pipelines are provided.
 
     Example
     -------
@@ -113,17 +111,19 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
     Note:
         JAX iterator does not support LastBatchPolicy.PARTIAL.
     """
+
     def __init__(
-            self,
-            pipelines,
-            output_map,
-            size=-1,
-            reader_name=None,
-            auto_reset=False,
-            last_batch_padded=False,
-            last_batch_policy=LastBatchPolicy.FILL,
-            prepare_first_batch=True,
-            sharding=None):
+        self,
+        pipelines,
+        output_map,
+        size=-1,
+        reader_name=None,
+        auto_reset=False,
+        last_batch_padded=False,
+        last_batch_policy=LastBatchPolicy.FILL,
+        prepare_first_batch=True,
+        sharding=None,
+    ):
         super().__init__(
             pipelines,
             output_map,
@@ -133,7 +133,8 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             last_batch_padded,
             last_batch_policy,
             prepare_first_batch,
-            sharding)
+            sharding,
+        )
         self._mutex = threading.Lock()
         self._pool = None
         self._peek = None
@@ -154,11 +155,12 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         for key in output:
             if get_spec_for_array(output[key]) != self._element_spec[key]:
                 raise ValueError(
-                    'The shape or type of the output changed between iterations. '
-                    'This is not supported by JAX  peekable iterator. '
-                    'Please make sure that the shape and type of the output is constant. '
-                    f'Expected: {self._element_spec[key]}, got: {get_spec_for_array(output[key])} '
-                    f'for output: {key}')
+                    "The shape or type of the output changed between iterations. "
+                    "This is not supported by JAX  peekable iterator. "
+                    "Please make sure that the shape and type of the output is constant. "
+                    f"Expected: {self._element_spec[key]}, got: {get_spec_for_array(output[key])} "
+                    f"for output: {key}"
+                )
 
         return output
 
@@ -229,15 +231,17 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
 
 def peekable_data_iterator(
-        pipeline_fn=None,
-        output_map=[],
-        size=-1,
-        reader_name=None,
-        auto_reset=False,
-        last_batch_padded=False,
-        last_batch_policy=LastBatchPolicy.FILL,
-        prepare_first_batch=True,
-        sharding=None):
+    pipeline_fn=None,
+    output_map=[],
+    size=-1,
+    reader_name=None,
+    auto_reset=False,
+    last_batch_padded=False,
+    last_batch_policy=LastBatchPolicy.FILL,
+    prepare_first_batch=True,
+    sharding=None,
+    devices=None,
+):
     """Decorator for DALI pipelines that returns a peekable iterator. Compatible with Google CLU
     PeekableIterator. It supports peeking the next element in the iterator without advancing the
     iterator.
@@ -294,9 +298,15 @@ def peekable_data_iterator(
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` comaptible object that, if present, will be used to
-                build an output jax.Array for each category. If ``None``, the iterator returns
-                values compatible with pmapped JAX functions.
+    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+                build an output jax.Array for each category. Iterator will return outputs
+                compatible with automatic parallelization in JAX.
+                This argument is mutually exclusive with `devices` argument. If `devices` is
+                provided, `sharding` should be set to None.
+    devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
+                return outputs compatible with pmapped JAX functions.
+                This argument is mutually exclusive with `sharding` argument. If `sharding`
+                is provided, `devices` should be set to None.
 
     Example
     -------
@@ -327,4 +337,6 @@ def peekable_data_iterator(
         last_batch_padded,
         last_batch_policy,
         prepare_first_batch,
-        sharding)
+        sharding,
+        devices,
+    )

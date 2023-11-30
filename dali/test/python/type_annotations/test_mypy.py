@@ -17,6 +17,7 @@ from mypy import api
 
 def test_mypy():
     normal_report, error_report, exit_status = api.run(
-        ["--check-untyped-defs", "type_annotations/test_typing_pipelines.py"])
+        ["--check-untyped-defs", "type_annotations/test_typing_pipelines.py"]
+    )
 
     assert exit_status == 0, normal_report

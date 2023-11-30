@@ -36,18 +36,15 @@ def run_and_assert_sequential_iterator(iter, num_iters=4):
     """Run the iterator and assert that the output is as expected"""
     # when
     for batch_id, data in itertools.islice(enumerate(iter), num_iters):
-        jax_array = data['data']
+        jax_array = data["data"]
 
         # then
         assert jax_array.device() == jax.devices()[0]
 
         for i in range(batch_size):
             assert jax.numpy.array_equal(
-                jax_array[i],
-                jax.numpy.full(
-                    (1),
-                    batch_id * batch_size + i,
-                    np.int32))
+                jax_array[i], jax.numpy.full((1), batch_id * batch_size + i, np.int32)
+            )
 
     assert batch_id == num_iters - 1
 
@@ -55,7 +52,7 @@ def run_and_assert_sequential_iterator(iter, num_iters=4):
 def test_dali_sequential_iterator():
     # given
     pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
-    iter = DALIGenericIterator([pipe], ['data'], reader_name='reader')
+    iter = DALIGenericIterator([pipe], ["data"], reader_name="reader")
 
     # then
     run_and_assert_sequential_iterator(iter)
@@ -63,7 +60,7 @@ def test_dali_sequential_iterator():
 
 @raises(AssertionError, glob="JAX iterator does not support partial last batch policy.")
 def test_iterator_last_batch_policy_partial_exception():
-    pipe = pipeline_def(iterator_function_def)(
-        batch_size=batch_size, num_threads=4, device_id=0)
+    pipe = pipeline_def(iterator_function_def)(batch_size=batch_size, num_threads=4, device_id=0)
     DALIGenericIterator(
-        [pipe], ['data'], reader_name='reader', last_batch_policy=LastBatchPolicy.PARTIAL)
+        [pipe], ["data"], reader_name="reader", last_batch_policy=LastBatchPolicy.PARTIAL
+    )

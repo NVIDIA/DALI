@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,24 +22,29 @@ data_paths = ["/data/imagenet/train-jpeg"]
 
 
 class RN50Pipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, num_gpus,
-                 data_paths, prefetch, fp16, nhwc):
-        super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id,
-                                           prefetch_queue_depth=prefetch)
-        self.input = ops.readers.File(file_root=data_paths[0], shard_id=device_id,
-                                      num_shards=num_gpus)
+    def __init__(
+        self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc
+    ):
+        super(RN50Pipeline, self).__init__(
+            batch_size, num_threads, device_id, prefetch_queue_depth=prefetch
+        )
+        self.input = ops.readers.File(
+            file_root=data_paths[0], shard_id=device_id, num_shards=num_gpus
+        )
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 
         layout = types.args.nhwc if nhwc else types.NCHW
         out_type = types.FLOAT16 if fp16 else types.FLOAT
 
-        self.cmnp = ops.CropMirrorNormalize(device="gpu",
-                                            dtype=out_type,
-                                            output_layout=layout,
-                                            crop=(224, 224),
-                                            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
+        self.cmnp = ops.CropMirrorNormalize(
+            device="gpu",
+            dtype=out_type,
+            output_layout=layout,
+            crop=(224, 224),
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+        )
         self.coin = ops.random.CoinFlip(probability=0.5)
 
     def define_graph(self):
@@ -52,43 +57,63 @@ class RN50Pipeline(Pipeline):
 
 
 parser = argparse.ArgumentParser(
-    description='Test RN50 augmentation pipeline with different FW iterators'
+    description="Test RN50 augmentation pipeline with different FW iterators"
 )
-parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
-                    help='number of GPUs (default: 1)')
-parser.add_argument('-b', '--batch_size', default=13, type=int, metavar='N',
-                    help='batch size (default: 13)')
-parser.add_argument('-p', '--print-freq', default=10, type=int,
-                    metavar='N', help='print frequency (default: 10)')
-parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
-                    help='number of data loading workers (default: 3)')
-parser.add_argument('--prefetch', default=2, type=int, metavar='N',
-                    help='prefetch queue depth (default: 2)')
-parser.add_argument('--separate_queue', action='store_true',
-                    help='Use separate queues executor')
-parser.add_argument('--cpu_size', default=2, type=int, metavar='N',
-                    help='cpu prefetch queue depth (default: 2)')
-parser.add_argument('--gpu_size', default=2, type=int, metavar='N',
-                    help='gpu prefetch queue depth (default: 2)')
-parser.add_argument('--fp16', action='store_true',
-                    help='Run fp16 pipeline')
-parser.add_argument('--nhwc', action='store_true',
-                    help='Use args.nhwc data instead of default NCHW')
-parser.add_argument('-i', '--iters', default=-1, type=int, metavar='N',
-                    help='Number of iterations to run (default: -1 - whole data set)')
-parser.add_argument('-e', '--epochs', default=1, type=int, metavar='N',
-                    help='Number of epochs to run (default: 1)')
-parser.add_argument('--framework', type=str)
+parser.add_argument(
+    "-g", "--gpus", default=1, type=int, metavar="N", help="number of GPUs (default: 1)"
+)
+parser.add_argument(
+    "-b", "--batch_size", default=13, type=int, metavar="N", help="batch size (default: 13)"
+)
+parser.add_argument(
+    "-p", "--print-freq", default=10, type=int, metavar="N", help="print frequency (default: 10)"
+)
+parser.add_argument(
+    "-j",
+    "--workers",
+    default=3,
+    type=int,
+    metavar="N",
+    help="number of data loading workers (default: 3)",
+)
+parser.add_argument(
+    "--prefetch", default=2, type=int, metavar="N", help="prefetch queue depth (default: 2)"
+)
+parser.add_argument("--separate_queue", action="store_true", help="Use separate queues executor")
+parser.add_argument(
+    "--cpu_size", default=2, type=int, metavar="N", help="cpu prefetch queue depth (default: 2)"
+)
+parser.add_argument(
+    "--gpu_size", default=2, type=int, metavar="N", help="gpu prefetch queue depth (default: 2)"
+)
+parser.add_argument("--fp16", action="store_true", help="Run fp16 pipeline")
+parser.add_argument(
+    "--nhwc", action="store_true", help="Use args.nhwc data instead of default NCHW"
+)
+parser.add_argument(
+    "-i",
+    "--iters",
+    default=-1,
+    type=int,
+    metavar="N",
+    help="Number of iterations to run (default: -1 - whole data set)",
+)
+parser.add_argument(
+    "-e", "--epochs", default=1, type=int, metavar="N", help="Number of epochs to run (default: 1)"
+)
+parser.add_argument("--framework", type=str)
 args = parser.parse_args()
 
-print(f"Framework: {args.framework}, GPUs: {args.gpus}, batch: {args.batch_size}, "
-      f"workers: {args.workers}, prefetch depth: {args.prefetch}, "
-      f"loging interval: {args.print_freq}, fp16: {args.fp16}, args.nhwc: {args.nhwc}")
+print(
+    f"Framework: {args.framework}, GPUs: {args.gpus}, batch: {args.batch_size}, "
+    f"workers: {args.workers}, prefetch depth: {args.prefetch}, "
+    f"loging interval: {args.print_freq}, fp16: {args.fp16}, args.nhwc: {args.nhwc}"
+)
 
 
 PREFETCH = args.prefetch
 if args.separate_queue:
-    PREFETCH = {'cpu_size': args.cpu_size, 'gpu_size': args.gpu_size}
+    PREFETCH = {"cpu_size": args.cpu_size, "gpu_size": args.gpu_size}
 
 
 class AverageMeter(object):
@@ -122,9 +147,19 @@ def test_fw_iter(IteratorClass, args):
     images = []
     labels = []
 
-    pipes = [RN50Pipeline(batch_size=args.batch_size, num_threads=args.workers, device_id=n,
-                          num_gpus=args.gpus, data_paths=data_paths, prefetch=PREFETCH,
-                          fp16=args.fp16, nhwc=args.nhwc) for n in range(args.gpus)]
+    pipes = [
+        RN50Pipeline(
+            batch_size=args.batch_size,
+            num_threads=args.workers,
+            device_id=n,
+            num_gpus=args.gpus,
+            data_paths=data_paths,
+            prefetch=PREFETCH,
+            fp16=args.fp16,
+            nhwc=args.nhwc,
+        )
+        for n in range(args.gpus)
+    ]
     [pipe.build() for pipe in pipes]
     iters = args.iters
     if args.iters < 0:
@@ -143,14 +178,16 @@ def test_fw_iter(IteratorClass, args):
     if iterator_name == "nvidia.dali.plugin.tf.DALIIterator":
         daliop = IteratorClass()
         for dev in range(args.gpus):
-            with tf.device('/gpu:%i' % dev):
+            with tf.device("/gpu:%i" % dev):
                 if args.fp16:
                     out_type = tf.float16
                 else:
                     out_type = tf.float32
-                image, label = daliop(pipeline=pipes[dev],
-                                      shapes=[(args.batch_size, 3, 224, 224), ()],
-                                      dtypes=[out_type, tf.int32])
+                image, label = daliop(
+                    pipeline=pipes[dev],
+                    shapes=[(args.batch_size, 3, 224, 224), ()],
+                    dtypes=[out_type, tf.int32],
+                )
                 images.append(image)
                 labels.append(label)
         gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
@@ -172,8 +209,10 @@ def test_fw_iter(IteratorClass, args):
                 data_time.update(time.time() - end)
                 if j % args.print_freq == 0:
                     speed = args.gpus * args.batch_size / data_time.avg
-                    print(f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
-                          f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]")
+                    print(
+                        f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
+                        f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]"
+                    )
                 end = time.time()
         else:
             dali_train_iter = IteratorClass(pipes, reader_name="Reader")
@@ -182,8 +221,10 @@ def test_fw_iter(IteratorClass, args):
                 data_time.update(time.time() - end)
                 if j % args.print_freq == 0:
                     speed = args.gpus * args.batch_size / data_time.avg
-                    print(f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
-                          f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]")
+                    print(
+                        f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
+                        f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]"
+                    )
                 end = time.time()
                 j = j + 1
                 if j > iters:
@@ -192,16 +233,19 @@ def test_fw_iter(IteratorClass, args):
 
 def import_mxnet():
     from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
+
     return MXNetIterator
 
 
 def import_pytorch():
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
+
     return PyTorchIterator
 
 
 def import_paddle():
     from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
+
     return PaddleIterator
 
 
@@ -212,6 +256,7 @@ def import_tf():
     global Session
     from nvidia.dali.plugin.tf import DALIIterator as TensorFlowIterator
     import tensorflow as tf
+
     try:
         from tensorflow.compat.v1 import GPUOptions
         from tensorflow.compat.v1 import ConfigProto
@@ -233,7 +278,7 @@ Iterators = {
     "mxnet": [import_mxnet],
     "pytorch": [import_pytorch],
     "tf": [import_tf],
-    "paddle": [import_paddle]
+    "paddle": [import_paddle],
 }
 
 assert args.framework in Iterators, "Error, framework {} not supported".format(args.framework)

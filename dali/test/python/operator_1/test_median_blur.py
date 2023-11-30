@@ -26,7 +26,7 @@ SEED = 1313
 
 
 def cv2_median_blur(dst, img, ksize, layout):
-    if layout[-1] == 'C':
+    if layout[-1] == "C":
         cv2.medianBlur(img, ksize=ksize, dst=dst)
     else:
         for c in range(img.shape[0]):
@@ -36,7 +36,7 @@ def cv2_median_blur(dst, img, ksize, layout):
 def ref_func(img, ksize, layout):
     ksize = ksize[0]
     dst = np.zeros_like(img)
-    if layout[0] == 'F':
+    if layout[0] == "F":
         for f in range(0, img.shape[0]):
             cv2_median_blur(dst[f, :, :, :], img[f, :, :, :], ksize, layout)
     else:
@@ -44,18 +44,20 @@ def ref_func(img, ksize, layout):
     return dst
 
 
-@dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID,
-                   exec_pipelined=False, exec_async=False)
+@dali.pipeline_def(
+    num_threads=NUM_THREADS, device_id=DEV_ID, exec_pipelined=False, exec_async=False
+)
 def reference_pipe(data_src, layout, ksize_src):
     img = fn.external_source(source=data_src, batch=True, layout=layout)
     ksize = fn.external_source(source=ksize_src)
-    return fn.python_function(img, ksize, function=lambda im, ks: ref_func(im, ks, layout=layout),
-                              batch_processing=False)
+    return fn.python_function(
+        img, ksize, function=lambda im, ks: ref_func(im, ks, layout=layout), batch_processing=False
+    )
 
 
 @dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def median_blur_pipe(data_src, layout, ksize_src):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device='gpu')
+    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
     ksize = fn.external_source(source=ksize_src)
     ksize = fn.cat(ksize, ksize)
     return fn.experimental.median_blur(img, window_size=ksize)
@@ -63,7 +65,7 @@ def median_blur_pipe(data_src, layout, ksize_src):
 
 @dali.pipeline_def(num_threads=NUM_THREADS, device_id=DEV_ID)
 def median_blur_cksize_pipe(data_src, layout, ksize):
-    img = fn.external_source(source=data_src, batch=True, layout=layout, device='gpu')
+    img = fn.external_source(source=data_src, batch=True, layout=layout, device="gpu")
     return fn.experimental.median_blur(img, window_size=ksize)
 
 
@@ -79,56 +81,66 @@ def ksize_src(bs, lo, hi, seed):
         yield ksize
 
 
-@params((32, 'HWC', np.uint8, 3, 9),
-        (32, 'CHW', np.float32, 4, 5),
-        (32, 'HWC', np.uint16, 1, 5),
-        (4, 'FHWC', np.float32, 3, 5),
-        (4, 'FCHW', np.uint8, 1, 9))
+@params(
+    (32, "HWC", np.uint8, 3, 9),
+    (32, "CHW", np.float32, 4, 5),
+    (32, "HWC", np.uint16, 1, 5),
+    (4, "FHWC", np.float32, 3, 5),
+    (4, "FCHW", np.uint8, 1, 9),
+)
 def test_median_blur_vs_ocv(bs, layout, dtype, channels, max_ksize):
-    cdim = layout.find('C')
+    cdim = layout.find("C")
     min_shape = [64 for c in layout]
     min_shape[cdim] = channels
     max_shape = [256 for c in layout]
     max_shape[cdim] = channels
-    if layout[0] == 'F':
+    if layout[0] == "F":
         min_shape[0] = 8
         max_shape[0] = 32
 
-    data1 = test_utils.RandomlyShapedDataIterator(batch_size=bs, min_shape=min_shape,
-                                                  max_shape=max_shape, dtype=dtype, seed=SEED)
-    data2 = test_utils.RandomlyShapedDataIterator(batch_size=bs, min_shape=min_shape,
-                                                  max_shape=max_shape, dtype=dtype, seed=SEED)
+    data1 = test_utils.RandomlyShapedDataIterator(
+        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+    )
+    data2 = test_utils.RandomlyShapedDataIterator(
+        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+    )
     ksize1 = ksize_src(bs, 3, max_ksize, SEED)
     ksize2 = ksize_src(bs, 3, max_ksize, SEED)
-    pipe1 = median_blur_pipe(data_src=data1, layout=layout, ksize_src=ksize1,
-                             batch_size=bs, prefetch_queue_depth=1)
+    pipe1 = median_blur_pipe(
+        data_src=data1, layout=layout, ksize_src=ksize1, batch_size=bs, prefetch_queue_depth=1
+    )
     pipe2 = reference_pipe(data_src=data2, layout=layout, ksize_src=ksize2, batch_size=bs)
     test_utils.compare_pipelines(pipe1, pipe2, batch_size=bs, N_iterations=10)
 
 
-@params((32, 'HWC', np.uint8, 3, (7, 7)),
-        (32, 'CHW', np.float32, 4, 3),
-        (4, 'FCHW', np.uint8, 1, (9, 9)))
+@params(
+    (32, "HWC", np.uint8, 3, (7, 7)),
+    (32, "CHW", np.float32, 4, 3),
+    (4, "FCHW", np.uint8, 1, (9, 9)),
+)
 def test_median_blur_const_ksize_vs_ocv(bs, layout, dtype, channels, ksize):
-    cdim = layout.find('C')
+    cdim = layout.find("C")
     min_shape = [64 for c in layout]
     min_shape[cdim] = channels
     max_shape = [256 for c in layout]
     max_shape[cdim] = channels
-    if layout[0] == 'F':
+    if layout[0] == "F":
         min_shape[0] = 8
         max_shape[0] = 32
 
-    data1 = test_utils.RandomlyShapedDataIterator(batch_size=bs, min_shape=min_shape,
-                                                  max_shape=max_shape, dtype=dtype, seed=SEED)
-    data2 = test_utils.RandomlyShapedDataIterator(batch_size=bs, min_shape=min_shape,
-                                                  max_shape=max_shape, dtype=dtype, seed=SEED)
+    data1 = test_utils.RandomlyShapedDataIterator(
+        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+    )
+    data2 = test_utils.RandomlyShapedDataIterator(
+        batch_size=bs, min_shape=min_shape, max_shape=max_shape, dtype=dtype, seed=SEED
+    )
     if isinstance(ksize, tuple):
         cv_ksize = ksize[0]
     else:
         cv_ksize = ksize
     ksize1 = ksize_src(bs, cv_ksize, cv_ksize, SEED)
-    pipe1 = median_blur_cksize_pipe(data_src=data1, layout=layout, ksize=ksize,
-                                    batch_size=bs, prefetch_queue_depth=1)
+    pipe1 = median_blur_cksize_pipe(
+        data_src=data1, layout=layout, ksize=ksize, batch_size=bs, prefetch_queue_depth=1
+    )
     pipe2 = reference_pipe(data_src=data2, layout=layout, ksize_src=ksize1, batch_size=bs)
     test_utils.compare_pipelines(pipe1, pipe2, batch_size=bs, N_iterations=10)
