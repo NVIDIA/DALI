@@ -1,4 +1,4 @@
-|License|  |Documentation|
+|License|  |Documentation|  |Format|
 
 NVIDIA DALI
 ===========
@@ -264,3 +264,6 @@ Simon Layton, Andrei Ivanov and Serge Panev.
 
 .. |Documentation| image:: https://img.shields.io/badge/NVIDIA%20DALI-documentation-brightgreen.svg?longCache=true
    :target: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
+
+.. |Format| image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
