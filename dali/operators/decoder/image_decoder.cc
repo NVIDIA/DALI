@@ -179,7 +179,7 @@ a dedicated hardware decoder.
 The output of the decoder is in *HWC* layout.
 
 Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11 and newer.
 
 .. note::
   WebP decoding currently only supports the simple file format (lossy and lossless compression).
