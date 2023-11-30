@@ -19,7 +19,7 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
-#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
+
 namespace dali {
 
 /**
@@ -34,7 +34,6 @@ class ExternalSource : public InputOperator<Backend> {
   using Operator<Backend>::spec_;
 
  public:
-
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {}
 
   void RestoreState(const OpCheckpoint &cpt) override {}

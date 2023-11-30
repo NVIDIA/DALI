@@ -334,7 +334,8 @@ class DLL_PUBLIC Pipeline {
    *
    * Should be called before building.
   */
-  DLL_PUBLIC PipelineCheckpoint RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+  DLL_PUBLIC PipelineCheckpoint RestoreFromSerializedCheckpoint(
+      const std::string &serialized_checkpoint) {
     DALI_ENFORCE(checkpointing_,
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");

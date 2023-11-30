@@ -901,10 +901,11 @@ def test_transforms_scale_checkpointing():
 
 
 def test_transforms_translation_checkpointing():
-    check_no_input_operator(fn.transforms.translation, 'cpu', offset=(21, 30))
+    check_no_input_operator(fn.transforms.translation, "cpu", offset=(21, 30))
 
 
 # External source
+
 
 def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, compare_iterations):
     def run_and_reset(pipe):
@@ -933,23 +934,30 @@ def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, c
     compare_external_source_pipelines(p1, p2, compare_iterations)
 
 
-def make_external_source_test_pipeline_factory(source_factory, mode, batch_size, parallel, **kwargs):
-    kwargs['parallel'] = parallel
-    if mode == 'idx':
-        kwargs['batch'] = True
-        kwargs['batch_info'] = False
-    elif mode == 'batch_info':
-        kwargs['batch'] = True
-        kwargs['batch_info'] = True
-    elif mode == 'sample_info':
-        kwargs['batch'] = False
-        kwargs['batch_info'] = False
+def make_external_source_test_pipeline_factory(
+    source_factory, mode, batch_size, parallel, **kwargs
+):
+    kwargs["parallel"] = parallel
+    if mode == "idx":
+        kwargs["batch"] = True
+        kwargs["batch_info"] = False
+    elif mode == "batch_info":
+        kwargs["batch"] = True
+        kwargs["batch_info"] = True
+    elif mode == "sample_info":
+        kwargs["batch"] = False
+        kwargs["batch_info"] = False
     else:
-        assert False, 'Unknown mode!'
+        assert False, "Unknown mode!"
 
     def pipeline_factory():
-        @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0,
-                    enable_checkpointing=True, py_start_method='spawn')
+        @pipeline_def(
+            batch_size=batch_size,
+            num_threads=4,
+            device_id=0,
+            enable_checkpointing=True,
+            py_start_method="spawn",
+        )
         def pipeline():
             return fn.external_source(source=source_factory(), **kwargs)
 
@@ -961,28 +969,36 @@ def make_external_source_test_pipeline_factory(source_factory, mode, batch_size,
 @cartesian_params(
     ((1, 1), (3, 4)),  # (epoch size, batch size)
     (0, 3, 15),  # test iterations
-    ('idx', 'batch_info', 'sample_info'),  # indexing mode
+    ("idx", "batch_info", "sample_info"),  # indexing mode
     (True, False),  # parallel
 )
 def test_external_source_index_checkpointing(dataset_info, iterations, mode, parallel):
     epoch_size, batch_size = dataset_info
 
     def source_factory():
-        if mode == 'idx':
+        if mode == "idx":
+
             def src(idx):
                 if idx >= epoch_size:
                     raise StopIteration()
                 return [np.asarray([idx, i]) for i in range(batch_size)]
-        elif mode == 'batch_info':
+
+        elif mode == "batch_info":
+
             def src(idx):
                 if idx.iteration >= epoch_size:
                     raise StopIteration()
                 return [np.asarray([idx.epoch_idx, idx.iteration, i]) for i in range(batch_size)]
-        elif mode == 'sample_info':
+
+        elif mode == "sample_info":
+
             def src(idx):
                 if idx.idx_in_epoch >= epoch_size * batch_size:
                     raise StopIteration()
-                return np.asarray([idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch])
+                return np.asarray(
+                    [idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch]
+                )
+
         return src
 
     pf = make_external_source_test_pipeline_factory(source_factory, mode, batch_size, parallel)
@@ -1005,17 +1021,16 @@ class CounterCallback:
             raise StopIteration()
 
         # Verify that the requested index is coherent with internal state
-        if self.mode == 'sample_info':
+        if self.mode == "sample_info":
             assert idx.epoch_idx == self.major
             assert idx.idx_in_epoch == self.minor
-        elif self.mode == 'batch_info':
+        elif self.mode == "batch_info":
             assert idx.epoch_idx == self.major
             assert idx.iteration == self.minor
-        elif self.mode == 'idx':
+        elif self.mode == "idx":
             assert idx == self.minor
 
-
-        if self.mode == 'batch_info' or self.mode == 'idx':
+        if self.mode == "batch_info" or self.mode == "idx":
             result = [np.asarray([self.major, self.minor, i]) for i in range(self.batch_size)]
         else:
             result = np.asarray([self.major, self.minor])
@@ -1028,19 +1043,25 @@ class CounterCallback:
         self.major = epoch_idx
         self.minor = idx
 
+
 @cartesian_params(
     ((1, 1), (5, 3)),  # (epoch size, batch size)
     (0, 5, 8),  # test iterations
-    ('idx', 'sample_info', 'batch_info'),  # indexing mode
+    ("idx", "sample_info", "batch_info"),  # indexing mode
 )
 def test_external_source_stateful_callback(dataset_info, iterations, mode):
     epoch_size, batch_size = dataset_info
 
-    n = epoch_size * batch_size if mode == 'sample_info' else epoch_size
+    n = epoch_size * batch_size if mode == "sample_info" else epoch_size
+
     def source_factory():
         return CounterCallback(n, mode, batch_size)
-    pipeline_factory = make_external_source_test_pipeline_factory(source_factory, mode, batch_size, False)
+
+    pipeline_factory = make_external_source_test_pipeline_factory(
+        source_factory, mode, batch_size, False
+    )
     check_external_source_pipeline_checkpointing(pipeline_factory, iterations, 2 * epoch_size)
+
 
 class UnindexedDummySourceBase:
     def __init__(self, n, batch, batch_size):
@@ -1065,9 +1086,11 @@ class UnindexedDummySourceBase:
     def restore(self, epoch_idx, idx):
         self.i = idx
 
+
 class UnindexedDummyCallback(UnindexedDummySourceBase):
     def __call__(self):
         return self.next()
+
 
 class UnindexedDummyIterator(UnindexedDummySourceBase):
     def __next__(self):
@@ -1075,6 +1098,7 @@ class UnindexedDummyIterator(UnindexedDummySourceBase):
 
     def __iter__(self):
         return self
+
 
 class UnindexedDummyIterable:
     def __init__(self, *args, **kwargs):
@@ -1086,25 +1110,32 @@ class UnindexedDummyIterable:
     def restore(self, *args, **kwargs):
         return self.iterator.restore(*args, **kwargs)
 
+
 @cartesian_params(
-    ((3, 8), (4, 2),),  # (epoch size, batch size)
+    (
+        (3, 8),
+        (4, 2),
+    ),  # (epoch size, batch size)
     (3, 13),  # test iterations
-    ('callable', 'iterator', 'iterable'),  # source type
-    ('raise', 'quiet', 'cycle'),  # cycle policy
-    ('idx', 'sample_info', 'batch_info'),  # indexing mode
+    ("callable", "iterator", "iterable"),  # source type
+    ("raise", "quiet", "cycle"),  # cycle policy
+    ("idx", "sample_info", "batch_info"),  # indexing mode
 )
 def test_external_source_unindexed(dataset_info, iterations, source_kind, cycle, mode):
     source_classes = {
-        'callable': UnindexedDummyCallback,
-        'iterator': UnindexedDummyIterator,
-        'iterable': UnindexedDummyIterable
+        "callable": UnindexedDummyCallback,
+        "iterator": UnindexedDummyIterator,
+        "iterable": UnindexedDummyIterable,
     }
     epoch_size, batch_size = dataset_info
+
     def source_factory():
         source_class = source_classes[source_kind]
-        batched = (mode != 'sample_info')
+        batched = mode != "sample_info"
         n = epoch_size if batched else epoch_size * batch_size
         return source_class(n, batched, batch_size)
 
-    pipeline_factory = make_external_source_test_pipeline_factory(source_factory, mode, batch_size, False)
+    pipeline_factory = make_external_source_test_pipeline_factory(
+        source_factory, mode, batch_size, False
+    )
     check_external_source_pipeline_checkpointing(pipeline_factory, iterations, 2 * epoch_size)

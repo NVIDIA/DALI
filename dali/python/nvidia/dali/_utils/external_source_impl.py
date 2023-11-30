@@ -185,11 +185,6 @@ class _CycleIter:
 
 
 class _CycleGenFunc:
-    def restore(self, *args, **kwargs):
-        if hasattr(self.source, 'restore'):
-            self.source.restore(*args, **kwargs)
-
-class _CycleGenFunc():
     def __init__(self, gen_func, mode):
         self.source = gen_func
         self.signaling = mode == "raise"
@@ -207,6 +202,10 @@ class _CycleGenFunc():
                 raise
             else:
                 return next(self.it)
+
+    def restore(self, *args, **kwargs):
+        if hasattr(self.source, "restore"):
+            self.source.restore(*args, **kwargs)
 
 
 def _is_generator_function(x):
@@ -305,8 +304,9 @@ def get_callback_from_source(source, cycle, batch_info=False):
             class Callback:
                 def __call__(self):
                     return next(iterator)
+
                 def restore(self, *args, **kwargs):
-                    if hasattr(source, 'restore'):
+                    if hasattr(source, "restore"):
                         source.restore(*args, **kwargs)
 
             callback = Callback()
