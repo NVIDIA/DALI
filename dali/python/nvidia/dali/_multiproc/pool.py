@@ -57,8 +57,8 @@ are serialized and put in shm chunks from ShmChunkManagers, whereas messages in 
 only simple fixed-size meta data such as the id of shm chunk from the buffer to be read,
 current capacity of the shm chunk (which may increase if worker couldn't fit the data)
 and offset of the data.
-If the pipeline contains any stateless source, that can be run in parallel, all the workers will share
-a common ShmQueue instance with tasks related to any such source.
+If the pipeline contains any stateless source, that can be run in parallel, all the workers will
+share a common ShmQueue instance with tasks related to any such source.
 If some source gets a dedicated worker assigned, the worker will receive a dedicated queue not
 shared with other workers and will receive all the dedicated tasks there.
 Thus, a worker can have up to two queues with tasks.
