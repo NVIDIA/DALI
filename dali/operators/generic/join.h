@@ -48,8 +48,6 @@ class TensorJoin : public StatelessOperator<Backend> {
 
   using Storage = detail::storage_tag_map_t<Backend>;
 
-  using StatelessOperator<Backend>::Operator;
-
   bool CanInferOutputs() const override { return true; }
   void RunImpl(Workspace &ws) override;
   bool SetupImpl(vector<OutputDesc> &outputs, const Workspace &ws) override;
