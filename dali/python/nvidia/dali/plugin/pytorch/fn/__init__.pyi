@@ -18,10 +18,11 @@ from typing import Union, Optional, overload
 from typing import Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
+from nvidia.dali._typing import TensorLikeIn
 
 @overload
 def torch_python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., torch.Tensor],
     batch_processing: bool = False,
     output_layouts: Union[Sequence[str], str, None] = None,
@@ -36,7 +37,7 @@ def torch_python_function(
 
 @overload
 def torch_python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., Union[torch.Tensor, Tuple[torch.Tensor, ...], None]],
     batch_processing: bool = False,
     num_outputs: int = 1,

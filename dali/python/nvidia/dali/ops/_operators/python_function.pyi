@@ -16,6 +16,7 @@ from typing import Union, Optional, overload
 from typing import Any, Callable, Sequence, Tuple
 
 from nvidia.dali.data_node import DataNode
+from nvidia.dali._typing import TensorLikeIn
 
 class PythonFunction:
     """
@@ -45,7 +46,7 @@ class PythonFunction:
     def __call__(
         self,
         /,
-        *input: DataNode,
+        *input: Union[DataNode, TensorLikeIn],
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
@@ -86,7 +87,7 @@ class DLTensorPythonFunction:
     def __call__(
         self,
         /,
-        *input: DataNode,
+        *input: Union[DataNode, TensorLikeIn],
         bytes_per_sample_hint: Union[Sequence[int], int, None] = [0],
         preserve: Optional[bool] = False,
         seed: Optional[int] = -1,
@@ -97,7 +98,7 @@ class DLTensorPythonFunction:
 
 @overload
 def python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = False,
     output_layouts: Union[Sequence[str], str, None] = None,
@@ -121,7 +122,7 @@ def python_function(
 
 @overload
 def python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = False,
     num_outputs: int = 1,
@@ -146,7 +147,7 @@ def python_function(
 
 @overload
 def dl_tensor_python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = True,
     synchronize_stream: Optional[bool] = True,
@@ -174,7 +175,7 @@ def dl_tensor_python_function(
 
 @overload
 def dl_tensor_python_function(
-    *input: DataNode,
+    *input: Union[DataNode, TensorLikeIn],
     function: Callable[..., Union[Any, Tuple[Any, ...], None]],
     batch_processing: bool = True,
     num_outputs: int = 1,
