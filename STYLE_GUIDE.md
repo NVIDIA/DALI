@@ -6,8 +6,8 @@ DALI's C++ code follows [Google C++ Style Guide](https://google.github.io/styleg
 with the exceptions detailed below.
 
 DALI's Python code uses [Black](https://github.com/psf/black) for formatting, with the configuration
-specified in the pyproject.toml file, and is checked with [flake8](https://github.com/PyCQA/flake8)
-linter according to the .flake8 configuration file.
+specified in the `pyproject.toml` file, and is checked with [flake8](https://github.com/PyCQA/flake8)
+linter according to the `.flake8` configuration file.
 
 The code should always pass the current `make lint` check, where C++ code and Python formatting
 are verified.
