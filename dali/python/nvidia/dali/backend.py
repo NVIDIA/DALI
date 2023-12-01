@@ -85,7 +85,7 @@ cuda_checked = False
 
 def check_cuda_runtime():
     """
-    Checks the availability of CUDA runtime/GPU, and NPP, nvJEPG, and cuFFT libraries and prints an
+    Checks the availability of CUDA runtime/GPU, and NPP, nvJPEG, and cuFFT libraries and prints an
     appropriate warning.
     """
     global cuda_checked

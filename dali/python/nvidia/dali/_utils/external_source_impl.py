@@ -112,7 +112,7 @@ def assert_cpu_batch_data_type(batch, error_str="Unsupported callback return typ
             assert_cpu_sample_data_type(sample, error_str)
         return True
     elif assert_cpu_sample_data_type(batch, error_str):
-        # Bach can be repsented as dense tensor
+        # Bach can be represented as dense tensor
         return True
     else:
         raise TypeError(error_str.format(type(batch)))
@@ -492,7 +492,7 @@ def _get_generator_from_source_desc(source_desc: SourceDescription, batch_size, 
     """Based on DALI source description create a generator function, type and shape specification
     compatible with TF Generator Dataset.
 
-    Cycling is delegated to the dataset as some control of some cycling behaviour cannot be
+    Cycling is delegated to the dataset as some control of some cycling behavior cannot be
     realized in TF.
     """
     if source_desc.kind == SourceKind.CALLABLE:

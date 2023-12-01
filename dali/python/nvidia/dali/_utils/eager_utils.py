@@ -193,7 +193,7 @@ class _Classification:
             if _types._is_compatible_array_type(data):
                 if arg_constant_len > 0:
                     # For call argument input repeats data `arg_constant_len` times to match
-                    # the ContantOp behavior.
+                    # the ConstantOp behavior.
                     return classify_array_kwarg(data)
                 else:
                     return classify_array_input(data)

@@ -300,7 +300,7 @@ class _DaliBaseIterator(object):
             self._shard_sizes_per_gpu = self._calculate_shard_sizes(np.arange(0, self._shards_num))
 
             # to avoid recalculation of shard sizes when iterator moves across the shards
-            # memorize the initial shard sizes and then use chaning self._shards_id to index it
+            # memorize the initial shard sizes and then use changing self._shards_id to index it
             self._shard_sizes_per_gpu_initial = self._shard_sizes_per_gpu.copy()
 
     def _remove_padded(self):

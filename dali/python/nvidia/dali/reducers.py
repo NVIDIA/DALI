@@ -26,7 +26,7 @@ def dummy_lambda():
 
 # unfortunately inspect.getclosurevars does not yield global names referenced by
 # the code syntactically nested inside the function, this includes nested functions
-# and list comprehension, for instance in case of [exp1 for exp2 in exp3] occuring inside
+# and list comprehension, for instance in case of [exp1 for exp2 in exp3] occurring inside
 # a function, references from exp1 would be omitted
 
 

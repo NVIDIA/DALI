@@ -164,7 +164,7 @@ def check_bbox_random_crop_adjust_polygons(
             expected_sel_vertices = np.array(expected_vertices_list)
             np.testing.assert_equal(expected_sel_vertices, sel_vertices)
 
-            # Chekc that the vertices are correctly mapped to the cropping window
+            # Check that the vertices are correctly mapped to the cropping window
             expected_out_vertices = np.copy(expected_sel_vertices)
             crop_x, crop_y = slice_anchor
             crop_w, crop_h = slice_shape

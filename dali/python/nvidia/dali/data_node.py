@@ -124,7 +124,7 @@ class DataNode(object):
     def __neg__(self) -> DataNode:
         return _arithm_op("minus", self)
 
-    # Short-circuitng the execution, unary + is basically a no-op
+    # Short-circuiting the execution, unary + is basically a no-op
     def __pos__(self) -> DataNode:
         return self
 

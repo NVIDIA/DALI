@@ -274,7 +274,7 @@ def dali_pipe_types(tf_type, dali_type):
     assert_equals(out.dtype, tf_type)
 
 
-# float64 not tested because constand doesn't support it
+# float64 not tested because constant doesn't support it
 tf_type_list = [
     tf.uint8,
     tf.uint16,

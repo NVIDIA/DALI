@@ -715,7 +715,7 @@ class TestIteratorZeroCopy:
 
             if len(self.data) > self.num_keep_samples:
                 tmp = self.data.pop(0)
-                # change poped data to make sure it is corrupted
+                # change popped data to make sure it is corrupted
                 tmp = add_one(tmp)
             return data
         else:

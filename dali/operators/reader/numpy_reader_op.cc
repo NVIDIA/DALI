@@ -192,7 +192,7 @@ This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
 )code",
         nullptr, true)
     .AddOptionalArg("roi_axes",
-        R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
+        R"code(Order of dimensions used for the ROI anchor and shape arguments, as dimension indices.
 
 If not provided, all the dimensions should be specified in the ROI arguments.
 )code",

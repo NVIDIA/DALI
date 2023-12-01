@@ -18,8 +18,8 @@ TensorList wraps the outputs of current iteration and is valid only for the dura
 iteration. Using the TensorList after moving to the next iteration is not allowed.
 If you wish to retain the data you need to copy it before indicating DALI that you released it.
 
-For typicall use-cases, for example when DALI is used through :ref:`DL Framework Plugins`,
-no additionall memory bookkeeping is necessary.
+For typical use-cases, for example when DALI is used through :ref:`DL Framework Plugins`,
+no additional memory bookkeeping is necessary.
 
 .. currentmodule:: nvidia.dali.tensors
 

@@ -46,7 +46,7 @@ class LogicalExpressionTest(converter_testing.TestCase):
         # Note: having just the first constant a tensor tests that the
         # operations execute in the correct order. If anything other than
         # a < b executed first, the result would be a Python scalar and not a
-        # Tensor. This is valid as long as the dispat is automatic based on
+        # Tensor. This is valid as long as the dispatch is automatic based on
         # type.
         self.assertTrue(tr(1, 2, 2, 1))
         self.assertFalse(tr(1, 2, 2, 3))

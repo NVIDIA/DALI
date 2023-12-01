@@ -28,7 +28,7 @@ class ShmQueue:
 
     """
     Simple fixed capacity shared memory queue of fixed size messages.
-    Writting to a full queue fails, attempt to get from an empty queue blocks until data is
+    Writing to a full queue fails, attempt to get from an empty queue blocks until data is
     available or the queue is closed.
     """
 

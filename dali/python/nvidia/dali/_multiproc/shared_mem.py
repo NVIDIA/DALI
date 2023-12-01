@@ -100,7 +100,7 @@ class SharedMem:
         self.capacity = size
 
     def close(self):
-        """Removes maping of the memory into process address space and closes related handle.
+        """Removes mapping of the memory into process address space and closes related handle.
         If all processes sharing given chunk close it, it will be automatically released by the OS.
         You don't have to call this method, as corresponding clean up is performed when instance
         gets garbage collected but you can call it as soon as you no longer need it for more

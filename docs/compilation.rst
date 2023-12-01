@@ -6,7 +6,7 @@ Compiling DALI from Source
 Using Docker builder - recommended
 ----------------------------------
 
-Following these steps, it is possible to recreate Python wheels in a similar fashion as we provide as an official prebuild binary.
+Following these steps, it is possible to recreate Python wheels in a similar fashion as we provide as an official prebuilt binary.
 
 Prerequisites
 ^^^^^^^^^^^^^
@@ -77,7 +77,7 @@ set the following environment variables:
     name with this information included.
   | In the case of the other build configurations, these two wheels will be identical.
 * | BUILD_INHOST - ask docker to mount source code instead of copying it.
-  | Thank to that consecutive builds are resuing existing object files and are faster
+  | Thank to that consecutive builds are reusing existing object files and are faster
     for the development. Uses $DALI_BUILD_DIR as a directory for build objects. The default is ``YES``.
 * | REBUILD_BUILDERS - if builder docker images need to be rebuild or can be reused from
     the previous build.
@@ -392,7 +392,7 @@ To run with sanitizers enabled issue:
 
   STDC_VERSION used by the system. Usually 6.
 
--  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name sufix (i.e. 'nightly') for nvidia-dali whl package
+-  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name suffix (i.e. 'nightly') for nvidia-dali whl package
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 -  *(Unofficial)* ``BUILD_LIBTIFF`` - build with ``libtiff`` (default: ON)
 

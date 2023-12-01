@@ -38,8 +38,8 @@ from nvidia.dali._multiproc.shared_queue import ShmQueue
 
 
 """
-A pipline with parallel external sources creates `WorkerPool` to parallelize sources computation.
-Each external source in the pipline has its own `ShmChunkManager` with a view on shm chunks
+A pipeline with parallel external sources creates `WorkerPool` to parallelize sources computation.
+Each external source in the pipeline has its own `ShmChunkManager` with a view on shm chunks
 dedicated to data computed by the given source. Those chunks are also used to pass minibatch (task)
 description to the workers. All the chunks for all the external sources in the pipeline
 are created and stored in the common list shared by `ShmChunkManager` instances (index in the list
@@ -57,8 +57,8 @@ are serialized and put in shm chunks from ShmChunkManagers, whereas messages in 
 only simple fixed-size meta data such as the id of shm chunk from the buffer to be read,
 current capacity of the shm chunk (which may increase if worker couldn't fit the data)
 and offset of the data.
-If the pipline contains any stateless source, that can be run in parall, all the workers will share
-a common ShmQueue instance with tasks related to any such source.
+If the pipeline contains any stateless source, that can be run in parallel, all the workers will
+share a common ShmQueue instance with tasks related to any such source.
 If some source gets a dedicated worker assigned, the worker will receive a dedicated queue not
 shared with other workers and will receive all the dedicated tasks there.
 Thus, a worker can have up to two queues with tasks.
@@ -195,7 +195,7 @@ class CallbackContext:
                 # and among them the exception.
                 # This traceback is then chained into exceptions reraised along the way
                 # (eventually at the pipeline level) which in effect introduces a reference to
-                # the pipline that would be only removed after garbage collection round,
+                # the pipeline that would be only removed after garbage collection round,
                 # delaying finalization of the pool
                 del exception
 
@@ -258,7 +258,7 @@ class CallbackContext:
 
     @property
     def scheduled_ahead(self):
-        # at the begining of a new epoch all previously scheduled tasks are discarded
+        # at the beginning of a new epoch all previously scheduled tasks are discarded
         if not self.epoch_synced:
             return 0
         return len(self.task_queue)
@@ -831,7 +831,7 @@ class WorkerPool:
 
     def receive_batch(self, context_i):
         """Returns the next produced batch (in the order of schedule_batch calls) for the
-        ``context_i``th callaback.
+        ``context_i``th callback.
 
         Parameters
         ----------

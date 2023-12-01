@@ -892,7 +892,7 @@ class ApiTest(unittest.TestCase):
                 x /= 2
             return x
 
-        # Just check that the output is parseable Python code.
+        # Just check that the output is parsable Python code.
         self.assertIsNotNone(parser.parse(api.to_code(test_fn)))
 
     def test_tf_convert_overrides_current_context(self):

@@ -40,7 +40,7 @@ _dali_tf.__doc__ = (
     + """
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default.
-    This might cause errors in DALI due to insufficient memory. On how to change this behaviour
+    This might cause errors in DALI due to insufficient memory. On how to change this behavior
     please look into the TensorFlow documentation, as it may differ based on your use case.
 """
 )
@@ -618,7 +618,7 @@ if dataset_compatible_tensorflow():
                     dataset = tf.data.Dataset.from_generator(tf_gen, output_signature=signature)
                     if _cycle_enabled(source_desc.cycle):
                         dataset = dataset.repeat()
-                    # if DALIDataset was placed on GPU, we need to add the copy targetting
+                    # if DALIDataset was placed on GPU, we need to add the copy targeting
                     # that device (with proper id).
                     if is_dali_on_gpu:
                         dataset = dataset.apply(
@@ -939,7 +939,7 @@ DALIDataset.__doc__ = """Creates a ``DALIDataset`` compatible with
     ``DALIDataset`` can be placed on CPU and GPU.
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default.
-    This might cause errors in DALI due to insufficient memory. On how to change this behaviour
+    This might cause errors in DALI due to insufficient memory. On how to change this behavior
     please look into the TensorFlow documentation, as it may differ based on your use case.
 
     .. warning::

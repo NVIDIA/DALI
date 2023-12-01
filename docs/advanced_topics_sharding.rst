@@ -1,7 +1,7 @@
 Sharding
 ========
 
-Sharding allows DALI to partition the dataset into nonoverlapping pieces on which each DALI pipeline
+Sharding allows DALI to partition the dataset into non-overlapping pieces on which each DALI pipeline
 instance can work. This functionality addresses the issue of having a global and a shared state
 that allows the distribution of training samples among the ranks. After each epoch, by default,
 the DALI pipeline advances to the next shard to increase the entropy of the data that is seen by

@@ -90,7 +90,7 @@ Usage
                           tensorflow – pipeline used in original EfficientDet implementation on https://github.com/google/automl/tree/master/efficientdet
                           synthetic – like `tensorflow` pipeline type but repeats one batch endlessly
                           dali_gpu – pipeline which uses Nvidia Data Loading Library (DALI) to run part of data preprocessing on GPUs to improve efficiency
-                          dalu_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU
+                          dali_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU
     --multi_gpu [MULTI_GPU [MULTI_GPU ...]]
                           List of GPUs to use, if empty defaults to all visible GPUs.
     --seed SEED
@@ -124,7 +124,7 @@ Usage
                           tensorflow – pipeline used in original EfficientDet implementation on https://github.com/google/automl/tree/master/efficientdet
                           synthetic – like `tensorflow` pipeline type but repeats one batch endlessly
                           dali_gpu – pipeline which uses Nvidia Data Loading Library (DALI) to run part of data preprocessing on GPUs to improve efficiency
-                          dalu_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU
+                          dali_cpu – like `dali_gpu` pipeline type but restricted to run only on CPU
     --weights WEIGHTS     Name of the file with model weights.
     --model_name MODEL_NAME
     --hparams HPARAMS     String or filename with parameters.

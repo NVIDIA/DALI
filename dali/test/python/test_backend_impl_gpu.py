@@ -291,7 +291,7 @@ def test_tensor_gpu_squeeze():
 
 # The Tensor[List] take the pointer to data and store the reference to buffer/object that owns
 # the data to keep the refcount positive while the Tensor[List] lives.
-# Without this behaviour there was observable bug with creating several temporary
+# Without this behavior there was observable bug with creating several temporary
 # buffers in the loop and DALI not tracking references to them
 
 

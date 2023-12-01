@@ -113,7 +113,7 @@ def test_iterators_init_method_api_compatibility():
     # then
     assert iterator_init_args == peekalbe_iterator_init_args
 
-    # Get docs for the docorator "Parameters" section
+    # Get docs for the decorator "Parameters" section
     # Skip the first argument, which differs (pipelines vs. pipeline_fn)
     iterator_decorator_docs = inspect.getdoc(DALIGenericIterator)
     iterator_decorator_docs = iterator_decorator_docs.split("output_map")[1]

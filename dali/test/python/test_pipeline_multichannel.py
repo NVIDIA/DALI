@@ -183,7 +183,7 @@ def check_multichannel_synth_data_vs_numpy(tested_operator, device, batch_size, 
 def test_multichannel_synth_data_vs_numpy():
     full_pipeline_case = None
     for tested_operator in ["resize", "crop", "transpose", "normalize", full_pipeline_case]:
-        # TODO(janton): remove when we implement CPU tranpose
+        # TODO(janton): remove when we implement CPU transpose
         supported_devices = ["gpu"] if tested_operator in [None, "transpose"] else ["cpu", "gpu"]
         for device in supported_devices:
             for batch_size in {3}:

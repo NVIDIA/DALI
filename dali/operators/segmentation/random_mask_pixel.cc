@@ -31,7 +31,7 @@ DALI_SCHEMA(segmentation__RandomMaskPixel)
 
 Based on run-time argument ``foreground``, it returns either only foreground pixels or any pixels.
 
-Pixels are classificed as foreground either when their value exceeds a given ``threshold`` or when
+Pixels are classified as foreground either when their value exceeds a given ``threshold`` or when
 it's equal to a specific ``value``.
 )")
     .AddOptionalArg<int>("value",

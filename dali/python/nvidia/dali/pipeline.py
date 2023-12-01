@@ -258,7 +258,7 @@ class Pipeline(object):
         # * Discover the ops specified in Python, group the ExternalSources (_build_graph())
         # * Start the Python workers pool (_start_py_workers())
         # * Construct the C++ Pipeline backend and pass the graph to it (_init_pipeline_backend())
-        # * Build the pieline. (_pipe.Build())
+        # * Build the pipeline. (_pipe.Build())
         # In case of deserialized pipeline, only _backend_prepared and _built will be True
         self._py_graph_built = False
         self._py_pool_started = False
@@ -753,7 +753,7 @@ class Pipeline(object):
         if self._py_pool_started:
             # The sole point of this call is to ensure the lifetime of the pool exceeds the lifetime
             # of the pipeline's backend, so that shared memory managed by the pool is not freed
-            # before pipline's backend is garbage collected.
+            # before pipeline's backend is garbage collected.
             # Otherwise the backend may try to access unmmaped memory which leads to
             # crashes at the Python teardown.
             self._pipe.SetPyObjDependency(self._py_pool)
@@ -769,7 +769,7 @@ class Pipeline(object):
             self._py_num_workers,
             py_callback_pickler=self._py_callback_pickler,
         )
-        # ensure processes started by the pool are termineted when pipeline is no longer used
+        # ensure processes started by the pool are terminated when pipeline is no longer used
         weakref.finalize(self, lambda pool: pool.close(), self._py_pool)
         self._py_pool_started = True
 

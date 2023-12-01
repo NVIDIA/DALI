@@ -136,7 +136,7 @@ def get_mx_array(shape, ctx=None, dtype=None):
     # which from our point of view is the same
     if dtype == np.longlong:
         dtype = np.int64
-    # mx.nd.empy doesn't handle scalaras as shape
+    # mx.nd.empty doesn't handle scalars as shape
     if not isinstance(shape, Iterable):
         shape = [shape]
 

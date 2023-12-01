@@ -293,7 +293,7 @@ class _IterBatchInfo:
 
     @property
     def size(self):
-        # We are not tracking the batch size in case of maunal Split/Merge usage
+        # We are not tracking the batch size in case of manual Split/Merge usage
         if self._non_uniform_batch:
             return -1
         # If we are in conditional scope, try to get a DataNode, that will be a reference
@@ -603,12 +603,12 @@ class _OperatorManager:
             The old classification - list of input classification or dictionary of kwarg
             classification
         position : int or str
-            The lookup to the currently examinet element in the `old_collection`
+            The lookup to the currently examined element in the `old_collection`
         new_classification : _Classification
             New classification of the input/kwarg
         """
         # If the old classification was empty, it may be invalid due to the pass-through
-        # behaviour on emtpy batches, so we need to update it with the new one
+        # behavior on empty batches, so we need to update it with the new one
         if old_collection[position].is_batch and len(old_collection[position].data) == 0:
             old_collection[position] = new_classification
             return new_classification

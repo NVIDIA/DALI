@@ -53,22 +53,22 @@ export PATH_TO_IMAGENET=/imagenet
 export RESULT_WORKSPACE=./
 
 # synthetic benchmark
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 1 --prof 1000 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --raport-file bench_report_synthetic.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 1 --prof 1000 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --report-file bench_report_synthetic.json $PATH_TO_IMAGENET
 
 # DALI without automatic augmentations
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --raport-file bench_report_dali.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --report-file bench_report_dali.json $PATH_TO_IMAGENET
 
 # DALI with AutoAugment
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --raport-file bench_report_dali_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file bench_report_dali_aa.json $PATH_TO_IMAGENET
 
 # DALI with TrivialAugment
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --raport-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
 
 # PyTorch without automatic augmentations
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --raport-file bench_report_pytorch.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch.json $PATH_TO_IMAGENET
 
 # PyTorch with AutoAugment:
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --raport-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 3 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --report-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
 
 
 # The line below finds the lines with `train.total_ips`, takes the last one (with the result we
@@ -111,7 +111,7 @@ CHECK_PERF_THRESHOLD "bench_report_pytorch_aa.json" $PYTORCH_AA_THRESHOLD
 # Do an additional run of DALI + AA for 10 epochs and check against 48 top1 accuracy (with some
 # safety margin).
 
-python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 10 --no-checkpoints --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --raport-file accuracy_report_dali_aa.json $PATH_TO_IMAGENET
+python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 10 --no-checkpoints --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --report-file accuracy_report_dali_aa.json $PATH_TO_IMAGENET
 
 
 function CHECK_ACCURACY_THRESHOLD {

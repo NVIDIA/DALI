@@ -152,7 +152,7 @@ def _test_resize(layout, interp, dtype, w, h):
         dali_cpu = out_dali[0]
         dali_gpu = out_dali[1]
         if interp == types.INTERP_LANCZOS3:
-            # PIL can't resize float data. Lanczos resamling generates overshoot which we have
+            # PIL can't resize float data. Lanczos resampling generates overshoot which we have
             # to get rid of for the comparison to succeed.
             dali_cpu = [np.array(x).clip(0, 255) for x in dali_cpu]
             dali_gpu = [np.array(x).clip(0, 255) for x in dali_gpu.as_cpu()]

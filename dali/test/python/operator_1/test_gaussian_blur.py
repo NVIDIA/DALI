@@ -143,7 +143,7 @@ def test_image_gaussian_blur():
                 if sigma is None and window_size is None:
                     continue
                 yield check_gaussian_blur, 10, sigma, window_size, dev
-        # OpenCv uses fixed values for small windows that are different that Gaussian funcion
+        # OpenCv uses fixed values for small windows that are different that Gaussian function
         yield check_gaussian_blur, 10, None, 11, dev
 
 
@@ -155,7 +155,7 @@ def slow_test_image_gaussian_blur():
                 if sigma is None and window_size is None:
                     continue
                 yield check_gaussian_blur, 10, sigma, window_size, dev
-        # OpenCv uses fixed values for small windows that are different that Gaussian funcion
+        # OpenCv uses fixed values for small windows that are different that Gaussian function
         for window_size in [15, [17, 31]]:
             yield check_gaussian_blur, 10, None, window_size, dev
 
