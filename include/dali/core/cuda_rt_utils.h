@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <cuda_runtime_api.h>  // for __align__ & CUDART_VERSION
 #include <cassert>
+#include <type_traits>
 #include <vector>
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_error.h"
@@ -29,8 +30,8 @@ namespace dali {
 /**
  * @brief Gets the maximum number of threads per block for given kernel function on current device
  */
-template <typename KernelFunction>
-int MaxThreadsPerBlock(KernelFunction *f) {
+template <typename KernelFunction, KernelFunction *f>
+int MaxThreadsPerBlockStaticImpl() {
   static constexpr int kMaxDevices = 1024;
   static int max_block_size[kMaxDevices] = {};
   int device = 0;
@@ -43,6 +44,19 @@ int MaxThreadsPerBlock(KernelFunction *f) {
   }
   return max_block_size[device];
 }
+
+/**
+ * @brief Gets the maximum number of threads per block for given kernel function on current device
+ */
+template <typename KernelFunction>
+int MaxThreadsPerBlock(KernelFunction *f) {
+  cudaFuncAttributes attr = {};
+  CUDA_CALL(cudaFuncGetAttributes(&attr, f));
+  return attr.maxThreadsPerBlock;
+}
+
+#define MaxThreadsPerBlockStatic(func) \
+  MaxThreadsPerBlockStaticImpl<std::remove_reference_t<decltype(*func)>, func>()
 
 inline const cudaDeviceProp &GetDeviceProperties(int device_id = -1) {
   if (device_id < 0) {
