@@ -488,6 +488,7 @@ def test_box_encoder_stateless(device):
     check_is_pipeline_stateless(pipeline_factory)
 
 
+@attr("cupy")
 @params("cpu", "gpu")
 def test_python_function_stateless(device):
     def wrapper(x, **kwargs):
