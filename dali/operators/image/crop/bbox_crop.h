@@ -24,17 +24,45 @@
 namespace dali {
 
 template <typename Backend>
+class RandomBBoxCropImplBase : public OpImplBase<Backend> {
+ public:
+  virtual void SaveStateImpl(OpCheckpoint &cpt, AccessOrder order) = 0;
+
+  virtual void RestoreStateImpl(const OpCheckpoint &cpt) = 0;
+
+  virtual std::string SerializeCheckpointImpl(const OpCheckpoint &cpt) const = 0;
+
+  virtual void DeserializeCheckpointImpl(OpCheckpoint &cpt, const std::string &data) const = 0;
+};
+
+template <typename Backend>
 class RandomBBoxCrop : public Operator<Backend> {
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec);
   ~RandomBBoxCrop() override;
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    impl_->SaveStateImpl(cpt, order);
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    impl_->RestoreStateImpl(cpt);
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    return impl_->SerializeCheckpointImpl(cpt);
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    impl_->DeserializeCheckpointImpl(cpt, data);
+  }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
  private:
-  std::unique_ptr<OpImplBase<Backend>> impl_;
+  std::unique_ptr<RandomBBoxCropImplBase<Backend>> impl_;
   int impl_ndim_ = -1;
   using Operator<Backend>::spec_;
 };

@@ -375,10 +375,10 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
     }
     std::sort(vol_idx.begin(), vol_idx.end());
     std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_)-1);
-    return vol_idx[dist(rngs_[sample_idx])].second;
+    return vol_idx[dist(rng_[sample_idx])].second;
   } else {
     std::uniform_int_distribution<int> dist(0, n-1);
-    return dist(rngs_[sample_idx]);
+    return dist(rng_[sample_idx]);
   }
 }
 
@@ -492,7 +492,7 @@ bool RandomObjectBBox::PickForegroundBox(
     }
 
     while (class_info_.CalculateCDF()) {
-      if (!context.PickClassLabel(class_info_, rngs_[context.sample_idx]))
+      if (!context.PickClassLabel(class_info_, rng_[context.sample_idx]))
         return false;
 
       assert(context.class_label != class_info_.background);
@@ -578,7 +578,7 @@ void RandomObjectBBox::RunImpl(Workspace &ws) {
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
-    bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];
+    bool fg = foreground(rng_[i]) < foreground_prob_[i].data[0];
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {

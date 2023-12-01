@@ -307,6 +307,9 @@ class DisplacementFilter<GPUBackend, Displacement,
   USE_OPERATOR_MEMBERS();
   using Operator<GPUBackend>::RunImpl;
 
+ protected:
+  Displacement displace_;
+
  private:
   static const size_t nDims = 3;
 
@@ -399,7 +402,7 @@ class DisplacementFilter<GPUBackend, Displacement,
         <<<grid_dim, block_dim, 0, stream>>>(samples_dev_.data(), blocks_dev_.data(), fill_value_,
                                              displace_);
   }
-  Displacement displace_;
+
   DALIInterpType interp_type_;
   float fill_value_;
 

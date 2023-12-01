@@ -18,6 +18,7 @@
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 /**
  * @brief Provides a framework for doing displacement filter operations
@@ -49,7 +50,7 @@ class DisplacementIdentity {
 template <typename Backend,
           class Displacement = DisplacementIdentity,
           bool per_channel_transform = false>
-class DisplacementFilter : public Operator<Backend> {};
+class DisplacementFilter : public StatelessOperator<Backend> {};
 
 }  // namespace dali
 

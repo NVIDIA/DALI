@@ -23,6 +23,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/remap/displacement_filter.h"
 #include "dali/operators/util/randomizer.cuh"
+#include "dali/operators/random/rng_checkpointing_utils.h"
 
 namespace dali {
 
@@ -48,19 +49,43 @@ class JitterAugment<GPUBackend> {
 
   void Cleanup() {}
 
+  curand_states rnd_;
+
  private:
   int nDegree_;
-  curand_states rnd_;
   static constexpr unsigned rnd_size_ = 1024 * 256;
 };
 
 template <typename Backend>
 class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
  public:
-    inline explicit Jitter(const OpSpec &spec)
-      : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
+  inline explicit Jitter(const OpSpec &spec)
+    : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
 
-    virtual ~Jitter() = default;
+  virtual ~Jitter() = default;
+
+  using DisplacementFilter<Backend, JitterAugment<Backend>>::displace_;
+  using CheckpointUtils = rng::RngCheckpointUtils<GPUBackend, decltype(JitterAugment<Backend>::rnd_)>;
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::SaveState(cpt, order, displace_.rnd_);
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::RestoreState(cpt, displace_.rnd_);
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    return CheckpointUtils::SerializeCheckpoint(cpt);
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::DeserializeCheckpoint(cpt, data);
+  }
 };
 
 }  // namespace dali

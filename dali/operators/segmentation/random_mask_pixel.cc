@@ -16,7 +16,7 @@
 #include <utility>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/operators/segmentation/utils/searchable_rle_mask.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/core/boundary.h"
@@ -53,7 +53,7 @@ If 0, the pixel position is sampled uniformly from all available pixels.)code",
     .NumInput(1)
     .NumOutput(1);
 
-class RandomMaskPixelCPU : public Operator<CPUBackend> {
+class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit RandomMaskPixelCPU(const OpSpec &spec);
   bool CanInferOutputs() const override { return true; }
@@ -64,7 +64,6 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
   template <typename T>
   void RunImplTyped(Workspace &ws);
 
-  BatchRNG<std::mt19937> rngs_;
   std::vector<SearchableRLEMask> rle_;
 
   std::vector<int> foreground_;
@@ -77,8 +76,7 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
 };
 
 RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec),
-      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("max_batch_size")),
+    : rng::OperatorWithRng<CPUBackend>(spec),
       has_value_(spec.ArgumentDefined("value")) {
   if (has_value_) {
     DALI_ENFORCE(!spec.ArgumentDefined("threshold"),
@@ -125,7 +123,7 @@ void RandomMaskPixelCPU::RunImplTyped(Workspace &ws) {
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
       [&, sample_idx](int thread_id) {
-        auto &rng = rngs_[sample_idx];
+        auto &rng = rng_[sample_idx];
         auto mask = masks_view[sample_idx];
         auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;

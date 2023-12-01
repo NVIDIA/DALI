@@ -27,9 +27,9 @@
 namespace dali {
 namespace rng {
 
-template <bool IsNoiseGen>
-struct RNGBaseFields<CPUBackend, IsNoiseGen> {
-  RNGBaseFields(int64_t seed, int nsamples) {}
+template<>
+struct OperatorWithRngFields<CPUBackend> {
+  OperatorWithRngFields(int64_t seed, int nsamples) {}
 
   std::vector<uint8_t> dists_cpu_;
 };

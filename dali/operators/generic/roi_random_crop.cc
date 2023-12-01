@@ -14,6 +14,7 @@
 
 #include <random>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
@@ -67,7 +68,7 @@ bounds of the input.
     .NumInput(0, 1)
     .NumOutput(1);
 
-class ROIRandomCropCPU : public Operator<CPUBackend> {
+class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
   bool CanInferOutputs() const override { return true; }
@@ -75,8 +76,6 @@ class ROIRandomCropCPU : public Operator<CPUBackend> {
   void RunImpl(Workspace &ws) override;
 
  private:
-  BatchRNG<std::mt19937> rngs_;
-
   ArgValue<int, 1> roi_start_;
   ArgValue<int, 1> roi_end_;
   ArgValue<int, 1> roi_shape_;
@@ -89,8 +88,7 @@ class ROIRandomCropCPU : public Operator<CPUBackend> {
 };
 
 ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec),
-      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("max_batch_size")),
+    : rng::OperatorWithRng<CPUBackend>(spec),
       roi_start_("roi_start", spec),
       roi_end_("roi_end", spec),
       roi_shape_("roi_shape", spec),
@@ -209,7 +207,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
         }
 
         auto dist = std::uniform_int_distribution<int64_t>(start_range[0], start_range[1]);
-        crop_start[sample_idx].data[d] = dist(rngs_[sample_idx]);
+        crop_start[sample_idx].data[d] = dist(rng_[sample_idx]);
       }
     }
   }

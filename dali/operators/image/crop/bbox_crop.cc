@@ -27,6 +27,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/util/bounding_box_utils.h"
+#include "dali/operators/random/rng_checkpointing_utils.h"
 
 namespace dali {
 
@@ -357,7 +358,7 @@ the output bounding boxes.)code",
         false);
 
 template <int ndim>
-class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
+class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
 
@@ -859,6 +860,24 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       }
     }
     std::swap(bboxes, new_bboxes);
+  }
+
+  using CheckpointUtils = rng::RngCheckpointUtils<CPUBackend, BatchRNG<std::mt19937>>;
+
+  void SaveStateImpl(OpCheckpoint &cpt, AccessOrder order) override {
+    CheckpointUtils::SaveState(cpt, order, rngs_);
+  }
+
+  void RestoreStateImpl(const OpCheckpoint &cpt) override {
+    CheckpointUtils::RestoreState(cpt, rngs_);
+  }
+
+  std::string SerializeCheckpointImpl(const OpCheckpoint &cpt) const override {
+    return CheckpointUtils::SerializeCheckpoint(cpt);
+  }
+
+  void DeserializeCheckpointImpl(OpCheckpoint &cpt, const std::string &data) const override {
+    CheckpointUtils::DeserializeCheckpoint(cpt, data);
   }
 
  private:
