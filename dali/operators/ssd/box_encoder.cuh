@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/ssd/box_encoder.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -34,13 +35,13 @@ struct BoxEncoderSampleDesc {
 };
 
 template <>
-class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
+class BoxEncoder<GPUBackend> : public StatelessOperator<GPUBackend> {
  public:
   static constexpr int BlockSize = 256;
   using BoundingBox = Box<2, float>;
 
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<GPUBackend>(spec),
+      : StatelessOperator<GPUBackend>(spec),
         curr_batch_size_(-1),
         criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
