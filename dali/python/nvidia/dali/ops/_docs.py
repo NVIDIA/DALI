@@ -64,13 +64,13 @@ Args
                 schema.GetSupportedLayouts(i)
             )
             dox = schema.GetInputDox(i)
-            input_name = schema.GetInputName(i)
+            input_name = _names._get_input_name(schema, i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
     else:
         for i in range(schema.MinNumInput()):
             input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
             dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
+            input_name = _names._get_input_name(schema, i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, False) + "\n"
 
         extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
@@ -78,11 +78,12 @@ Args
             i = schema.MinNumInput()
             input_type_str = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(i))
             dox = "Input to the operator."
-            input_name = f"input{i}" if schema.MaxNumInput() > 1 else "input"
+            input_name = _names._get_input_name(schema, i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
         elif extra_opt_args > 1:
             input_type_str = "TensorList"
-            input_name = f"input[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
+            generic_name = _names._get_generic_input_name(False)
+            input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
 
@@ -259,7 +260,8 @@ def _docstring_prefix_auto(op_name):
 Operator call to be used in graph definition. This operator doesn't have any inputs.
 """
     elif schema.MaxNumInput() == 1:
-        ret = """__call__(data, **kwargs)
+        input_name = _names._get_input_name(schema, 0)
+        ret = f"""__call__({input_name}, **kwargs)
 
 Operator call to be used in graph definition.
 
@@ -268,7 +270,7 @@ Args
 """
         dox = "Input to the operator.\n"
         fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
-        ret += _numpydoc_formatter("data", fmt, dox, optional=False)
+        ret += _numpydoc_formatter(input_name, fmt, dox, optional=False)
         return ret
     return ""
 

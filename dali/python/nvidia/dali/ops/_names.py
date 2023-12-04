@@ -79,3 +79,37 @@ def _op_name(op_schema_name, api="fn"):
         return full_name
     else:
         raise ValueError(f'{api} is not a valid DALI api name, try one of {"fn", "ops"}')
+
+
+def _get_input_name(schema, input_idx):
+    """Return the string representing the name of positional-only input to the operator.
+    This function appends the double underscore `__`, that indicates via the mypy convention,
+    that all inputs are positional-only. This happens also for the names introduced via schema.
+
+    Parameters
+    ----------
+    schema : OpSchema
+        schema to query
+    input_idx : int
+        Index of the input
+    """
+    if schema.HasInputDox():
+        return f"__{schema.GetInputName(input_idx)}"
+    if schema.MaxNumInput() == 1:
+        return "__input"
+    return f"__input_{input_idx}"
+
+
+def _get_generic_input_name(is_var_positional=True):
+    """Return the string representing the name of positional-only input for a generic context.
+
+    Parameters
+    ----------
+    is_var_positional : bool, optional
+        If the generic name represents `*inputs` or is used in context specific arguments,
+        by default True
+    """
+    if is_var_positional:
+        return "input"
+    else:
+        return "__input_"
