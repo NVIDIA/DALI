@@ -100,16 +100,16 @@ def _get_input_name(schema, input_idx):
     return f"__input_{input_idx}"
 
 
-def _get_generic_input_name(is_var_positional=True):
+def _get_generic_input_name(is_only_input=True):
     """Return the string representing the name of positional-only input for a generic context.
 
     Parameters
     ----------
-    is_var_positional : bool, optional
-        If the generic name represents `*inputs` or is used in context specific arguments,
-        by default True
+    is_only_input : bool, optional
+        If the generic name represents is the only input name, like `foo(*inputs, /, ...)`
+        or used as some follow-up `foo(__input_0, /, *__input_, ...)`
     """
-    if is_var_positional:
+    if is_only_input:
         return "input"
     else:
         return "__input_"
