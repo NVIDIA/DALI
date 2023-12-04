@@ -44,7 +44,7 @@ class FitsReader : public DataReader<Backend, Target, Target, true> {
     DALI_FAIL("Fits reader does not support checkpointing.");
   }
 
-  USE_READER_OPERATOR_MEMBERS_3(Backend, Target, Target, true);
+  USE_READER_OPERATOR_MEMBERS(Backend, Target, Target, true);
   using DataReader<Backend, Target, Target, true>::GetCurrBatchSize;
   using DataReader<Backend, Target, Target, true>::GetSample;
   using Operator<Backend>::spec_;
@@ -112,7 +112,7 @@ class FitsReaderCPU : public FitsReader<CPUBackend, FitsFileWrapper> {
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  USE_READER_OPERATOR_MEMBERS_3(CPUBackend, FitsFileWrapper, FitsFileWrapper, true);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, FitsFileWrapper, FitsFileWrapper, true);
 };
 
 }  // namespace dali

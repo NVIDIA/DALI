@@ -70,7 +70,7 @@ class NumpyReaderGPU : gds::GDSLazyInit, public NumpyReader<GPUBackend, NumpyFil
   using Operator<GPUBackend>::RunImpl;
 
 
-  USE_READER_OPERATOR_MEMBERS_3(GPUBackend, NumpyFileWrapperGPU, NumpyFileWrapperGPU, true);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU, NumpyFileWrapperGPU, true);
 
  private:
   using TransposeKernel = kernels::TransposeGPU;

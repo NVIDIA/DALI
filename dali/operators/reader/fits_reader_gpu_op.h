@@ -35,7 +35,7 @@ class FitsReaderGPU : public FitsReader<GPUBackend, FitsFileWrapperGPU> {
   using Operator<GPUBackend>::RunImpl;
 
  private:
-  USE_READER_OPERATOR_MEMBERS_3(GPUBackend, FitsFileWrapperGPU, FitsFileWrapperGPU, true);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, FitsFileWrapperGPU, FitsFileWrapperGPU, true);
 };
 
 }  // namespace dali
