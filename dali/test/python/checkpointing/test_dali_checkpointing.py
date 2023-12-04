@@ -829,29 +829,39 @@ def test_random_uniform(device, shape):
 def test_random_uniform_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.uniform, device, shape=shape)
 
+
 def test_random_object_bbox():
-    check_single_input_operator(fn.segmentation.random_object_bbox, 'cpu', format="box")
+    check_single_input_operator(fn.segmentation.random_object_bbox, "cpu", format="box")
+
 
 def test_random_mask_pixel():
-    check_single_input_operator(fn.segmentation.random_mask_pixel, 'cpu')
+    check_single_input_operator(fn.segmentation.random_mask_pixel, "cpu")
+
 
 def test_roi_random_crop():
-    check_single_input_operator(fn.roi_random_crop, 'cpu', crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30))
+    check_single_input_operator(
+        fn.roi_random_crop, "cpu", crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30)
+    )
+
 
 def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
         data = fn.random.uniform(shape=(100, 100), dtype=types.DALIDataType.UINT8)
         bbox = fn.random.uniform(shape=(4,), range=[0, 100], dtype=types.DALIDataType.FLOAT)
-        labels = fn.random.uniform(shape=(1,),  dtype=types.DALIDataType.INT32)
-        return fn.ssd_random_crop(data, bbox, labels, device='cpu')[0]
+        labels = fn.random.uniform(shape=(1,), dtype=types.DALIDataType.INT32)
+        return fn.ssd_random_crop(data, bbox, labels, device="cpu")[0]
+
     check_pipeline_checkpointing_native(pipeline)
 
+
 def test_batch_permutation():
-    check_no_input_operator(fn.batch_permutation, 'cpu')
+    check_no_input_operator(fn.batch_permutation, "cpu")
+
 
 def test_jitter():
-    check_single_input_operator(fn.jitter, 'gpu')
+    check_single_input_operator(fn.jitter, "gpu")
+
 
 # Stateless operators section
 
