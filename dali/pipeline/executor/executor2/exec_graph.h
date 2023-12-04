@@ -31,8 +31,8 @@ struct ExecNode;
 class CUDAEventLease : public CUDAEvent {
  public:
   CUDAEventLease() = default;
-  CUDAEventLease(CUDAEventPool &pool) : owner_(&pool) {
-    *static_cast<CUDAEvent *>(this) = pool.Get();
+  explicit CUDAEventLease(CUDAEventPool &pool, int device_id = -1) : owner_(&pool) {
+    *static_cast<CUDAEvent *>(this) = pool.Get(device_id);
   }
 
   ~CUDAEventLease() {
@@ -94,7 +94,7 @@ struct ExecDataNode {
 
     std::lock_guard g(mtx);
     if constexpr (std::is_same_v<Backend, GPUBackend>)
-      queue.emplace(CUDAEventPool::instance().Get()
+      queue.emplace(CUDAEventPool::instance().Get());
 
   }
 
@@ -109,6 +109,8 @@ struct ExecNode {
   OperatorNode *op_node = nullptr;
   OperatorBase *op_instance = nullptr;
   std::vector<ExecDataNode *> inputs, outputs;
+
+
 };
 
 struct ExecGraph {
