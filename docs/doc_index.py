@@ -17,7 +17,8 @@ class Doc:
         self.underline_char = underline_char
         if self.underline_char is not None and len(self.underline_char) != 1:
             raise ValueError(
-                f"Expected only 1 character for `underline_char`, got {self.underline_char}.")
+                f"Expected only 1 character for `underline_char`, got {self.underline_char}."
+            )
         if not isinstance(options, list):
             self.options = [options]
         else:
@@ -40,7 +41,8 @@ class DocEntry:
                 for elem in operator_refs:
                     if not isinstance(elem, OpReference):
                         raise TypeError(
-                            "Expected a single op_reference or a list of them to be provided")
+                            "Expected a single op_reference or a list of them to be provided"
+                        )
                 self.operator_refs = operator_refs
             elif not isinstance(operator_refs, OpReference):
                 raise TypeError("Expected a single op_reference or a list of them to be provided")
@@ -129,7 +131,7 @@ def op_reference(operator, docstring, order=None):
 
 def _obtain_doc(py_file):
     """Extract the doc() definition from index.py file"""
-    with open(py_file, 'r') as f:
+    with open(py_file, "r") as f:
         doc_file = f.read()
         exec(doc_file)
         return doc_return_value
@@ -143,7 +145,8 @@ def _collect_references(base_path, entry_name, operator_refs, result_dict):
             result_dict[op_ref.operator] = []
 
         result_dict[op_ref.operator].append(
-            (op_ref.docstring, str((base_path / entry_name).with_suffix(".html")), op_ref))
+            (op_ref.docstring, str((base_path / entry_name).with_suffix(".html")), op_ref)
+        )
 
 
 def _document_examples(path, result_dict={}):
@@ -192,4 +195,3 @@ def document_examples(path):
         entries = sorted(dict[key], key=lambda entry: entry[2].order)
         dict[key] = [(str, url) for (str, url, _) in entries]
     return dict
-

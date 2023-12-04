@@ -24,7 +24,10 @@ layers = [784, 1024, 1024, 10]
 
 def init_model(layers=layers, rng=npr.RandomState(0)):
     model = []
-    for in_size, out_size, in zip(layers[:-1], layers[1:]):
+    for (
+        in_size,
+        out_size,
+    ) in zip(layers[:-1], layers[1:]):
         new_w = 0.1 * rng.randn(in_size, out_size)
         new_b = 0.1 * rng.randn(out_size)
         new_layer = (new_w, new_b)
@@ -45,19 +48,20 @@ def predict(model, images):
 
 
 def loss(model, batch):
-    predicted_labels = predict(model, batch['images'])
-    return -jnp.mean(jnp.sum(predicted_labels * batch['labels'], axis=1))
+    predicted_labels = predict(model, batch["images"])
+    return -jnp.mean(jnp.sum(predicted_labels * batch["labels"], axis=1))
 
 
 def accuracy(model, iterator):
     correct_predictions_num = 0
     for batch in iterator:
-        images = batch['images']
-        labels = batch['labels']
+        images = batch["images"]
+        labels = batch["labels"]
 
         predicted_class = jnp.argmax(predict(model, images), axis=1)
-        correct_predictions_num = correct_predictions_num + \
-            jnp.sum(predicted_class == labels.ravel())
+        correct_predictions_num = correct_predictions_num + jnp.sum(
+            predicted_class == labels.ravel()
+        )
 
     return correct_predictions_num / iterator.size
 
@@ -80,11 +84,11 @@ def update(model, batch, learning_rate=0.001):
     return updated_model
 
 
-@partial(pmap, axis_name='data')
+@partial(pmap, axis_name="data")
 def update_parallel(model, batch, learning_rate=0.001):
     grads = grad(loss)(model, batch)
-    
-    grads = lax.pmean(grads, axis_name='data')
+
+    grads = lax.pmean(grads, axis_name="data")
 
     updated_model = []
 
