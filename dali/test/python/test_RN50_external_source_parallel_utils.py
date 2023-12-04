@@ -396,16 +396,16 @@ def parse_test_arguments(supports_distributed):
         "with tensor.gpu()",
     )
 
-    if supports_distributed:
-        parser.add_argument(
-            "--local_rank",
-            default=0,
-            type=int,
-            help="Id of the local rank in distributed scenario.",
-        )
-    else:
+    if not supports_distributed:
         parser.add_argument("-g", "--gpus", default=1, type=int, metavar="N", help="number of GPUs")
     args = parser.parse_args()
+
+    if "WORLD_SIZE" in os.environ:
+        args.distributed = int(os.environ["WORLD_SIZE"]) > 1
+    if "LOCAL_RANK" in os.environ:
+        args.local_rank = int(os.environ["LOCAL_RANK"])
+    else:
+        args.local_rank = 0
 
     if supports_distributed:
         print(
