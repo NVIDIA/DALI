@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"

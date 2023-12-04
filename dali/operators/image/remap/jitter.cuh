@@ -19,6 +19,7 @@
 #include <ctgmath>
 #include <vector>
 #include <random>
+#include <string>
 #include "dali/core/host_dev.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/remap/displacement_filter.h"
@@ -65,7 +66,8 @@ class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
   virtual ~Jitter() = default;
 
   using DisplacementFilter<Backend, JitterAugment<Backend>>::displace_;
-  using CheckpointUtils = rng::RngCheckpointUtils<GPUBackend, decltype(JitterAugment<Backend>::rnd_)>;
+  using CheckpointType = decltype(JitterAugment<Backend>::rnd_);
+  using CheckpointUtils = rng::RngCheckpointUtils<GPUBackend, CheckpointType>;
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     static_assert(std::is_same_v<Backend, GPUBackend>);

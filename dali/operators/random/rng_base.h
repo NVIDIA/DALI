@@ -35,10 +35,11 @@ template <typename Backend>
 struct OperatorWithRngFields;
 
 
-template<typename Backend, bool RngPerSample=true>
+template<typename Backend, bool RngPerSample = true>
 class OperatorWithRng : public Operator<Backend>{
  public:
-  using CheckpointType = std::conditional_t<std::is_same_v<Backend, CPUBackend>, BatchRNG<std::mt19937_64>, curand_states>;
+  using CheckpointType = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
+                                            BatchRNG<std::mt19937_64>, curand_states>;
   using CheckpointUtils = RngCheckpointUtils<Backend, CheckpointType>;
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
