@@ -591,6 +591,9 @@ void VideoLoader::read_file() {
     if (last_key_frame != -1 &&
         ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
         dec_status == VidReqStatus::REQ_NOT_STARTED) {
+      DALI_ENFORCE(last_key_frame > 0, "Decoding not started when starting from frame 0, "
+                                       "no point in seeking to preceding keyframe which is "
+                                       "already 0");
       LOG_LINE << "Decoding not started, seek to preceding key frame, "
                 << "current frame " << frame
                 << ", last key frame " << last_key_frame
