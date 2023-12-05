@@ -1107,7 +1107,10 @@ class Pipeline(object):
             A list of `TensorList` objects for respective pipeline outputs
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
+            self._consumer_iter += 1
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                self._consumer_iter = 0
+                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             self._gpu_batches_to_consume -= 1

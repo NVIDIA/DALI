@@ -224,7 +224,8 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, (
+                # This case might not be an error if we're iterating over pipeline that is currently at the end of epoch, for example because it was restored from checkpoint.
+                assert any(not p._first_iter for p in self._pipes), (
                     "It seems that there is no data in the pipeline. This may happen "
                     "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
                     "greater than the shard size."
@@ -604,7 +605,8 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, (
+                # This case might not be an error if we're iterating over pipeline that is currently at the end of epoch, for example because it was restored from checkpoint.
+                assert any(not p._first_iter for p in self._pipes), (
                     "It seems that there is no data in the pipeline. This may happen "
                     "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
                     "greater than the shard size."
