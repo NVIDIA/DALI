@@ -357,7 +357,7 @@ the output bounding boxes.)code",
         false);
 
 template <int ndim>
-class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
+class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  public:
   static constexpr int coords_size = ndim * 2;
 
@@ -373,7 +373,7 @@ class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
   RandomBBoxCropImpl(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
-      : RandomBBoxCropImplBase(spec, rng),
+      : spec_(*spec),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
@@ -381,7 +381,8 @@ class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
         bbox_layout_(spec_.GetArgument<TensorLayout>("bbox_layout")),
         shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
-        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")) {
+        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
+        rngs_(rng) {
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
@@ -861,6 +862,7 @@ class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
   }
 
  private:
+  const OpSpec &spec_;
   int num_attempts_;
   int total_num_attempts_;
   bool has_labels_;
@@ -873,6 +875,8 @@ class RandomBBoxCropImpl : public RandomBBoxCropImplBase<CPUBackend> {
   OverlapMetric overlap_metric_ = OverlapMetric::IoU;
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
+
+  BatchRNG<std::mt19937_64> &rngs_;
 
   std::vector<SampleOption> sample_options_;
 

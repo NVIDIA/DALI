@@ -25,17 +25,6 @@
 namespace dali {
 
 template <typename Backend>
-class RandomBBoxCropImplBase : public OpImplBase<Backend> {
- public:
-  RandomBBoxCropImplBase(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
-    : spec_(*spec), rngs_(rng) {}
-
- protected:
-  const OpSpec &spec_;
-  BatchRNG<std::mt19937_64> &rngs_;
-};
-
-template <typename Backend>
 class RandomBBoxCrop : public rng::OperatorWithRng<Backend> {
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec);
@@ -46,7 +35,7 @@ class RandomBBoxCrop : public rng::OperatorWithRng<Backend> {
   void RunImpl(Workspace &ws) override;
 
  private:
-  std::unique_ptr<RandomBBoxCropImplBase<Backend>> impl_;
+  std::unique_ptr<OpImplBase<Backend>> impl_;
   int impl_ndim_ = -1;
   using Operator<Backend>::spec_;
 };
