@@ -15,6 +15,7 @@
 #include "dali/operators/generic/slice/subscript.h"
 #include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/slice/slice_cpu.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -110,8 +111,8 @@ that the input has sufficient number of dimensions and passes through the input.
 
 
 template <typename Backend>
-struct SubscriptDimCheck : public Operator<Backend> {
-  explicit SubscriptDimCheck(const OpSpec &spec) : Operator<Backend>(spec) {
+struct SubscriptDimCheck : public StatelessOperator<Backend> {
+  explicit SubscriptDimCheck(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     num_subscripts_ = spec.GetArgument<int>("num_subscripts");
   }
 
