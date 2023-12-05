@@ -539,7 +539,12 @@ void VideoLoader::read_file() {
 
 
   auto& file = get_or_open_file(req.filename);
-  DALI_ENFORCE(!file.empty(), "Cannot open video file");
+  if (file.empty()) {
+    if (vid_decoder_) {
+      vid_decoder_->finish();
+    }
+    DALI_FAIL("Cannot open video file");
+  }
   auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
   req.frame_base = file.frame_base_;
 
@@ -586,14 +591,21 @@ void VideoLoader::read_file() {
     file.last_frame_ = frame;
     key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
 
-    // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
+    // if decoding hasn't produced any frames after providing kStartupFrameThreshold frames,
     // or we are at next key frame
     if (last_key_frame != -1 &&
-        ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
+        ((key && last_key_frame != frame && last_key_frame != 0) ||
+          frame > last_key_frame + kStartupFrameThreshold) &&
         dec_status == VidReqStatus::REQ_NOT_STARTED) {
-      DALI_ENFORCE(last_key_frame > 0, "Decoding not started when starting from frame 0, "
-                                       "no point in seeking to preceding keyframe which is "
-                                       "already 0");
+        if (last_key_frame <= 0) {
+          if (vid_decoder_) {
+            vid_decoder_->finish();
+          }
+          DALI_FAIL("Decoding not started when starting from frame 0, "
+                    "no point in seeking to preceding keyframe which is "
+                    "already 0");
+        }
+
       LOG_LINE << "Decoding not started, seek to preceding key frame, "
                 << "current frame " << frame
                 << ", last key frame " << last_key_frame
@@ -625,6 +637,9 @@ void VideoLoader::read_file() {
           std::stringstream ss;
           ss << device_id_ << ": failed to seek frame "
               << req.frame;
+          if (vid_decoder_) {
+            vid_decoder_->finish();
+          }
           DALI_FAIL(ss.str());
         }
         if (req.frame > seek_hack) {
@@ -656,6 +671,9 @@ void VideoLoader::read_file() {
       auto raw_filtered_pkt = AVPacket{};
 
       if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {
+        if (vid_decoder_) {
+          vid_decoder_->finish();
+        }
         DALI_FAIL(std::string("BSF send packet failed:") + av_err2str(ret));
       }
       while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
@@ -664,6 +682,9 @@ void VideoLoader::read_file() {
                                     codecpar(stream));
       }
       if (ret != AVERROR(EAGAIN)) {
+        if (vid_decoder_) {
+          vid_decoder_->finish();
+        }
         DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
       }
 #else
@@ -675,12 +696,18 @@ void VideoLoader::read_file() {
                                           pkt->data, pkt->size,
                                           !!(pkt->flags & AV_PKT_FLAG_KEY));
         if (ret < 0) {
+            if (vid_decoder_) {
+              vid_decoder_->finish();
+            }
             DALI_FAIL(std::string("BSF error:") + av_err2str(ret));
         }
         if (ret == 0 && fpkt.data != pkt->data) {
           // fpkt is an offset into pkt, copy the smaller portion to the start
           if ((ret = av_copy_packet(&fpkt, pkt.get())) < 0) {
             av_free(fpkt.data);
+            if (vid_decoder_) {
+              vid_decoder_->finish();
+            }
             DALI_FAIL(std::string("av_copy_packet error:") + av_err2str(ret));
           }
           ret = 1;
@@ -693,6 +720,9 @@ void VideoLoader::read_file() {
                                       nullptr, 0);
           if (!fpkt.buf) {
               av_free(fpkt.data);
+              if (vid_decoder_) {
+                vid_decoder_->finish();
+              }
               DALI_FAIL(std::string("Unable to create buffer during bsf"));
           }
         }
@@ -711,6 +741,9 @@ void VideoLoader::read_file() {
       break;
     } else if (dec_status == VidReqStatus::REQ_ERROR) {
       LOG_LINE << "Request failed" << std::endl;
+      if (vid_decoder_) {
+          vid_decoder_->finish();
+        }
       DALI_FAIL(make_string("The decoder returned a frame that is past the expected one. ",
                 "The most likely cause is variable frame rate video. ",
                 "Filename: ", req.filename));
