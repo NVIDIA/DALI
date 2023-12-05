@@ -571,6 +571,7 @@ void VideoLoader::read_file() {
   // how many key frames following the last requested frames we need to see before we stop
   // feeding the decoder
   const int key_frames_treshold = 2;
+  int frames_send = 0;
   VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
 
   while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
@@ -595,7 +596,7 @@ void VideoLoader::read_file() {
     // or we are at next key frame
     if (last_key_frame != -1 &&
         ((key && last_key_frame != frame && last_key_frame != 0) ||
-          frame > last_key_frame + kStartupFrameThreshold) &&
+          frames_send > kStartupFrameThreshold) &&
         dec_status == VidReqStatus::REQ_NOT_STARTED) {
         if (last_key_frame <= 0) {
           if (vid_decoder_) {
@@ -611,6 +612,7 @@ void VideoLoader::read_file() {
                 << ", last key frame " << last_key_frame
                 << ", is_key " << key << std::endl;
       seek(file, last_key_frame - 1);
+      frames_send = 0;
       last_key_frame = -1;
       continue;
     }
@@ -644,11 +646,13 @@ void VideoLoader::read_file() {
         }
         if (req.frame > seek_hack) {
           seek(file, req.frame - seek_hack);
+          frames_send = 0;
           seek_hack *= 2;
           last_key_frame = -1;
         } else {
           seek_must_succeed = true;
           seek(file, 0);
+          frames_send = 0;
           last_key_frame = -1;
         }
         continue;
@@ -678,6 +682,7 @@ void VideoLoader::read_file() {
       }
       while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
         auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
+        ++frames_send;
         dec_status = vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
                                     codecpar(stream));
       }
@@ -728,10 +733,12 @@ void VideoLoader::read_file() {
         }
         *pkt.get() = fpkt;
       }
+      ++frames_send;
       dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
                                   codecpar(stream));
 #endif
     } else {
+      ++frames_send;
       dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
                                   codecpar(stream));
     }
