@@ -953,9 +953,7 @@ def check_external_source_pipeline_checkpointing_pytorch(pipeline_factory, itera
 
     restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
     restored.build()
-    iter2 = DALIGenericIterator(
-        restored, ["data"], auto_reset=True, size=size
-    )
+    iter2 = DALIGenericIterator(restored, ["data"], auto_reset=True, size=size)
 
     for out1, out2 in zip(iter, iter2):
         for d1, d2 in zip(out1, out2):
@@ -963,9 +961,7 @@ def check_external_source_pipeline_checkpointing_pytorch(pipeline_factory, itera
                 assert (d1[key] == d2[key]).all()
 
 
-def make_external_source_test_pipeline_factory(
-    source, mode, batch_size, parallel, **kwargs
-):
+def make_external_source_test_pipeline_factory(source, mode, batch_size, parallel, **kwargs):
     kwargs["parallel"] = parallel
     if mode == "idx":
         kwargs["batch"] = True
@@ -992,9 +988,7 @@ def make_external_source_test_pipeline_factory(
     return pipeline_factory
 
 
-def make_dummy_source(
-    epoch_size, batch_size, mode
-):
+def make_dummy_source(epoch_size, batch_size, mode):
     if mode == "idx":
 
         def src(idx):
@@ -1014,11 +1008,10 @@ def make_dummy_source(
         def src(idx):
             if idx.idx_in_epoch >= epoch_size * batch_size:
                 raise StopIteration()
-            return np.asarray(
-                [idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch]
-            )
+            return np.asarray([idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch])
 
     return src
+
 
 @cartesian_params(
     ((1, 1), (3, 4)),  # (epoch size, batch size)
@@ -1031,6 +1024,7 @@ def test_external_source_checkpointing(dataset_info, iterations, mode, parallel)
     source = make_dummy_source(epoch_size, batch_size, mode)
     pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
     check_external_source_pipeline_checkpointing(pf, iterations, 2 * epoch_size)
+
 
 @attr("pytorch")
 @cartesian_params(
