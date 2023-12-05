@@ -1811,10 +1811,10 @@ PYBIND11_MODULE(backend_impl, m) {
           return node->spec.name();
         });
 
-  py::class_<PipelineCheckpoint>(m, "PipelineCheckpoint")
+  py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")
     .def(py::init<>())
-    .def_readwrite("epoch_idx", &PipelineCheckpoint::epoch_idx)
-    .def_readwrite("iter", &PipelineCheckpoint::iter);
+    .def_readwrite("epoch_idx", &ExternalContextCheckpoint::epoch_idx)
+    .def_readwrite("iter", &ExternalContextCheckpoint::iter);
 
   // Pipeline class
   py::class_<Pipeline, PyPipeline>(m, "Pipeline")
@@ -1902,8 +1902,8 @@ PYBIND11_MODULE(backend_impl, m) {
         },
         "checkpointing"_a = true)
     .def("SerializedCheckpoint",
-        [](Pipeline *p, const PipelineCheckpoint &pipeline_cpt) -> py::bytes {
-          return p->SerializedCheckpoint(pipeline_cpt);
+        [](Pipeline *p, const ExternalContextCheckpoint &external_ctx_cpt) -> py::bytes {
+          return p->SerializedCheckpoint(external_ctx_cpt);
           }, py::return_value_policy::take_ownership)
     .def("RestoreFromSerializedCheckpoint",
         [](Pipeline *p, const std::string &serialized_checkpoint) {

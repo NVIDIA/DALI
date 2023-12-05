@@ -809,7 +809,7 @@ TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
     this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
 }
 
-TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
+TYPED_TEST(ExecutorTest, ExternalContextCheckpointingCPU) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
     auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
@@ -845,7 +845,7 @@ TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
     this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
 }
 
-TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
+TYPED_TEST(ExecutorTest, ExternalContextCheckpointingMixed) {
   constexpr int epoch_size = 4;
   auto prepare_executor_and_graph = [&] {
     auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);

@@ -889,13 +889,13 @@ class Pipeline(object):
 
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
-            pipeline_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
-            self._consumer_epoch_idx = self._epoch_idx = pipeline_cpt.epoch_idx
-            self._consumer_iter = self._iter = pipeline_cpt.iter
+            external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+            self._consumer_epoch_idx = self._epoch_idx = external_ctx_cpt.epoch_idx
+            self._consumer_iter = self._iter = external_ctx_cpt.iter
             if self._input_callbacks:
                 for group in self._input_callbacks:
-                    group.current_iter = pipeline_cpt.iter
-                    group.current_sample = pipeline_cpt.iter * self._max_batch_size
+                    group.current_iter = external_ctx_cpt.iter
+                    group.current_sample = external_ctx_cpt.iter * self._max_batch_size
 
     def build(self):
         """Build the pipeline.
@@ -1501,10 +1501,10 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-        pipeline_cpt = b.PipelineCheckpoint()
-        pipeline_cpt.epoch_idx = self._consumer_epoch_idx
-        pipeline_cpt.iter = self._consumer_iter
-        ret = self._pipe.SerializedCheckpoint(pipeline_cpt)
+        external_ctx_cpt = b.ExternalContextCheckpoint()
+        external_ctx_cpt.epoch_idx = self._consumer_epoch_idx
+        external_ctx_cpt.iter = self._consumer_iter
+        ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
                 checkpoint_file.write(ret)

@@ -23,7 +23,7 @@
 namespace dali {
 
 class OpGraph;
-struct DLL_PUBLIC PipelineCheckpoint {
+struct DLL_PUBLIC ExternalContextCheckpoint {
   int epoch_idx;
   int iter;
 };
@@ -74,7 +74,7 @@ class DLL_PUBLIC Checkpoint {
   */
   DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
 
-  PipelineCheckpoint pipeline_cpt_;
+  ExternalContextCheckpoint external_ctx_cpt_;
 
  private:
   std::vector<OpCheckpoint> cpts_;

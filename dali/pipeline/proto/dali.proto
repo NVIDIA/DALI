@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,13 +81,13 @@ message Checkpoint {
     optional bytes operator_state = 2;
   }
 
-  message PipelineCheckpoint {
+  message ExternalContextCheckpoint {
     optional int64 epoch_idx = 1;
     optional int64 iteration = 2;
   }
 
   repeated OpCheckpoint cpts = 1;
-  optional PipelineCheckpoint pipeline_cpt = 2;
+  optional ExternalContextCheckpoint external_ctx_cpt = 2;
 }
 
 // For stateless operators
