@@ -896,9 +896,6 @@ class Pipeline(object):
                 for group in self._input_callbacks:
                     group.current_iter = pipeline_cpt.iter
                     group.current_sample = pipeline_cpt.iter * self._max_batch_size
-                    if hasattr(group.callback, "restore"):
-                        idx = group.current_iter if group.batch else group.current_sample
-                        group.callback.restore(pipeline_cpt.epoch_idx, idx)
 
     def build(self):
         """Build the pipeline.

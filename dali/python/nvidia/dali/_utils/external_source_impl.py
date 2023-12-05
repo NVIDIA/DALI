@@ -203,10 +203,6 @@ class _CycleGenFunc:
             else:
                 return next(self.it)
 
-    def restore(self, *args, **kwargs):
-        if hasattr(self.source, "restore"):
-            self.source.restore(*args, **kwargs)
-
 
 def _is_generator_function(x):
     """Checks whether x is a generator function or a callable object
@@ -300,16 +296,7 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 # in the error message.
                 iterator = iter(source)
             iterable = True
-
-            class Callback:
-                def __call__(self):
-                    return next(iterator)
-
-                def restore(self, *args, **kwargs):
-                    if hasattr(source, "restore"):
-                        source.restore(*args, **kwargs)
-
-            callback = Callback()
+            callback = lambda: next(iterator)  # noqa E731
         except TypeError as err:
             if "not iterable" not in str(err):
                 raise err
