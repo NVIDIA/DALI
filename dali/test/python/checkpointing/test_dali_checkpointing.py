@@ -863,6 +863,16 @@ def test_jitter():
     check_single_input_operator(fn.jitter, "gpu")
 
 
+def test_random_bbox_crop():
+    def wrapper(input, **kwargs):
+        bboxes = fn.cast(input[:, :4, 0], dtype=types.DALIDataType.FLOAT)
+        bboxes /= fn.reductions.max(bboxes, axes=(0, 1))
+        out = fn.random_bbox_crop(bboxes, bbox_layout="xyXY", input_shape=(2000, 2000), **kwargs)
+        return out[0]
+
+    check_single_input_operator(wrapper, "cpu")
+
+
 # Stateless operators section
 
 

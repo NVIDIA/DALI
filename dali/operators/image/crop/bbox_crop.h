@@ -17,9 +17,9 @@
 
 #include <memory>
 #include <vector>
-#include <string>
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
@@ -27,36 +27,19 @@ namespace dali {
 template <typename Backend>
 class RandomBBoxCropImplBase : public OpImplBase<Backend> {
  public:
-  virtual void SaveStateImpl(OpCheckpoint &cpt, AccessOrder order) = 0;
+  RandomBBoxCropImplBase(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
+    : spec_(*spec), rngs_(rng) {}
 
-  virtual void RestoreStateImpl(const OpCheckpoint &cpt) = 0;
-
-  virtual std::string SerializeCheckpointImpl(const OpCheckpoint &cpt) const = 0;
-
-  virtual void DeserializeCheckpointImpl(OpCheckpoint &cpt, const std::string &data) const = 0;
+ protected:
+  const OpSpec &spec_;
+  BatchRNG<std::mt19937_64> &rngs_;
 };
 
 template <typename Backend>
-class RandomBBoxCrop : public Operator<Backend> {
+class RandomBBoxCrop : public rng::OperatorWithRng<Backend> {
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec);
   ~RandomBBoxCrop() override;
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    impl_->SaveStateImpl(cpt, order);
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    impl_->RestoreStateImpl(cpt);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    return impl_->SerializeCheckpointImpl(cpt);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    impl_->DeserializeCheckpointImpl(cpt, data);
-  }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
