@@ -422,6 +422,7 @@ class NormalizeImplGPU {
 
   template <typename Desc>
   std::pair<dim3, dim3> GetLaunchParams(const TensorListShape<> &data_shape, int max_block) const {
+    assert(max_block > 0);
     int optimum_block = std::is_same<Desc, Op_Scalar>::value ? 1024 : 256;
     int64_t block = std::min(max_block, optimum_block);
     int64_t max_size = 0;
@@ -432,7 +433,7 @@ class NormalizeImplGPU {
     }
     if (max_size < block)
       block = max_size;
-    int max_blocks_per_sample = div_ceil(max_size, block);
+    int max_blocks_per_sample = max_size == 0 ? 0 : div_ceil(max_size, block);
     dim3 grid(std::min(max_blocks_per_sample, std::max(32, 2048 / num_samples_)), num_samples_);
     return { grid, dim3(block) };
   }
@@ -448,8 +449,10 @@ class NormalizeImplGPU {
     dim3 grid, block;
     int max_block = MaxThreadsPerBlockStatic(NormalizeKernel<Desc>);
     std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
-    NormalizeKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, global_scale, shift);
-    CUDA_CALL(cudaGetLastError());
+    if (grid.x > 0) {
+      NormalizeKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, global_scale, shift);
+      CUDA_CALL(cudaGetLastError());
+    }
   }
 
   template <typename Desc, typename BaseParam, typename ScaleParam>
@@ -463,9 +466,11 @@ class NormalizeImplGPU {
     dim3 grid, block;
     int max_block = MaxThreadsPerBlockStatic(NormalizeInvStdDevKernel<Desc>);
     std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
-    NormalizeInvStdDevKernel<<<grid, block, 0, ctx.gpu.stream>>>(
-      gpu_descs, epsilon, global_scale, shift);
-    CUDA_CALL(cudaGetLastError());
+    if (grid.x > 0) {
+      NormalizeInvStdDevKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, epsilon, global_scale,
+                                                                   shift);
+      CUDA_CALL(cudaGetLastError());
+    }
   }
 
   std::string axes_str() const {
