@@ -103,7 +103,6 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGrap
 template <typename WorkspacePolicy, typename QueuePolicy>
 std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(
     const OpGraph &graph) {
-  Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
     for (auto id : stage_outputs_[stage]) {
