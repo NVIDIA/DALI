@@ -104,7 +104,6 @@ class Graph {
   std::map<std::string, DataNode> data_nodes;
   std::vector<DataNode *> inputs, outputs;
 
-  void Validata() const;
 };
 
 }  // namespace exec2

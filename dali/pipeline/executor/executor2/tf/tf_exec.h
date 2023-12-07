@@ -12,28 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
-#define DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
+#ifndef DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
+#define DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
 
-#include <memory>
+#include "../graph.h"
+#include "../executor2.h"
 #include "exec_graph.h"
+
+#include "third_party/taskflow/taskflow/taskflow.hpp"  // TODO(michalz): Add it to cmake
 
 namespace dali {
 namespace exec2 {
 
-class Executor {
+class TFExec : public Executor {
  public:
-  virtual ~Executor() = default;
+  void Initialize(std::shared_ptr<Graph> graph) override
+  {
+    graph_ = graph;
+  }
 
-  virtual void Build(std::shared_ptr<Graph> graph) = 0;
-  virtual void Run() = 0;
-  virtual void GetOutputs(Workspace &ws) = 0;
- private:
+  void Run()
+  {
+  }
 
+  void GetOutputs(Workspace &ws)
+  {
+  }
+
+  ExecGraph exec_graph_;
+  std::shared_ptr<Graph> graph_;
 };
 
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
+
+#endif  // DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
 
