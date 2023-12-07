@@ -35,8 +35,8 @@ template <>
 class JitterAugment<GPUBackend> {
  public:
   explicit JitterAugment(const OpSpec& spec) :
-        nDegree_(spec.GetArgument<int>("nDegree")),
-        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_) {
+        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_),
+        nDegree_(spec.GetArgument<int>("nDegree")) {
   }
 
   __device__ ivec2 operator()(int y, int x, int c, int H, int W, int C) {
@@ -79,12 +79,12 @@ class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
     CheckpointUtils::RestoreState(cpt, displace_.rnd_);
   }
 
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const {
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
     static_assert(std::is_same_v<Backend, GPUBackend>);
     return CheckpointUtils::SerializeCheckpoint(cpt);
   }
 
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
     static_assert(std::is_same_v<Backend, GPUBackend>);
     CheckpointUtils::DeserializeCheckpoint(cpt, data);
   }
