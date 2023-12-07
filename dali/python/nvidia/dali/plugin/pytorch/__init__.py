@@ -227,11 +227,12 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # This case might not be an error if we're iterating over pipeline that is
                 # currently at the end of epoch, for example because it was restored from
                 # checkpoint.
-                assert any(not p._first_iter for p in self._pipes), (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                if all(not p.is_restored_from_checkpoint for p in self._pipes):
+                    raise RuntimeError(
+                        "It seems that there is no data in the pipeline. This may happen "
+                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                        "greater than the shard size."
+                    )
 
     def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True
@@ -610,11 +611,12 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # This case might not be an error if we're iterating over pipeline that is
                 # currently at the end of epoch, for example because it was restored from
                 # checkpoint.
-                assert any(not p._first_iter for p in self._pipes), (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                if all(not p.is_restored_from_checkpoint for p in self._pipes):
+                    raise RuntimeError(
+                        "It seems that there is no data in the pipeline. This may happen "
+                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                        "greater than the shard size."
+                    )
 
     def __next__(self) -> List[Dict[str, torch.Tensor]]:
         self._ever_consumed = True

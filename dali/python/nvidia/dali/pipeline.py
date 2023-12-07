@@ -302,6 +302,7 @@ class Pipeline(object):
         self._enable_checkpointing = enable_checkpointing
         self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
+        self.is_restored_from_checkpoint = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -896,6 +897,7 @@ class Pipeline(object):
                 for group in self._input_callbacks:
                     group.current_iter = external_ctx_cpt.iter
                     group.current_sample = external_ctx_cpt.iter * self._max_batch_size
+            self.is_restored_from_checkpoint = True
 
     def build(self):
         """Build the pipeline.
