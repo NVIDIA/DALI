@@ -17,6 +17,8 @@ from nvidia.dali import backend
 import nvidia.dali.ops as ops
 import numpy as np
 from test_utils import dali_type
+from nvidia.dali import fn, pipeline_def, types
+from nose2.tools import params
 
 
 def normalize(x, axes=None, mean=None, stddev=None, ddof=0, eps=0):
@@ -501,3 +503,17 @@ def test_types():
                     shift,
                     scale,
                 )
+
+
+@params("cpu", "gpu")
+def test_batch_of_empty_samples(device):
+    @pipeline_def
+    def pipeline():
+        empty_sample = types.Constant([])
+        if device == "gpu":
+            empty_sample = empty_sample.gpu()
+        return fn.normalize(empty_sample, mean=5, stddev=1)
+
+    p = pipeline(batch_size=4, device_id=0, num_threads=4)
+    p.build()
+    p.run()

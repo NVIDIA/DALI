@@ -234,7 +234,7 @@ void FillSampleAlignmentInfo(StridedCopyDesc &sample) {
   assert(0 <= sample.aligned.skip_left && sample.aligned.skip_left < vec_len);
   sample.aligned.skip_left = std::min<int64_t>(sample.size, sample.aligned.skip_left);
   int64_t remaining_size = sample.size - sample.aligned.skip_left;
-  assert(0 <= remaining_size && remaining_size < sample.size);
+  assert(0 <= remaining_size && remaining_size <= sample.size);
   sample.aligned.size = align_down(remaining_size, vec_len);
   sample.aligned.skip_right = remaining_size - sample.aligned.size;
   assert(0 <= sample.aligned.skip_right && sample.aligned.skip_right < vec_len);
