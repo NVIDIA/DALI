@@ -842,6 +842,31 @@ class Pipeline(object):
                     Warning,
                 )
 
+    def _check_checkpointing_support(self):
+        if not self._enable_checkpointing:
+            return
+
+        for group in self._input_callbacks:
+            kind = group.source_desc.kind
+            has_inputs = group.source_desc.has_inputs
+            checkpointing_supported = kind == _SourceKind.CALLABLE and has_inputs
+
+            if not checkpointing_supported:
+                reason = "with unsupported 'source'"
+                if kind != _SourceKind.CALLABLE:
+                    reason = f"with {kind} as a 'source'"
+                elif not has_inputs:
+                    reason = "with parameterless callable as a 'source'"
+
+                warnings.warn(
+                    "Checkpointing enabled in a pipeline with external source operator, "
+                    f"{reason}. "
+                    "DALI doesn't capture state of such 'source'. When loading the checkpoint, "
+                    "the 'source' must be manually adjusted by the user to start from the "
+                    "correct point, otherwise it will start from the beginning, "
+                    "potentially leading to mismatch with other data sources."
+                )
+
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
 
@@ -866,27 +891,7 @@ class Pipeline(object):
             self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
             self._seq_input_callbacks = [group for group in groups if not group.parallel]
 
-        if self._enable_checkpointing:
-            for group in groups:
-                kind = group.source_desc.kind
-                has_inputs = group.source_desc.has_inputs
-                checkpointing_supported = kind == _SourceKind.CALLABLE and has_inputs
-
-                if not checkpointing_supported:
-                    reason = "with unsupported 'source'"
-                    if kind != _SourceKind.CALLABLE:
-                        reason = f"with {kind} as a 'source'"
-                    elif not has_inputs:
-                        reason = "with parameterless callable as a 'source'"
-
-                    warnings.warn(
-                        "Checkpointing enabled in a pipeline with external source operator, "
-                        f"{reason}. "
-                        "DALI doesn't capture state of such 'source'. When loading the checkpoint, "
-                        "the 'source' must be manaully adjusted by the user to start from the "
-                        "correct point, otherwise it will start from the beginning, "
-                        "potentially leading to mismatch with other data sources."
-                    )
+        self._check_checkpointing_support()
 
     def start_py_workers(self):
         """
