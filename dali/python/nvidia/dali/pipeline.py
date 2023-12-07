@@ -878,7 +878,7 @@ class Pipeline(object):
                         f"Checkpointing enabled in a pipeline with external source operator, {reason}. "
                         "DALI doesn't capture state of such 'source'. When loading the checkpoint, "
                         "the 'source' must be manaully adjusted by the user to start from the correct"
-                        "point/time-point/epoch/iteration, otherwise it will start from the beginning,"
+                        "point, otherwise it will start from the beginning, "
                         "potentially leading to mismatch with other data sources."
                     )
 
