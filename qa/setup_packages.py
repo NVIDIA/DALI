@@ -496,6 +496,8 @@ all_packages = [
                         "numpy<1.24",
                         "urllib3<2.0",
                         "typing_extensions<4.6",
+                        # <2.13 doesn't support python 3.11 due to usage of inspect.getargspec
+                        "tensorflow_estimator>=2.14",
                     ],
                 ),
                 PckgVer(
@@ -520,6 +522,8 @@ all_packages = [
                         "numpy<1.24",
                         "urllib3<2.0",
                         "typing_extensions<4.6",
+                        # <2.13 doesn't support python 3.11 due to usage of inspect.getargspec
+                        "tensorflow_estimator>=2.14",
                     ],
                 ),
                 PckgVer(
