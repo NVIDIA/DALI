@@ -565,7 +565,10 @@ def test_nemo_asr_reader(
 
     manifest.close()
 
-
+# device,
+# num_epochs, batch_size, shard_id, num_shards,
+# random_shuffle, shuffle_after_epoch, stick_to_shard, pad_last_batch,
+# iters_into_epoch, initial_fill
 @params(
     ("cpu", 0, 1, 0, 1, False, False, False, False, None),
     ("cpu", 5, 2, 4, 7, False, False, False, True, 1),
