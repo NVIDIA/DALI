@@ -22,7 +22,7 @@ from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
-from nvidia.dali._utils.external_source_impl import SourceKind
+from nvidia.dali._utils.external_source_impl import SourceKind as SourceKind_
 from threading import local as tls
 from . import data_node as _data_node
 import atexit
@@ -870,11 +870,11 @@ class Pipeline(object):
             for group in groups:
                 kind = group.source_desc.kind
                 has_inputs = group.source_desc.has_inputs
-                checkpointing_supported = kind == SourceKind.CALLABLE and has_inputs
+                checkpointing_supported = kind == SourceKind_.CALLABLE and has_inputs
 
                 if not checkpointing_supported:
                     reason = "with unsupported 'source'"
-                    if kind != SourceKind.CALLABLE:
+                    if kind != SourceKind_.CALLABLE:
                         reason = f"with {kind} as a 'source'"
                     elif not has_inputs:
                         reason = "with parameterless callable as a 'source'"
