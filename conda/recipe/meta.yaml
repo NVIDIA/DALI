@@ -74,6 +74,7 @@ requirements:
     - gast >=0.3.3
     - dm-tree >=0.1.8
     - black =23.11.0
+    - black-jupyter =23.11.0
   host:
     - python
     - future
