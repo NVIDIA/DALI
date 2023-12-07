@@ -303,7 +303,7 @@ class Pipeline(object):
         self._enable_checkpointing = enable_checkpointing
         self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
-        self.is_restored_from_checkpoint = False
+        self._is_restored_from_checkpoint = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -460,6 +460,11 @@ class Pipeline(object):
     def gpu_queue_size(self):
         """The number of iterations processed ahead by the GPU stage."""
         return self._gpu_queue_size
+
+    @property
+    def is_restored_from_checkpoint(self):
+        """If True, this pipeline was restored from checkpoint."""
+        return self._is_restored_from_checkpoint
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
@@ -919,7 +924,7 @@ class Pipeline(object):
                 for group in self._input_callbacks:
                     group.current_iter = external_ctx_cpt.iter
                     group.current_sample = external_ctx_cpt.iter * self._max_batch_size
-            self.is_restored_from_checkpoint = True
+            self._is_restored_from_checkpoint = True
 
     def build(self):
         """Build the pipeline.
