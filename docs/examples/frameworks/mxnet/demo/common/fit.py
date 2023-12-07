@@ -123,7 +123,7 @@ def add_fit_args(parser):
         default="",
         help=(
             "show the cross-entropy or nll loss."
-            " ce strands for cross-entropy, nll-loss stands for likelihood loss"
+            " ce stands for cross-entropy, nll-loss stands for likelihood loss"
         ),
     )
     train.add_argument(
