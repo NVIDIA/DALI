@@ -92,7 +92,7 @@ version = version + """<br/>
 Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
     <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
     <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{2}>main (unstable)</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
+    <option value="https://docs.nvidia.com/deeplearning/dali/archives.html">Older releases</option>
 </select>""".format(option_nr, release_opt, main_opt)
 
 # -- General configuration ---------------------------------------------------
