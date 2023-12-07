@@ -1904,11 +1904,11 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SerializedCheckpoint",
         [](Pipeline *p, const ExternalContextCheckpoint &external_ctx_cpt) -> py::bytes {
           return p->SerializedCheckpoint(external_ctx_cpt);
-          }, py::return_value_policy::take_ownership)
+          })
     .def("RestoreFromSerializedCheckpoint",
         [](Pipeline *p, const std::string &serialized_checkpoint) {
           return p->RestoreFromSerializedCheckpoint(serialized_checkpoint);
-        }, py::return_value_policy::take_ownership)
+        })
     .def("executor_statistics",
         [](Pipeline *p) {
           auto ret = p->GetExecutorMeta();
