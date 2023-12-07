@@ -119,29 +119,21 @@ def _get_positional_input_param(schema, idx, annotation):
 
     The double underscore `__` prefix for argument name is an additional way to indicate
     positional only arguments, as per MyPy docs. It is obeyed by the VSCode.
-
-    TODO(klecki): Constant promotions - ArrayLike? Also: Multiple Input Sets.
     """
     # Only first MinNumInputs are mandatory, the rest are optional:
     default = Parameter.empty if idx < schema.MinNumInput() else None
     annotation = annotation if idx < schema.MinNumInput() else Optional[annotation]
-    if schema.HasInputDox():
-        return Parameter(
-            f"__{schema.GetInputName(idx)}",
-            kind=Parameter.POSITIONAL_ONLY,
-            default=default,
-            annotation=annotation,
-        )
-    else:
-        return Parameter(
-            f"__input_{idx}", kind=Parameter.POSITIONAL_ONLY, default=default, annotation=annotation
-        )
+    return Parameter(
+        _names._get_input_name(schema, idx),
+        kind=Parameter.POSITIONAL_ONLY,
+        default=default,
+        annotation=annotation,
+    )
 
 
 def _get_annotation_input_regular(schema):
     """Return the annotation for regular input parameter in DALI, used for the primary overload.
     A function is used as a global variable can be confused with type alias.
-    TODO(klecki): Extend with TensorLike.
     """
     return Union[_DataNode, _TensorLikeIn]
 
@@ -208,7 +200,7 @@ def _get_annotation_return_mis(schema):
     return return_annotation
 
 
-def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _DataNode):
+def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_input_regular):
     """Get the list of positional only inputs to the operator.
 
     Parameters
@@ -218,14 +210,35 @@ def _get_positional_input_params(schema, input_annotation_gen=lambda x, y: _Data
         See _get_annotation_* functions.
     """
     param_list = []
-    if not schema.HasInputDox() and schema.MaxNumInput() > _MAX_INPUT_SPELLED_OUT:
-        param_list.append(
-            Parameter("input", Parameter.VAR_POSITIONAL, annotation=input_annotation_gen(schema))
-        )
-    else:
+    # If outputs are documented, list all of them
+    if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
             param_list.append(
                 _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+            )
+    else:
+        # List all mandatory inputs
+        for i in range(schema.MinNumInput()):
+            param_list.append(
+                _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+            )
+        # If they fit below limit, list all inputs (with optional ones)
+        if schema.MaxNumInput() < _MAX_INPUT_SPELLED_OUT:
+            for i in range(schema.MinNumInput(), schema.MaxNumInput()):
+                param_list.append(
+                    _get_positional_input_param(schema, i, annotation=input_annotation_gen(schema))
+                )
+        # List the rest of optional inputs in general fashion
+        elif schema.MaxNumInput() > schema.MinNumInput():
+            # Note that the VAR_POSTIONAL annotation means that all arguments passed this way
+            # have to conform to this type, it doesn't get a default None value as it already is
+            # "empty" by default - def(*args = None) is invalid syntax.
+            param_list.append(
+                Parameter(
+                    _names._get_generic_input_name(schema.MinNumInput() == 0),
+                    Parameter.VAR_POSITIONAL,
+                    annotation=Optional[input_annotation_gen(schema)],
+                )
             )
     return param_list
 

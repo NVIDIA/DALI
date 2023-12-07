@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -62,9 +62,9 @@ struct NumbaDevArray {
 };
 
 template <typename Backend>
-class NumbaFuncImpl : public Operator<Backend> {
+class NumbaFuncImpl : public StatelessOperator<Backend> {
  public:
-  using Base = Operator<Backend>;
+  using Base = StatelessOperator<Backend>;
 
   explicit NumbaFuncImpl(const OpSpec &spec_);
 
