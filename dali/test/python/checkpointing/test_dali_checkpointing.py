@@ -20,6 +20,7 @@ import webdataset_base
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
+from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
@@ -1038,3 +1039,23 @@ def test_external_source_checkpointing_pytorch(dataset_info, iterations, mode, p
     source = make_dummy_source(epoch_size, batch_size, mode)
     pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
     check_external_source_pipeline_checkpointing_pytorch(pf, iterations)
+
+
+@cartesian_params(
+    ("iterator", "iterable", "callable"),  # source kind
+    (True, False),  # parallel
+)
+def test_external_source_unsupported(kind, parallel):
+    if kind == "iterator":
+        source = iter([1, 2, 3])
+    elif kind == "iterable":
+        source = [1, 2, 3]
+    elif kind == "callable":
+        source = lambda: 42
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True)
+    def pipeline():
+        return fn.external_source(source=source)
+
+    with assert_warns(glob="DALI doesn't capture state of such 'source'."):
+        pipeline().build()
