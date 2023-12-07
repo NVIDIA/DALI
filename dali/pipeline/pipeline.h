@@ -308,6 +308,8 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Returns a serialized Checkpoint
+   *
+   * @param external_ctx_cpt Additional information from python side to be included
    */
   DLL_PUBLIC string SerializedCheckpoint(const ExternalContextCheckpoint &external_ctx_cpt) const {
     auto cpt = GetCheckpoint();
