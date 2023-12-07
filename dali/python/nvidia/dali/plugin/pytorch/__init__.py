@@ -227,7 +227,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # This case might not be an error if we're iterating over pipeline that is
                 # currently at the end of epoch, for example because it was restored from
                 # checkpoint.
-                if all(not p.is_restored_from_checkpoint for p in self._pipes):
+                if all(not p.is_restored_from_checkpoint or p.first_iter for p in self._pipes):
                     raise RuntimeError(
                         "It seems that there is no data in the pipeline. This may happen "
                         "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
@@ -611,7 +611,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # This case might not be an error if we're iterating over pipeline that is
                 # currently at the end of epoch, for example because it was restored from
                 # checkpoint.
-                if all(not p.is_restored_from_checkpoint for p in self._pipes):
+                if all(not p.is_restored_from_checkpoint or p.first_iter for p in self._pipes):
                     raise RuntimeError(
                         "It seems that there is no data in the pipeline. This may happen "
                         "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
