@@ -1051,7 +1051,9 @@ def test_external_source_unsupported(kind, parallel):
     elif kind == "iterable":
         source = [1, 2, 3]
     elif kind == "callable":
-        source = lambda: 42
+
+        def source():
+            return 42
 
     @pipeline_def(batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True)
     def pipeline():

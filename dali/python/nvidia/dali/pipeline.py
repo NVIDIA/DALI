@@ -880,10 +880,11 @@ class Pipeline(object):
                         reason = "with parameterless callable as a 'source'"
 
                     warnings.warn(
-                        f"Checkpointing enabled in a pipeline with external source operator, {reason}. "
+                        "Checkpointing enabled in a pipeline with external source operator, "
+                        f"{reason}. "
                         "DALI doesn't capture state of such 'source'. When loading the checkpoint, "
-                        "the 'source' must be manaully adjusted by the user to start from the correct"
-                        "point, otherwise it will start from the beginning, "
+                        "the 'source' must be manaully adjusted by the user to start from the "
+                        "correct point, otherwise it will start from the beginning, "
                         "potentially leading to mismatch with other data sources."
                     )
 
