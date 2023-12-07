@@ -335,6 +335,8 @@ class DLL_PUBLIC Pipeline {
    * @brief Restores pipeline state from a serialized Checkpoint
    *
    * Should be called before building.
+   *
+   * @return Extra context which was passed to SerializedCheckpoint when creating the checkpoint
   */
   DLL_PUBLIC ExternalContextCheckpoint RestoreFromSerializedCheckpoint(
       const std::string &serialized_checkpoint) {
