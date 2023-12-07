@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include "dali/operators/image/convolution/convolution_utils.h"
 #include "dali/operators/image/convolution/laplacian_params.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
@@ -39,10 +40,11 @@ namespace dali {
 
 
 template <typename Backend>
-class Laplacian : public SequenceOperator<Backend> {
+class Laplacian : public SequenceOperator<Backend, StatelessOperator> {
  public:
+  using Base = SequenceOperator<Backend, StatelessOperator>;
   inline explicit Laplacian(const OpSpec& spec)
-      : SequenceOperator<Backend>(spec) {
+      : Base(spec) {
     spec.TryGetArgument(dtype_, "dtype");
   }
 
