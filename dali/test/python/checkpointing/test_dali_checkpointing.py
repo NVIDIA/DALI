@@ -16,6 +16,7 @@ import tempfile
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
+import shutil
 import webdataset_base
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
@@ -614,21 +615,32 @@ def test_numpy_reader(
 ):
     numpy_dir = os.path.join(data_root, "db", "3D", "MRI", "Knee", "npy_2d_slices", "STU00001")
 
-    check_reader_checkpointing(
-        fn.readers.numpy,
-        num_epochs,
-        batch_size,
-        iters_into_epoch,
-        device=device,
-        file_root=numpy_dir,
-        pad_last_batch=pad_last_batch,
-        random_shuffle=random_shuffle,
-        shuffle_after_epoch=shuffle_after_epoch,
-        shard_id=shard_id,
-        num_shards=num_shards,
-        stick_to_shard=stick_to_shard,
-        initial_fill=initial_fill,
-    )
+    # GDS doesn't support overlayfs, so we need to use runner's scratch
+    gds_data_root = "/scratch/"
+    if not os.path.isdir(gds_data_root):
+        gds_data_root = os.getcwd() + "/scratch/"
+        if not os.path.isdir(gds_data_root):
+            os.mkdir(gds_data_root)
+            assert os.path.isdir(gds_data_root)
+
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        shutil.copytree(numpy_dir, os.path.join(test_data_root, "numpy"))
+
+        check_reader_checkpointing(
+            fn.readers.numpy,
+            num_epochs,
+            batch_size,
+            iters_into_epoch,
+            device=device,
+            file_root=os.path.join(test_data_root, "numpy"),
+            pad_last_batch=pad_last_batch,
+            random_shuffle=random_shuffle,
+            shuffle_after_epoch=shuffle_after_epoch,
+            shard_id=shard_id,
+            num_shards=num_shards,
+            stick_to_shard=stick_to_shard,
+            initial_fill=initial_fill,
+        )
 
 
 @attr("pytorch")
