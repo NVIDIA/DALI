@@ -20,13 +20,17 @@ import shutil
 import webdataset_base
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
-from test_utils import get_dali_extra_path, compare_pipelines
+from test_utils import create_sign_off_decorator, get_dali_extra_path, compare_pipelines
 from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
 from reader.test_numpy import is_gds_supported
+
+
+reader_signed_off = create_sign_off_decorator()
+random_signed_off = create_sign_off_decorator()
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
@@ -200,6 +204,7 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
     (7, 4, 2, 5, True, False, False, False, 3, 2),
     (0, 32, 3, 4, True, False, False, False, 0, 3),
 )
+@reader_signed_off("readers.file", "file_reader")
 def test_file_reader(
     num_epochs,
     batch_size,
@@ -235,6 +240,7 @@ def test_file_reader(
     (16, 6, 3, 5, False, False, True, False, 2),
     (6, 7, 2, 3, False, True, False, True, 3),
 )
+@reader_signed_off("readers.coco", "coco_reader")
 def test_coco_reader(
     num_epochs,
     batch_size,
@@ -280,6 +286,7 @@ def test_coco_reader(
     (5, 6, 2, 3, False, False, True, None),
     (3, 8, 4, 5, False, False, False, 1),
 )
+@reader_signed_off("readers.mxnet", "mxnet_reader")
 def test_mxnet_reader(
     num_epochs,
     batch_size,
@@ -319,6 +326,7 @@ def test_mxnet_reader(
     (10, 7, 2, 3, False, False, True, None),
     (2, 8, 4, 5, False, False, False, 1),
 )
+@reader_signed_off("readers.tfrecord", "tfrecord_reader")
 def test_tfrecord_reader(
     num_epochs,
     batch_size,
@@ -365,6 +373,7 @@ def test_tfrecord_reader(
     (5, 1, 2, 3, True, True, False, 3),
     (0, 2, 3, 6, True, True, True, None),
 )
+@reader_signed_off("readers.sequence", "sequence_reader")
 def test_sequence_reader(
     num_epochs,
     batch_size,
@@ -402,6 +411,7 @@ def test_sequence_reader(
     (0, 3, 3, 4, False, False, True, None),
     (1, 4, 2, 3, False, False, False, 3),
 )
+@reader_signed_off("readers.caffe", "caffe_reader")
 def test_caffe_reader(
     num_epochs,
     batch_size,
@@ -440,6 +450,7 @@ def test_caffe_reader(
     (0, 2, 4, 5, False, False, True, None),
     (3, 3, 1, 3, False, False, False, 2),
 )
+@reader_signed_off("readers.caffe2", "caffe2_reader")
 def test_caffe2_reader(
     num_epochs,
     batch_size,
@@ -478,6 +489,7 @@ def test_caffe2_reader(
     (6, 64, 4, 6, True, True, False, 5),
     (10, 128, 3, 4, True, True, True, None),
 )
+@reader_signed_off("readers.webdataset")
 def test_webdataset_reader(
     num_epochs,
     batch_size,
@@ -527,6 +539,7 @@ def test_webdataset_reader(
     (9, 1, 0, 1, True, False, True, False, 3),
     (10, 2, 0, 2, True, False, True, True, 4),
 )
+@reader_signed_off("readers.nemo_asr", "nemo_asr_reader")
 def test_nemo_asr_reader(
     num_epochs,
     batch_size,
@@ -789,6 +802,7 @@ class VideoConfig:
         VideoConfig(sequence_length=3, stride=1, step=5),
     ),
 )
+@reader_signed_off("readers.video", "video_reader")
 def test_video_reader(
     num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
@@ -823,6 +837,68 @@ def test_video_reader(
     )
 
 
+# simplified case of test_video_reader suite
+@cartesian_params(
+    (2,),
+    (1, 3),
+    (0, 3),
+    (
+        BaseDecoderConfig(
+            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+        ),
+        BaseDecoderConfig(
+            shard_id=6,
+            num_shards=7,
+            stick_to_shard=False,
+            pad_last_batch=False,
+            random_shuffle=False,
+        ),
+        BaseDecoderConfig(
+            shard_id=0,
+            num_shards=2,
+            stick_to_shard=False,
+            pad_last_batch=False,
+            random_shuffle=True,
+        ),
+    ),
+    (VideoConfig(sequence_length=3, stride=1, step=-1),),
+)
+@reader_signed_off("readers.video_resize", "video_reader_resize")
+def test_video_reader_resize_reader(
+    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+):
+    files = [
+        os.path.join(get_dali_extra_path(), f"db/video/multiple_framerate/{f}/{f}fps.mp4")
+        for f in (10, 50)
+    ]
+
+    check_reader_checkpointing(
+        fn.readers.video_resize,
+        num_epochs,
+        batch_size,
+        iters_into_epoch,
+        device="gpu",
+        filenames=files,
+        labels=list(range(len(files))),
+        normalized=True,
+        random_shuffle=config.random_shuffle,
+        image_type=types.RGB,
+        dtype=types.FLOAT,
+        enable_frame_num=True,
+        enable_timestamps=True,
+        file_list_frame_num=True,
+        file_list_include_preceding_frame=False,
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step,
+        size=(100, 100),
+    )
+
+
 @cartesian_params(
     (
         "cpu",
@@ -845,6 +921,7 @@ def test_video_reader(
     ),
     (VideoConfig(sequence_length=3, stride=1, step=5),),
 )
+@reader_signed_off("experimental.readers.video")
 def test_experimental_video_reader(
     device, num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
@@ -877,6 +954,7 @@ def test_experimental_video_reader(
 
 
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
+@random_signed_off("random.coin_flip", "coin_flip")
 def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
@@ -888,6 +966,7 @@ def test_random_coin_flip_pytorch(device, shape):
 
 
 @cartesian_params(("cpu",), (None, (1,), (10,)))
+@random_signed_off("random.normal", "normal_distribution")
 def test_random_normal(device, shape):
     check_no_input_operator(fn.random.normal, device, shape=shape)
 
@@ -899,6 +978,7 @@ def test_random_normal_pytorch(device, shape):
 
 
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
+@random_signed_off("random.uniform", "uniform")
 def test_random_uniform(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
 
@@ -909,20 +989,24 @@ def test_random_uniform_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.uniform, device, shape=shape)
 
 
+@random_signed_off("segmentation.random_object_bbox")
 def test_random_object_bbox():
     check_single_input_operator(fn.segmentation.random_object_bbox, "cpu", format="box")
 
 
+@random_signed_off("segmentation.random_mask_pixel")
 def test_random_mask_pixel():
     check_single_input_operator(fn.segmentation.random_mask_pixel, "cpu")
 
 
+@random_signed_off("roi_random_crop")
 def test_roi_random_crop():
     check_single_input_operator(
         fn.roi_random_crop, "cpu", crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30)
     )
 
 
+@random_signed_off("ssd_random_crop")
 def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
@@ -934,14 +1018,17 @@ def test_ssd_random_crop():
     check_pipeline_checkpointing_native(pipeline)
 
 
+@random_signed_off("batch_permutation")
 def test_batch_permutation():
     check_no_input_operator(fn.batch_permutation, "cpu")
 
 
+@random_signed_off("jitter")
 def test_jitter():
     check_single_input_operator(fn.jitter, "gpu")
 
 
+@random_signed_off("random_bbox_crop")
 def test_random_bbox_crop():
     def wrapper(input, **kwargs):
         bboxes = fn.cast(input[:, :4, 0], dtype=types.DALIDataType.FLOAT)
@@ -1140,6 +1227,7 @@ def make_dummy_source(epoch_size, batch_size, mode):
     ("idx", "batch_info", "sample_info"),  # indexing mode
     (True, False),  # parallel
 )
+@reader_signed_off("external_source")
 def test_external_source_checkpointing(dataset_info, iterations, mode, parallel):
     epoch_size, batch_size = dataset_info
     source = make_dummy_source(epoch_size, batch_size, mode)

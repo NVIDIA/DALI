@@ -966,48 +966,10 @@ def test_split_and_merge(device):
     check_is_pipeline_stateless(pipeline_factory)
 
 
-# exclude readers as those are stateful ops
-reader_names = [
-    "readers.*",
-    "caffe2_reader",
-    "caffe_reader",
-    "coco_reader",
+unsupported_readers = [
     "experimental.readers.fits",
-    "experimental.readers.video",
-    "external_source",
-    "file_reader",
-    "mxnet_reader",
-    "nemo_asr_reader",
     "numpy_reader",
-    "sequence_reader",
-    "tfrecord_reader",
-    "video_reader",
-    "video_reader_resize",
-]
-
-# exclude random ops as those are stateful
-# TODO(ktokarski, szkarpinski) Make sure those are tested in test_dali_checkpointing
-random_op_names = [
-    "batch_permutation",
-    "decoders.image_random_crop",
-    "experimental.decoders.image_random_crop",
-    "image_decoder_random_crop",
-    "noise.gaussian",
-    "noise.salt_and_pepper",
-    "noise.shot",
-    "random.coin_flip",
-    "coin_flip",
-    "random.normal",
-    "normal_distribution",
-    "random.uniform",
-    "uniform",
-    "random_bbox_crop",
-    "ssd_random_crop",
-    "random_resized_crop",
-    "roi_random_crop",
-    "segmentation.random_mask_pixel",
-    "segmentation.random_object_bbox",
-    "jitter",
+    "readers.numpy",
 ]
 
 unsupported_ops = [
@@ -1015,10 +977,17 @@ unsupported_ops = [
     "experimental.inputs.video",
 ]
 
-excluded_ops = reader_names + random_op_names + unsupported_ops
-
 
 def test_coverage():
+    from test_dali_checkpointing import reader_signed_off, random_signed_off
+
+    excluded_ops = unsupported_readers + unsupported_ops
+    tested_ops = (
+        stateless_signed_off.tested_ops
+        | reader_signed_off.tested_ops
+        | random_signed_off.tested_ops
+    )
+
     fn_ops = module_functions(
         fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
     )
@@ -1030,7 +999,6 @@ def test_coverage():
         )
         exclude = re.compile(exclude)
         fn_ops = [x for x in fn_ops if not exclude.match(x)]
-    tested_ops = stateless_signed_off.tested_ops
     not_covered = sorted(list(set(fn_ops) - tested_ops))
     not_covered_str = ",\n".join(f"'{op_name}'" for op_name in not_covered)
     # we are fine with covering more we can easily list, like numba
