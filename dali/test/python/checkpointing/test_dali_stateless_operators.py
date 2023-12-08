@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import re
 import glob
 import nose
 import numpy as np
@@ -27,7 +26,6 @@ from test_utils import (
     check_numba_compatibility_cpu,
     has_operator,
     restrict_platform,
-    module_functions,
 )
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
@@ -964,44 +962,3 @@ def test_split_and_merge(device):
             return data + 1
 
     check_is_pipeline_stateless(pipeline_factory)
-
-
-unsupported_readers = [
-    "experimental.readers.fits",
-    "numpy_reader",
-    "readers.numpy",
-]
-
-unsupported_ops = [
-    "experimental.decoders.video",
-    "experimental.inputs.video",
-]
-
-
-def test_coverage():
-    from test_dali_checkpointing import reader_signed_off, random_signed_off
-
-    excluded_ops = unsupported_readers + unsupported_ops
-    tested_ops = (
-        stateless_signed_off.tested_ops
-        | reader_signed_off.tested_ops
-        | random_signed_off.tested_ops
-    )
-
-    fn_ops = module_functions(
-        fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
-    )
-    assert len(fn_ops), "There should be some DALI ops in the `fn`, got nothing"
-    if excluded_ops:
-        exclude = "|".join(
-            "(^" + pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
-            for pattern in excluded_ops
-        )
-        exclude = re.compile(exclude)
-        fn_ops = [x for x in fn_ops if not exclude.match(x)]
-    not_covered = sorted(list(set(fn_ops) - tested_ops))
-    not_covered_str = ",\n".join(f"'{op_name}'" for op_name in not_covered)
-    # we are fine with covering more we can easily list, like numba
-    assert (
-        set(fn_ops).difference(tested_ops) == set()
-    ), f"Test doesn't cover {len(not_covered)} ops:\n{not_covered_str}"

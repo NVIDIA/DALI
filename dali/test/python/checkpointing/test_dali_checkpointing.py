@@ -16,11 +16,17 @@ import tempfile
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
+import re
 import shutil
 import webdataset_base
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
-from test_utils import create_sign_off_decorator, get_dali_extra_path, compare_pipelines
+from test_utils import (
+    compare_pipelines,
+    create_sign_off_decorator,
+    get_dali_extra_path,
+    module_functions,
+)
 from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
@@ -1269,3 +1275,45 @@ def test_external_source_unsupported(kind, parallel):
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
         pipeline().build()
+
+
+unsupported_readers = [
+    "experimental.readers.fits",
+    "numpy_reader",
+    "readers.numpy",
+]
+
+unsupported_ops = [
+    "experimental.decoders.video",
+    "experimental.inputs.video",
+]
+
+
+def test_coverage():
+    from test_dali_stateless_operators import stateless_signed_off
+
+    tested_ops = (
+        stateless_signed_off.tested_ops
+        | reader_signed_off.tested_ops
+        | random_signed_off.tested_ops
+    )
+
+    excluded_ops = unsupported_readers + unsupported_ops
+
+    fn_ops = module_functions(
+        fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
+    )
+    assert len(fn_ops), "There should be some DALI ops in the `fn`, got nothing"
+    if excluded_ops:
+        exclude = "|".join(
+            "(^" + pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
+            for pattern in excluded_ops
+        )
+        exclude = re.compile(exclude)
+        fn_ops = [x for x in fn_ops if not exclude.match(x)]
+    not_covered = sorted(list(set(fn_ops) - tested_ops))
+    not_covered_str = ",\n".join(f"'{op_name}'" for op_name in not_covered)
+    # we are fine with covering more we can easily list, like numba
+    assert (
+        set(fn_ops).difference(tested_ops) == set()
+    ), f"Test doesn't cover {len(not_covered)} ops:\n{not_covered_str}"
