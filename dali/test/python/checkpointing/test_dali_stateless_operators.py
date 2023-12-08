@@ -934,24 +934,20 @@ def test_arithm_ops_stateless_cpu(device):
 
 @params("cpu", "gpu")
 @stateless_signed_off(
-    "_conditional.hidden.merge",
     "_conditional.hidden.not_",
-    "_conditional.hidden.split",
     "_conditional.hidden.validate_logical",
-    "_conditional.merge",
     "_conditional.not_",
-    "_conditional.split",
     "_conditional.validate_logical",
 )
-def test_split_and_merge(device):
+def test_logic_ops(device):
     @pipeline_def(enable_conditionals=True, enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
         if device == "gpu":
             data = data.gpu()
-        condition_1 = fn.external_source(source=RandomBatch(data_shape=()))
-        condition_2 = fn.external_source(source=RandomBatch(data_shape=()))
-        condition_3 = fn.external_source(source=RandomBatch(data_shape=()))
+        condition_1 = fn.external_source(source=RandomBatch(data_shape=())) < 125
+        condition_2 = fn.external_source(source=RandomBatch(data_shape=())) >= 125
+        condition_3 = fn.external_source(source=RandomBatch(data_shape=())) <= 100
         if condition_1 and not condition_2 or not condition_3:
             return data
         else:
@@ -961,17 +957,22 @@ def test_split_and_merge(device):
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("_conditional.merge", "_conditional.split")
+@stateless_signed_off(
+    "_conditional.hidden.merge",
+    "_conditional.hidden.split",
+    "_conditional.merge",
+    "_conditional.split",
+)
 def test_split_and_merge(device):
     @pipeline_def(enable_conditionals=True, enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
         if device == "gpu":
             data = data.gpu()
-        condition = fn.external_source(source=RandomBatch(data_shape=()))
+        condition = fn.external_source(source=RandomBatch(data_shape=())) <= 130
         if condition:
             return data
         else:
-            return data + 1
+            return data + types.Constant(1, dtype=types.DALIDataType.UINT8)
 
     check_is_pipeline_stateless(pipeline_factory)
