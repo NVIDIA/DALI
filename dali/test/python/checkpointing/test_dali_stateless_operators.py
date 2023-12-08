@@ -446,6 +446,34 @@ def test_paste_stateless():
 
 
 @params("cpu", "gpu")
+@signed_off("laplacian")
+def test_laplacian_stateless(device):
+    check_single_input(fn.laplacian, device, window_size=3)
+
+
+@params("cpu", "gpu")
+@signed_off("gaussian_blur")
+def test_gaussian_blur_stateless(device):
+    check_single_input(fn.gaussian_blur, device, window_size=3)
+
+
+@params("cpu", "gpu")
+@signed_off("experimental.filter")
+def test_filter_stateless(device):
+    check_single_input(
+        lambda x, **kwargs: fn.gaussian_blur(x, np.full((3, 3), 1 / 9), **kwargs),
+        device,
+        window_size=3,
+    )
+
+
+@params("cpu", "gpu")
+@signed_off("copy")
+def test_copy_stateless(device):
+    check_single_input(fn.copy, device)
+
+
+@params("cpu", "gpu")
 @signed_off("color_space_conversion")
 def test_color_space_conversion_stateless(device):
     check_single_input(
@@ -571,7 +599,7 @@ def test_nonsilent_region_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("audio_resample")
+@signed_off("audio_resample", "experimental.audio_resample")
 def test_audio_resample_stateless(device):
     check_single_signal_input(fn.audio_resample, device, scale=0.5)
 
@@ -753,15 +781,27 @@ def test_audio_decoder_stateless():
 
 
 @params("cpu", "mixed")
-@signed_off("decoders.image")
+@signed_off("decoders.image", "image_decoder")
 def test_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image, device)
 
 
 @params("cpu", "mixed")
-@signed_off("decoders.image_crop")
+@signed_off("experimental.decoders.image")
+def test_experimental_image_decoder_stateless(device):
+    check_single_encoded_jpeg_input(fn.experimental.decoders.image, device)
+
+
+@params("cpu", "mixed")
+@signed_off("decoders.image_crop", "image_decoder_crop")
 def test_image_decoder_crop_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_crop, device)
+
+
+@params("cpu", "mixed")
+@signed_off("experimental.decoders.image_crop")
+def test_experimental_image_decoder_crop_stateless(device):
+    check_single_encoded_jpeg_input(fn.experimental.decoders.image_crop, device)
 
 
 @params("cpu", "gpu")
