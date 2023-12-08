@@ -1887,7 +1887,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("Shutdown", &Pipeline::Shutdown, py::call_guard<py::gil_scoped_release>())
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
-          p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
+          p->SetExecutionTypes(exec_pipelined, exec_async);
         },
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,
@@ -1927,8 +1927,7 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           p->SetOutputDescs(out_desc);
         })
-    .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
-    .def("RunGPU", &Pipeline::RunGPU, py::call_guard<py::gil_scoped_release>())
+    .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;

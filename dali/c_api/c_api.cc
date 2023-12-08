@@ -251,10 +251,15 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
   bool se = separated_execution != 0;
   bool pe = pipelined_execution != 0;
   bool ae = async_execution != 0;
+  if (cpu_prefetch_queue_depth == gpu_prefetch_queue_depth) {
+    if (se)
+      DALI_WARN("Setting separated_execution to True has no effect if the queue sizes are equal");
+      se = false;
+  }
   auto pipeline =
           std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
                                            num_threads, device_id, pe, prefetch_queue_depth, ae);
-  pipeline->SetExecutionTypes(pe, se, ae);
+  pipeline->SetExecutionTypes(pe, ae);
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
@@ -283,26 +288,31 @@ int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
   return (*pipe_handle)->pipeline->max_batch_size();
 }
 
+void daliPrefetch(daliPipelineHandle_t pipe_handle) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  pipeline->Prefetch();
+}
 
 void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (queue_depth != sz.cpu_size || queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchUniform is deprecated and setting queue_length different than"
+    " the one set ing the pipeline has no effect");
   }
+  pipeline->Prefetch();
 }
 
 
 void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < gpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (cpu_queue_depth != sz.cpu_size || gpu_queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchUniform is deprecated and setting queue_length different than"
+    " the one set ing the pipeline has no effect");
   }
-  for (int i = 0; i < cpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-  }
+  pipeline->Prefetch();
 }
 
 
@@ -402,8 +412,7 @@ dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle, cons
 
 void daliRun(daliPipelineHandle_t pipe_handle) {
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
-  pipeline->RunCPU();
-  pipeline->RunGPU();
+  pipeline->Run();
 }
 
 

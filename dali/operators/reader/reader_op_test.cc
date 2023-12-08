@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,9 +129,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
 
   Workspace ws;
   for (int i=0; i < 5; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
+    pipe.Run();
   }
 
   return;
@@ -150,8 +148,7 @@ TYPED_TEST(ReaderTest, PrefetchQueueTest) {
 
   Workspace ws;
   for (int i=0; i < 5; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
   }
   return;
@@ -196,8 +193,7 @@ TYPED_TEST(ReaderTest, LazyInitTest) {
 
   Workspace ws;
   for (int i=0; i < 5; ++i) {
-    lazy_pipe.RunCPU();
-    lazy_pipe.RunGPU();
+    lazy_pipe.Run();
     lazy_pipe.Outputs(&ws);
   }
   std::remove(filename.c_str());
@@ -219,9 +215,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
 
   Workspace ws;
   for (int i = 0; i < 4; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
+    pipe.Run();
     auto shape = ws.Output<CPUBackend>(0).AsTensor().shape();
     // We have NFHWC format
     const auto batch_size = shape[0];
@@ -516,8 +510,7 @@ class FileReaderTest : public DALITest {
   std::vector<uint8_t> RunIter(Pipeline &pipe, int batch_size) {
     std::vector<uint8_t> result;
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws_);
 
     auto shape = ws_.Output<CPUBackend>(0).AsTensor().shape();

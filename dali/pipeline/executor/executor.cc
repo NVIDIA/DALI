@@ -342,6 +342,27 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::Run() {
+  RunCPU();
+  RunMixed();
+  RunGPU();
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::Prefetch() {
+  int i;
+  for (i = 0; i < std::min(queue_sizes_.gpu_size, queue_sizes_.cpu_size); i++) {
+    RunCPU();
+    RunMixed();
+    RunGPU();
+  }
+
+  for (; i < queue_sizes_.cpu_size; i++) {
+    RunCPU();
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   try {
     RunCPUImpl(cpu_iteration_id_++);

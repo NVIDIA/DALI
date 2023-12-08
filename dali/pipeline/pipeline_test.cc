@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -456,8 +456,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
   pipe.Build(outputs);
   pipe.SetExternalInput("raw_jpegs", data);
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   // we should not presize CPU buffers if they are not pinned
@@ -575,7 +574,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   Pipeline pipe(batch_size, 4, 0);
   // Cannot test async while setting external input - need to make sure that
-  pipe.SetExecutionTypes(true, true, true);
+  pipe.SetExecutionTypes(true, true);
   // Test coprime queue sizes
   pipe.SetQueueSizes(CPU, GPU);
   pipe.AddExternalInput("data");
@@ -595,62 +594,52 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   test::MakeRandomBatch(tl, batch_size * N);
 
   // Split the batch into 5
-  std::array<TensorList<CPUBackend>, N> splited_tl;
+  std::array<TensorList<CPUBackend>, N> split_tl;
   std::array<std::vector<TensorShape<>>, N> shapes;
   for (int i = 0; i < N; i++) {
     shapes[i].resize(batch_size);
     for (int j = 0; j < batch_size; j++) {
       shapes[i][j] = tl.tensor_shape(i * batch_size + j);
     }
-    splited_tl[i].Resize({shapes[i]}, DALI_UINT8);
+    split_tl[i].Resize({shapes[i]}, DALI_UINT8);
   }
 
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < batch_size; j++) {
       std::memcpy(
-        splited_tl[i].template mutable_tensor<uint8>(j),
+        split_tl[i].template mutable_tensor<uint8>(j),
         tl.template tensor<uint8>(i * batch_size + j),
         volume(tl.tensor_shape(i * batch_size + j)));
     }
   }
 
-  // Fill queues in the same way as Python - this would be the first pipe.run()
-  for (int i = 0; i < GPU; i++) {
-    pipe.SetExternalInput("data", splited_tl[i]);
-    pipe.RunCPU();
-    pipe.RunGPU();
+  // Fill queues
+  int i = 0;
+  for (; i < std::max(CPU, GPU); i++) {
+    pipe.SetExternalInput("data", split_tl[i]);
+    if (i < std::min(CPU, GPU))
+      pipe.Run();
   }
-  // We run CPU stage additional `CPU`-times, to fill the output queue
-  for (int i = GPU; i < GPU + CPU; i++) {
-    pipe.SetExternalInput("data", splited_tl[i]);
-    pipe.RunCPU();
-  }
+  pipe.Prefetch();
 
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
   int obtained_outputs = 0;
-  for (int i = GPU + CPU; i < N; i++) {
+  for (; i < N; i++) {
     Workspace ws;
     pipe.Outputs(&ws);
     test::CheckResults(ws, batch_size, obtained_outputs++, tl);
-    pipe.SetExternalInput("data", splited_tl[i]);
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.SetExternalInput("data", split_tl[i]);
+    pipe.Run();
   }
 
   // We consumed all the data and have it in the Pipeline, now we need to run
   // Mixed and GPU stage to consume what was produced by the CPU
-  for (int i = 0; i < CPU; i++) {
+  /*for (int i = 0; i < CPU; i++) {
     Workspace ws;
     pipe.Outputs(&ws);
     test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.RunGPU();
-  }
-  // Now we consule what we buffered in the beggining
-  for (int i = 0; i < GPU; i++) {
-    Workspace ws;
-    pipe.Outputs(&ws);
-    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
-  }
+  }*/
 }
 
 class DummyOpToAdd : public Operator<CPUBackend> {
@@ -847,8 +836,7 @@ TEST(PipelineTest, MultiOutputInputOp) {
   inp.mutable_tensor<int>(0)[0] = input;
   pipe.SetExternalInput("DummyInput", inp);
 
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
 

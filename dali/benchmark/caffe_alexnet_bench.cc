@@ -107,8 +107,7 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
@@ -116,11 +115,9 @@ BENCHMARK_DEFINE_F(Alexnet, CaffePipe)(benchmark::State& st) { // NOLINT
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {
@@ -238,8 +235,7 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
@@ -247,11 +243,9 @@ BENCHMARK_DEFINE_F(Alexnet, HybridPipe)(benchmark::State& st) { // NOLINT
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {

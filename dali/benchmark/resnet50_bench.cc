@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -107,8 +107,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
@@ -118,11 +117,9 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.SetExternalInput("raw_jpegs", data);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {
@@ -242,9 +239,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
+  pipe.Run();
 
   while (st.KeepRunning()) {
     pipe.SetExternalInput("raw_jpegs", data);
@@ -253,11 +248,9 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.SetExternalInput("raw_jpegs", data);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {
@@ -355,9 +348,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
-  pipe.Outputs(&ws);
+  pipe.Run();
 
   while (st.KeepRunning()) {
     pipe.SetExternalInput("raw_jpegs", data);
@@ -366,11 +357,9 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
       pipe.SetExternalInput("raw_jpegs", data);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {

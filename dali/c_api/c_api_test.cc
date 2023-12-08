@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -264,8 +264,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
 
   pipe_ptr->Build();
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
 
   daliPipelineHandle handle;
@@ -280,8 +279,7 @@ TYPED_TEST(CApiTest, FileReaderPipe) {
   }
 
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
+  pipe_ptr->Run();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   daliDeletePipeline(&handle);
@@ -293,8 +291,7 @@ TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
 
   pipe_ptr->Build();
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
 
   daliPipelineHandle handle;
@@ -306,8 +303,7 @@ TYPED_TEST(CApiTest, FileReaderDefaultPipe) {
   }
 
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
+  pipe_ptr->Run();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   daliDeletePipeline(&handle);
@@ -346,10 +342,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
-  daliPrefetchUniform(&handle, prefetch_queue_depth);
+  daliPrefetch(&handle);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -367,8 +362,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocPipe) {
                             input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                             input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
+  pipe_ptr->Run();
 
   ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   daliDeletePipeline(&handle);
@@ -418,11 +412,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
     }
 
     for (int i = 0; i < prefetch_queue_depth; i++) {
-      pipe_ptr->RunCPU();
-      pipe_ptr->RunGPU();
+      pipe_ptr->Run();
     }
-    daliPrefetchUniform(&handle, prefetch_queue_depth);
-
     dali::Workspace ws;
     for (int i = 0; i < prefetch_queue_depth; i++) {
       ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, DALI_ext_default,
@@ -469,10 +460,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
-  daliPrefetchUniform(&handle, prefetch_queue_depth);
+  daliPrefetch(&handle);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -488,10 +478,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
                                    dali_data_type_t::DALI_UINT8, input_shape.data(),
                                    input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
-
-  ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
+  pipe_ptr->Run();
   daliDeletePipeline(&handle);
 }
 
@@ -533,10 +520,9 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
-  daliPrefetchUniform(&handle, prefetch_queue_depth);
+  daliPrefetch(&handle);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -555,10 +541,7 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocDifferentBackendsTest) {
                         input.get(), dali_data_type_t::DALI_UINT8, input_shape.data(),
                         input_shape.sample_dim(), "HWC", DALI_ext_default);
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
-
-  ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
+  pipe_ptr->Run();
   daliDeletePipeline(&handle);
 }
 
@@ -604,10 +587,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
-  daliPrefetchUniform(&handle, prefetch_queue_depth);
+  daliPrefetch(&handle);
 
   dali::Workspace ws;
   for (int i = 0; i < prefetch_queue_depth; i++) {
@@ -626,9 +608,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
                               dali_data_type_t::DALI_UINT8, input_shape.data(),
                               input_shape.sample_dim(), "HWC", DALI_ext_default);
   daliRun(&handle);
-  pipe_ptr->RunCPU();
-  pipe_ptr->RunGPU();
-
+  pipe_ptr->Run();
   ComparePipelinesOutputs<OpBackend>(handle, *pipe_ptr);
   daliDeletePipeline(&handle);
 }
@@ -707,8 +687,7 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 
@@ -821,8 +800,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
   }
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
-    pipe_ptr->RunCPU();
-    pipe_ptr->RunGPU();
+    pipe_ptr->Run();
   }
   daliPrefetchUniform(&handle, prefetch_queue_depth);
 

@@ -399,12 +399,22 @@ DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const c
 DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
 
 /**
+ * @brief Schedule first runs to fill buffers for Executor.
+ */
+DLL_PUBLIC void daliPrefetch(daliPipelineHandle *pipe_handle);
+
+/**
  * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
+ * @param queue_depth Ignored; must be equal to the pipeline's queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth);
 
 /**
  * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
+ * @param cpu_queue_depth Ignored; must be equal to the pipeline's CPU queue depth
+ * @param gpu_queue_depth Ignored; must be equal to the pipeline's GPU queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
                                      int cpu_queue_depth, int gpu_queue_depth);

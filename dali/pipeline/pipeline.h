@@ -273,11 +273,10 @@ class DLL_PUBLIC Pipeline {
    * @param async_execution Use worker threads for RunX() functions
    */
   DLL_PUBLIC void SetExecutionTypes(bool pipelined_execution = true,
-                                    bool separated_execution = false, bool async_execution = true) {
+                                    bool async_execution = true) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed - cannot change execution type.");
     pipelined_execution_ = pipelined_execution;
-    separated_execution_ = separated_execution;
     async_execution_ = async_execution;
   }
 
@@ -381,10 +380,13 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(!built_,
                  "Alterations to the pipeline after "
                  "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    DALI_ENFORCE(separated_execution_ || (cpu_size == gpu_size),
-                 "Setting different queue sizes for non-separated execution is not allowed");
+    separated_execution_ = (cpu_size != gpu_size);
     DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
+  }
+
+  DLL_PUBLIC QueueSizes GetQueueSizes() const {
+    return prefetch_queue_depth_;
   }
 
   /** @{ */
@@ -402,30 +404,28 @@ class DLL_PUBLIC Pipeline {
   /** @} */
 
   /**
-   * @brief Run the cpu portion of the pipeline.
+   * @brief Run the pipeline
    */
-  DLL_PUBLIC void RunCPU();
+  DLL_PUBLIC void Run();
 
   /**
-   * @brief Run the gpu portion of the pipeline.
+   * @brief Fills the prefetch queues
    */
-  DLL_PUBLIC void RunGPU();
+  DLL_PUBLIC void Prefetch();
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
-   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
-   * must be called prior to calling this or this method will result in
-   * deadlock.
+   * This method blocks until the next batch is complete. Run must be called prior to calling this
+   * method or it will result in a deadlock.
    */
   DLL_PUBLIC void Outputs(Workspace *ws);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * To release previously returned buffers ReleaseOutputs need to be called.
-   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
-   * must be called prior to calling this or this method will result in
-   * deadlock.
+   * This method blocks until the next batch is complete. Run must be called prior to calling this
+   * method or it will result in a deadlock.
    */
   DLL_PUBLIC void ShareOutputs(Workspace *ws);
 
@@ -559,7 +559,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
-            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
+            bool async_execution, size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
@@ -668,24 +668,24 @@ class DLL_PUBLIC Pipeline {
 
   const int MAX_SEEDS = 1024;
 
-  bool built_;
-  int max_batch_size_, num_threads_, device_id_;
-  bool pipelined_execution_;
-  bool separated_execution_;
-  bool async_execution_;
-  size_t bytes_per_sample_hint_;
-  int set_affinity_;
-  int max_num_stream_;
-  int default_cuda_stream_priority_;
+  bool built_ = false;
+  int max_batch_size_ = 1, num_threads_ = 0, device_id_ = CPU_ONLY_DEVICE_ID;
+  bool pipelined_execution_ = false;
+  bool separated_execution_ = false;
+  bool async_execution_ = false;
+  size_t bytes_per_sample_hint_ = 0;
+  int set_affinity_ = 0;
+  int max_num_stream_ = 0;
+  int default_cuda_stream_priority_ = 0;
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
-  QueueSizes prefetch_queue_depth_;
+  QueueSizes prefetch_queue_depth_{};
   bool enable_memory_stats_ = false;
   bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
-  int original_seed_;
-  size_t current_seed_;
+  int original_seed_ = 0;
+  size_t current_seed_ = 0;
 
   std::unique_ptr<ExecutorBase> executor_;
   OpGraph graph_;
@@ -767,6 +767,10 @@ class DLL_PUBLIC Pipeline {
       TensorList<InputBackend> last_input;
       std::optional<std::string> data_id;
     };
+
+    bool empty() const {
+      return cpu_nodes_.empty() && gpu_nodes_.empty() && mixed_nodes_.empty();
+    }
 
     std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
     std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;

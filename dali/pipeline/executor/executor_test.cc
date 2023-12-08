@@ -95,9 +95,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec) {
       std::vector<std::vector<uint8_t>> results;
       for (int i = 0; i < epoch_size; i++) {
-        exec->RunCPU();
-        exec->RunMixed();
-        exec->RunGPU();
+        exec->Run();
         exec->Outputs(&ws);
 
         if (ws.OutputIsType<CPUBackend>(0)) {
@@ -474,9 +472,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -521,9 +517,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -606,9 +600,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
 
   auto run = [&src_op, &exe] (TensorList<CPUBackend> &input) {
     src_op->SetDataSource(input);
-    exe->RunCPU();
-    exe->RunMixed();
-    exe->RunGPU();
+    exe->Run();
   };
 
   auto check = [&exe, &ws, &tl, batch_size] (int batch_idx) {
@@ -713,9 +705,7 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -134,8 +134,7 @@ class CocoReaderTest : public ::testing::Test {
     }
 
     Workspace ws;
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     auto ids = CopyIds(ws, outs.size()-1);
 
@@ -588,8 +587,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
   pipe1.Build(Outputs(false, true));
 
   Workspace ws1;
-  pipe1.RunCPU();
-  pipe1.RunGPU();
+  pipe1.Run();
   pipe1.Outputs(&ws1);
 
   Pipeline pipe2(expected_size, 1, 0, kSeed);
@@ -600,8 +598,7 @@ TEST_F(CocoReaderTest, PixelwiseMasks) {
   pipe2.Build(Outputs(false, true));
 
   Workspace ws2;
-  pipe2.RunCPU();
-  pipe2.RunGPU();
+  pipe2.Run();
   pipe2.Outputs(&ws2);
 
   for (auto *ws : {&ws1, &ws2}) {
@@ -656,8 +653,7 @@ TEST_F(CocoReaderTest, BigSizeThreshold) {
   ASSERT_EQ(pipe.GetReaderMeta("coco_reader").epoch_size, this->ImagesWithBigObjects());
 
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   auto ids = this->CopyIds(ws);
@@ -677,14 +673,12 @@ TEST_F(CocoReaderTest, ShuffleAfterEpoch) {
   pipe.Build(this->Outputs());
 
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   auto ids_epoch_1 = this->CopyIds(ws);
 
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   auto ids_epoch_2 = this->CopyIds(ws);

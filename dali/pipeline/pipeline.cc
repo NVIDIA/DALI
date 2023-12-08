@@ -100,7 +100,7 @@ Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t s
                    bool set_affinity, int max_num_stream, int default_cuda_stream_priority)
     : built_(false), separated_execution_{false} {
   InitializeMemoryResources();
-  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
+  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution,
        async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
        default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
 }
@@ -136,7 +136,6 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     Init(this->max_batch_size_, this->num_threads_,
          this->device_id_, seed,
          pipelined_execution,
-         separated_execution_,
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
@@ -172,7 +171,7 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
-                    bool pipelined_execution, bool separated_execution, bool async_execution,
+                    bool pipelined_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
     // guard cudaDeviceGetStreamPriorityRange call
@@ -183,13 +182,13 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
     using Clock = std::chrono::high_resolution_clock;
     this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
     this->pipelined_execution_ = pipelined_execution;
-    this->separated_execution_ = separated_execution;
     this->async_execution_ = async_execution;
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
     this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
+    this->separated_execution_ = (prefetch_queue_depth.cpu_size != prefetch_queue_depth.gpu_size);
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
 
     int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
@@ -582,19 +581,24 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
   output_descs_ = std::move(output_descs);
 }
 
-void Pipeline::RunCPU() {
+void Pipeline::Run() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
   repeat_last_.Refeed<CPUBackend>(*this);
+  repeat_last_.Refeed<MixedBackend>(*this);
   repeat_last_.Refeed<GPUBackend>(*this);
-  executor_->RunCPU();
+  executor_->Run();
 }
 
-void Pipeline::RunGPU() {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to executing the pipeline.");
-  executor_->RunMixed();
-  executor_->RunGPU();
+void Pipeline::Prefetch() {
+  auto sz = GetQueueSizes();
+  for (int i = 0; i < sz.cpu_size; i++)
+    repeat_last_.Refeed<CPUBackend>(*this);
+  for (int i = 0; i < sz.gpu_size; i++) {
+    repeat_last_.Refeed<MixedBackend>(*this);
+    repeat_last_.Refeed<GPUBackend>(*this);
+  }
+  executor_->Prefetch();
 }
 
 bool Pipeline::ValidateOutputs(const Workspace &ws) const {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,9 +69,7 @@ TEST_F(VideoReaderTest, VariableFrameRate2) {
   pipe.Build(this->Outputs());
   EXPECT_THROW([&]() {
       for (int i = 0; i < 10; ++i) {
-        pipe.RunCPU();
-        pipe.RunGPU();
-        pipe.Outputs(&ws);
+        pipe.Run();
       }
     }(), std::runtime_error);
 }
@@ -106,8 +104,7 @@ TEST_F(VideoReaderTest, ConstantFrameRate) {
   pipe.Build(this->Outputs());
 
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   const auto &frames_output = ws.Output<dali::GPUBackend>(0);
@@ -158,8 +155,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   Workspace ws;
   pipe.Build(this->LabelledOutputs());
 
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   const auto &frames_output = ws.Output<dali::GPUBackend>(0);
@@ -216,8 +212,7 @@ TEST_F(VideoReaderTest, PackedBFrames) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_output = ws.Output<dali::GPUBackend>(0);
     const auto &frames_shape = frames_output.shape();
@@ -255,8 +250,7 @@ TEST_F(VideoReaderTest, Vp9Profile0) {
   try {
     pipe.Build(this->Outputs());
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -294,8 +288,7 @@ TEST_F(VideoReaderTest, Vp9Profile2) {
   try {
     pipe.Build(this->Outputs());
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -331,8 +324,7 @@ TEST_F(VideoReaderTest, Vp8Profile0) {
   try {
     pipe.Build(this->Outputs());
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -370,8 +362,7 @@ TEST_F(VideoReaderTest, MJpeg) {
   try {
     pipe.Build(this->Outputs());
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -410,9 +401,7 @@ TEST_F(VideoReaderTest, HEVC) {
   try {
     pipe.Build(this->Outputs());
     for (int i = 0; i < iterations; ++i) {
-      pipe.RunCPU();
-      pipe.RunGPU();
-      pipe.Outputs(&ws);
+      pipe.Run();
     }
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -450,8 +439,7 @@ TEST_F(VideoReaderTest, FrameLabels) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
@@ -496,9 +484,7 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
-    pipe.Outputs(&ws);
+    pipe.Run();
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
@@ -544,8 +530,7 @@ TEST_F(VideoReaderTest, LabelsFilenames) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
@@ -592,8 +577,7 @@ TEST_F(VideoReaderTest, FrameLabelsWithFileListFrameNum) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
@@ -654,8 +638,7 @@ TEST_F(VideoReaderTest, TimestampLabels) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
@@ -700,8 +683,7 @@ TEST_F(VideoReaderTest, StartEndLabels) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
@@ -740,8 +722,7 @@ TEST_F(VideoReaderTest, MultipleFrameRates) {
 
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
     const auto &frames_output = ws.Output<dali::GPUBackend>(0);
     const auto &frames_shape = frames_output.shape();

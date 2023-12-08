@@ -1271,8 +1271,7 @@ class Pipeline(object):
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
-            self._run_cpu()
-            self._run_gpu()
+            self._run()
         except StopIteration:
             self._last_iter = True
 
