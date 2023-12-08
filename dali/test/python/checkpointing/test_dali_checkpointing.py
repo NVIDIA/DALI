@@ -17,8 +17,10 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import webdataset_base
+import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path, compare_pipelines
+from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
@@ -944,3 +946,161 @@ def test_transforms_scale_checkpointing():
 
 def test_transforms_translation_checkpointing():
     check_no_input_operator(fn.transforms.translation, "cpu", offset=(21, 30))
+
+
+# External source
+
+
+def check_external_source_pipeline_checkpointing(pipeline_factory, iterations, compare_iterations):
+    def run_and_reset(pipe):
+        try:
+            return pipe.run()
+        except StopIteration:
+            pipe.reset()
+            return pipe.run()
+
+    def compare_external_source_pipelines(pipe1, pipe2, steps):
+        for _ in range(steps):
+            out1 = run_and_reset(pipe1)[0].as_array()
+            out2 = run_and_reset(pipe2)[0].as_array()
+            assert np.all(out1 == out2)
+
+    p1 = pipeline_factory()
+    p1.build()
+
+    for _ in range(iterations):
+        run_and_reset(p1)
+
+    cpt = p1.checkpoint()
+    p2 = pipeline_factory(checkpoint=cpt)
+    p2.build()
+    compare_external_source_pipelines(p1, p2, compare_iterations)
+
+
+def check_external_source_pipeline_checkpointing_pytorch(pipeline_factory, iterations, *, size=-1):
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator
+
+    def run(iterator, iterations):
+        completed_iterations = 0
+        while completed_iterations < iterations:
+            for _ in iterator:
+                completed_iterations += 1
+                if completed_iterations == iterations:
+                    break
+
+    pipeline = pipeline_factory()
+    pipeline.build()
+
+    iter = DALIGenericIterator(pipeline, ["data"], auto_reset=True, size=size)
+
+    run(iter, iterations)
+
+    restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
+    restored.build()
+    iter2 = DALIGenericIterator(restored, ["data"], auto_reset=True, size=size)
+
+    for out1, out2 in zip(iter, iter2):
+        for d1, d2 in zip(out1, out2):
+            for key in d1.keys():
+                assert (d1[key] == d2[key]).all()
+
+
+def make_external_source_test_pipeline_factory(source, mode, batch_size, parallel, **kwargs):
+    kwargs["parallel"] = parallel
+    if mode == "idx":
+        kwargs["batch"] = True
+        kwargs["batch_info"] = False
+    elif mode == "batch_info":
+        kwargs["batch"] = True
+        kwargs["batch_info"] = True
+    elif mode == "sample_info":
+        kwargs["batch"] = False
+        kwargs["batch_info"] = False
+    else:
+        assert False, "Unknown mode!"
+
+    @pipeline_def(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        enable_checkpointing=True,
+        py_start_method="spawn",
+    )
+    def pipeline_factory():
+        return fn.external_source(source=source, **kwargs)
+
+    return pipeline_factory
+
+
+def make_dummy_source(epoch_size, batch_size, mode):
+    if mode == "idx":
+
+        def src(idx):
+            if idx >= epoch_size:
+                raise StopIteration()
+            return [np.asarray([idx, i]) for i in range(batch_size)]
+
+    elif mode == "batch_info":
+
+        def src(idx):
+            if idx.iteration >= epoch_size:
+                raise StopIteration()
+            return [np.asarray([idx.epoch_idx, idx.iteration, i]) for i in range(batch_size)]
+
+    elif mode == "sample_info":
+
+        def src(idx):
+            if idx.idx_in_epoch >= epoch_size * batch_size:
+                raise StopIteration()
+            return np.asarray([idx.epoch_idx, idx.iteration, idx.idx_in_epoch, idx.idx_in_batch])
+
+    return src
+
+
+@cartesian_params(
+    ((1, 1), (3, 4)),  # (epoch size, batch size)
+    (0, 3, 15),  # test iterations
+    ("idx", "batch_info", "sample_info"),  # indexing mode
+    (True, False),  # parallel
+)
+def test_external_source_checkpointing(dataset_info, iterations, mode, parallel):
+    epoch_size, batch_size = dataset_info
+    source = make_dummy_source(epoch_size, batch_size, mode)
+    pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
+    check_external_source_pipeline_checkpointing(pf, iterations, 2 * epoch_size)
+
+
+@attr("pytorch")
+@cartesian_params(
+    ((1, 1), (4, 5)),  # (epoch size, batch size)
+    (0, 4, 11),  # test iterations
+    ("idx", "batch_info", "sample_info"),  # indexing mode
+    (True, False),  # parallel
+)
+def test_external_source_checkpointing_pytorch(dataset_info, iterations, mode, parallel):
+    epoch_size, batch_size = dataset_info
+    source = make_dummy_source(epoch_size, batch_size, mode)
+    pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
+    check_external_source_pipeline_checkpointing_pytorch(pf, iterations)
+
+
+@cartesian_params(
+    ("iterator", "iterable", "callable"),  # source kind
+    (True, False),  # parallel
+)
+def test_external_source_unsupported(kind, parallel):
+    if kind == "iterator":
+        source = iter([1, 2, 3])
+    elif kind == "iterable":
+        source = [1, 2, 3]
+    elif kind == "callable":
+
+        def source():
+            return 42
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0, enable_checkpointing=True)
+    def pipeline():
+        return fn.external_source(source=source)
+
+    with assert_warns(glob="DALI doesn't capture state of such 'source'."):
+        pipeline().build()

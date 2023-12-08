@@ -22,6 +22,7 @@ from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
+from nvidia.dali._utils.external_source_impl import SourceKind as _SourceKind
 from threading import local as tls
 from . import data_node as _data_node
 import atexit
@@ -269,6 +270,8 @@ class Pipeline(object):
         self._last_iter = False
         self._iter = 0
         self._epoch_idx = 0
+        self._consumer_iter = 0
+        self._consumer_epoch_idx = 0
         self._batches_to_consume = 0
         self._cpu_batches_to_consume = 0
         self._gpu_batches_to_consume = 0
@@ -300,6 +303,7 @@ class Pipeline(object):
         self._enable_checkpointing = enable_checkpointing
         self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
+        self._is_restored_from_checkpoint = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
@@ -456,6 +460,11 @@ class Pipeline(object):
     def gpu_queue_size(self):
         """The number of iterations processed ahead by the GPU stage."""
         return self._gpu_queue_size
+
+    @property
+    def is_restored_from_checkpoint(self):
+        """If True, this pipeline was restored from checkpoint."""
+        return self._is_restored_from_checkpoint
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
@@ -833,6 +842,31 @@ class Pipeline(object):
                     Warning,
                 )
 
+    def _check_checkpointing_support(self):
+        if not self._enable_checkpointing:
+            return
+
+        for group in self._input_callbacks:
+            kind = group.source_desc.kind
+            has_inputs = group.source_desc.has_inputs
+            checkpointing_supported = kind == _SourceKind.CALLABLE and has_inputs
+
+            if not checkpointing_supported:
+                reason = "with unsupported 'source'"
+                if kind != _SourceKind.CALLABLE:
+                    reason = f"with {kind} as a 'source'"
+                elif not has_inputs:
+                    reason = "with parameterless callable as a 'source'"
+
+                warnings.warn(
+                    "Checkpointing enabled in a pipeline with external source operator, "
+                    f"{reason}. "
+                    "DALI doesn't capture state of such 'source'. When loading the checkpoint, "
+                    "the 'source' must be manually adjusted by the user to start from the "
+                    "correct point, otherwise it will start from the beginning, "
+                    "potentially leading to mismatch with other data sources."
+                )
+
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
 
@@ -856,6 +890,8 @@ class Pipeline(object):
             # the worker doesn't get busy with other tasks when dedicated tasks arrive
             self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
             self._seq_input_callbacks = [group for group in groups if not group.parallel]
+
+        self._check_checkpointing_support()
 
     def start_py_workers(self):
         """
@@ -887,7 +923,14 @@ class Pipeline(object):
 
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
-            self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+            external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
+            self._consumer_epoch_idx = self._epoch_idx = external_ctx_cpt.epoch_idx
+            self._consumer_iter = self._iter = external_ctx_cpt.iter
+            if self._input_callbacks:
+                for group in self._input_callbacks:
+                    group.current_iter = external_ctx_cpt.iter
+                    group.current_sample = external_ctx_cpt.iter * self._max_batch_size
+            self._is_restored_from_checkpoint = True
 
     def build(self):
         """Build the pipeline.
@@ -1049,7 +1092,10 @@ class Pipeline(object):
             A list of `TensorList` objects for respective pipeline outputs
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
+            self._consumer_iter += 1
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                self._consumer_iter = 0
+                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             self._gpu_batches_to_consume -= 1
@@ -1096,7 +1142,10 @@ class Pipeline(object):
             A list of `TensorList` objects for respective pipeline outputs
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
+            self._consumer_iter += 1
             if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+                self._consumer_iter = 0
+                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             self._gpu_batches_to_consume -= 1
@@ -1487,7 +1536,10 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-        ret = self._pipe.SerializedCheckpoint()
+        external_ctx_cpt = b.ExternalContextCheckpoint()
+        external_ctx_cpt.epoch_idx = self._consumer_epoch_idx
+        external_ctx_cpt.iter = self._consumer_iter
+        ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
                 checkpoint_file.write(ret)

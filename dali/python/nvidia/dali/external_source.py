@@ -360,6 +360,11 @@ Args
     queued. If no stream is provided, DALI will use a default, with a best-effort approach at
     correctness. See the ``cuda_stream`` argument documentation for more information.
 
+    .. note::
+        After restoring from checkpoint, queries to sources that are single-argument callables
+        (accepting :class:`nvidia.dali.types.SampleInfo`, :class:`nvidia.dali.types.BatchInfo`
+        or batch index) will be resumed from the epoch and iteration saved in the checkpoint.
+
 `num_outputs` : int, optional
     If specified, denotes the number of TensorLists that are produced by the source function.
 

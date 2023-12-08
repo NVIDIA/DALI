@@ -308,9 +308,13 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Returns a serialized Checkpoint
+   *
+   * @param external_ctx_cpt Additional information from python side to be included
    */
-  DLL_PUBLIC string SerializedCheckpoint() const {
-    return GetCheckpoint().SerializeToProtobuf(graph_);
+  DLL_PUBLIC string SerializedCheckpoint(const ExternalContextCheckpoint &external_ctx_cpt) const {
+    auto cpt = GetCheckpoint();
+    cpt.external_ctx_cpt_ = external_ctx_cpt;
+    return cpt.SerializeToProtobuf(graph_);
   }
 
   /**
@@ -331,14 +335,18 @@ class DLL_PUBLIC Pipeline {
    * @brief Restores pipeline state from a serialized Checkpoint
    *
    * Should be called before building.
+   *
+   * @return Extra context which was passed to SerializedCheckpoint when creating the checkpoint
   */
-  DLL_PUBLIC void RestoreFromSerializedCheckpoint(const std::string &serialized_checkpoint) {
+  DLL_PUBLIC ExternalContextCheckpoint RestoreFromSerializedCheckpoint(
+      const std::string &serialized_checkpoint) {
     DALI_ENFORCE(checkpointing_,
                  "Cannot restore checkpoint. The `enable_checkpointing` was not "
                  "specified when creating the pipeline");
     Checkpoint cpt;
     cpt.DeserializeFromProtobuf(graph_, serialized_checkpoint);
     RestoreFromCheckpoint(cpt);
+    return cpt.external_ctx_cpt_;
   }
 
   /**

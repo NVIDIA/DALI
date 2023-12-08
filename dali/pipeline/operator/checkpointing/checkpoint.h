@@ -25,6 +25,14 @@ namespace dali {
 class OpGraph;
 
 /**
+ * @brief Pipeline-wide state, passed from python side
+*/
+struct DLL_PUBLIC ExternalContextCheckpoint {
+  int epoch_idx;  // Epoch index, as counted by python Pipeline
+  int iter;       // Iteration, as counted by python Pipeline
+};
+
+/**
  * @brief Aggregation of operator checkpoints for a whole pipeline.
  */
 class DLL_PUBLIC Checkpoint {
@@ -69,6 +77,8 @@ class DLL_PUBLIC Checkpoint {
    * @brief Deserializes a protobuf message and builds this object.
   */
   DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
+
+  ExternalContextCheckpoint external_ctx_cpt_;
 
  private:
   std::vector<OpCheckpoint> cpts_;

@@ -34,6 +34,18 @@ class ExternalSource : public InputOperator<Backend> {
   using Operator<Backend>::spec_;
 
  public:
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {}
+
+  void RestoreState(const OpCheckpoint &cpt) override {}
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override { return {}; }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    DALI_ENFORCE(data.empty(),
+                 "Provided checkpoint contains non-empty data for a stateless operator. "
+                 "The checkpoint might come from another pipeline. ");
+  }
+
   explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
         repeats_last_(spec.GetArgument<bool>("repeat_last")),
