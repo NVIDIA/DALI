@@ -52,7 +52,7 @@ Optionally, you can pass filename as an argument and DALI will save the checkpoi
   checkpoint = p.checkpoint('checkpoint_file.cpt')
 
 .. note::
-    Calling :meth:`Pipeline.checkpoint method` may introduce an observable overhead.
+    Calling :meth:`Pipeline.checkpoint` method may introduce an observable overhead.
     We recommend you not to call it too often.
 
 Restoring from checkpoint
