@@ -372,7 +372,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit RandomBBoxCropImpl(const OpSpec *spec)
+  RandomBBoxCropImpl(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
       : spec_(*spec),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
@@ -382,7 +382,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
-        rngs_(spec_.GetArgument<int64_t>("seed"), spec_.GetArgument<int>("max_batch_size")) {
+        rngs_(rng) {
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
@@ -876,7 +876,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
 
-  BatchRNG<std::mt19937> rngs_;
+  BatchRNG<std::mt19937_64> &rngs_;
 
   std::vector<SampleOption> sample_options_;
 
@@ -899,7 +899,7 @@ RandomBBoxCrop<CPUBackend>::~RandomBBoxCrop() = default;
 
 template <>
 RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {}
+    : OperatorWithRng<CPUBackend>(spec) {}
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -925,7 +925,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (impl_ == nullptr || impl_ndim_ != num_dims) {
     VALUE_SWITCH(num_dims, ndim, (2, 3),
-      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_);),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, rng_);),
       (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
     impl_ndim_ = num_dims;
   }

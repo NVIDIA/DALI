@@ -25,16 +25,16 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
 namespace dali {
 
 template <typename Backend>
-class SSDRandomCrop : public Operator<Backend> {
+class SSDRandomCrop : public rng::OperatorWithRng<Backend> {
  public:
   explicit inline SSDRandomCrop(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    rng::OperatorWithRng<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
-    rngs_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
@@ -88,7 +88,6 @@ class SSDRandomCrop : public Operator<Backend> {
   int num_attempts_;
 
   // RNG stuff
-  BatchRNG<std::mt19937> rngs_;
   std::uniform_int_distribution<> int_dis_;
   std::uniform_real_distribution<float> float_dis_;
 };

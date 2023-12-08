@@ -43,9 +43,9 @@ struct BlockDesc {
   int64_t p_count;
 };
 
-template <bool IsNoiseGen>
-struct RNGBaseFields<GPUBackend, IsNoiseGen> {
-  RNGBaseFields<GPUBackend, IsNoiseGen>(int64_t seed, int max_batch_size,
+template<>
+struct OperatorWithRngFields<GPUBackend> {
+  OperatorWithRngFields<GPUBackend>(int64_t seed, int max_batch_size,
                                         int64_t static_sample_size = -1)
       : block_size_(static_sample_size < 0 ? 256 : std::min<int64_t>(static_sample_size, 256)),
         max_blocks_(static_sample_size < 0 ?

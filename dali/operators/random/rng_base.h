@@ -26,78 +26,75 @@
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/util/randomizer.cuh"
+#include "dali/operators/random/rng_checkpointing_utils.h"
 
 namespace dali {
 namespace rng {
 
-template <typename Backend, bool IsNoiseGen>
-struct RNGBaseFields;
+template <typename Backend>
+struct OperatorWithRngFields;
 
-template <typename Backend, typename Impl, bool IsNoiseGen>
-class RNGBase : public Operator<Backend> {
+
+template<typename Backend, bool RngPerSample = true>
+class OperatorWithRng : public Operator<Backend>{
  public:
+  using CheckpointType = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
+                                            BatchRNG<std::mt19937_64>, curand_states>;
+  using CheckpointUtils = RngCheckpointUtils<Backend, CheckpointType>;
+
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      cpt.MutableCheckpointState() = rng_;
+      CheckpointUtils::SaveState(cpt, order, rng_);
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
-      cpt.SetOrder(order);
-      cpt.MutableCheckpointState() = backend_data_.randomizer_.copy(order);
+      CheckpointUtils::SaveState(cpt, order, backend_data_.randomizer_);
     }
   }
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      const auto &rng = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
-      DALI_ENFORCE(rng.BatchSize() == max_batch_size_,
-                  "Provided checkpoint doesn't match the expected batch size. "
-                  "Perhaps the batch size setting changed? ");
-      rng_ = rng;
+      CheckpointUtils::RestoreState(cpt, rng_);
     } else {
       static_assert(std::is_same_v<Backend, GPUBackend>);
-      const auto &states_gpu = cpt.CheckpointState<curand_states>();
-      DALI_ENFORCE(states_gpu.length() == backend_data_.randomizer_.length(),
-                   "Provided checkpoint doesn't match the expected batch size. "
-                   "Perhaps the batch size setting changed? ");
-      backend_data_.randomizer_.set(states_gpu);
+      CheckpointUtils::RestoreState(cpt, backend_data_.randomizer_);
     }
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      const auto &state = cpt.CheckpointState<BatchRNG<std::mt19937_64>>();
-      return SnapshotSerializer().Serialize(state.ToVector());
-    } else {
-      static_assert(std::is_same_v<Backend, GPUBackend>);
-      const auto &states_gpu = cpt.CheckpointState<curand_states>();
-      size_t n = states_gpu.length();
-      std::vector<curandState> states(n);
-      cudaMemcpy(states.data(), states_gpu.states(), n * sizeof(curandState),
-                 cudaMemcpyDeviceToHost);
-      return SnapshotSerializer().Serialize(states);
-    }
+    return CheckpointUtils::SerializeCheckpoint(cpt);
   }
 
   void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      auto deserialized = SnapshotSerializer().Deserialize<std::vector<std::mt19937_64>>(data);
-      cpt.MutableCheckpointState() = BatchRNG<std::mt19937_64>::FromVector(deserialized);
-    } else {
-      static_assert(std::is_same_v<Backend, GPUBackend>);
-      auto deserialized = SnapshotSerializer().Deserialize<std::vector<curandState>>(data);
-      curand_states states(deserialized.size());
-      cudaMemcpy(states.states(), deserialized.data(), sizeof(curandState) * deserialized.size(),
-                 cudaMemcpyHostToDevice);
-      cpt.MutableCheckpointState() = states;
-    }
+    CheckpointUtils::DeserializeCheckpoint(cpt, data);
   }
 
  protected:
-  explicit RNGBase(const OpSpec &spec)
-      : Operator<Backend>(spec),
-        rng_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
-        backend_data_(spec.GetArgument<int64_t>("seed"), max_batch_size_) {
+  size_t RngsCount() {
+    if constexpr (RngPerSample) {
+      return max_batch_size_;
+    } else {
+      return 1;
+    }
   }
+
+  explicit OperatorWithRng(const OpSpec &spec)
+      : Operator<Backend>(spec),
+        rng_(spec.GetArgument<int64_t>("seed"), RngsCount()),
+        backend_data_(spec.GetArgument<int64_t>("seed"), RngsCount()) {}
+
+  using Operator<Backend>::max_batch_size_;
+  using Operator<Backend>::spec_;
+
+  BatchRNG<std::mt19937_64> rng_;
+  OperatorWithRngFields<Backend> backend_data_;
+};
+
+
+template <typename Backend, typename Impl, bool IsNoiseGen>
+class RNGBase : public OperatorWithRng<Backend> {
+ protected:
+  explicit RNGBase(const OpSpec &spec)
+      : OperatorWithRng<Backend>(spec) {}
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
   const Impl &This() const noexcept { return static_cast<const Impl&>(*this); }
@@ -169,13 +166,13 @@ class RNGBase : public Operator<Backend> {
     RunImplTyped<T, Dist>(ws, Backend{});
   }
 
-  using Operator<Backend>::spec_;
-  using Operator<Backend>::max_batch_size_;
+  using OperatorWithRng<Backend>::spec_;
+  using OperatorWithRng<Backend>::max_batch_size_;
+  using OperatorWithRng<Backend>::rng_;
+  using OperatorWithRng<Backend>::backend_data_;
 
   DALIDataType dtype_ = DALI_NO_TYPE;
-  BatchRNG<std::mt19937_64> rng_;
   TensorListShape<> shape_;
-  RNGBaseFields<Backend, IsNoiseGen> backend_data_;
 };
 
 }  // namespace rng

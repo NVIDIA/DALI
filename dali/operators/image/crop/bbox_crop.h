@@ -19,12 +19,13 @@
 #include <vector>
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
 template <typename Backend>
-class RandomBBoxCrop : public Operator<Backend> {
+class RandomBBoxCrop : public rng::OperatorWithRng<Backend> {
  public:
   explicit inline RandomBBoxCrop(const OpSpec &spec);
   ~RandomBBoxCrop() override;
