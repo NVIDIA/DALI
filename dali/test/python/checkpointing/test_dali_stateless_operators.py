@@ -104,7 +104,7 @@ def move_to(tensor, device):
 
 
 def check_single_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
         return op(move_to(data, device), device=device, **kwargs)
@@ -113,7 +113,7 @@ def check_single_input(op, device, **kwargs):
 
 
 def check_single_sequence_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(
             source=RandomBatch(data_shape=test_sequence_shape), layout="FHWC", batch=True
@@ -124,7 +124,7 @@ def check_single_sequence_input(op, device, **kwargs):
 
 
 def check_single_signal_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(
             source=RandomBatch(data_shape=[30, 40], dtype=np.float32), layout="ft", batch=True
@@ -135,7 +135,7 @@ def check_single_signal_input(op, device, **kwargs):
 
 
 def check_single_1d_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(
             source=RandomBatch(data_shape=[100], dtype=np.float32), batch=True
@@ -146,7 +146,7 @@ def check_single_1d_input(op, device, **kwargs):
 
 
 def check_single_encoded_jpeg_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         img = os.path.join(get_dali_extra_path(), "db/single/jpeg/100/swan-3584559_640.jpg")
         jpegs, _ = fn.readers.file(files=[img], pad_last_batch=True)
@@ -156,7 +156,7 @@ def check_single_encoded_jpeg_input(op, device, **kwargs):
 
 
 def check_single_encoded_audio_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         wav = os.path.join(get_dali_extra_path(), "db/audio/wav/237-134500-0000.wav")
         audio, _ = fn.readers.file(files=[wav], pad_last_batch=True)
@@ -166,7 +166,7 @@ def check_single_encoded_audio_input(op, device, **kwargs):
 
 
 def check_single_bbox_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBoundingBoxBatch(), batch=True)
         return op(move_to(data, device), device=device, **kwargs)
@@ -175,7 +175,7 @@ def check_single_bbox_input(op, device, **kwargs):
 
 
 def check_no_input(op, device, **kwargs):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return op(device=device, **kwargs)
 
@@ -364,7 +364,7 @@ def test_transforms_translation_stateless():
 @params("cpu", "gpu")
 @stateless_signed_off("coord_transform")
 def test_coord_transform(device):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch((5, 2)), layout="NX")
         if device == "gpu":
@@ -376,7 +376,7 @@ def test_coord_transform(device):
 
 @stateless_signed_off("transforms.combine")
 def test_transforms_combine_stateless():
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         scale = fn.transforms.scale(scale=(3, 2))
         shear = fn.transforms.shear(shear=(2, 2))
@@ -452,41 +452,44 @@ def test_gaussian_blur_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("water")
 def test_water_stateless(device):
-    check_single_input(fn.water, device, window_size=3)
+    check_single_input(fn.water, device)
 
 
 @params("cpu", "gpu")
 @stateless_signed_off("sphere")
 def test_sphere_stateless(device):
-    check_single_input(fn.sphere, device, window_size=3)
+    check_single_input(fn.sphere, device)
 
 
 @params("cpu", "gpu")
 @stateless_signed_off("experimental.filter")
 def test_filter_stateless(device):
     check_single_input(
-        lambda x, **kwargs: fn.gaussian_blur(x, np.full((3, 3), 1 / 9), **kwargs),
+        lambda x, **kwargs: fn.experimental.filter(x, np.full((3, 3), 1 / 9), **kwargs),
         device,
-        window_size=3,
     )
 
 
 @stateless_signed_off("experimental.remap")
 def test_remap_stateless():
-    check_single_input(
-        lambda x, **kwargs: fn.experimental.remap(
-            x,
-            fn.cast(x[:, :, 0], dtype=types.DALIDataType.FLOAT),
-            fn.cast(x[:, :, 0], dtype=types.DALIDataType.FLOAT),
-            **kwargs,
-        ),
-        "gpu",
-    )
+    rng = np.random.default_rng(42)
+    np_map_x = 244 * rng.uniform(size=(244, 150))
+    np_map_y = 150 * rng.uniform(size=(244, 150))
+
+    @pipeline_def(enable_checkpointing=True)
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch((244, 150, 3)), layout="HWC")
+        data = data.gpu()
+        map_x = types.Constant(np_map_x).gpu()
+        map_y = types.Constant(np_map_y).gpu()
+        return fn.experimental.remap(data, map_x, map_y)
+
+    check_is_pipeline_stateless(pipeline_factory)
 
 
 @stateless_signed_off("experimental.debayer")
 def test_debayer_stateless():
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
         return fn.experimental.debayer(data.gpu(), blue_position=[0, 0])
@@ -685,7 +688,13 @@ def test_expand_dims(device):
 @params("cpu", "gpu")
 @stateless_signed_off("squeeze")
 def test_squeeze(device):
-    check_single_input(fn.squeeze, device, axes=[0])
+    @pipeline_def(enable_checkpointing=True)
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch((40, 1, 50, 1)), layout="DHWC")
+        data = move_to(data, device)
+        return fn.squeeze(data, axis_names="HC")
+
+    check_is_pipeline_stateless(pipeline_factory)
 
 
 @params("cpu", "gpu")
@@ -704,7 +713,7 @@ def test_select_masks_stateless():
     vertices = np.asarray([[i, i + 1] for i in range(n)])
     mask_ids = np.asarray([i for i in range(n) if i % 2 == 0])
 
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return tuple(fn.segmentation.select_masks(mask_ids, polygons, vertices))
 
@@ -719,7 +728,7 @@ def test_box_encoder_stateless(device):
     labels = np.asarray(list(range(n)))
     anchors = [float(i) for i in range(4)]
 
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return tuple(fn.box_encoder(boxes, labels, anchors=anchors, device=device))
 
@@ -755,7 +764,7 @@ def test_numba_function_stateless():
     def double_sample(out_sample, in_sample):
         out_sample[:] = 2 * in_sample[:]
 
-    @pipeline_def(batch_size=2, device_id=0, num_threads=4, enable_checkpointing=False)
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4, enable_checkpointing=True)
     def numba_pipe():
         forty_two = fn.external_source(
             source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
@@ -790,7 +799,7 @@ def test_inflate_stateless():
 
     input_shape = [np.array(sample.shape, dtype=np.int32) for sample in batch]
 
-    @pipeline_def
+    @pipeline_def(enable_checkpointing=True)
     def pipeline():
         deflated = fn.external_source(source=itertools.repeat(input_data))
         shape = fn.external_source(source=itertools.repeat(input_shape))
@@ -858,7 +867,7 @@ def test_experimental_image_decoder_slice_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("coord_flip")
 def test_coord_flip_stateless(device):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         input = np.array([[1], [2], [3]], dtype=np.float32)
         return fn.coord_flip(input, flip_x=True, center_x=0, device=device)
@@ -869,7 +878,7 @@ def test_coord_flip_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("cast_like")
 def test_cast_like_stateless(device):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return fn.cast_like(
             np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32), device=device
@@ -881,7 +890,7 @@ def test_cast_like_stateless(device):
 @params("cpu", "gpu")
 @stateless_signed_off("cast")
 def test_cast_stateless(device):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         return fn.cast(
             np.array([1, 2, 3], dtype=np.int32),
@@ -915,7 +924,7 @@ def arithm_ops_outputs(data):
 @params("cpu", "gpu")
 @stateless_signed_off("hidden.arithmetic_generic_op", "arithmetic_generic_op")
 def test_arithm_ops_stateless_cpu(device):
-    @pipeline_def(enable_checkpointing=False)
+    @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
         return arithm_ops_outputs(move_to(data, device))
@@ -935,9 +944,11 @@ def test_arithm_ops_stateless_cpu(device):
     "_conditional.validate_logical",
 )
 def test_split_and_merge(device):
-    @pipeline_def(enable_conditionals=True, enable_checkpointing=False)
+    @pipeline_def(enable_conditionals=True, enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
+        if device == "gpu":
+            data = data.gpu()
         condition_1 = fn.external_source(source=RandomBatch(data_shape=()))
         condition_2 = fn.external_source(source=RandomBatch(data_shape=()))
         condition_3 = fn.external_source(source=RandomBatch(data_shape=()))
@@ -952,9 +963,11 @@ def test_split_and_merge(device):
 @params("cpu", "gpu")
 @stateless_signed_off("_conditional.merge", "_conditional.split")
 def test_split_and_merge(device):
-    @pipeline_def(enable_conditionals=True, enable_checkpointing=False)
+    @pipeline_def(enable_conditionals=True, enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout="HWC")
+        if device == "gpu":
+            data = data.gpu()
         condition = fn.external_source(source=RandomBatch(data_shape=()))
         if condition:
             return data
