@@ -16,10 +16,12 @@ if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.plugins.attrib.collections = collections.abc
 
 if sys.version_info >= (3, 11):
+    from collections import namedtuple
 
     def legacy_getargspec(fun):
         args, varargs, varkw, defaults, *_ = inspect.getfullargspec(fun)
-        return (args, varargs, varkw, defaults)
+        ArgSpec = namedtuple("ArgSpec", "args varargs keywords defaults")
+        return ArgSpec(args, varargs, varkw, defaults)
 
     inspect.getargspec = legacy_getargspec
 
