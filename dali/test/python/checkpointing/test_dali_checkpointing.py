@@ -23,6 +23,7 @@ from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
+from reader.test_numpy import is_gds_supported
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
@@ -581,16 +582,22 @@ def test_nemo_asr_reader(
     ("cpu", 3, 8, 1, 4, True, False, False, True, 1),
     ("cpu", 2, 1, 1, 2, True, False, True, False, None),
     ("cpu", 0, 2, 0, 1, True, False, True, True, 2),
-    ("gpu", 2, 1, 1, 2, False, False, False, False, None),
-    ("gpu", 5, 2, 0, 5, False, False, False, True, 1),
-    ("gpu", 3, 4, 2, 3, False, False, True, False, 2),
-    ("gpu", 6, 8, 3, 5, False, False, True, True, 3),
-    ("gpu", 7, 1, 1, 4, False, True, False, False, 4),
-    ("gpu", 3, 2, 2, 4, False, True, False, True, 3),
-    ("gpu", 3, 4, 2, 5, True, False, False, False, 2),
-    ("gpu", 4, 8, 0, 2, True, False, False, True, 1),
-    ("gpu", 1, 1, 2, 3, True, False, True, False, None),
-    ("gpu", 0, 2, 0, 2, True, False, True, True, 2),
+    *(
+        [
+            ("gpu", 2, 1, 1, 2, False, False, False, False, None),
+            ("gpu", 5, 2, 0, 5, False, False, False, True, 1),
+            ("gpu", 3, 4, 2, 3, False, False, True, False, 2),
+            ("gpu", 6, 8, 3, 5, False, False, True, True, 3),
+            ("gpu", 7, 1, 1, 4, False, True, False, False, 4),
+            ("gpu", 3, 2, 2, 4, False, True, False, True, 3),
+            ("gpu", 3, 4, 2, 5, True, False, False, False, 2),
+            ("gpu", 4, 8, 0, 2, True, False, False, True, 1),
+            ("gpu", 1, 1, 2, 3, True, False, True, False, None),
+            ("gpu", 0, 2, 0, 2, True, False, True, True, 2),
+        ]
+        if is_gds_supported()
+        else []
+    ),
 )
 def test_numpy_reader(
     device,
