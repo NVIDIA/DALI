@@ -22,6 +22,7 @@ import nvidia.dali as dali
 from nvidia.dali import fn, pipeline_def, types
 from test_utils import (
     compare_pipelines,
+    create_sign_off_decorator,
     get_dali_extra_path,
     check_numba_compatibility_cpu,
     has_operator,
@@ -41,28 +42,7 @@ test_data_frames = 24
 test_sequence_shape = [test_data_frames, 426, 240, 3]  # 240p video
 
 
-def create_sign_off_decorator():
-    _tested_ops = []
-
-    class SignOff:
-        def __call__(self, *op_names):
-            assert all(isinstance(op_name, str) for op_name in op_names)
-            assert len(op_names)
-            _tested_ops.extend(op_names)
-
-            def dummy(fn):
-                return fn
-
-            return dummy
-
-        @property
-        def tested_ops(self):
-            return set(_tested_ops)
-
-    return SignOff()
-
-
-signed_off = create_sign_off_decorator()
+stateless_signed_off = create_sign_off_decorator()
 
 
 def tensor_list_to_array(tensor_list):
@@ -218,37 +198,49 @@ def test_stateful(device):
 
 
 @params("cpu", "gpu")
-@signed_off("rotate")
+@stateless_signed_off("rotate")
 def test_rotate_stateless(device):
     check_single_input(fn.rotate, device, angle=40)
 
 
 @params("cpu", "gpu")
-@signed_off("resize")
+@stateless_signed_off("resize")
 def test_resize_stateless(device):
     check_single_input(fn.resize, device, resize_x=50, resize_y=50)
 
 
 @params("cpu", "gpu")
-@signed_off("flip")
+@stateless_signed_off("experimental.tensor_resize")
+def test_tensor_resize_stateless(device):
+    check_single_input(fn.experimental.tensor_resize, device, axes=[0, 1], sizes=[40, 40])
+
+
+@params("cpu", "gpu")
+@stateless_signed_off("flip")
 def test_flip_stateless(device):
     check_single_input(fn.flip, device)
 
 
 @params("cpu", "gpu")
-@signed_off("crop_mirror_normalize")
-def test_crop_mirror_normalize_stateless(device):
-    check_single_input(fn.crop_mirror_normalize, device)
+@stateless_signed_off("crop")
+def test_crop_stateless(device):
+    check_single_input(fn.crop, device, crop=(20, 20))
 
 
 @params("cpu", "gpu")
-@signed_off("warp_affine")
+@stateless_signed_off("crop_mirror_normalize")
+def test_crop_mirror_normalize_stateless(device):
+    check_single_input(fn.crop_mirror_normalize, device, crop=(20, 20), mirror=True)
+
+
+@params("cpu", "gpu")
+@stateless_signed_off("warp_affine")
 def test_warp_affine_stateless(device):
     check_single_input(fn.warp_affine, device, matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
 
 
 @params("cpu", "gpu")
-@signed_off("color_twist")
+@stateless_signed_off("color_twist")
 def test_color_twist_stateless(device):
     check_single_input(
         fn.color_twist,
@@ -261,7 +253,7 @@ def test_color_twist_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("hsv")
+@stateless_signed_off("hsv")
 def test_hsv_stateless(device):
     check_single_input(
         fn.hsv,
@@ -273,104 +265,106 @@ def test_hsv_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("hue")
+@stateless_signed_off("hue")
 def test_hue_stateless(device):
     check_single_input(fn.hue, device, hue=-90)
 
 
 @params("cpu", "gpu")
-@signed_off("saturation")
+@stateless_signed_off("saturation")
 def test_saturation_stateless(device):
     check_single_input(fn.saturation, device)
 
 
 @params("cpu", "gpu")
-@signed_off("brightness_contrast", "brightness", "contrast")
+@stateless_signed_off("brightness_contrast", "brightness", "contrast")
 def test_brightness_contrast_stateless(device):
     check_single_input(fn.brightness_contrast, device, brightness=0.7, contrast=1.7)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.min")
+@stateless_signed_off("reductions.min")
 def test_reductions_min_stateless(device):
     check_single_input(fn.reductions.min, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.max")
+@stateless_signed_off("reductions.max")
 def test_reductions_max_stateless(device):
     check_single_input(fn.reductions.max, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.sum")
+@stateless_signed_off("reductions.sum")
 def test_reductions_sum_stateless(device):
     check_single_input(fn.reductions.sum, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.mean")
+@stateless_signed_off("reductions.mean")
 def test_reductions_mean_stateless(device):
     check_single_input(fn.reductions.mean, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.mean_square")
+@stateless_signed_off("reductions.mean_square")
 def test_reductions_mean_square_stateless(device):
     check_single_input(fn.reductions.mean_square, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.rms")
+@stateless_signed_off("reductions.rms")
 def test_reductions_rms_stateless(device):
     check_single_input(fn.reductions.rms, device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.std_dev")
+@stateless_signed_off("reductions.std_dev")
 def test_reductions_std_dev_stateless(device):
     check_single_input(lambda x, **kwargs: fn.reductions.std_dev(x, 0.0, **kwargs), device)
 
 
 @params("cpu", "gpu")
-@signed_off("reductions.variance")
+@stateless_signed_off("reductions.variance")
 def test_reductions_variance_stateless(device):
     check_single_input(lambda x, **kwargs: fn.reductions.variance(x, 5.0, **kwargs), device)
 
 
 @params("cpu", "gpu")
-@signed_off("experimental.equalize")
+@stateless_signed_off("experimental.equalize")
 def test_equalize_stateless(device):
     check_single_input(fn.experimental.equalize, device)
 
 
-@signed_off("transforms.crop")
+@stateless_signed_off("transforms.crop")
 def test_transforms_crop_stateless():
     check_no_input(fn.transforms.crop, "cpu")
 
 
-@signed_off("transforms.rotation")
+@stateless_signed_off("transforms.rotation")
 def test_transforms_rotation_stateless():
     check_no_input(fn.transforms.rotation, "cpu", angle=35)
 
 
-@signed_off("transforms.shear")
+@stateless_signed_off("transforms.shear")
 def test_transforms_shear_stateless():
     check_no_input(fn.transforms.shear, "cpu", shear=(2, 2))
 
 
-@signed_off("transforms.scale")
+@stateless_signed_off("transforms.scale")
 def test_transforms_scale_stateless():
     check_no_input(fn.transforms.scale, "cpu", scale=(3, 2))
 
 
-@signed_off("transforms.translation", "hidden.transform_translation", "transform_translation")
+@stateless_signed_off(
+    "transforms.translation", "hidden.transform_translation", "transform_translation"
+)
 def test_transforms_translation_stateless():
     check_no_input(fn.transforms.translation, "cpu", offset=(4, 3))
 
 
 @params("cpu", "gpu")
-@signed_off("coord_transform")
+@stateless_signed_off("coord_transform")
 def test_coord_transform(device):
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -382,7 +376,7 @@ def test_coord_transform(device):
     check_is_pipeline_stateless(pipeline_factory)
 
 
-@signed_off("transforms.combine")
+@stateless_signed_off("transforms.combine")
 def test_transforms_combine_stateless():
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -394,71 +388,83 @@ def test_transforms_combine_stateless():
 
 
 @params("cpu", "gpu")
-@signed_off("one_hot")
+@stateless_signed_off("one_hot")
 def test_one_hot_stateless(device):
     check_single_input(fn.one_hot, device)
 
 
-@signed_off("experimental.median_blur")
+@stateless_signed_off("experimental.median_blur")
 def test_median_bluer_stateless():
     check_single_input(fn.experimental.median_blur, "gpu")
 
 
 @params("cpu", "gpu")
-@signed_off("erase")
+@stateless_signed_off("erase")
 def test_erase_stateless(device):
     check_single_input(fn.erase, device, anchor=(3, 4), shape=(5, 6))
 
 
 @params("cpu", "gpu")
-@signed_off("pad")
+@stateless_signed_off("pad")
 def test_pad_stateless(device):
     check_single_input(fn.pad, device, shape=(100, 100, 3))
 
 
 @params("cpu", "gpu")
-@signed_off("constant", "hidden.constant")
+@stateless_signed_off("constant", "hidden.constant")
 def test_constant_stateless(device):
     check_no_input(fn.constant, device, idata=[1, 2, 3])
 
 
 @params("cpu", "gpu")
-@signed_off("reshape", "reinterpret")
+@stateless_signed_off("reshape", "reinterpret")
 def test_reshape_stateless(device):
     check_single_input(fn.reshape, device, shape=[1, -1])
 
 
 @params("cpu", "gpu")
-@signed_off("lookup_table")
+@stateless_signed_off("lookup_table")
 def test_lookup_table_stateless(device):
     check_single_input(fn.lookup_table, device, keys=[0], values=[1], default_value=123)
 
 
 @params("cpu", "gpu")
-@signed_off("transpose")
+@stateless_signed_off("transpose")
 def test_transpose_stateless(device):
     check_single_input(fn.transpose, device, perm=[2, 0, 1])
 
 
-@signed_off("paste")
+@stateless_signed_off("paste")
 def test_paste_stateless():
     check_single_input(fn.paste, "gpu", fill_value=0, ratio=2)
 
 
 @params("cpu", "gpu")
-@signed_off("laplacian")
+@stateless_signed_off("laplacian")
 def test_laplacian_stateless(device):
     check_single_input(fn.laplacian, device, window_size=3)
 
 
 @params("cpu", "gpu")
-@signed_off("gaussian_blur")
+@stateless_signed_off("gaussian_blur")
 def test_gaussian_blur_stateless(device):
     check_single_input(fn.gaussian_blur, device, window_size=3)
 
 
 @params("cpu", "gpu")
-@signed_off("experimental.filter")
+@stateless_signed_off("water")
+def test_water_stateless(device):
+    check_single_input(fn.water, device, window_size=3)
+
+
+@params("cpu", "gpu")
+@stateless_signed_off("sphere")
+def test_sphere_stateless(device):
+    check_single_input(fn.sphere, device, window_size=3)
+
+
+@params("cpu", "gpu")
+@stateless_signed_off("experimental.filter")
 def test_filter_stateless(device):
     check_single_input(
         lambda x, **kwargs: fn.gaussian_blur(x, np.full((3, 3), 1 / 9), **kwargs),
@@ -467,14 +473,37 @@ def test_filter_stateless(device):
     )
 
 
+@stateless_signed_off("experimental.remap")
+def test_remap_stateless():
+    check_single_input(
+        lambda x, **kwargs: fn.experimental.remap(
+            x,
+            fn.cast(x[:, :, 0], dtype=types.DALIDataType.FLOAT),
+            fn.cast(x[:, :, 0], dtype=types.DALIDataType.FLOAT),
+            **kwargs,
+        ),
+        "gpu",
+    )
+
+
+@stateless_signed_off("experimental.debayer")
+def test_debayer_stateless():
+    @pipeline_def(enable_checkpointing=False)
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
+        return fn.experimental.debayer(data.gpu(), blue_position=[0, 0])
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
 @params("cpu", "gpu")
-@signed_off("copy")
+@stateless_signed_off("copy")
 def test_copy_stateless(device):
     check_single_input(fn.copy, device)
 
 
 @params("cpu", "gpu")
-@signed_off("color_space_conversion")
+@stateless_signed_off("color_space_conversion")
 def test_color_space_conversion_stateless(device):
     check_single_input(
         fn.color_space_conversion,
@@ -484,43 +513,44 @@ def test_color_space_conversion_stateless(device):
     )
 
 
-@signed_off("resize_crop_mirror")
+@params("cpu", "gpu")
+@stateless_signed_off("resize_crop_mirror", "fast_resize_crop_mirror")
 def test_resize_crop_mirror_stateless(device):
-    check_single_input(fn.resize_crop_mirror, "cpu", crop=(2, 2, 3), mirror=True)
+    check_single_input(fn.resize_crop_mirror, device, size=(35, 55), crop=(20, 20), mirror=True)
 
 
 @params("cpu", "gpu")
-@signed_off("slice")
+@stateless_signed_off("slice")
 def test_slice_stateless(device):
     check_single_input(fn.slice, device, rel_start=(0.25, 0.25), rel_end=(0.75, 0.75))
 
 
 @params("cpu", "gpu")
-@signed_off("shapes")
+@stateless_signed_off("shapes")
 def test_shapes_stateless(device):
     check_single_input(fn.shapes, device)
 
 
 @params("cpu", "gpu")
-@signed_off("per_frame")
+@stateless_signed_off("per_frame")
 def test_per_frame_stateless(device):
     check_single_input(fn.per_frame, device, replace=True)
 
 
 @params("cpu", "gpu")
-@signed_off("get_property")
+@stateless_signed_off("get_property")
 def test_get_property_stateless(device):
     check_single_input(fn.get_property, device, key="layout")
 
 
 @params("cpu", "gpu")
-@signed_off("jpeg_compression_distortion")
+@stateless_signed_off("jpeg_compression_distortion")
 def test_jpeg_compression_distortion_stateless(device):
     check_single_input(fn.jpeg_compression_distortion, device)
 
 
 @params("cpu", "gpu")
-@signed_off("multi_paste")
+@stateless_signed_off("multi_paste")
 def test_multi_paste_stateless(device):
     check_single_input(
         fn.multi_paste, device, in_ids=list(range(batch_size)), output_size=[100, 100]
@@ -528,18 +558,18 @@ def test_multi_paste_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("grid_mask")
+@stateless_signed_off("grid_mask")
 def test_grid_mask_stateless(device):
     check_single_input(fn.grid_mask, device)
 
 
 @params("cpu", "gpu")
-@signed_off("preemphasis_filter")
+@stateless_signed_off("preemphasis_filter")
 def test_preemphasis_filter_stateless(device):
     check_single_input(fn.preemphasis_filter, device)
 
 
-@signed_off("optical_flow")
+@stateless_signed_off("optical_flow")
 def test_optical_flow_stateless():
     if not is_of_supported():
         raise nose.SkipTest("Optical Flow is not supported on this platform")
@@ -547,7 +577,7 @@ def test_optical_flow_stateless():
 
 
 @params("cpu", "gpu")
-@signed_off("sequence_rearrange")
+@stateless_signed_off("sequence_rearrange")
 def test_sequence_rearrange_stateless(device):
     check_single_sequence_input(
         fn.sequence_rearrange, device, new_order=list(range(test_data_frames))
@@ -555,18 +585,18 @@ def test_sequence_rearrange_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("spectrogram")
+@stateless_signed_off("spectrogram")
 def test_spectrogram_stateless(device):
     check_single_1d_input(fn.spectrogram, device)
 
 
-@signed_off("power_spectrum")
+@stateless_signed_off("power_spectrum")
 def test_power_spectrum_stateless():
     check_single_signal_input(fn.power_spectrum, "cpu")
 
 
 @params("cpu", "gpu")
-@signed_off("dump_image")
+@stateless_signed_off("dump_image")
 def test_dump_image_stateless(device):
     suffix = "test_dump_image_stateless_tmp"
     check_single_input(fn.dump_image, device, suffix=suffix)
@@ -575,60 +605,60 @@ def test_dump_image_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("normalize")
+@stateless_signed_off("normalize")
 def test_normalize_stateless(device):
     check_single_input(fn.normalize, device)
 
 
 @params("cpu", "gpu")
-@signed_off("mel_filter_bank")
+@stateless_signed_off("mel_filter_bank")
 def test_mel_filter_bank_stateless(device):
     check_single_signal_input(fn.mel_filter_bank, device)
 
 
 @params("cpu", "gpu")
-@signed_off("mfcc")
+@stateless_signed_off("mfcc")
 def test_mfcc_stateless(device):
     check_single_signal_input(fn.mfcc, device)
 
 
 @params("cpu", "gpu")
-@signed_off("nonsilent_region")
+@stateless_signed_off("nonsilent_region")
 def test_nonsilent_region_stateless(device):
     check_single_1d_input(lambda *args, **kwargs: fn.nonsilent_region(*args, **kwargs)[0], device)
 
 
 @params("cpu", "gpu")
-@signed_off("audio_resample", "experimental.audio_resample")
+@stateless_signed_off("audio_resample", "experimental.audio_resample")
 def test_audio_resample_stateless(device):
     check_single_signal_input(fn.audio_resample, device, scale=0.5)
 
 
 @params("cpu", "gpu")
-@signed_off("element_extract")
+@stateless_signed_off("element_extract")
 def test_element_extract_stateless(device):
     check_single_sequence_input(fn.element_extract, device, element_map=[0])
 
 
-@signed_off("bbox_paste")
+@stateless_signed_off("bbox_paste")
 def test_bbox_paste_stateless():
     check_single_bbox_input(fn.bbox_paste, "cpu", ratio=2)
 
 
 @params("cpu", "gpu")
-@signed_off("bb_flip")
+@stateless_signed_off("bb_flip")
 def test_bb_flip_stateless(device):
     check_single_bbox_input(fn.bb_flip, device, ltrb=True)
 
 
 @params("cpu", "gpu")
-@signed_off("to_decibels")
+@stateless_signed_off("to_decibels")
 def test_to_decibels_stateless(device):
     check_single_signal_input(fn.to_decibels, device)
 
 
 @cartesian_params(("cpu", "gpu"), (fn.stack, fn.cat))
-@signed_off("stack", "cat")
+@stateless_signed_off("stack", "cat")
 def test_tensor_join_stateless(device, join):
     def wrapper(x, **kwargs):
         return join(x, x, x, **kwargs)
@@ -637,31 +667,31 @@ def test_tensor_join_stateless(device, join):
 
 
 @params("cpu", "gpu")
-@signed_off("tensor_subscript", "hidden.tensor_subscript")
+@stateless_signed_off("tensor_subscript", "hidden.tensor_subscript")
 def test_tensor_subscript_stateless(device):
     check_single_input(lambda x, **kwargs: x[0, :, 2:4:-1], device)
 
 
 @params("cpu", "gpu")
-@signed_off("subscript_dim_check", "hidden.subscript_dim_check")
+@stateless_signed_off("subscript_dim_check", "hidden.subscript_dim_check")
 def test_subscript_dim_check(device):
     check_single_input(lambda x, **kwargs: x[:], device)
 
 
 @params("cpu", "gpu")
-@signed_off("expand_dims")
+@stateless_signed_off("expand_dims")
 def test_expand_dims(device):
     check_single_input(fn.expand_dims, device, axes=[0])
 
 
 @params("cpu", "gpu")
-@signed_off("squeeze")
+@stateless_signed_off("squeeze")
 def test_squeeze(device):
     check_single_input(fn.squeeze, device, axes=[0])
 
 
 @params("cpu", "gpu")
-@signed_off("permute_batch")
+@stateless_signed_off("permute_batch")
 def test_permute_batch_stateless(device):
     def wrapper(x, **kwargs):
         return fn.permute_batch(x, indices=[0] * batch_size, **kwargs)
@@ -669,7 +699,7 @@ def test_permute_batch_stateless(device):
     check_single_input(wrapper, device)
 
 
-@signed_off("segmentation.select_masks")
+@stateless_signed_off("segmentation.select_masks")
 def test_select_masks_stateless():
     n = 10
     polygons = np.asarray([[i, 0, i] for i in range(n)])
@@ -684,7 +714,7 @@ def test_select_masks_stateless():
 
 
 @params("cpu", "gpu")
-@signed_off("box_encoder")
+@stateless_signed_off("box_encoder")
 def test_box_encoder_stateless(device):
     n = 10
     boxes = np.asarray([[float(i), float(i), float(i + 1), float(i + 1)] for i in range(n)])
@@ -700,7 +730,7 @@ def test_box_encoder_stateless(device):
 
 @attr("cupy")
 @params("cpu", "gpu")
-@signed_off("python_function")
+@stateless_signed_off("python_function")
 def test_python_function_stateless(device):
     def wrapper(x, **kwargs):
         return fn.python_function(x, function=lambda x: x * 2, **kwargs)
@@ -708,8 +738,17 @@ def test_python_function_stateless(device):
     check_single_input(wrapper, device)
 
 
+@params("cpu", "gpu")
+@stateless_signed_off("dl_tensor_python_function")
+def test_dl_tensor_python_function_stateless(device):
+    def wrapper(x, **kwargs):
+        return fn.dl_tensor_python_function(x, function=lambda x: x, **kwargs)
+
+    check_single_input(wrapper, device)
+
+
 @attr("numba")
-@signed_off("experimental.numba_function")
+@stateless_signed_off("experimental.numba_function")
 def test_numba_function_stateless():
     import nvidia.dali.plugin.numba as dali_numba
 
@@ -739,7 +778,7 @@ def test_numba_function_stateless():
 
 @has_operator("experimental.inflate")
 @restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
-@signed_off("experimental.inflate")
+@stateless_signed_off("experimental.inflate")
 def test_inflate_stateless():
     import lz4.block
 
@@ -762,17 +801,17 @@ def test_inflate_stateless():
     check_is_pipeline_stateless(pipeline)
 
 
-@signed_off("peek_image_shape")
+@stateless_signed_off("peek_image_shape")
 def test_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.peek_image_shape, "cpu")
 
 
-@signed_off("experimental.peek_image_shape")
+@stateless_signed_off("experimental.peek_image_shape")
 def test_imgcodec_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.experimental.peek_image_shape, "cpu")
 
 
-@signed_off("decoders.audio", "audio_decoder")
+@stateless_signed_off("decoders.audio", "audio_decoder")
 def test_audio_decoder_stateless():
     def audio_decoder_wrapper(*args, **kwargs):
         return fn.decoders.audio(*args, **kwargs)[0]
@@ -781,31 +820,45 @@ def test_audio_decoder_stateless():
 
 
 @params("cpu", "mixed")
-@signed_off("decoders.image", "image_decoder")
+@stateless_signed_off("decoders.image", "image_decoder")
 def test_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image, device)
 
 
 @params("cpu", "mixed")
-@signed_off("experimental.decoders.image")
+@stateless_signed_off("experimental.decoders.image")
 def test_experimental_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.experimental.decoders.image, device)
 
 
 @params("cpu", "mixed")
-@signed_off("decoders.image_crop", "image_decoder_crop")
+@stateless_signed_off("decoders.image_crop", "image_decoder_crop")
 def test_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.decoders.image_crop, device)
+    check_single_encoded_jpeg_input(fn.decoders.image_crop, device, crop=(20, 50))
 
 
 @params("cpu", "mixed")
-@signed_off("experimental.decoders.image_crop")
+@stateless_signed_off("experimental.decoders.image_crop")
 def test_experimental_image_decoder_crop_stateless(device):
-    check_single_encoded_jpeg_input(fn.experimental.decoders.image_crop, device)
+    check_single_encoded_jpeg_input(fn.experimental.decoders.image_crop, device, crop=(20, 50))
+
+
+@params("cpu", "mixed")
+@stateless_signed_off("decoders.image_slice", "image_decoder_slice")
+def test_image_decoder_slice_stateless(device):
+    check_single_encoded_jpeg_input(fn.decoders.image_slice, device, start=(5, 5), end=(45, 45))
+
+
+@params("cpu", "mixed")
+@stateless_signed_off("experimental.decoders.image_slice")
+def test_experimental_image_decoder_slice_stateless(device):
+    check_single_encoded_jpeg_input(
+        fn.experimental.decoders.image_slice, device, start=(5, 5), end=(45, 45)
+    )
 
 
 @params("cpu", "gpu")
-@signed_off("coord_flip")
+@stateless_signed_off("coord_flip")
 def test_coord_flip_stateless(device):
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -816,7 +869,7 @@ def test_coord_flip_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("cast_like")
+@stateless_signed_off("cast_like")
 def test_cast_like_stateless(device):
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -828,7 +881,7 @@ def test_cast_like_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("cast")
+@stateless_signed_off("cast")
 def test_cast_stateless(device):
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -862,7 +915,7 @@ def arithm_ops_outputs(data):
 
 
 @params("cpu", "gpu")
-@signed_off("hidden.arithmetic_generic_op", "arithmetic_generic_op")
+@stateless_signed_off("hidden.arithmetic_generic_op", "arithmetic_generic_op")
 def test_arithm_ops_stateless_cpu(device):
     @pipeline_def(enable_checkpointing=False)
     def pipeline_factory():
@@ -873,7 +926,7 @@ def test_arithm_ops_stateless_cpu(device):
 
 
 @params("cpu", "gpu")
-@signed_off(
+@stateless_signed_off(
     "_conditional.hidden.merge",
     "_conditional.hidden.not_",
     "_conditional.hidden.split",
@@ -899,7 +952,7 @@ def test_split_and_merge(device):
 
 
 @params("cpu", "gpu")
-@signed_off("_conditional.merge", "_conditional.split")
+@stateless_signed_off("_conditional.merge", "_conditional.split")
 def test_split_and_merge(device):
     @pipeline_def(enable_conditionals=True, enable_checkpointing=False)
     def pipeline_factory():
@@ -955,11 +1008,14 @@ random_op_names = [
     "segmentation.random_mask_pixel",
     "segmentation.random_object_bbox",
     "jitter",
-    "sphere",
-    "water",
 ]
 
-excluded_ops = reader_names + random_op_names
+unsupported_ops = [
+    "experimental.decoders.video",
+    "experimental.inputs.video",
+]
+
+excluded_ops = reader_names + random_op_names + unsupported_ops
 
 
 def test_coverage():
@@ -974,7 +1030,7 @@ def test_coverage():
         )
         exclude = re.compile(exclude)
         fn_ops = [x for x in fn_ops if not exclude.match(x)]
-    tested_ops = signed_off.tested_ops
+    tested_ops = stateless_signed_off.tested_ops
     not_covered = sorted(list(set(fn_ops) - tested_ops))
     not_covered_str = ",\n".join(f"'{op_name}'" for op_name in not_covered)
     # we are fine with covering more we can easily list, like numba
