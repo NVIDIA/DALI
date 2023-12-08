@@ -122,7 +122,8 @@ class Pipeline(object):
         with the serialized state passed as the `checkpoint` parameter to resume running
         from the saved iteration.
 
-        More details can be found in `this documentation section <advanced_topics_checkpointing.html>`_.
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
 
     `checkpoint`: str, optional, default = None
@@ -130,7 +131,8 @@ class Pipeline(object):
         When pipeline is built, its state is restored from the `checkpoint` and the pipeline
         resumes execution from the saved iteration.
 
-        More details can be found in `this documentation section <advanced_topics_checkpointing.html>`_.
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
     `py_num_workers`: int, optional, default = 1
         The number of Python workers that will process ``ExternalSource`` callbacks.
@@ -1456,7 +1458,8 @@ class Pipeline(object):
         The same pipeline can be later rebuilt with the saved checkpoint passed as a `checkpoint`
         parameter to resume execution from the saved iteration.
 
-        More details can be found in `this documentation section <advanced_topics_checkpointing.html>`_.
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
         Parameters
         ----------
