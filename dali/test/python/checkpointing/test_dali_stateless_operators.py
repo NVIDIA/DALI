@@ -248,9 +248,46 @@ def test_warp_affine_stateless(device):
 
 
 @params("cpu", "gpu")
+@signed_off("color_twist")
+def test_color_twist_stateless(device):
+    check_single_input(
+        fn.color_twist,
+        device,
+        brightness=1.0,
+        contrast=0.5,
+        hue=90,
+        saturation=1.2,
+    )
+
+
+@params("cpu", "gpu")
+@signed_off("hsv")
+def test_hsv_stateless(device):
+    check_single_input(
+        fn.hsv,
+        device,
+        hue=70,
+        value=1.8,
+        saturation=1.2,
+    )
+
+
+@params("cpu", "gpu")
+@signed_off("hue")
+def test_hue_stateless(device):
+    check_single_input(fn.hue, device, hue=-90)
+
+
+@params("cpu", "gpu")
 @signed_off("saturation")
 def test_saturation_stateless(device):
     check_single_input(fn.saturation, device)
+
+
+@params("cpu", "gpu")
+@signed_off("brightness_contrast", "brightness", "contrast")
+def test_brightness_contrast_stateless(device):
+    check_single_input(fn.brightness_contrast, device, brightness=0.7, contrast=1.7)
 
 
 @params("cpu", "gpu")
@@ -332,6 +369,19 @@ def test_transforms_translation_stateless():
     check_no_input(fn.transforms.translation, "cpu", offset=(4, 3))
 
 
+@params("cpu", "gpu")
+@signed_off("coord_transform")
+def test_coord_transform(device):
+    @pipeline_def(enable_checkpointing=False)
+    def pipeline_factory():
+        data = fn.external_source(source=RandomBatch((5, 2)), layout="NX")
+        if device == "gpu":
+            data = data.gpu()
+        return fn.coord_transform(data, M=(0.1, 0.9, 10, 0.8, -0.2, -20))
+
+    check_is_pipeline_stateless(pipeline_factory)
+
+
 @signed_off("transforms.combine")
 def test_transforms_combine_stateless():
     @pipeline_def(enable_checkpointing=False)
@@ -373,7 +423,7 @@ def test_constant_stateless(device):
 
 
 @params("cpu", "gpu")
-@signed_off("reshape")
+@signed_off("reshape", "reinterpret")
 def test_reshape_stateless(device):
     check_single_input(fn.reshape, device, shape=[1, -1])
 
@@ -574,6 +624,12 @@ def test_subscript_dim_check(device):
 @signed_off("expand_dims")
 def test_expand_dims(device):
     check_single_input(fn.expand_dims, device, axes=[0])
+
+
+@params("cpu", "gpu")
+@signed_off("squeeze")
+def test_squeeze(device):
+    check_single_input(fn.squeeze, device, axes=[0])
 
 
 @params("cpu", "gpu")
