@@ -490,6 +490,7 @@ all_packages = [
                 PckgVer(
                     "2.13.1",
                     python_min_ver="3.8",
+                    python_max_ver="3.10",
                     alias="tensorflow",
                     dependencies=[
                         "protobuf<4",
@@ -514,6 +515,7 @@ all_packages = [
                 PckgVer(
                     "2.13.1",
                     python_min_ver="3.8",
+                    python_max_ver="3.10",
                     alias="tensorflow",
                     dependencies=[
                         "protobuf<4",
