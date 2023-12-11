@@ -858,19 +858,21 @@ class Pipeline(object):
                 groups.add(group)
         groups = list(groups)
         self._input_callbacks = groups
-        if self._py_num_workers == 0:
-            self._parallel_input_callbacks = []
-            self._seq_input_callbacks = self._input_callbacks
-        else:
-            parallel = [group for group in groups if group.parallel]
-            dedicated_worker_cbs = [
-                group for group in parallel if WorkerPool.is_iterable_group(group)
-            ]
-            general_cbs = [group for group in parallel if not WorkerPool.is_iterable_group(group)]
-            # make the callbacks that need dedicated worker first in line for prefetching, so that
-            # the worker doesn't get busy with other tasks when dedicated tasks arrive
-            self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
-            self._seq_input_callbacks = [group for group in groups if not group.parallel]
+        parallel = [group for group in groups if group.parallel]
+        if parallel and (not isinstance(self._py_num_workers, int) or self._py_num_workers <= 0):
+            raise RuntimeError(
+                f"The pipeline contains `fn.external_source` with `parallel` argument specified "
+                f"to True. However, the `py_num_workers` was set to `{self._py_num_workers}`. "
+                f"The external source cannot run in parallel mode without Python workers pool. "
+                f"Please specify the number of `py_num_workers` to a positive integer or set the "
+                f"`parallel` parameter to False in external sources in the pipeline."
+            )
+        dedicated_worker_cbs = [group for group in parallel if WorkerPool.is_iterable_group(group)]
+        general_cbs = [group for group in parallel if not WorkerPool.is_iterable_group(group)]
+        # make the callbacks that need dedicated worker first in line for prefetching, so that
+        # the worker doesn't get busy with other tasks when dedicated tasks arrive
+        self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
+        self._seq_input_callbacks = [group for group in groups if not group.parallel]
 
         self._check_checkpointing_support()
 
