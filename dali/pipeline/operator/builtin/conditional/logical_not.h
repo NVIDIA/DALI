@@ -19,16 +19,18 @@
 #include <vector>
 
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+
 
 namespace dali {
 
 /**
  * @brief Eager `not` operator from Python
  */
-class LogicalNot : public Operator<CPUBackend> {
+class LogicalNot : public StatelessOperator<CPUBackend> {
  public:
-  explicit LogicalNot(const OpSpec &spec) : Operator<CPUBackend>(spec), name_("not") {}
+  explicit LogicalNot(const OpSpec &spec) : StatelessOperator<CPUBackend>(spec), name_("not") {}
 
   ~LogicalNot() override = default;
 

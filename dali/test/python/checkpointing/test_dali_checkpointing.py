@@ -16,17 +16,30 @@ import tempfile
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
+import re
 import shutil
 import webdataset_base
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
-from test_utils import get_dali_extra_path, compare_pipelines
+from test_utils import (
+    compare_pipelines,
+    create_sign_off_decorator,
+    get_dali_extra_path,
+    module_functions,
+)
 from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
+from nvidia.dali.auto_aug import auto_augment as aa
+from nvidia.dali.auto_aug import rand_augment as ra
+from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
+
+
+reader_signed_off = create_sign_off_decorator()
+random_signed_off = create_sign_off_decorator()
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
@@ -200,6 +213,7 @@ def check_reader_checkpointing(reader, num_epochs, batch_size, iters_into_epoch,
     (7, 4, 2, 5, True, False, False, False, 3, 2),
     (0, 32, 3, 4, True, False, False, False, 0, 3),
 )
+@reader_signed_off("readers.file", "file_reader")
 def test_file_reader(
     num_epochs,
     batch_size,
@@ -235,6 +249,7 @@ def test_file_reader(
     (16, 6, 3, 5, False, False, True, False, 2),
     (6, 7, 2, 3, False, True, False, True, 3),
 )
+@reader_signed_off("readers.coco", "coco_reader")
 def test_coco_reader(
     num_epochs,
     batch_size,
@@ -280,6 +295,7 @@ def test_coco_reader(
     (5, 6, 2, 3, False, False, True, None),
     (3, 8, 4, 5, False, False, False, 1),
 )
+@reader_signed_off("readers.mxnet", "mxnet_reader")
 def test_mxnet_reader(
     num_epochs,
     batch_size,
@@ -319,6 +335,7 @@ def test_mxnet_reader(
     (10, 7, 2, 3, False, False, True, None),
     (2, 8, 4, 5, False, False, False, 1),
 )
+@reader_signed_off("readers.tfrecord", "tfrecord_reader")
 def test_tfrecord_reader(
     num_epochs,
     batch_size,
@@ -365,6 +382,7 @@ def test_tfrecord_reader(
     (5, 1, 2, 3, True, True, False, 3),
     (0, 2, 3, 6, True, True, True, None),
 )
+@reader_signed_off("readers.sequence", "sequence_reader")
 def test_sequence_reader(
     num_epochs,
     batch_size,
@@ -402,6 +420,7 @@ def test_sequence_reader(
     (0, 3, 3, 4, False, False, True, None),
     (1, 4, 2, 3, False, False, False, 3),
 )
+@reader_signed_off("readers.caffe", "caffe_reader")
 def test_caffe_reader(
     num_epochs,
     batch_size,
@@ -440,6 +459,7 @@ def test_caffe_reader(
     (0, 2, 4, 5, False, False, True, None),
     (3, 3, 1, 3, False, False, False, 2),
 )
+@reader_signed_off("readers.caffe2", "caffe2_reader")
 def test_caffe2_reader(
     num_epochs,
     batch_size,
@@ -478,6 +498,7 @@ def test_caffe2_reader(
     (6, 64, 4, 6, True, True, False, 5),
     (10, 128, 3, 4, True, True, True, None),
 )
+@reader_signed_off("readers.webdataset")
 def test_webdataset_reader(
     num_epochs,
     batch_size,
@@ -527,6 +548,7 @@ def test_webdataset_reader(
     (9, 1, 0, 1, True, False, True, False, 3),
     (10, 2, 0, 2, True, False, True, True, 4),
 )
+@reader_signed_off("readers.nemo_asr", "nemo_asr_reader")
 def test_nemo_asr_reader(
     num_epochs,
     batch_size,
@@ -602,6 +624,7 @@ def test_nemo_asr_reader(
         else []
     ),
 )
+@reader_signed_off("readers.numpy", "numpy_reader")
 def test_numpy_reader(
     device,
     num_epochs,
@@ -789,6 +812,7 @@ class VideoConfig:
         VideoConfig(sequence_length=3, stride=1, step=5),
     ),
 )
+@reader_signed_off("readers.video", "video_reader")
 def test_video_reader(
     num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
@@ -823,6 +847,68 @@ def test_video_reader(
     )
 
 
+# simplified case of test_video_reader suite
+@cartesian_params(
+    (2,),
+    (1, 3),
+    (0, 3),
+    (
+        BaseDecoderConfig(
+            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+        ),
+        BaseDecoderConfig(
+            shard_id=6,
+            num_shards=7,
+            stick_to_shard=False,
+            pad_last_batch=False,
+            random_shuffle=False,
+        ),
+        BaseDecoderConfig(
+            shard_id=0,
+            num_shards=2,
+            stick_to_shard=False,
+            pad_last_batch=False,
+            random_shuffle=True,
+        ),
+    ),
+    (VideoConfig(sequence_length=3, stride=1, step=-1),),
+)
+@reader_signed_off("readers.video_resize", "video_reader_resize")
+def test_video_reader_resize_reader(
+    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+):
+    files = [
+        os.path.join(get_dali_extra_path(), f"db/video/multiple_framerate/{f}/{f}fps.mp4")
+        for f in (10, 50)
+    ]
+
+    check_reader_checkpointing(
+        fn.readers.video_resize,
+        num_epochs,
+        batch_size,
+        iters_into_epoch,
+        device="gpu",
+        filenames=files,
+        labels=list(range(len(files))),
+        normalized=True,
+        random_shuffle=config.random_shuffle,
+        image_type=types.RGB,
+        dtype=types.FLOAT,
+        enable_frame_num=True,
+        enable_timestamps=True,
+        file_list_frame_num=True,
+        file_list_include_preceding_frame=False,
+        num_shards=config.num_shards,
+        shard_id=config.shard_id,
+        stick_to_shard=config.stick_to_shard,
+        pad_last_batch=config.pad_last_batch,
+        sequence_length=video.sequence_length,
+        stride=video.stride,
+        step=video.step,
+        size=(100, 100),
+    )
+
+
 @cartesian_params(
     (
         "cpu",
@@ -845,6 +931,7 @@ def test_video_reader(
     ),
     (VideoConfig(sequence_length=3, stride=1, step=5),),
 )
+@reader_signed_off("experimental.readers.video")
 def test_experimental_video_reader(
     device, num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
@@ -877,6 +964,7 @@ def test_experimental_video_reader(
 
 
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
+@random_signed_off("random.coin_flip", "coin_flip")
 def test_random_coin_flip(device, shape):
     check_no_input_operator(fn.random.coin_flip, device, shape=shape)
 
@@ -888,6 +976,7 @@ def test_random_coin_flip_pytorch(device, shape):
 
 
 @cartesian_params(("cpu",), (None, (1,), (10,)))
+@random_signed_off("random.normal", "normal_distribution")
 def test_random_normal(device, shape):
     check_no_input_operator(fn.random.normal, device, shape=shape)
 
@@ -899,6 +988,7 @@ def test_random_normal_pytorch(device, shape):
 
 
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
+@random_signed_off("random.uniform", "uniform")
 def test_random_uniform(device, shape):
     check_no_input_operator(fn.random.uniform, device, shape=shape)
 
@@ -909,20 +999,24 @@ def test_random_uniform_pytorch(device, shape):
     check_no_input_operator_pytorch(fn.random.uniform, device, shape=shape)
 
 
+@random_signed_off("segmentation.random_object_bbox")
 def test_random_object_bbox():
     check_single_input_operator(fn.segmentation.random_object_bbox, "cpu", format="box")
 
 
+@random_signed_off("segmentation.random_mask_pixel")
 def test_random_mask_pixel():
     check_single_input_operator(fn.segmentation.random_mask_pixel, "cpu")
 
 
+@random_signed_off("roi_random_crop")
 def test_roi_random_crop():
     check_single_input_operator(
         fn.roi_random_crop, "cpu", crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30)
     )
 
 
+@random_signed_off("ssd_random_crop")
 def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
@@ -934,14 +1028,17 @@ def test_ssd_random_crop():
     check_pipeline_checkpointing_native(pipeline)
 
 
+@random_signed_off("batch_permutation")
 def test_batch_permutation():
     check_no_input_operator(fn.batch_permutation, "cpu")
 
 
+@random_signed_off("jitter")
 def test_jitter():
     check_single_input_operator(fn.jitter, "gpu")
 
 
+@random_signed_off("random_bbox_crop")
 def test_random_bbox_crop():
     def wrapper(input, **kwargs):
         bboxes = fn.cast(input[:, :4, 0], dtype=types.DALIDataType.FLOAT)
@@ -952,77 +1049,34 @@ def test_random_bbox_crop():
     check_single_input_operator(wrapper, "cpu")
 
 
-# Stateless operators section
+@params("cpu", "gpu")
+@random_signed_off("noise.gaussian")
+def test_noise_gaussian(device):
+    check_single_input_operator(fn.noise.gaussian, device, stddev=150)
 
 
 @params("cpu", "gpu")
-def test_rotate_checkpointing(device):
-    check_single_input_operator(fn.rotate, device, angle=15)
+@random_signed_off("noise.salt_and_pepper")
+def test_noise_salt_and_pepper(device):
+    check_single_input_operator(fn.noise.salt_and_pepper, device, prob=0.5)
 
 
 @params("cpu", "gpu")
-def test_resize_checkpointing(device):
-    check_single_input_operator(fn.resize, device, resize_x=20, resize_y=10)
+@random_signed_off("noise.shot")
+def test_noise_shot(device):
+    check_single_input_operator(fn.noise.shot, device, factor=100)
 
 
-@params("cpu", "gpu")
-def test_flip_checkpointing(device):
-    check_single_input_operator(fn.flip, device)
+@params("cpu", "mixed")
+@random_signed_off("image_decoder_random_crop", "decoders.image_random_crop")
+def test_image_random_crop(device):
+    @pipeline_def
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image_random_crop(data, device=device)
+        return image
 
-
-@params("cpu", "gpu")
-def test_crop_mirror_normalize_checkpointing(device):
-    check_single_input_operator(fn.crop_mirror_normalize, device)
-
-
-@params("cpu", "gpu")
-def test_warp_affine_checkpointing(device):
-    check_single_input_operator(fn.warp_affine, device, matrix=(0.3, 0.7, 5, 0.7, 0.3, -5))
-
-
-@params("cpu", "gpu")
-def test_saturation_checkpointing(device):
-    check_single_input_operator(fn.saturation, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_min_checkpointing(device):
-    check_single_input_operator(fn.reductions.min, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_max_checkpointing(device):
-    check_single_input_operator(fn.reductions.max, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_sum_checkpointing(device):
-    check_single_input_operator(fn.reductions.sum, device, dtype=types.DALIDataType.UINT8)
-
-
-@params("cpu", "gpu")
-def test_equalize_checkpointing(device):
-    check_single_input_operator(fn.experimental.equalize, device)
-
-
-def test_transforms_crop_checkpointing():
-    check_no_input_operator(fn.transforms.crop, "cpu")
-
-
-def test_transforms_rotation_checkpointing():
-    check_no_input_operator(fn.transforms.rotation, "cpu", angle=90)
-
-
-def test_transforms_shear_checkpointing():
-    check_no_input_operator(fn.transforms.shear, "cpu", shear=(2, 2))
-
-
-def test_transforms_scale_checkpointing():
-    check_no_input_operator(fn.transforms.scale, "cpu", scale=(2, 4))
-
-
-def test_transforms_translation_checkpointing():
-    check_no_input_operator(fn.transforms.translation, "cpu", offset=(21, 30))
+    check_pipeline_checkpointing_native(pipeline)
 
 
 # External source
@@ -1140,6 +1194,7 @@ def make_dummy_source(epoch_size, batch_size, mode):
     ("idx", "batch_info", "sample_info"),  # indexing mode
     (True, False),  # parallel
 )
+@reader_signed_off("external_source")
 def test_external_source_checkpointing(dataset_info, iterations, mode, parallel):
     epoch_size, batch_size = dataset_info
     source = make_dummy_source(epoch_size, batch_size, mode)
@@ -1181,3 +1236,82 @@ def test_external_source_unsupported(kind, parallel):
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
         pipeline().build()
+
+
+# Auto augmentation tests - run auto augmentations as a good example of pipeline
+# consisting of many ops
+
+
+@params("cpu", "gpu")
+def test_auto_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return aa.auto_augment(image)
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
+@params("cpu", "gpu")
+def test_rand_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return ra.rand_augment(image, n=2, m=15)
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
+@params("cpu", "gpu")
+def test_trivial_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return ta.trivial_augment_wide(image)
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
+unsupported_readers = [
+    "experimental.readers.fits",
+]
+
+unsupported_ops = [
+    "experimental.decoders.video",
+    "experimental.inputs.video",
+    "random_resized_crop",
+    "experimental.decoders.image_random_crop",
+]
+
+
+def test_coverage():
+    from test_dali_stateless_operators import stateless_signed_off
+
+    tested_ops = (
+        stateless_signed_off.tested_ops
+        | reader_signed_off.tested_ops
+        | random_signed_off.tested_ops
+    )
+
+    excluded_ops = unsupported_readers + unsupported_ops
+
+    fn_ops = module_functions(
+        fn, remove_prefix="nvidia.dali.fn", allowed_private_modules=["_conditional"]
+    )
+    assert len(fn_ops), "There should be some DALI ops in the `fn`, got nothing"
+    if excluded_ops:
+        exclude = "|".join(
+            "(^" + pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".") + "$)"
+            for pattern in excluded_ops
+        )
+        exclude = re.compile(exclude)
+        fn_ops = [x for x in fn_ops if not exclude.match(x)]
+    not_covered = sorted(list(set(fn_ops) - tested_ops))
+    not_covered_str = ",\n".join(f"'{op_name}'" for op_name in not_covered)
+    # we are fine with covering more we can easily list, like numba
+    assert (
+        set(fn_ops).difference(tested_ops) == set()
+    ), f"Test doesn't cover {len(not_covered)} ops:\n{not_covered_str}"

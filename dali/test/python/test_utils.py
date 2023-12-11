@@ -908,3 +908,24 @@ def check_numba_compatibility_gpu(if_skip=True):
             return False
     if not if_skip:
         return True
+
+
+def create_sign_off_decorator():
+    _tested_ops = []
+
+    class SignOff:
+        def __call__(self, *op_names):
+            assert all(isinstance(op_name, str) for op_name in op_names)
+            assert len(op_names)
+            _tested_ops.extend(op_names)
+
+            def dummy(fn):
+                return fn
+
+            return dummy
+
+        @property
+        def tested_ops(self):
+            return set(_tested_ops)
+
+    return SignOff()
