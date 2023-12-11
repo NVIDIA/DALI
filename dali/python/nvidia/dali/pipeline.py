@@ -121,38 +121,19 @@ class Pipeline(object):
         If True, DALI will trace states of the operators. In that case, calling the ``checkpoint``
         method returns serialized state of the pipeline. The same pipeline can be later rebuilt
         with the serialized state passed as the `checkpoint` parameter to resume running
-        from the saved iteration::
+        from the saved iteration.
 
-            @pipeline_def(..., enable_checkpointing=True)
-            def pipeline():
-                ...
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
-            p = pipeline()
-            p.build()
-            for _ in range(iters):
-                output = p.run()
-                ...
-            checkpoint = p.checkpoint()
-
-            ...
-
-            p_restored = pipeline(checkpoint=checkpoint)
-            p_restored.build()
-
-        .. warning::
-            This is an experimental feature. The API may change without notice. Checkpoints
-            created with this DALI version may not be compatible with the future releases.
-            Currently, some operators do not support checkpointing.
 
     `checkpoint`: str, optional, default = None
         Serialized checkpoint, received from ``checkpoint`` method.
         When pipeline is built, its state is restored from the `checkpoint` and the pipeline
         resumes execution from the saved iteration.
 
-        .. warning::
-            This is an experimental feature. The API may change without notice. Checkpoints
-            created with this DALI version may not be compatible with the future releases.
-            Currently, some operators do not support checkpointing.
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
     `py_num_workers`: int, optional, default = 1
         The number of Python workers that will process ``ExternalSource`` callbacks.
@@ -1526,10 +1507,8 @@ class Pipeline(object):
         The same pipeline can be later rebuilt with the saved checkpoint passed as a `checkpoint`
         parameter to resume execution from the saved iteration.
 
-        .. warning::
-            This is an experimental feature. The API may change without notice. Checkpoints
-            created with this DALI version may not be compatible with the future releases.
-            Currently, some operators do not support checkpointing.
+        More details can be found in
+        `this documentation section <advanced_topics_checkpointing.html>`_.
 
         Parameters
         ----------
