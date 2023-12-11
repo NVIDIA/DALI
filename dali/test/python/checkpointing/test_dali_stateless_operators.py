@@ -29,7 +29,6 @@ from test_utils import (
 )
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
-from test_optical_flow import is_of_supported
 from nose.plugins.attrib import attr
 
 # Test configuration
@@ -572,6 +571,8 @@ def test_preemphasis_filter_stateless(device):
 
 @stateless_signed_off("optical_flow")
 def test_optical_flow_stateless():
+    from test_optical_flow import is_of_supported
+
     if not is_of_supported():
         raise nose.SkipTest("Optical Flow is not supported on this platform")
     check_single_sequence_input(fn.optical_flow, "gpu")
