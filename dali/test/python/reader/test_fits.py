@@ -23,7 +23,7 @@ import numpy as np
 import tempfile
 import random
 from nose2.tools import params
-from test_utils import to_array
+from test_utils import to_array, get_dali_extra_path
 from numpy.testing import assert_array_equal
 
 
@@ -234,3 +234,23 @@ def test_reading_compressed(i, dtype, ndim, device):
         compressed,
         file_arg_type,
     )
+
+
+@params("cpu",)
+def test_concurrent_pipelines(device):
+    test_data_path = os.path.join(get_dali_extra_path(), 'db/single/fits/compressed/')
+
+    pipelines = []
+    for _ in range(5):
+        pipeline = FitsReaderPipeline(test_data_path, device=device, device_id=0, num_threads=4, batch_size=1)
+        pipeline.build()
+        pipelines.append(pipeline)
+
+    for _ in range(3):
+        expected_output = None
+        for p in pipelines:
+            pipeline_output = p.run()
+            if expected_output is None:
+                expected_output = pipeline_output
+            else:
+                assert np.all(pipeline_output[0].as_array() ==  expected_output[0].as_array())
