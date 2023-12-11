@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,6 +58,11 @@ class FitsLoader : public FileLoader<Backend, Target> {
 
     DALI_ENFORCE(hdu_indices_.size() == dtypes_.size(),
                  "Number of extensions does not match the number of provided types");
+
+    DALI_ENFORCE(fits_is_reentrant(),
+                 "Loaded instance of cfitsio library does not support multithreading. "
+                 "Please recompile cfitsio in reentrant mode (--enable-reentrant) "
+                 "or use cfitsio delivered in DALI_deps");
   }
 
   void PrepareEmpty(Target& target) override {
