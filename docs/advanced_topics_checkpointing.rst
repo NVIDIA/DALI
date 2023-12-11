@@ -30,7 +30,7 @@ Enabling checkpointing shouldn't have any impact on the performance.
 
 
 .. note::
-    Readers with ``shuffle_after_epoch=True`` might produce different (but still equally random) output if checkpointing is enabled.
+    Readers with ``shuffle_after_epoch=True`` might shuffle samples differently if checkpointing is enabled.
 
 
 Saving a checkpoint
