@@ -621,6 +621,7 @@ def test_nemo_asr_reader(
         else []
     ),
 )
+@reader_signed_off("readers.numpy", "numpy_reader")
 def test_numpy_reader(
     device,
     num_epochs,
@@ -1309,8 +1310,6 @@ def test_external_source_unsupported(kind, parallel):
 
 unsupported_readers = [
     "experimental.readers.fits",
-    "numpy_reader",
-    "readers.numpy",
 ]
 
 unsupported_ops = [
