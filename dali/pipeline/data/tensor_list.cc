@@ -1010,7 +1010,7 @@ Tensor<Backend> TensorList<Backend>::AsReshapedTensor(const TensorShape<> &new_s
 template <typename Backend>
 Tensor<Backend> TensorList<Backend>::AsTensor() {
   DALI_ENFORCE(IsDenseTensor(),
-               "The batch must be representable tensor - it must has uniform shape and be "
+               "The batch must be representable as a tensor - it must have uniform shape and be "
                "allocated in contiguous memory.");
   if (shape().num_samples() == 0) {
     DALI_ENFORCE(sample_dim() > 0,
