@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -244,7 +244,7 @@ void NumpyReaderCPU::Prefetch() {
   // We actually prepare the next batch
   DomainTimeRange tr("[DALI][NumpyReaderCPU] Prefetch #" + to_string(curr_batch_producer_),
                       DomainTimeRange::kRed);
-  DataReader<CPUBackend, NumpyFileWrapper>::Prefetch();
+  DataReader<CPUBackend, NumpyFileWrapper, NumpyFileWrapper, true>::Prefetch();
 
   if (!dont_use_mmap_)
     return;

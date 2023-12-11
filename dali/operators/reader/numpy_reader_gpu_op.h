@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class NumpyReaderGPU : gds::GDSLazyInit, public NumpyReader<GPUBackend, NumpyFil
   using Operator<GPUBackend>::RunImpl;
 
 
-  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU);
+  USE_READER_OPERATOR_MEMBERS(GPUBackend, NumpyFileWrapperGPU, NumpyFileWrapperGPU, true);
 
  private:
   using TransposeKernel = kernels::TransposeGPU;
