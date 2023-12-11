@@ -31,3 +31,4 @@ jobs:
       - run: pip install flake8
       - run: flake8 --config=.flake8 ${{ env.PYTHON_LINT_PATHS }}
       - run: flake8 --config=.flake8.ag ${{ env.AUTOGRAPH_LINT_PATHS }}
+    needs: black
