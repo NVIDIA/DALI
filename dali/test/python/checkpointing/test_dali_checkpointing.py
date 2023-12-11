@@ -32,6 +32,9 @@ from nose2.tools import params, cartesian_params
 from nose.plugins.attrib import attr
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
+from nvidia.dali.auto_aug import auto_augment as aa
+from nvidia.dali.auto_aug import rand_augment as ra
+from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
 
 
@@ -1076,79 +1079,6 @@ def test_image_random_crop(device):
     check_pipeline_checkpointing_native(pipeline)
 
 
-# Stateless operators section
-
-
-@params("cpu", "gpu")
-def test_rotate_checkpointing(device):
-    check_single_input_operator(fn.rotate, device, angle=15)
-
-
-@params("cpu", "gpu")
-def test_resize_checkpointing(device):
-    check_single_input_operator(fn.resize, device, resize_x=20, resize_y=10)
-
-
-@params("cpu", "gpu")
-def test_flip_checkpointing(device):
-    check_single_input_operator(fn.flip, device)
-
-
-@params("cpu", "gpu")
-def test_crop_mirror_normalize_checkpointing(device):
-    check_single_input_operator(fn.crop_mirror_normalize, device)
-
-
-@params("cpu", "gpu")
-def test_warp_affine_checkpointing(device):
-    check_single_input_operator(fn.warp_affine, device, matrix=(0.3, 0.7, 5, 0.7, 0.3, -5))
-
-
-@params("cpu", "gpu")
-def test_saturation_checkpointing(device):
-    check_single_input_operator(fn.saturation, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_min_checkpointing(device):
-    check_single_input_operator(fn.reductions.min, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_max_checkpointing(device):
-    check_single_input_operator(fn.reductions.max, device)
-
-
-@params("cpu", "gpu")
-def test_reductions_sum_checkpointing(device):
-    check_single_input_operator(fn.reductions.sum, device, dtype=types.DALIDataType.UINT8)
-
-
-@params("cpu", "gpu")
-def test_equalize_checkpointing(device):
-    check_single_input_operator(fn.experimental.equalize, device)
-
-
-def test_transforms_crop_checkpointing():
-    check_no_input_operator(fn.transforms.crop, "cpu")
-
-
-def test_transforms_rotation_checkpointing():
-    check_no_input_operator(fn.transforms.rotation, "cpu", angle=90)
-
-
-def test_transforms_shear_checkpointing():
-    check_no_input_operator(fn.transforms.shear, "cpu", shear=(2, 2))
-
-
-def test_transforms_scale_checkpointing():
-    check_no_input_operator(fn.transforms.scale, "cpu", scale=(2, 4))
-
-
-def test_transforms_translation_checkpointing():
-    check_no_input_operator(fn.transforms.translation, "cpu", offset=(21, 30))
-
-
 # External source
 
 
@@ -1306,6 +1236,43 @@ def test_external_source_unsupported(kind, parallel):
 
     with assert_warns(glob="DALI doesn't capture state of such 'source'."):
         pipeline().build()
+
+
+# Auto augmentation tests - run auto augmentations as a good example of pipeline
+# consisting of many ops
+
+
+@params("cpu", "gpu")
+def test_auto_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return aa.auto_augment(image)
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
+@params("cpu", "gpu")
+def test_rand_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return ra.rand_augment(image, n=2, m=15)
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
+@params("cpu", "gpu")
+def test_trivial_augment(device):
+    @pipeline_def(enable_conditionals=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        image = fn.decoders.image(data, device="cpu" if device == "cpu" else "mixed")
+        return ta.trivial_augment_wide(image)
+
+    check_pipeline_checkpointing_native(pipeline)
 
 
 unsupported_readers = [
