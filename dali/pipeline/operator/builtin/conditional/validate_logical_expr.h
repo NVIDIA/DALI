@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -28,10 +29,10 @@ namespace dali {
  * and `and`. The inputs are restricted to scalars, it passes them through, but copy should also
  * be a similarly valid option.
  */
-class LogicalValidate : public Operator<CPUBackend> {
+class LogicalValidate : public StatelessOperator<CPUBackend> {
  public:
   explicit LogicalValidate(const OpSpec &spec)
-      : Operator<CPUBackend>(spec),
+      : StatelessOperator<CPUBackend>(spec),
         name_(spec.GetArgument<std::string>("expression_name")),
         side_(spec.GetArgument<std::string>("expression_side")) {}
 
@@ -57,10 +58,10 @@ class LogicalValidate : public Operator<CPUBackend> {
  * @brief This is just a placeholder operator that is picked when GPU inputs are encountered
  * and reports a better error.
  */
-class LogicalFailForGpu : public Operator<GPUBackend> {
+class LogicalFailForGpu : public StatelessOperator<GPUBackend> {
  public:
   explicit LogicalFailForGpu(const OpSpec &spec)
-      : Operator<GPUBackend>(spec),
+      : StatelessOperator<GPUBackend>(spec),
         name_(spec.GetArgument<std::string>("expression_name")),
         side_(spec.GetArgument<std::string>("expression_side")) {
     ReportGpuInputError(name_, side_, true);

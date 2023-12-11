@@ -10,6 +10,7 @@ test_body() {
     ${python_invoke_test} test_external_source_cupy.py
     ${python_invoke_test} --attr 'cupy' test_external_source_impl_utils.py
     ${python_invoke_test} --attr 'cupy' test_pipeline_debug.py
+    ${python_new_invoke_test} -A '!slow,cupy' -s checkpointing
 }
 
 pushd ../..

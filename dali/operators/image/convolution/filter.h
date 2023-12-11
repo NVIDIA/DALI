@@ -22,6 +22,7 @@
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
@@ -169,10 +170,11 @@ TensorListView<detail::storage_tag_map_t<Backend>, const In, 0> get_fill_values_
 }  // namespace filter
 
 template <typename Backend>
-class Filter : public SequenceOperator<Backend> {
+class Filter : public SequenceOperator<Backend, StatelessOperator> {
  public:
+  using Base = SequenceOperator<Backend, StatelessOperator>;
   inline explicit Filter(const OpSpec& spec)
-      : SequenceOperator<Backend>(spec),
+      : Base(spec),
         is_valid_mode_{filter::parse_is_valid_mode(spec.GetArgument<std::string>("mode"))} {
     spec.TryGetArgument(dtype_, "dtype");
   }
@@ -197,8 +199,7 @@ class Filter : public SequenceOperator<Backend> {
     // when there are no per-frame arguments, to reduce the number of instances of
     // per-sample data-structure when they are not needed.
     bool should_expand =
-        SequenceOperator<Backend>::ShouldExpand(ws) &&
-        (HasPerFramePositionalArgs(ws) || SequenceOperator<Backend>::HasPerFrameArgInputs(ws));
+        Base::ShouldExpand(ws) && (HasPerFramePositionalArgs(ws) || Base::HasPerFrameArgInputs(ws));
     if (should_expand && input_layout.size() && input_layout[0] == 'F') {
       assert(input_desc_.num_seq_dims >= 1);
       input_desc_.num_seq_dims--;

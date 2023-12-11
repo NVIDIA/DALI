@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +20,16 @@
 #include <type_traits>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
 template <typename Backend>
-class Copy : public Operator<Backend> {
+class Copy : public StatelessOperator<Backend> {
  public:
   inline explicit Copy(const OpSpec &spec) :
-    Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {}
+    StatelessOperator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {}
 
   inline ~Copy() override = default;
 

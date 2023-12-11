@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -214,13 +214,12 @@ void DisplacementKernel_aligned32bit(
   }
 }
 
-template <class Displacement,
-          bool per_channel_transform>
-class DisplacementFilter<GPUBackend, Displacement,
-                         per_channel_transform> : public Operator<GPUBackend> {
+template <class Displacement, bool per_channel_transform>
+class DisplacementFilter<GPUBackend, Displacement, per_channel_transform>
+    : public DisplacementBase<GPUBackend, Displacement> {
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
-      Operator(spec),
+      DisplacementBase<GPUBackend, Displacement>(spec),
       displace_(spec),
       interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     channel_block_setup_.SetBlockDim(ivec3{kAlignedBlockDim, 1, 1});

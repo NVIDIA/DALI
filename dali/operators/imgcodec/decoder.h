@@ -16,14 +16,15 @@
 #include <map>
 #include <memory>
 
-#include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/operators/imgcodec/operator_utils.h"
-#include "dali/operators/image/crop/crop_attr.h"
-#include "dali/operators/generic/slice/slice_attr.h"
-#include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/util/output_shape.h"
+#include "dali/operators/generic/slice/slice_attr.h"
+#include "dali/operators/image/crop/crop_attr.h"
+#include "dali/operators/image/crop/random_crop_attr.h"
+#include "dali/operators/imgcodec/operator_utils.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/operator.h"
 
 #ifndef DALI_OPERATORS_IMGCODEC_DECODER_H_
 #define DALI_OPERATORS_IMGCODEC_DECODER_H_
@@ -32,12 +33,12 @@ namespace dali {
 namespace imgcodec {
 
 template <typename Backend>
-class DecoderBase : public Operator<Backend> {
+class DecoderBase : public StatelessOperator<Backend> {
  public:
   ~DecoderBase() override = default;
 
  protected:
-  explicit DecoderBase(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit DecoderBase(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     device_id_ = spec.GetArgument<int>("device_id");
     opts_.format = spec.GetArgument<DALIImageType>("output_type");
     opts_.dtype = spec.GetArgument<DALIDataType>("dtype");
