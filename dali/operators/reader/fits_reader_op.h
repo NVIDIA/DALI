@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,22 +27,31 @@
 namespace dali {
 
 template <typename Backend, typename Target>
-class FitsReader : public DataReader<Backend, Target> {
+class FitsReader : public DataReader<Backend, Target, Target, true> {
  public:
-  explicit FitsReader(const OpSpec& spec) : DataReader<Backend, Target>(spec) {}
+  explicit FitsReader(const OpSpec& spec) : DataReader<Backend, Target, Target, true>(spec) {}
 
   bool CanInferOutputs() const override {
     return true;
   }
 
-  USE_READER_OPERATOR_MEMBERS(Backend, Target);
-  using DataReader<Backend, Target>::GetCurrBatchSize;
-  using DataReader<Backend, Target>::GetSample;
+  // TODO(skarpinski) Debug fits reader and add checkpointing support
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    DALI_FAIL("Fits reader does not support checkpointing.");
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    DALI_FAIL("Fits reader does not support checkpointing.");
+  }
+
+  USE_READER_OPERATOR_MEMBERS(Backend, Target, Target, true);
+  using DataReader<Backend, Target, Target, true>::GetCurrBatchSize;
+  using DataReader<Backend, Target, Target, true>::GetSample;
   using Operator<Backend>::spec_;
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
-    DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+    DataReader<Backend, Target, Target, true>::SetupImpl(output_desc, ws);
 
     int num_outputs = ws.NumOutput();
     int num_samples = GetCurrBatchSize();             // samples here are synonymous with files
@@ -103,7 +112,7 @@ class FitsReaderCPU : public FitsReader<CPUBackend, FitsFileWrapper> {
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, FitsFileWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, FitsFileWrapper, FitsFileWrapper, true);
 };
 
 }  // namespace dali
