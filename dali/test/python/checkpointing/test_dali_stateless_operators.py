@@ -473,12 +473,12 @@ def test_filter_stateless(device):
 @stateless_signed_off("experimental.remap")
 def test_remap_stateless():
     rng = np.random.default_rng(42)
-    np_map_x = 244 * rng.uniform(size=(244, 150))
-    np_map_y = 150 * rng.uniform(size=(244, 150))
+    np_map_x = 128 * rng.uniform(size=(100, 128))
+    np_map_y = 100 * rng.uniform(size=(100, 128))
 
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
-        data = fn.external_source(source=RandomBatch((244, 150, 3)), layout="HWC")
+        data = fn.external_source(source=RandomBatch((100, 128, 3)), layout="HWC")
         data = data.gpu()
         map_x = types.Constant(np_map_x).gpu()
         map_y = types.Constant(np_map_y).gpu()
