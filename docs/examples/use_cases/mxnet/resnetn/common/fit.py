@@ -118,7 +118,7 @@ def add_fit_args(parser):
     train.add_argument('--top-k', type=int, default=0,
                        help='report the top-k accuracy. 0 means no report.')
     train.add_argument('--loss', type=str, default='',
-                       help='show the cross-entropy or nll loss. ce strands for cross-entropy, nll-loss stands for likelihood loss')
+                       help='show the cross-entropy or nll loss. ce stands for cross-entropy, nll-loss stands for likelihood loss')
     train.add_argument('--test-io', type=int, default=0,
                        help='1 means test reading speed without training')
     train.add_argument('--dtype', type=str, default='float32',

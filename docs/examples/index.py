@@ -1,16 +1,43 @@
-doc(title="Examples and Tutorials",
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from doc_index import doc, doc_entry, op_reference
+
+doc(
+    title="Examples and Tutorials",
     entries=[
-        doc_entry("general/data_loading/index.py", [
-            op_reference(
-                "fn.readers",
-                "Examples covering how to load data using DALI readers and external source operator"
-            ),
-            op_reference(
-                "fn.external_source",
-                "Examples covering how to load data using external source operator or dedicated \
-                DALI readers operators"),
-        ]),
+        doc_entry(
+            "general/data_loading/index.py",
+            [
+                op_reference(
+                    "fn.readers",
+                    (
+                        "Examples covering how to load data using DALI readers"
+                        " and external source operator"
+                    ),
+                ),
+                op_reference(
+                    "fn.external_source",
+                    (
+                        "Examples covering how to load data using external source operator"
+                        " or dedicated DALI readers operators"
+                    ),
+                ),
+            ],
+        ),
         "operations_index.py",
         "use_cases/index.py",
         "other_index.py",
-    ])
+    ],
+)
