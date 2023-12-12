@@ -1021,7 +1021,7 @@ def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
         data = fn.random.uniform(shape=(100, 100), dtype=types.DALIDataType.UINT8)
-        bbox = fn.random.uniform(shape=(7,4), range=[0, 100], dtype=types.DALIDataType.FLOAT)
+        bbox = fn.random.uniform(shape=(7, 4), range=[0, 100], dtype=types.DALIDataType.FLOAT)
         labels = fn.random.uniform(shape=(1,), dtype=types.DALIDataType.INT32)
         return fn.ssd_random_crop(data, bbox, labels, device="cpu")[0]
 
