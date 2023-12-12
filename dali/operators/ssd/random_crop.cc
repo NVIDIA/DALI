@@ -187,7 +187,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
   auto N = bboxes.dim(0);
   DALI_ENFORCE(bboxes.ndim() >= 2 && bboxes.dim(1) == 4,
-               "Second dimension of bounding boxes tensor should be 4.");
+               "The second dimension of the bounding box tensor should be 4.");
 
   const float* bbox_data = bboxes.data<float>();
 
