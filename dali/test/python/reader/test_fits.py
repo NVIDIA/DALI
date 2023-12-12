@@ -236,13 +236,17 @@ def test_reading_compressed(i, dtype, ndim, device):
     )
 
 
-@params("cpu",)
+@params(
+    "cpu",
+)
 def test_concurrent_pipelines(device):
-    test_data_path = os.path.join(get_dali_extra_path(), 'db/single/fits/compressed/')
+    test_data_path = os.path.join(get_dali_extra_path(), "db/single/fits/compressed/")
 
     pipelines = []
     for _ in range(5):
-        pipeline = FitsReaderPipeline(test_data_path, device=device, device_id=0, num_threads=4, batch_size=1)
+        pipeline = FitsReaderPipeline(
+            test_data_path, device=device, device_id=0, num_threads=4, batch_size=1
+        )
         pipeline.build()
         pipelines.append(pipeline)
 
@@ -253,4 +257,4 @@ def test_concurrent_pipelines(device):
             if expected_output is None:
                 expected_output = pipeline_output
             else:
-                assert np.all(pipeline_output[0].as_array() ==  expected_output[0].as_array())
+                assert np.all(pipeline_output[0].as_array() == expected_output[0].as_array())
