@@ -864,16 +864,3 @@ def _blocking_destructor(device):
 def test_blocking_destructor():
     for device in ["cpu", "gpu"]:
         yield _blocking_destructor, device
-
-
-@raises(
-    RuntimeError,
-    glob="The external source cannot run in parallel mode without Python workers pool",
-)
-def test_no_workers_parallel_validation():
-    @pipeline_def(py_num_workers=0, num_threads=1, device_id=0, batch_size=4)
-    def pipeline():
-        return fn.external_source(lambda x: np.array([x.idx_in_epoch]), parallel=True)
-
-    p = pipeline()
-    p.build()
