@@ -9,7 +9,6 @@ env:
   PYTHON_LINT_PATHS: "./dali ./docs ./tools ./dali_tf_plugin ./qa"
   AUTOGRAPH_LINT_PATHS: "./dali/python/nvidia/dali/_autograph ./dali/test/python/autograph/"
 
-
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -19,7 +18,7 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install  flake8 "black[jupyter]"==23.11.0
-      - run: black --check --verbose ${{ env.PYTHON_LINT_PATHS }}  ${{ env.AUTOGRAPH_LINT_PATHS }}
+      - run: black --check --verbose ${{ env.PYTHON_LINT_PATHS }} ${{ env.AUTOGRAPH_LINT_PATHS }}
       - run: flake8 --config=.flake8 ${{ env.PYTHON_LINT_PATHS }}
       - run: flake8 --config=.flake8.ag ${{ env.AUTOGRAPH_LINT_PATHS }}
   cpp:
