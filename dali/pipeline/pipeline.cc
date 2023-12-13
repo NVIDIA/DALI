@@ -584,20 +584,14 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
 void Pipeline::Run() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  repeat_last_.Refeed<CPUBackend>(*this);
-  repeat_last_.Refeed<MixedBackend>(*this);
-  repeat_last_.Refeed<GPUBackend>(*this);
+  repeat_last_.Refeed(*this);
   executor_->Run();
 }
 
 void Pipeline::Prefetch() {
-  auto sz = GetQueueSizes();
-  for (int i = 0; i < sz.cpu_size; i++)
-    repeat_last_.Refeed<CPUBackend>(*this);
-  for (int i = 0; i < sz.gpu_size; i++) {
-    repeat_last_.Refeed<MixedBackend>(*this);
-    repeat_last_.Refeed<GPUBackend>(*this);
-  }
+  DALI_ENFORCE(built_,
+      "\"Build()\" must be called prior to executing the pipeline.");
+  repeat_last_.Refeed(*this, true);
   executor_->Prefetch();
 }
 
@@ -811,7 +805,7 @@ std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   return ret;
 }
 
-ReaderMeta Pipeline::GetReaderMeta(std::string name) {
+ReaderMeta Pipeline::GetReaderMeta(const std::string &name) {
   ReaderMeta meta;
   for (Index i = 0; i < graph_.NumOp(); ++i) {
     const OpNode &current = graph_.Node(i);
@@ -823,6 +817,9 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
+int Pipeline::InputFeedCount(const std::string &name) {
+  return executor_->InputFeedCount(name);
+}
 
 const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
@@ -1105,6 +1102,24 @@ void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
     else
       assert(!"Unexpected backend for an ExternalSource node.");
   }
+}
+
+template <typename Backend>
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
+  auto &nodes = GetNodes<Backend>();
+  for (auto &[name, node] : nodes) {
+    int count = fill_queue ? owner.InputFeedCount(name.c_str()) : 1;
+    for (int i = 0; i < count; i++)
+      owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
+        InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+        true);
+  }
+}
+
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
+  Refeed<CPUBackend>(owner, fill_queue);
+  Refeed<MixedBackend>(owner, fill_queue);
+  Refeed<GPUBackend>(owner, fill_queue);
 }
 
 }  // namespace dali

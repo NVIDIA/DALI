@@ -273,10 +273,12 @@ class DLL_PUBLIC Pipeline {
    * @param async_execution Use worker threads for RunX() functions
    */
   DLL_PUBLIC void SetExecutionTypes(bool pipelined_execution = true,
+                                    bool separated_execution = false,
                                     bool async_execution = true) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed - cannot change execution type.");
     pipelined_execution_ = pipelined_execution;
+    separated_execution_ = separated_execution;
     async_execution_ = async_execution;
   }
 
@@ -380,7 +382,8 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(!built_,
                  "Alterations to the pipeline after "
                  "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    separated_execution_ = (cpu_size != gpu_size);
+    DALI_ENFORCE(separated_execution_ || (cpu_size == gpu_size),
+                 "Setting different queue sizes for non-separated execution is not allowed");
     DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
@@ -410,8 +413,19 @@ class DLL_PUBLIC Pipeline {
 
   /**
    * @brief Fills the prefetch queues
+   *
+   * Runs a prefetching function in the executor so that internal and output queues are full.
+   * Note that it requires populating the external sources InputFeedCount(name) times.
    */
   DLL_PUBLIC void Prefetch();
+
+  /**
+   * @brief Calculates how many times a given input must be populated before the pipeline can be run
+   *
+   * @param input_name The name of the input, as specified in the input operator.
+   * @return The number of times that feed_input needs to be called.
+   */
+  DLL_PUBLIC int InputFeedCount(const std::string &input_name);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
@@ -465,7 +479,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the reader meta for a node with given name
    */
-  DLL_PUBLIC ReaderMeta GetReaderMeta(std::string name);
+  DLL_PUBLIC ReaderMeta GetReaderMeta(const std::string &name);
 
   /**
    * @brief Get the data layout required by the external input with a given name.
@@ -718,7 +732,8 @@ class DLL_PUBLIC Pipeline {
    * This class maintains a list of such nodes, stores the most recently fed input and re-submits
    * it if no new data was fed.
    */
-  struct RepeatLastInputs {
+  class RepeatLastInputs {
+   public:
     void FindNodes(const OpGraph &graph);
 
     template <typename OperatorBackend, typename DataBackend>
@@ -756,8 +771,18 @@ class DLL_PUBLIC Pipeline {
       return true;
     }
 
+    /**
+     * @brief Feeds the recently set inputs to the inputs that have `repeat_last` property
+     *
+     * @param owner       The pipeline
+     * @param fill_queue  If true, the inputs are fed `InputFeedCount(name)` times;
+     *                    otherwise it's fed once.
+     */
+    void Refeed(Pipeline &owner, bool fill_queue = false);
+
+   private:
     template <typename Backend>
-    void Refeed(Pipeline &owner);
+    void Refeed(Pipeline &owner, bool fill_queue);
 
     template <typename Backend>
     struct RepeatLastInput {
@@ -789,16 +814,6 @@ class DLL_PUBLIC Pipeline {
 
   RepeatLastInputs repeat_last_;
 };
-
-template <typename Backend>
-void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
-  auto &nodes = GetNodes<Backend>();
-  for (auto &[name, node] : nodes) {
-    owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
-      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
-      true);
-  }
-}
 
 }  // namespace dali
 

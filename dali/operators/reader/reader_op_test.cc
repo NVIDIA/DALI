@@ -216,6 +216,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
   Workspace ws;
   for (int i = 0; i < 4; ++i) {
     pipe.Run();
+    pipe.Outputs(&ws);
     auto shape = ws.Output<CPUBackend>(0).AsTensor().shape();
     // We have NFHWC format
     const auto batch_size = shape[0];

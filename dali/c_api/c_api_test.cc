@@ -414,6 +414,8 @@ TYPED_TEST(CApiTest, ExternalSourceSingleAllocVariableBatchSizePipe) {
     for (int i = 0; i < prefetch_queue_depth; i++) {
       pipe_ptr->Run();
     }
+    daliPrefetch(&handle);
+
     dali::Workspace ws;
     for (int i = 0; i < prefetch_queue_depth; i++) {
       ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr, DALI_ext_default,
@@ -479,6 +481,7 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocPipe) {
                                    input_shape.sample_dim(), "HWC", cuda_stream, DALI_ext_default);
   daliRun(&handle);
   pipe_ptr->Run();
+  ComparePipelinesOutputs<TypeParam>(handle, *pipe_ptr);
   daliDeletePipeline(&handle);
 }
 

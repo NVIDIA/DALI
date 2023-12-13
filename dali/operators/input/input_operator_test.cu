@@ -88,7 +88,7 @@ class InputOperatorMixedTest : public ::testing::TestWithParam<InputOperatorMixe
 
     pipeline_ = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1,
                                            exec_pipelined_, cpu_queue_depth_, exec_async_);
-    pipeline_->SetExecutionTypes(exec_pipelined_, exec_async_);
+    pipeline_->SetExecutionTypes(exec_pipelined_, exec_separated_, exec_async_);
 
     PutTogetherDaliGraph();
 

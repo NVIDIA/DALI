@@ -70,6 +70,7 @@ TEST_F(VideoReaderTest, VariableFrameRate2) {
   EXPECT_THROW([&]() {
       for (int i = 0; i < 10; ++i) {
         pipe.Run();
+        pipe.Outputs(&ws);
       }
     }(), std::runtime_error);
 }

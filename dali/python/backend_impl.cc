@@ -1887,7 +1887,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("Shutdown", &Pipeline::Shutdown, py::call_guard<py::gil_scoped_release>())
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
-          p->SetExecutionTypes(exec_pipelined, exec_async);
+          p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
         },
         "exec_pipelined"_a = true,
         "exec_separated"_a = false,

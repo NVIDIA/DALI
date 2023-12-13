@@ -82,6 +82,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void Shutdown() = 0;
   DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
   DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
+  DLL_PUBLIC virtual int InputFeedCount(const std::string &input_name) = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -161,6 +162,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    * Can only be used when the executor is not running.
   */
   DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt) override;
+
+  DLL_PUBLIC int InputFeedCount(const std::string &op_name) override;
 
  protected:
   DLL_PUBLIC virtual void RunCPU();

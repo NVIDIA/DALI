@@ -349,6 +349,21 @@ void Executor<WorkspacePolicy, QueuePolicy>::Run() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(const std::string &op_name) {
+  OpNode &node = graph_->Node(op_name);
+  switch (node.op_type) {
+    case OpType::CPU:
+      return queue_sizes_.cpu_size;
+    case OpType::MIXED:
+    case OpType::GPU:
+      return queue_sizes_.gpu_size;
+    default:
+      assert(!"Unreachable code detected");
+      return 0;
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::Prefetch() {
   int i;
   for (i = 0; i < std::min(queue_sizes_.gpu_size, queue_sizes_.cpu_size); i++) {

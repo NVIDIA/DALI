@@ -399,7 +399,7 @@ DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const c
 DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
 
 /**
- * @brief Schedule first runs to fill buffers for Executor.
+ * @brief Schedule initial runs to fill the buffers.
  */
 DLL_PUBLIC void daliPrefetch(daliPipelineHandle *pipe_handle);
 

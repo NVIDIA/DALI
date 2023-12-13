@@ -574,7 +574,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   Pipeline pipe(batch_size, 4, 0);
   // Cannot test async while setting external input - need to make sure that
-  pipe.SetExecutionTypes(true, true);
+  pipe.SetExecutionTypes(true, true, true);
   // Test coprime queue sizes
   pipe.SetQueueSizes(CPU, GPU);
   pipe.AddExternalInput("data");
@@ -615,11 +615,9 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
 
   // Fill queues
   int i = 0;
-  for (; i < std::max(CPU, GPU); i++) {
+  int feed_count = pipe.InputFeedCount("data");
+  for (; i < feed_count; i++)
     pipe.SetExternalInput("data", split_tl[i]);
-    if (i < std::min(CPU, GPU))
-      pipe.Run();
-  }
   pipe.Prefetch();
 
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
@@ -631,15 +629,6 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
     pipe.SetExternalInput("data", split_tl[i]);
     pipe.Run();
   }
-
-  // We consumed all the data and have it in the Pipeline, now we need to run
-  // Mixed and GPU stage to consume what was produced by the CPU
-  /*for (int i = 0; i < CPU; i++) {
-    Workspace ws;
-    pipe.Outputs(&ws);
-    test::CheckResults(ws, batch_size, obtained_outputs++, tl);
-    pipe.RunGPU();
-  }*/
 }
 
 class DummyOpToAdd : public Operator<CPUBackend> {
@@ -786,7 +775,7 @@ class DummyInputOperator: public InputOperator<CPUBackend> {
     int data = input.tensor<int>(0)[0];
     auto &out0 = ws.Output<CPUBackend>(0);
     auto &out1 = ws.Output<CPUBackend>(1);
-    auto out_shape = TensorListShape<-1>(1);
+    auto out_shape = TensorListShape<-1>(1, 1);
     out_shape.set_tensor_shape(0, {1});
 
     out0.Resize(out_shape, DALIDataType::DALI_FLOAT);

@@ -251,8 +251,6 @@ class Pipeline(object):
         self._consumer_iter = 0
         self._consumer_epoch_idx = 0
         self._batches_to_consume = 0
-        self._cpu_batches_to_consume = 0
-        self._gpu_batches_to_consume = 0
         self._names_and_devices = None
         self._exec_async = exec_async
         self._bytes_per_sample = bytes_per_sample
@@ -1073,12 +1071,11 @@ class Pipeline(object):
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
-            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+            if self._batches_to_consume == 0:
                 self._consumer_iter = 0
                 self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
-            self._gpu_batches_to_consume -= 1
             return self._outputs()
 
     def schedule_run(self):
@@ -1123,12 +1120,11 @@ class Pipeline(object):
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
-            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+            if self._batches_to_consume == 0:
                 self._consumer_iter = 0
                 self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
-            self._gpu_batches_to_consume -= 1
             return self._pipe.ShareOutputs()
 
     # for the backward compatibility
@@ -1253,7 +1249,8 @@ class Pipeline(object):
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
         if self._exec_separated:
-            self._fill_separated_queues()
+            for _ in range(self._prefetch_queue_depth.cpu_size + self._prefetch_queue_depth.gpu_size):
+                self._run_once()
         else:
             for _ in range(self._prefetch_queue_depth):
                 self._run_once()
@@ -1275,39 +1272,11 @@ class Pipeline(object):
         except StopIteration:
             self._last_iter = True
 
-    def _run_up_to(self, stage_name):
-        """Call the `_run_X` up to `stage_name` (inclusive)."""
-        try:
-            if not self._last_iter:
-                self._iter_setup()
-                self._batches_to_consume += 1
-                self._run_cpu()
-                if stage_name == "cpu":
-                    return
-                self._run_gpu()
-                if stage_name == "gpu":
-                    return
-        except StopIteration:
-            self._last_iter = True
-
     def _schedule_py_workers(self):
         if self._py_pool is None:
             return
         for i, group in enumerate(self._parallel_input_callbacks):
             group.prefetch(self._py_pool, i, self._max_batch_size, self._epoch_idx)
-
-    def _fill_separated_queues(self):
-        """When using separated execution fill each of the prefetch queues"""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if not self._first_iter:
-            raise RuntimeError("Queues can be filled only on first iteration.")
-        if not self._exec_separated:
-            raise RuntimeError("This function should be only used with separated execution.")
-        for i in range(self._gpu_queue_size):
-            self._run_up_to("gpu")
-        for i in range(self._cpu_queue_size):
-            self._run_up_to("cpu")
 
     def reset(self):
         """Resets pipeline iterator
