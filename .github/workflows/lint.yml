@@ -15,12 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: psf/black@stable
+      - uses: actions/setup-python@v4
         with:
-          options: "--check --verbose"
-          src: "${{ env.PYTHON_LINT_PATHS }}  ${{ env.AUTOGRAPH_LINT_PATHS }}"
-          jupyter: true
-          version: "23.11.0"
+          python-version: '3.10'
+      - run: pip install "black[jupyter]"==23.11.0
+      - run: black --check --verbose ${{ env.PYTHON_LINT_PATHS }}  ${{ env.AUTOGRAPH_LINT_PATHS }}
   flake8:
     runs-on: ubuntu-latest
     steps:
