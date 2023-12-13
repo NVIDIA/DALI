@@ -17,7 +17,7 @@ To use one of the policies define the pipeline using the
 :py:func:`@pipeline_def <nvidia.dali.pipeline_def>` decorator and set ``enable_conditionals``
 to ``True``. Next, call the automatic augmentation function inside the pipeline. This example
 applies the :ref:`AutoAugment` policy tuned for ImageNet::
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import auto_augment
 
 

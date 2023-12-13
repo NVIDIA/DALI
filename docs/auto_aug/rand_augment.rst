@@ -14,7 +14,7 @@ with a search space limited to two parameters ``n`` and ``m``.
 For example, to use **3** random operations for each sample, each with fixed magnitude **17**,
 you can call :meth:`~nvidia.dali.auto_aug.rand_augment.rand_augment`, as follows::
 
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import rand_augment
 
     @pipeline_def(enable_conditionals=True)

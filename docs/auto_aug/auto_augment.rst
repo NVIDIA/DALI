@@ -13,7 +13,7 @@ To use the predefined policy that was discovered on ImageNet, import and invoke
 :meth:`~nvidia.dali.auto_aug.auto_augment.auto_augment` inside the pipeline definition,
 for example::
 
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import auto_augment
 
     @pipeline_def(enable_conditionals=True)
