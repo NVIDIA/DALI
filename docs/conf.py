@@ -71,7 +71,7 @@ with mock(["torch", "numba"]):
 
     import doc_index
 
-    references = doc_index.document_examples("examples/index.py")
+    references = doc_index.document_examples('examples/index.py')
 
     import autodoc_submodules
 
