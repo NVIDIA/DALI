@@ -19,6 +19,7 @@
 #include <random>
 #include <memory>
 #include <utility>
+#include <string>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/op_spec.h"
