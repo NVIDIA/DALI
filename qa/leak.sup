@@ -24,6 +24,7 @@ leak:_Unwind_ForcedUnwind
 leak:xla
 # as DALI dlopens but not dlcloses libraries some resources are marked as leaked
 # suppress them
+leak:dlopen
 leak:cuFileDriverOpen
 leak:cudaGetDeviceCount
 leak:cuvidGetDecoderCaps
