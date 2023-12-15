@@ -284,6 +284,11 @@ int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
   return (*pipe_handle)->pipeline->max_batch_size();
 }
 
+int daliInputFeedCount(daliPipelineHandle_t pipe_handle, const char *input_name) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  return pipeline->InputFeedCount(input_name);
+}
+
 void daliPrefetch(daliPipelineHandle_t pipe_handle) {
   auto &pipeline = (*pipe_handle)->pipeline;
   pipeline->Prefetch();

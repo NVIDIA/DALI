@@ -229,6 +229,15 @@ DLL_PUBLIC void
 daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
                            const char *data_id);
 
+/**
+ * @brief Returns how many times daliSetExternalInput on a given input before calling daliPrefetch
+ *
+ * @param pipe_handle The handle to the pipeline
+ * @param input_name The name of the input in question
+ * @return The number of calls to be made
+ */
+DLL_PUBLIC int
+daliInputFeedCount(daliPipelineHandle *pipe_handle, const char *input_name);
 
 /** @} */
 

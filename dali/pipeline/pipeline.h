@@ -573,7 +573,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Initializes the Pipeline internal state
    */
   void Init(int batch_size, int num_threads, int device_id, int64_t seed, bool pipelined_execution,
-            bool async_execution, size_t bytes_per_sample_hint,
+            bool separated_execution, bool async_execution, size_t bytes_per_sample_hint,
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 

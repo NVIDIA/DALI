@@ -246,7 +246,6 @@ class Pipeline(object):
         self._deserialized = False  # Marked True when deserializing
         self._first_iter = True
         self._last_iter = False
-        self._iter = 0
         self._epoch_idx = 0
         self._consumer_iter = 0
         self._consumer_epoch_idx = 0
@@ -282,6 +281,10 @@ class Pipeline(object):
         self._is_restored_from_checkpoint = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
+            if not exec_async:
+                raise ValueError(
+                    "`exec_async` must not evaluate to `False` when using separated queues."
+                )
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
             self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
         elif type(prefetch_queue_depth) is int:
@@ -903,7 +906,7 @@ class Pipeline(object):
         if self._checkpoint is not None:
             external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
             self._consumer_epoch_idx = self._epoch_idx = external_ctx_cpt.epoch_idx
-            self._consumer_iter = self._iter = external_ctx_cpt.iter
+            self._consumer_iter = external_ctx_cpt.iter
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.current_iter = external_ctx_cpt.iter
@@ -933,7 +936,10 @@ class Pipeline(object):
         self._restore_state_from_checkpoint()
         self._built = True
 
-    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
+    def input_feed_count(self, input_name):
+        return self._pipe.InputFeedCount(input_name)
+
+    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False, is_prefetch=False):
         from nvidia.dali.external_source import _prep_data_for_feed_input
 
         if cuda_stream is None:
@@ -1248,13 +1254,18 @@ class Pipeline(object):
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
+        self._run_input_callbacks(True)
+
+        prefetch_count = self._cpu_queue_size
         if self._exec_separated:
-            for _ in range(self._prefetch_queue_depth.cpu_size + self._prefetch_queue_depth.gpu_size):
-                self._run_once()
-        else:
-            for _ in range(self._prefetch_queue_depth):
-                self._run_once()
+            prefetch_count = self._cpu_queue_size + self._gpu_queue_size
+
+        for i in range(prefetch_count):
+            self.iter_setup()
+
+        self._batches_to_consume += self._gpu_queue_size
         self._first_iter = False
+        self._pipe.Prefetch()
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
@@ -1268,7 +1279,7 @@ class Pipeline(object):
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
-            self._run()
+            self._pipe._run()
         except StopIteration:
             self._last_iter = True
 
@@ -1286,7 +1297,6 @@ class Pipeline(object):
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
-            self._iter = 0
             self._epoch_idx += 1
             if self._input_callbacks:
                 for group in self._input_callbacks:
@@ -1510,7 +1520,7 @@ class Pipeline(object):
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
-    def _run_input_callbacks(self):
+    def _run_input_callbacks(self, is_prefetch=False):
         if self._input_callbacks is None:
             return
 
@@ -1518,16 +1528,20 @@ class Pipeline(object):
         stop_iter = False
         for i, group in enumerate(self._parallel_input_callbacks):
             try:
-                batches.append(
-                    group.schedule_and_receive(
-                        self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                count = group.feed_count(self) if is_prefetch else 1
+                for i in range(count):
+                    batches.append(
+                        group.schedule_and_receive(
+                            self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                        )
                     )
-                )
             except StopIteration:
                 stop_iter = True
         for group in self._seq_input_callbacks:
             try:
-                batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
+                count = group.feed_count(self) if is_prefetch else 1
+                for i in range(count):
+                    batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
             except StopIteration:
                 stop_iter = True
         if stop_iter:
@@ -1540,13 +1554,19 @@ class Pipeline(object):
     def _iter_setup(self):
         self._run_input_callbacks()
         self.iter_setup()
-        self._iter += 1
 
     def iter_setup(self):
-        """This function can be overriden by user-defined
+        """A deprecated method of providing the pipeline with external inputs.
+
+        This function can be overriden by user-defined
         pipeline to perform any needed setup for each iteration.
         For example, one can use this function to feed the input
-        data from NumPy arrays."""
+        data from NumPy arrays.
+
+        This method is deprecated and its use is discourage. Newer execution models may be
+        incompatible with this method of providing data to the pipeline. Use `source` argument
+        in ``external_source`` instead, where possible.
+        """
         pass
 
     def _generate_build_args(self):

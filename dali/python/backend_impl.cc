@@ -1985,6 +1985,7 @@ PYBIND11_MODULE(backend_impl, m) {
              }
              return ret;
          })
+    .def("InputFeedCount", &Pipeline::InputFeedCount, "input_name"_a)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {

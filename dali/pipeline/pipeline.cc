@@ -100,7 +100,7 @@ Pipeline::Pipeline(int max_batch_size, int num_threads, int device_id, int64_t s
                    bool set_affinity, int max_num_stream, int default_cuda_stream_priority)
     : built_(false), separated_execution_{false} {
   InitializeMemoryResources();
-  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution,
+  Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
        async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
        default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
 }
@@ -136,6 +136,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     Init(this->max_batch_size_, this->num_threads_,
          this->device_id_, seed,
          pipelined_execution,
+         separated_execution_,
          async_execution,
          bytes_per_sample_hint,
          set_affinity,
@@ -171,7 +172,7 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
-                    bool pipelined_execution, bool async_execution,
+                    bool pipelined_execution, bool separated_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
     // guard cudaDeviceGetStreamPriorityRange call

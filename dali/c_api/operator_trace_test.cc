@@ -133,8 +133,8 @@ TEST_P(OperatorTraceTest, OperatorTraceTest) {
                       num_threads_, device_id_, exec_pipelined_, exec_async_, exec_separated_,
                       cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_, 0);
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
+    daliPrefetch(&h);
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
-    daliPrefetchUniform(&h, prefetch_depth);
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
@@ -234,7 +234,8 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
 
     // Feed CPU input data.
-    for (int i = 0; i < prefetch_depth; i++) {
+    int feed_count_cpu = daliInputFeedCount(&h, "OP_TACE_IN_CPU");
+    for (int i = 0; i < feed_count_cpu; i++) {
       size_t sample_size = 42;
       auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
@@ -244,7 +245,8 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     }
 
     // Feed GPU input data.
-    for (int i = 0; i < prefetch_depth; i++) {
+    int feed_count_gpu = daliInputFeedCount(&h, "OP_TACE_IN_GPU");
+    for (int i = 0; i < feed_count_gpu; i++) {
       int sample_size = 42;
       auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
@@ -253,7 +255,7 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
                            shapes.data(), 1, nullptr, DALI_ext_default);
     }
 
-    daliPrefetchUniform(&h, prefetch_depth);
+    daliPrefetch(&h);
     for (int i = 0; i < prefetch_depth; i++) {
       daliShareOutput(&h);
 
