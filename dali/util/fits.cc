@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,12 +34,6 @@ std::string GetFitsErrorMessage(int status) {
   fits_get_errstatus(status, &status_str[0]); /* get the error description */
 
   return status_str;
-}
-
-void HandleFitsError(int status) {
-  if (status) {
-    DALI_FAIL(GetFitsErrorMessage(status));
-  }
 }
 
 int ImgTypeToDatatypeCode(int img_type) {
@@ -154,8 +148,9 @@ inline void ExtractData<0>(fitsfile* fptr, std::vector<std::vector<uint8_t>>& ra
 
     unsigned char charnull = 0;
     raw_data[*size].resize(nelemll / sizeof(unsigned char));
-    fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1, static_cast<int64>(nelemll),
-                  &charnull, raw_data[*size].data(), nullptr, status);
+    FITS_CALL(fits_read_col(fptr, TBYTE, (fptr->Fptr)->cn_compressed, irow, 1,
+                            static_cast<int64>(nelemll),
+                            &charnull, raw_data[*size].data(), nullptr, status));
 
     ++(*size);
     *sum_nelemll += nelemll;
@@ -163,10 +158,6 @@ inline void ExtractData<0>(fitsfile* fptr, std::vector<std::vector<uint8_t>>& ra
 }
 
 }  // namespace
-
-void FITS_CALL(int status) {
-  return HandleFitsError(status);
-}
 
 void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   int32_t hdu_type, img_type, n_dims, status = 0;
@@ -186,7 +177,10 @@ void ParseHeader(HeaderData& parsed_header, fitsfile* src) {
   parsed_header.hdu_type = hdu_type;
   parsed_header.datatype_code = ImgTypeToDatatypeCode(img_type);
   parsed_header.type_info = &TypeFromFitsDatatypeCode(parsed_header.datatype_code);
-  parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
+  {
+    FitsLock lock;
+    parsed_header.compressed = (fits_is_compressed_image(src, &status) == 1);
+  }
 
   if (parsed_header.compressed) {
     FITS_CALL(fits_get_num_rows(src, &parsed_header.rows, &status)); /*get NROW value */
@@ -283,6 +277,27 @@ size_t HeaderData::size() const {
 
 size_t HeaderData::nbytes() const {
   return type_info ? type_info->size() * size() : 0_uz;
+}
+
+void HandleFitsError(int status) {
+  if (status) {
+    DALI_FAIL(GetFitsErrorMessage(status));
+  }
+}
+
+FitsLock::FitsLock() : lock_(mutex(), std::defer_lock) {
+  if (!fits_is_reentrant()) {
+    DALI_WARN_ONCE("Loaded instance of CFITSIO library does not support multithreading. "
+                  "Please recompile CFITSIO in reentrant mode (--enable-reentrant) "
+                  "or use CFITSIO delivered in DALI_deps. Using non-reentrant version "
+                  "of CFITSIO may degrade the performance.");
+    lock_.lock();
+  }
+}
+
+std::mutex& fits::FitsLock::mutex()  {
+  static std::mutex mutex = {};
+  return mutex;
 }
 
 }  // namespace fits
