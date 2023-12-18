@@ -234,7 +234,7 @@ class DALIGenericIterator(_DaliBaseIterator):
             global_shape = (self._sharding.mesh.size * shard_shape[0], *shard_shape[1:])
         else:
             global_shape = (self._sharding.shape[0] * shard_shape[0], *shard_shape[1:])
-        
+
         return jax.make_array_from_single_device_arrays(
             global_shape, self._sharding, category_outputs
         )
@@ -313,13 +313,12 @@ def _data_iterator_impl(
 
                 devices_to_use = devices if devices is not None else jax.local_devices()
                 num_shards = len(devices) if devices is not None else jax.device_count()
-                
+
                 if devices is not None:
                     assert jax.local_device_count() == jax.device_count(), (
                         "Iterator compatible with pmapped JAX functions does not support "
                         "running in multiprocess mode. Use `sharding` argument instead."
                     )
-                        
 
                 for id, device in enumerate(devices_to_use):
                     # How device_id, shard_id and num_shards are used in the pipeline
@@ -486,4 +485,3 @@ def data_iterator(
         sharding,
         devices,
     )
-    
