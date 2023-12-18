@@ -315,10 +315,11 @@ def _data_iterator_impl(
                 num_shards = len(devices) if devices is not None else jax.device_count()
 
                 if devices is not None:
-                    assert jax.local_device_count() == jax.device_count(), (
-                        "Iterator compatible with pmapped JAX functions does not support "
-                        "running in multiprocess mode. Use `sharding` argument instead."
-                    )
+                    if jax.local_device_count() != jax.device_count():
+                        raise RuntimeError(
+                            "Iterator compatible with pmapped JAX functions does not support "
+                            "running in multiprocess mode. Use `sharding` argument instead."
+                        )
 
                 for id, device in enumerate(devices_to_use):
                     # How device_id, shard_id and num_shards are used in the pipeline
