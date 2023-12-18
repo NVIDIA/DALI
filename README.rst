@@ -118,6 +118,31 @@ Highlights
 
 ----
 
+Who is using DALI:
+------------------
+
+- |kaggle_dali_link|_: |kaggle_great_dali_link|_
+- |neuroscience_DALI|_
+- |HPC_DALI|_
+- |MLPERF_DALI|_
+
+.. |kaggle_dali_link| replace:: It is used during Kaggle computer vision competitions
+.. _kaggle_dali_link: https://www.kaggle.com/code/theoviel/rsna-breast-baseline-faster-inference-with-dali
+
+.. |kaggle_great_dali_link| replace:: "*DALI is one of the best things I have learned in this competition*"
+.. _kaggle_great_dali_link: https://www.kaggle.com/competitions/rsna-breast-cancer-detection/discussion/391059
+
+.. |neuroscience_DALI| replace:: As a tool that helps moving the needle in Neuroscience experiments
+.. _neuroscience_DALI: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10168383/
+
+.. |HPC_DALI| replace:: To improve the resource utilization in Advanced Computing Infrastructure
+.. _HPC_DALI: https://arcwiki.rs.gsu.edu/en/dali/using_nvidia_dali_loader
+
+.. |MLPERF_DALI| replace:: In the cutting edge industry benchmarks
+.. _MLPERF_DALI: https://developer.nvidia.com/blog/mlperf-hpc-v1-0-deep-dive-into-optimizations-leading-to-record-setting-nvidia-performance/
+
+----
+
 DALI Roadmap
 ------------
 
