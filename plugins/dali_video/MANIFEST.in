@@ -1,0 +1,9 @@
+global-include Acknowledgements.txt LICENSE COPYRIGHT
+recursive-include . *.c
+recursive-include . *.cpp
+recursive-include . *.cc
+recursive-include . *.cu
+recursive-include . *.h
+recursive-include . *.hpp
+recursive-include . *.py
+recursive-include . CMakeLists.txt
