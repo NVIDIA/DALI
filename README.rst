@@ -126,7 +126,7 @@ Who is using DALI:
 - |HPC_DALI|_
 - |MLPERF_DALI|_
 
-.. |kaggle_dali_link| replace:: It is used during Kaggle computer vision competitions
+.. |kaggle_dali_link| replace:: During Kaggle computer vision competitions
 .. _kaggle_dali_link: https://www.kaggle.com/code/theoviel/rsna-breast-baseline-faster-inference-with-dali
 
 .. |kaggle_great_dali_link| replace:: "*DALI is one of the best things I have learned in this competition*"
