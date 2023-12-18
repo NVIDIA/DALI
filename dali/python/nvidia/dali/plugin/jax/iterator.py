@@ -172,7 +172,6 @@ class DALIGenericIterator(_DaliBaseIterator):
         for category_id, category_name in enumerate(self.output_map):
             category_outputs = self._gather_outputs_for_category(pipelines_outputs, category_id)
 
-            # TODO(awolant): Here we need something better than just checking the number of GPUs. sharding shape or num_devices?
             if self._num_gpus == 1 and self._sharding is None:
                 next_output[category_name] = category_outputs[0]
             else:
@@ -230,8 +229,12 @@ class DALIGenericIterator(_DaliBaseIterator):
         This output is compatible with automatic parallelization with JAX.
         """
         shard_shape = category_outputs[0].shape
-        #TODO(awolant): How to get this shape correctly? Is mesh size always the one we want?
-        global_shape = (self._sharding.mesh.size * shard_shape[0], *shard_shape[1:])
+
+        if isinstance(self._sharding, NamedSharding):
+            global_shape = (self._sharding.mesh.size * shard_shape[0], *shard_shape[1:])
+        else:
+            global_shape = (self._sharding.shape[0] * shard_shape[0], *shard_shape[1:])
+        
         return jax.make_array_from_single_device_arrays(
             global_shape, self._sharding, category_outputs
         )
@@ -305,10 +308,18 @@ def _data_iterator_impl(
                 # Handle batch_size_per_gpu
                 global_batch_size = wrapper_kwargs["batch_size"]
                 batch_size_per_gpu = global_batch_size // len(jax.devices())
-                num_shards = jax.device_count()
+
                 wrapper_kwargs["batch_size"] = batch_size_per_gpu
 
                 devices_to_use = devices if devices is not None else jax.local_devices()
+                num_shards = len(devices) if devices is not None else jax.device_count()
+                
+                if devices is not None:
+                    assert jax.local_device_count() == jax.device_count(), (
+                        "Iterator compatible with pmapped JAX functions does not support "
+                        "running in multiprocess mode. Use `sharding` argument instead."
+                    )
+                        
 
                 for id, device in enumerate(devices_to_use):
                     # How device_id, shard_id and num_shards are used in the pipeline
@@ -475,3 +486,4 @@ def data_iterator(
         sharding,
         devices,
     )
+    
