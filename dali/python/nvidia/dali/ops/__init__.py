@@ -17,7 +17,10 @@ import sys
 import threading
 import tree
 import warnings
+import traceback
 from itertools import count
+
+EXTRACT_STACK = True
 
 import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
@@ -373,6 +376,10 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
+
+        if EXTRACT_STACK:
+            tb_stack = traceback.extract_stack()
+            self._stack = tb_stack
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)

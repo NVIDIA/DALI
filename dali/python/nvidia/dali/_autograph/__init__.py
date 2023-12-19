@@ -41,8 +41,12 @@ from nvidia.dali._autograph.impl.api import AutoGraphError
 from nvidia.dali._autograph.impl.api import convert
 from nvidia.dali._autograph.impl.api import converted_call
 from nvidia.dali._autograph.impl.api import do_not_convert
+<<<<<<< HEAD
 from nvidia.dali._autograph.impl.api import autograph_artifact
 from nvidia.dali._autograph.impl.api import is_autograph_artifact
+=======
+from nvidia.dali._autograph.impl.api import invoke_and_convert
+>>>>>>> 4588ae6ad (WIP on exception remaping)
 
 # from nvidia.dali._autograph.impl.api import StackTraceMapper
 from nvidia.dali._autograph.impl.api import to_code

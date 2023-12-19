@@ -22,6 +22,11 @@ import sys
 import textwrap
 import traceback
 
+# TODO: just debugging
+import pprint
+
+LOG_SOURCE_MAPS = True
+
 from nvidia.dali._autograph import operators
 from nvidia.dali._autograph import utils
 from nvidia.dali._autograph.converters import asserts
@@ -57,9 +62,7 @@ from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
 from nvidia.dali._autograph.utils import hooks
 from nvidia.dali._autograph.utils import ag_logging as logging
 from nvidia.dali._autograph.utils import all_utils
-
-# TODO(klecki): replace missing functionality
-# from nvidia.dali._autograph.utils import tf_stack
+from nvidia.dali._autograph.utils import tf_stack
 from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 
@@ -130,40 +133,48 @@ def _attach_error_metadata(e, f):
     e.ag_error_metadata = _ErrorMetadata(cause_tb, metadata, message, source_map, __file__)
 
 
-# class StackTraceMapper(tf_stack.StackTraceMapper):
-#   """Remaps generated code to code it originated from."""
+class StackTraceMapper(tf_stack.StackTraceMapper):
+    """Remaps generated code to code it originated from."""
 
-#   def __init__(self, converted_fn):
-#     super().__init__()
-#     self._source_map = converted_fn.ag_source_map
-#     # This may be called repeatedly: once on entry, by the superclass, then by
-#     # each child context manager.
-#     self._cached_map = None
+    def __init__(self, converted_fn):
+        super().__init__()
+        self._source_map = converted_fn.ag_source_map
+        # This may be called repeatedly: once on entry, by the superclass, then by
+        # each child context manager.
+        self._cached_map = None
 
-#   def get_effective_source_map(self):
-#     if self._cached_map is not None:
-#       return self._cached_map
+    def get_effective_source_map(self):
+        if self._cached_map is not None:
+            return self._cached_map
 
-#     parent_map = self.parent.get_effective_source_map()
+        parent_map = self.parent.get_effective_source_map()
 
-#     effective_source_map = {}
-#     for loc, origin in self._source_map.items():
-#       effective_source_map[(loc.filename, loc.lineno)] = (origin.loc.filename,
-#                                                           origin.loc.lineno,
-#                                                           origin.function_name)
+        effective_source_map = {}
 
-#     for key, value in parent_map.items():
-#       filename, lineno, _ = value
-#       value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
-#       if value_loc in self._source_map:
-#         origin = self._source_map[value_loc]
-#         effective_source_map[key] = (origin.loc.filename, origin.loc.lineno,
-#                                      origin.function_name)
-#       else:
-#         effective_source_map[key] = value
+        # Rewrite OriginInfo into (filename, line_number, function_name)
+        for loc, origin in self._source_map.items():
+            effective_source_map[(loc.filename, loc.lineno)] = (
+                origin.loc.filename,
+                origin.loc.lineno,
+                origin.function_name,
+            )
 
-#     self._cached_map = effective_source_map
-#     return effective_source_map
+        for loc, origin in parent_map.items():
+            filename, lineno, _ = origin
+            value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
+            # If the code in parent was further transformed?
+            if value_loc in self._source_map:
+                new_origin = self._source_map[value_loc]
+                effective_source_map[loc] = (
+                    new_origin.loc.filename,
+                    new_origin.loc.lineno,
+                    new_origin.function_name,
+                )
+            else:
+                effective_source_map[loc] = origin
+
+        self._cached_map = effective_source_map
+        return effective_source_map
 
 
 #
@@ -258,11 +269,16 @@ def _convert_actual(entity, program_ctx):
         )
 
     transformed, module, source_map = _TRANSPILER.transform(entity, program_ctx)
+    if LOG_SOURCE_MAPS:
+        print(f"{transformed=}\n\n{module=}\n\n")
+
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(source_map)
 
     assert not hasattr(transformed, "ag_module")
     assert not hasattr(transformed, "ag_source_map")
     transformed.ag_module = module
-    transformed.ag_source_map = source_map
+    transformed.ag_source_map: dict(origin_info.LineLocation, origin_info.OriginInfo) = source_map
     return transformed
 
 
@@ -419,15 +435,20 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         return _fall_back_unconverted(f, args, kwargs, options, e)
 
     # TODO(klecki): Revert the stack trace mapping functionality
-    # with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
-    try:
-        if kwargs is not None:
-            result = converted_f(*effective_args, **kwargs)
-        else:
-            result = converted_f(*effective_args)
-    except Exception as e:
-        _attach_error_metadata(e, converted_f)
-        raise
+    if LOG_SOURCE_MAPS:
+        print(f"{converted_f}")
+
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(converted_f.ag_source_map)
+    with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
+        try:
+            if kwargs is not None:
+                result = converted_f(*effective_args, **kwargs)
+            else:
+                result = converted_f(*effective_args)
+        except Exception as e:
+            _attach_error_metadata(e, converted_f)
+            raise
 
     return result
 
@@ -922,6 +943,44 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
         )
     )
     return textwrap.dedent(source)
+
+
+def invoke_and_convert(func, args, kwargs):
+    """Call the entry point function. If it was not converted with AG, it will be processed.
+    Used to trigger the conversion of exception from the autograph metadata do actual one.
+
+    Parameters
+    ----------
+    func : Callable
+        Function to be invoked that was converted with to_graph.
+    args : tuple
+        Arguments to be passed to the function
+    kwargs : dict
+        Keyword args to be passed to the function
+
+    Returns
+    -------
+    Tuple
+        The result of calling func(*args, **kwargs)
+
+    Raises
+    ------
+    e.ag_error_metadata.to_exception
+        _description_
+    """
+    options = converter.ConversionOptions(
+        recursive=True,
+        user_requested=True,
+        optional_features=None,
+    )
+    try:
+        # return converted_call(func, args, kwargs, options=options)
+        return func(*args, **kwargs)
+    except Exception as e:  # pylint:disable=broad-except
+        if hasattr(e, "ag_error_metadata"):
+            raise e.ag_error_metadata.to_exception(e)
+        else:
+            raise
 
 
 _TRANSPILER = None

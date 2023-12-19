@@ -1713,7 +1713,7 @@ def _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs):
             Pipeline.pop_current()
 
 
-def _generate_graph(pipe, func, fn_args, fn_kwargs):
+def _generate_graph(pipe, func, fn_args, fn_kwargs, conditionals_on):
     """Build the graph provided by pipeline definition in `func` within the `pipe`.
 
     Parameters
@@ -1728,7 +1728,10 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
         Kwargs to `func`
     """
     with pipe:
-        pipe_outputs = func(*fn_args, **fn_kwargs)
+        if conditionals_on:
+            pipe_outputs = _conditionals._autograph.invoke_and_convert(func, fn_args, fn_kwargs)
+        else:
+            pipe_outputs = func(*fn_args, **fn_kwargs)
         if isinstance(pipe_outputs, tuple):
             po = pipe_outputs
         elif pipe_outputs is None:
@@ -1869,12 +1872,11 @@ def pipeline_def(
         def create_pipeline(*args, **kwargs):
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
-            pipe_func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
             pipe = Pipeline(**pipeline_args)
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 
-            _generate_graph(pipe, pipe_func, args, fn_kwargs)
+            _generate_graph(pipe, func, args, fn_kwargs, conditionals_on)
             return pipe
 
         # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
@@ -2069,6 +2071,7 @@ def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline
             debug_mode_on = kwargs.get("debug", pipeline_debug)
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
+            # TODO - adjust conversion
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
             pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             if debug_mode_on:
