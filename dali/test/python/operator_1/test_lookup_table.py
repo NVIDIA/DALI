@@ -13,14 +13,12 @@
 # limitations under the License.
 
 import numpy as np
-import nvidia.dali.ops as ops
-import nvidia.dali.types as types
 import random
+from nvidia.dali import fn, types, ops, pipeline_def
 from nvidia.dali.pipeline import Pipeline
-
 from test_utils import RandomlyShapedDataIterator
 from test_utils import compare_pipelines
-
+from nose2.tools import params
 
 class LookupTablePipeline(Pipeline):
     def __init__(
@@ -175,3 +173,26 @@ def test_lookup_table_vs_python_op():
                     dictionary_type,
                     default_value,
                 )
+
+@params("cpu", "gpu")
+def test_scalar(device):
+    @pipeline_def(batch_size=64, num_threads=2, device_id=0)
+    def pipe():
+        raw = np.array([[0, 1, 2, 3]]) # single batch of 4 scalars
+        ids = fn.external_source(source=raw, device=device)
+        scale_keys = [0, 1]
+        scale_values = [100, 200]
+        scale_mat = fn.lookup_table(
+            ids,
+            keys=scale_keys,
+            values=scale_values,
+            device=device,
+            dtype=types.INT64,
+        )
+        return scale_mat, ids
+    p = pipe()
+    p.build()
+    scaled, _ = p.run()
+    if device == 'gpu':
+        scaled = scaled.as_cpu()
+    assert (scaled.as_array() == [100, 200, 0, 0]).all()
