@@ -95,11 +95,19 @@ class TestLoadedPlugin(unittest.TestCase):
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
             print(ops.CustomDummy)
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        try:
+            plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        except RuntimeError:
+            # in conda "libcustomdummyplugin" lands inside lib/ dir
+            plugin_manager.load_library("libcustomdummyplugin.so")
         print(ops.CustomDummy)
 
     def test_pipeline_including_custom_plugin(self):
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        try:
+            plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        except RuntimeError:
+            # in conda "libcustomdummyplugin" lands inside lib/ dir
+            plugin_manager.load_library("libcustomdummyplugin.so")
         pipe = CustomPipeline(batch_size, 1, 0)
         pipe.build()
         pipe_out = pipe.run()
@@ -116,7 +124,11 @@ class TestLoadedPlugin(unittest.TestCase):
             np.testing.assert_array_equal(img, out)
 
     def test_python_operator_and_custom_plugin(self):
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        try:
+            plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        except RuntimeError:
+            # in conda "libcustomdummyplugin" lands inside lib/ dir
+            plugin_manager.load_library("libcustomdummyplugin.so")
         ops.readers.TFRecord(path="dummy", index_path="dummy", features={})
 
 

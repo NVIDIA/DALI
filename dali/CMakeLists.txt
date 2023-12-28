@@ -163,9 +163,13 @@ endif()
 # Copy all headers from DALI_INST_HDRS list to DALI_WHEEL_DIR using install command
 # with `-D` option, that recursively creates missing directories in destination path
 if (BUILD_PYTHON)
-  add_custom_target(install_headers ALL
-      DEPENDS dali dali_operators
-      )
+  if (PREBUILD_DALI_LIBS)
+    add_custom_target(install_headers ALL)
+  else (PREBUILD_DALI_LIBS)
+    add_custom_target(install_headers ALL
+        DEPENDS dali dali_operators
+        )
+  endif (PREBUILD_DALI_LIBS)
 
   # Process the DALI_INST_HDRS list
   foreach(INSTALL_HEADER ${DALI_INST_HDRS})

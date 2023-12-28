@@ -56,8 +56,12 @@ fi
 export BUILD_NVCOMP=${BUILD_NVCOMP:-OFF}
 
 # Create build directory for cmake and enter it
-mkdir $SRC_DIR/build
-cd $SRC_DIR/build
+mkdir $SRC_DIR/build_bindings
+cd $SRC_DIR/build_bindings
+
+# allow DALI import all dependencies in the build env
+export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
+
 # Build
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
@@ -71,7 +75,8 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_TEST=${BUILD_TEST:-ON}                      \
       -DBUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}            \
       -DBUILD_NVTX=${BUILD_NVTX}                          \
-      -DBUILD_PYTHON=${BUILD_PYTHON:-ON}                  \
+      -DBUILD_PYTHON=ON                                   \
+      -DPREBUILD_DALI_LIBS=ON                             \
       -DPYTHON_STUBGEN_INTERPRETER=${PYTHON}              \
       -DBUILD_LMDB=${BUILD_LMDB:-ON}                      \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}          \
@@ -102,138 +107,11 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
       ..
-make -j"$(nproc --all)"
-
-# bundle FFmpeg to make sure DALI ships and uses own version
-fname_with_sha256() {
-    HASH=$(sha256sum $1 | cut -c1-8)
-    BASENAME=$(basename $1)
-    INITNAME=$(echo $BASENAME | cut -f1 -d".")
-    ENDNAME=$(echo $BASENAME | cut -f 2- -d".")
-    echo "$INITNAME-$HASH.$ENDNAME"
-}
-
-DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.60"
-    "$PREFIX/lib/libavcodec.so.60"
-    "$PREFIX/lib/libavfilter.so.9"
-    "$PREFIX/lib/libavutil.so.58"
-    "$PREFIX/lib/libswscale.so.7"
-    "lib/libcvcuda.so.0"
-    "lib/libnvcv_types.so.0"
-)
-
-DEPS_SONAME=(
-    "libavformat.so.60"
-    "libavcodec.so.60"
-    "libavfilter.so.9"
-    "libavutil.so.58"
-    "libswscale.so.7"
-    "libcvcuda.so.0"
-    "libnvcv_types.so.0"
-)
-
-if [ "$BUILD_NVCOMP" = "ON" ]; then
-    DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
-    )
-
-    DEPS_SONAME+=(
-        "libnvcomp.so"
-        "libnvcomp_gdeflate.so"
-        "libnvcomp_bitcomp.so"
-    )
-fi
-
-PKGNAME_PATH=dali/python/nvidia/dali/
-mkdir -p $PKGNAME_PATH/.libs
-
-# copy needed dependent .so files and tag them with their hash
-original=()
-patched=()
-
-copy_and_patch() {
-    local filepath=$1
-    filename=$(basename $filepath)
-
-    if [[ ! -f "$filepath" ]]; then
-        echo "Didn't find $filename, skipping..."
-        return
-    fi
-    patchedname=$(fname_with_sha256 $filepath)
-    patchedpath=$PKGNAME_PATH/.libs/$patchedname
-    original+=("$filename")
-    patched+=("$patchedname")
-
-    echo "Copying $filepath to $patchedpath"
-    cp $filepath $patchedpath
-
-    echo "Patching DT_SONAME field in $patchedpath"
-    patchelf --set-soname $patchedname $patchedpath &
-}
-
-echo "Patching DT_SONAMEs..."
-for filepath in "${DEPS_LIST[@]}"; do
-    copy_and_patch $filepath
-done
-wait
-echo "Patched DT_SONAMEs"
-
-patch_hashed_names() {
-    local sofile=$1
-    local patch_cmd=""
-    needed_so_files=$(patchelf --print-needed $sofile)
-    for ((j=0;j<${#original[@]};++j)); do
-        origname=${original[j]}
-        patchedname=${patched[j]}
-        if [[ "$origname" != "$patchedname" ]]; then
-            set +e
-            echo $needed_so_files | grep $origname 2>&1 >/dev/null
-            ERRCODE=$?
-            set -e
-            if [ "$ERRCODE" -eq "0" ]; then
-                echo "patching $sofile entry $origname to $patchedname"
-                patch_cmd="$patch_cmd --replace-needed $origname $patchedname"
-            fi
-        fi
-    done
-    if [ -n "$patch_cmd" ]; then
-        echo "running $patch_cmd on $sofile"
-        patchelf $patch_cmd $sofile
-    fi
-}
-echo "Patching to fix the so names to the hashed names..."
-# get list of files to iterate over
-sofile_list=()
-while IFS=  read -r -d $'\0'; do
-    sofile_list+=("$REPLY")
-done < <(find $PKGNAME_PATH -name '*.so*' -print0)
-while IFS=  read -r -d $'\0'; do
-    sofile_list+=("$REPLY")
-done < <(find $PKGNAME_PATH -name '*.bin' -print0)
-for ((i=0;i<${#sofile_list[@]};++i)); do
-    sofile=${sofile_list[i]}
-    patch_hashed_names $sofile &
-done
-wait
-echo "Fixed hashed names"
-
-# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
-PKGNAME_PATH=$PWD/dali/python/nvidia/dali
-find $PKGNAME_PATH -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
-    UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
-    patchelf --print-rpath $FILE
-done
+make -j"$(nproc --all)" dali_python python_function_plugin copy_post_build_target dali_python_generate_stubs install_headers
 
 # pip install
 $PYTHON -m pip install --no-deps --ignore-installed -v dali/python
 
-# Build tensorflow plugin
-export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
 DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
 echo "DALI_PATH is ${DALI_PATH}"
 

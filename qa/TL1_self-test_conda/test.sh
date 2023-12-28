@@ -31,25 +31,10 @@ test_body() {
     "dali_operator_test.bin" \
     "dali_imgcodec_test.bin"
   do
-    for DIRNAME in \
-      "../../build/dali/python/nvidia/dali" \
-      "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
-    do
-        if [ -x "$DIRNAME/test/$BINNAME" ]; then
-            FULLPATH="$DIRNAME/test/$BINNAME"
-            break
-        fi
-    done
-
-    if [[ -z "$FULLPATH" ]]; then
-        echo "ERROR: $BINNAME not found"
-        exit 1
-    fi
-
     # DecodeJPEGHost doesn't work well for Conda as OpenCV there uses libjpeg that returns a bit different
     # results that libturbo-jpeg DALI uses, also OpenCV conflicts with FFMpeg >= 4.2 which is reguired
     # to handle PackedBFrames
-    "$FULLPATH" --gtest_filter="*:-*Vp9*"
+    "$BINNAME" --gtest_filter="*:-*Vp9*"
   done
 }
 

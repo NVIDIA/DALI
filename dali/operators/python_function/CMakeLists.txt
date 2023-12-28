@@ -16,10 +16,23 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(PYTHON_FUNCTION_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
-build_per_python_lib(${dali_python_function_lib}
-                     OUTPUT_NAME ${dali_python_function_lib}
-                     OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
-                     PUBLIC_LIBS dali
-                     PRIV_LIBS ${DALI_LIBS}
-                     EXCLUDE_LIBS ${exclude_libs}
-                     SRC ${PYTHON_FUNCTION_SRCS})
+
+if (PREBUILD_DALI_LIBS)
+  # find prebuild DALI libs
+  find_library(PREBUILD_DALI_LIB NAMES dali)
+  build_per_python_lib(${dali_python_function_lib}
+                      OUTPUT_NAME ${dali_python_function_lib}
+                      OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                      PUBLIC_LIBS ${PREBUILD_DALI_LIB}
+                      PRIV_LIBS ${DALI_LIBS}
+                      EXCLUDE_LIBS ${exclude_libs}
+                      SRC ${PYTHON_FUNCTION_SRCS})
+else(PREBUILD_DALI_LIBS)
+  build_per_python_lib(${dali_python_function_lib}
+                      OUTPUT_NAME ${dali_python_function_lib}
+                      OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                      PUBLIC_LIBS dali
+                      PRIV_LIBS ${DALI_LIBS}
+                      EXCLUDE_LIBS ${exclude_libs}
+                      SRC ${PYTHON_FUNCTION_SRCS})
+endif(PREBUILD_DALI_LIBS)
