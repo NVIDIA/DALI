@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=no-member
-from typing import Any, List, Tuple, Callable, Optional, Union, overload
+from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
@@ -26,12 +26,13 @@ from nvidia.dali._utils.external_source_impl import SourceKind as _SourceKind
 from threading import local as tls
 from . import data_node as _data_node
 import atexit
+import ctypes
 import functools
 import inspect
+import sys
+import tree
 import warnings
 import weakref
-import ctypes
-import sys
 from .data_node import DataNode
 
 pipeline_tls = tls()
@@ -1884,36 +1885,62 @@ def pipeline_def(
     return actual_decorator(fn) if fn else actual_decorator
 
 
-def do_not_convert(func=None):
+# Callable preserving a signature
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def do_not_convert(func: _F = None) -> _F:
     """Decorator that suppresses the conversion of a function by AutoGraph.
 
-    In conditional mode DALI uses fork of [TensorFlow's AutoGraph](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md)
+    In conditional mode DALI uses fork of
+    `TensorFlow's AutoGraph <https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md>`_
     to rewrite `if` statements, so they can be detected and used in processing DALI graph.
 
-    When used with [Parallel External Source](...), this may interfere with the serialization of
-    the provided callback. To prevent this, functions that are used to create the `source`
-    parameter, should be marked with @do_not_convert.
+    When used with :meth:`external source <nvidia.dali.fn.external_source>` in parallel mode
+    (`parallel=True`), this may interfere with the serialization of the provided `source` parameter.
+    To prevent this, functions that are used to create the `source` parameter, should be marked with
+    :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
 
     The AutoGraph conversion is applied to any top-level function or method called within the
     pipeline definition (as well as the pipeline definition itself).
     When a function is converted, all functions defined within its syntactical scope are also
     converted.
 
-    To prevent a function from being converted, its top-level encompassing function must be marked
-    with this decorator.
+    To stop a function from being converted, its top-level encompassing function must be marked
+    with this decorator. This may sometimes require refactoring the function to outer scope.
 
-    Note that typically only functions that do not process DataNodes (so don't use DALI operators
-    directly) should be marked with this decorator.
+    Note that typically only functions that do not process :class:`DataNode` (so do not use DALI
+    operators) should be marked with this decorator.
 
-    Parameters
-    ----------
-    func : _type_, optional
-        _description_, by default None
+    For example::
 
-    Returns
-    -------
-    _type_
-        _description_
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+
+            def source_factory(size):
+                def source_fun(sample_info):
+                    return np.full(size, sample_info.iter_idx)
+                return source_fun
+
+            source = source_factory(size=(2, 1))
+            return fn.external_source(source=source, parallel=True, batch=False)
+
+    Should be converted into::
+
+        @nvidia.dali.pipeline.do_not_convert
+        def source_factory(size):
+            def source_fun(sample_info):
+                return np.full(size, sample_info.iter_idx)
+            return source_fun
+
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+            source = source_factory(size=(2, 1))
+            return fn.external_source(source=source, parallel=True, batch=False)
+
+    The `source_factory` must be factored out, otherwise it would be converted as a part of pipeline
+    definition. As we are interested in preventing the conversion of `source_fun` we need to
+    decorate its top-level encompassing function.
     """
 
     if func is None:
@@ -1923,8 +1950,25 @@ def do_not_convert(func=None):
         # TODO(klecki): The other way round as well?
         raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
 
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+
+        def disallow_data_node(node):
+            if isinstance(node, DataNode):
+                raise TypeError(
+                    "Functions that process DataNodes should not be marked with @do_not_convert."
+                    f"Found return element of class DataNode when calling {func}."
+                )
+            return node
+
+        _ = tree.map_structure(disallow_data_node, result)
+        return result
+
+    if inspect.isfunction(func) or inspect.ismethod(func):
+        wrapper = functools.update_wrapper(wrapper, func)
+
     # TODO(klecki): Verify if we don't have any DataNodes in the returned structure?
-    return _conditionals.do_not_convert(func)
+    return _conditionals.do_not_convert(wrapper)
 
 
 def _collect_ops(output_nodes):
