@@ -526,12 +526,14 @@ Keyword Args
     .. warning::
         The ``source``, when :ref:`conditional mode <conditional_execution>` is enabled, must not
         be transformed by the AutoGraph. There are two conditions to prevent that:
-        1. The `source` or a factory creating the `source` must be defined at a global scope
-           (i.e. outside of `pipeline_def` scope).
-        2. If the `source` is created by a factory function that is invoked within pipeline
-           definition, the factory function must be decorated with
-           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
-           recursively converted when the pipeline definition is traced.
+
+            1. The ``source`` or a factory creating the ``source`` must be defined at a global scope
+               (i.e. outside of ``pipeline_def`` scope).
+
+            2. If the ``source`` is created by a factory function that is invoked within pipeline
+               definition, the factory function must be decorated with
+               :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
+               recursively converted when the pipeline definition is traced.
 
         More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
         documentation.
