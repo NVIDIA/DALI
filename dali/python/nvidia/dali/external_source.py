@@ -16,6 +16,7 @@
 from nvidia.dali import backend as _b
 from nvidia.dali import tensors as _tensors
 from nvidia.dali import types as _types
+from nvidia.dali import _conditionals
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import (
@@ -780,6 +781,23 @@ Keyword Args
                     "(specify `batch=True` in the external source definition and make sure "
                     "your source returns batches)".format(what)
                 )
+            if _conditionals._is_autograph_artifact(source_desc.source):
+                raise ValueError(
+                    "The `source` parameter that was passed to external source was created "
+                    "in a scope that was converted with AutoGraph. To allow the `source` to be "
+                    "correctly used with parallel external source, it must remain unconverted. "
+                    "To prevent conversion, two steps may need to be taken:\n"
+                    "1. The `source` or a factory creating the parameter passed to `source` must "
+                    "be defined at global scope (or at least outside of `pipeline_def` scope).\n"
+                    "2. If the `source` is created by some factory function that is invoked within "
+                    "pipeline definition, that function must be decorated with "
+                    "`@nvidia.dali.pipeline.do_not_convert`, otherwise it will be recursively "
+                    "converted when the pipeline definition is traced.\n"
+                    "You can read more details and see examples in the "
+                    "`@nvidia.dali.pipeline.do_not_convert` decorator documentation. The AutoGraph "
+                    "conversion is part of conditional execution in DALI."
+                )
+
         else:
             for kwarg_value, kwarg_name in (
                 (prefetch_queue_depth, "prefetch_queue_depth"),

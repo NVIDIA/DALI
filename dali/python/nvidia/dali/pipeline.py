@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1882,6 +1882,49 @@ def pipeline_def(
         return create_pipeline
 
     return actual_decorator(fn) if fn else actual_decorator
+
+
+def do_not_convert(func=None):
+    """Decorator that suppresses the conversion of a function by AutoGraph.
+
+    In conditional mode DALI uses fork of [TensorFlow's AutoGraph](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md)
+    to rewrite `if` statements, so they can be detected and used in processing DALI graph.
+
+    When used with [Parallel External Source](...), this may interfere with the serialization of
+    the provided callback. To prevent this, functions that are used to create the `source`
+    parameter, should be marked with @do_not_convert.
+
+    The AutoGraph conversion is applied to any top-level function or method called within the
+    pipeline definition (as well as the pipeline definition itself).
+    When a function is converted, all functions defined within its syntactical scope are also
+    converted.
+
+    To prevent a function from being converted, its top-level encompassing function must be marked
+    with this decorator.
+
+    Note that typically only functions that do not process DataNodes (so don't use DALI operators
+    directly) should be marked with this decorator.
+
+    Parameters
+    ----------
+    func : _type_, optional
+        _description_, by default None
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    if func is None:
+        return do_not_convert
+
+    if getattr(func, "_is_pipeline_def", False):
+        # TODO(klecki): The other way round as well?
+        raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
+
+    # TODO(klecki): Verify if we don't have any DataNodes in the returned structure?
+    return _conditionals.do_not_convert(func)
 
 
 def _collect_ops(output_nodes):

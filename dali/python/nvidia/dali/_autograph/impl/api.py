@@ -446,11 +446,11 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
     """Falls back to calling the function unconverted, in case of error."""
     # TODO(mdan): Consider adding an internal metric.
     warning_template = (
-        "AutoGraph could not transform %s and will run it as-is.\n" "%s" "Cause: %s\n"
+        "AutoGraph could not transform %s and will run it as-is.\n"
+        "%s"
+        "Cause: %s\n"
+        "To silence this warning, decorate the function with @nvidia.dali.pipeline.do_not_convert"
     )
-    # TODO(klecki): Expose the do_not_convert in DALI
-    #   'To silence this warning, decorate the function with'
-    #   ' @tf.autograph.experimental.do_not_convert')
     if isinstance(exc, errors.InaccessibleSourceCodeError):
         if ag_ctx.INSPECT_SOURCE_SUPPORTED:
             logging.warning(warning_template, f, "", exc)
@@ -598,7 +598,6 @@ def _log_callargs(f, args, kwargs):
 #
 
 
-@export_symbol("autograph.experimental.do_not_convert")
 def do_not_convert(func=None):
     """Decorator that suppresses the conversion of a function.
 
