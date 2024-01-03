@@ -1916,6 +1916,8 @@ def do_not_convert(func: _F = None) -> _F:
 
     For example::
 
+        from nvidia.dali import pipeline_def, fn
+
         @pipeline_def(enable_conditionals=True)
         def pipe():
 
@@ -1929,7 +1931,10 @@ def do_not_convert(func: _F = None) -> _F:
 
     Should be converted into::
 
-        @nvidia.dali.pipeline.do_not_convert
+        from nvidia.dali import pipeline_def, fn
+        from nvidia.dali.pipeline import do_not_convert
+
+        @do_not_convert
         def source_factory(size):
             def source_fun(sample_info):
                 return np.full(size, sample_info.iter_idx)
