@@ -1894,7 +1894,7 @@ def do_not_convert(func: _F = None) -> _F:
 
     In conditional mode, DALI uses a fork of
     `TensorFlow's AutoGraph <https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md>`_
-    to rewrite `if` statements, so they can be detected and used in processing DALI graph.
+    to rewrite ``if`` statements, so they can be detected and used in processing DALI graph.
 
     When used with :meth:`external source <nvidia.dali.fn.external_source>` in parallel mode
     (`parallel=True`), this may interfere with the serialization of the provided `source` parameter.
