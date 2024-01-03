@@ -20,6 +20,7 @@ from test_utils import RandomlyShapedDataIterator
 from test_utils import compare_pipelines
 from nose2.tools import params
 
+
 class LookupTablePipeline(Pipeline):
     def __init__(
         self,
@@ -173,6 +174,7 @@ def test_lookup_table_vs_python_op():
                     dictionary_type,
                     default_value,
                 )
+
 
 @params("cpu", "gpu")
 def test_scalar(device):
