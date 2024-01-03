@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np single batch of 4 scalars
+import numpy as np
 import random
 from nvidia.dali import fn, types, ops, pipeline_def
 from nvidia.dali.pipeline import Pipeline
