@@ -1928,6 +1928,7 @@ PYBIND11_MODULE(backend_impl, m) {
           p->SetOutputDescs(out_desc);
         })
     .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
+    .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;

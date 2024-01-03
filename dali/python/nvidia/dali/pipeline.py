@@ -939,8 +939,12 @@ class Pipeline(object):
     def input_feed_count(self, input_name):
         return self._pipe.InputFeedCount(input_name)
 
-    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False, is_prefetch=False):
+    def _feed_input(
+        self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False, is_prefetch=False
+    ):
         from nvidia.dali.external_source import _prep_data_for_feed_input
+
+        trace(name, data)
 
         if cuda_stream is None:
             cuda_stream = types._get_default_stream_for_array(data)
@@ -1048,23 +1052,6 @@ class Pipeline(object):
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
-    def _run_cpu(self):
-        """Run CPU portion of the pipeline."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if not self._last_iter:
-            self._pipe.RunCPU()
-            self._cpu_batches_to_consume += 1
-
-    def _run_gpu(self):
-        """Run GPU portion of the pipeline."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if self._cpu_batches_to_consume > 0:
-            self._pipe.RunGPU()
-            self._cpu_batches_to_consume -= 1
-            self._gpu_batches_to_consume += 1
-
     def outputs(self):
         """Returns the outputs of the pipeline and releases previous buffer.
 
@@ -1153,7 +1140,8 @@ class Pipeline(object):
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
-            return self._pipe.ReleaseOutputs()
+            ret = self._pipe.ReleaseOutputs()
+            return ret
 
     # for the backward compatibility
     def _release_outputs(self):
@@ -1253,19 +1241,28 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
+        trace(self._first_iter, self._last_iter)
         self._schedule_py_workers()
+
+        try:
+            self._prefetch_inputs()
+            self._first_iter = False
+            self._pipe.Prefetch()
+        except StopIteration:
+            self._last_iter = True
+
+    def _prefetch_inputs(self):
         self._run_input_callbacks(True)
 
-        prefetch_count = self._cpu_queue_size
         if self._exec_separated:
             prefetch_count = self._cpu_queue_size + self._gpu_queue_size
+            self._batches_to_consume += self._gpu_queue_size
+        else:
+            prefetch_count = self._cpu_queue_size
+            self._batches_to_consume += prefetch_count
 
         for i in range(prefetch_count):
             self.iter_setup()
-
-        self._batches_to_consume += self._gpu_queue_size
-        self._first_iter = False
-        self._pipe.Prefetch()
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
@@ -1279,7 +1276,8 @@ class Pipeline(object):
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
-            self._pipe._run()
+            if not self._last_iter:
+                self._pipe.Run()
         except StopIteration:
             self._last_iter = True
 
@@ -1294,6 +1292,7 @@ class Pipeline(object):
 
         If pipeline iterator reached the end then reset its state to the beginning.
         """
+        trace(self._last_iter)
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
@@ -1309,6 +1308,7 @@ class Pipeline(object):
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed"""
+        trace(self._batches_to_consume == 0)
         return self._batches_to_consume == 0
 
     def serialize(self, define_graph=None, filename=None):
@@ -1524,32 +1524,42 @@ class Pipeline(object):
         if self._input_callbacks is None:
             return
 
-        batches = []  # data from external source callbacks is gathered here
+        max_count = 1
+        done = False
         stop_iter = False
-        for i, group in enumerate(self._parallel_input_callbacks):
-            try:
-                count = group.feed_count(self) if is_prefetch else 1
-                for i in range(count):
-                    batches.append(
+        iter = 0
+        while not done and not stop_iter:
+            done = True
+            batches = []  # data from external source callbacks is gathered here
+            for i, group in enumerate(self._parallel_input_callbacks):
+                try:
+                    count = group.feed_count(self) if is_prefetch else 1
+                    if iter < count:
                         group.schedule_and_receive(
                             self, self._py_pool, i, self._max_batch_size, self._epoch_idx
                         )
-                    )
-            except StopIteration:
-                stop_iter = True
-        for group in self._seq_input_callbacks:
-            try:
-                count = group.feed_count(self) if is_prefetch else 1
-                for i in range(count):
-                    batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
-            except StopIteration:
-                stop_iter = True
-        if stop_iter:
-            raise StopIteration()
+                        if iter + 1 < count:
+                            done = False
+                except StopIteration:
+                    stop_iter = True
+            for group in self._seq_input_callbacks:
+                try:
+                    count = group.feed_count(self) if is_prefetch else 1
+                    if iter < count:
+                        batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
+                        if iter + 1 < count:
+                            done = False
+                except StopIteration:
+                    stop_iter = True
 
-        # we only fill external source queues when we know that all callbacks succeeded
-        for batch in batches:
-            batch.feed()
+            if stop_iter:
+                raise StopIteration()
+
+            # we only fill external source queues when we know that all callbacks succeeded
+            for batch in batches:
+                batch.feed()
+
+            iter += 1
 
     def _iter_setup(self):
         self._run_input_callbacks()
@@ -2088,3 +2098,36 @@ def _insert_experimental_pipeline_def():
 
 
 _insert_experimental_pipeline_def()
+
+
+_indent = 0
+
+
+def trace(*args, **kwargs):
+    pass
+
+
+# def trace(*args, **kwargs):
+#     print(' ' * _indent, *args, **kwargs)
+
+
+# def trace_pipeline_funcs():
+#     for name, f in inspect.getmembers(Pipeline, predicate=inspect.isfunction):
+#         if name[0:2] == '__':
+#             continue
+#         #@functools.wraps(f)
+#         def decorate(name, f):
+#             def tmp(*args, **kwargs):
+#                 global _indent
+#                 try:
+#                     trace(name, "--->")
+#                     _indent += 1
+#                     return f(*args, **kwargs)
+#                 finally:
+#                     _indent -= 1
+#                     trace("<---", name)
+#             return tmp
+#         setattr(Pipeline, name, decorate(name, f))
+
+
+# trace_pipeline_funcs()

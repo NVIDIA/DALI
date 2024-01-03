@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -419,6 +419,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    * When there are input datasets, feed the pipeline required number of input batches.
    *
    * TODO(klecki): Inputs handled only for an uniform executor
+   * TODO(michalz): Clean up the control flow (reverse if nesting)
    */
   Status PrefetchPipeline(IteratorContext *context, daliPipelineHandle *pipeline_handle) {
     if (!dataset()->pipeline_def_.exec_separated) {
@@ -441,14 +442,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       } else {
         actual_prefetch_depth = prefetch_depth;
       }
-      TF_DALI_CALL(daliPrefetchUniform(pipeline_handle, actual_prefetch_depth));
+      for (int i = 0; i < actual_prefetch_depth; i++)
+        TF_DALI_CALL(daliRun(pipeline_handle));
     } else {
       if (dataset()->HasInputs()) {
         return errors::InvalidArgument("Input datasets are not compatible with split executor.");
       }
-      TF_DALI_CALL(daliPrefetchSeparate(pipeline_handle,
-                                        dataset()->pipeline_def_.cpu_prefetch_queue_depth,
-                                        dataset()->pipeline_def_.gpu_prefetch_queue_depth));
+      TF_DALI_CALL(daliPrefetch(pipeline_handle));
     }
     return Status();
   }

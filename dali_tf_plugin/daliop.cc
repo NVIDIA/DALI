@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -155,13 +155,7 @@ class DaliOp : public tf::OpKernel {
 #endif
     LOG_LINE << "Pipeline created\n";
     LOG_LINE << "Prefetching...\n";
-    if (!exec_separated) {
-      TF_DALI_CALL(daliPrefetchUniform(&pipe_handle_, prefetch_queue_depth_));
-    } else {
-      TF_DALI_CALL(daliPrefetchSeparate(&pipe_handle_,
-                                        cpu_prefetch_queue_depth,
-                                        prefetch_queue_depth_));
-    }
+    TF_DALI_CALL(daliPrefetch(&pipe_handle_));
     LOG_LINE << "After first run\n";
   }
 
