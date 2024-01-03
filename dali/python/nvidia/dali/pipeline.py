@@ -1892,7 +1892,7 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 def do_not_convert(func: _F = None) -> _F:
     """Decorator that suppresses the conversion of a function by AutoGraph.
 
-    In conditional mode DALI uses fork of
+    In conditional mode, DALI uses a fork of
     `TensorFlow's AutoGraph <https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md>`_
     to rewrite `if` statements, so they can be detected and used in processing DALI graph.
 
@@ -1909,8 +1909,9 @@ def do_not_convert(func: _F = None) -> _F:
     To stop a function from being converted, its top-level encompassing function must be marked
     with this decorator. This may sometimes require refactoring the function to outer scope.
 
-    Note that typically only functions that do not process :class:`DataNode` (so do not use DALI
-    operators) should be marked with this decorator.
+    .. note::
+       Only functions that do not process :class:`DataNode` (so do not use DALI operators)
+       should be marked with this decorator.
 
     For example::
 
