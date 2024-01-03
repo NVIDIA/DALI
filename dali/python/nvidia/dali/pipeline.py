@@ -1894,12 +1894,13 @@ def do_not_convert(func: _F = None) -> _F:
 
     In conditional mode, DALI uses a fork of
     `TensorFlow's AutoGraph <https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md>`_
-    to rewrite ``if`` statements, so they can be detected and used in processing DALI graph.
+    to transform the code, enabling us to rewrite and detect the ``if`` statements, so they
+    used in processing the DALI pipeline.
 
     When used with :meth:`external source <nvidia.dali.fn.external_source>` in parallel mode
-    (`parallel=True`), this may interfere with the serialization of the provided `source` parameter.
-    To prevent this, functions that are used to create the `source` parameter, should be marked with
-    :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+    (``parallel=True``), this may interfere with the serialization of the provided ``source``
+    parameter. To prevent this, functions that are used to create the ``source`` parameter,
+    should be decorated with :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
 
     The AutoGraph conversion is applied to any top-level function or method called within the
     pipeline definition (as well as the pipeline definition itself).
@@ -1939,9 +1940,9 @@ def do_not_convert(func: _F = None) -> _F:
             source = source_factory(size=(2, 1))
             return fn.external_source(source=source, parallel=True, batch=False)
 
-    The `source_factory` must be factored out, otherwise it would be converted as a part of pipeline
-    definition. As we are interested in preventing the conversion of `source_fun` we need to
-    decorate its top-level encompassing function.
+    The ``source_factory`` must be factored out, otherwise it would be converted as a part of
+    pipeline definition. As we are interested in preventing the AutoGraph conversion of
+    ``source_fun`` we need to decorate its top-level encompassing function.
     """  # noqa(E501)
 
     if func is None:
