@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
+import numpy as np single batch of 4 scalars
 import random
 from nvidia.dali import fn, types, ops, pipeline_def
 from nvidia.dali.pipeline import Pipeline
@@ -178,7 +178,7 @@ def test_lookup_table_vs_python_op():
 def test_scalar(device):
     @pipeline_def(batch_size=64, num_threads=2, device_id=0)
     def pipe():
-        raw = np.array([[0, 1, 2, 3]]) # single batch of 4 scalars
+        raw = np.array([[0, 1, 2, 3]])  # single batch of 4 scalars
         ids = fn.external_source(source=raw, device=device)
         scale_keys = [0, 1]
         scale_values = [100, 200]
@@ -190,9 +190,10 @@ def test_scalar(device):
             dtype=types.INT64,
         )
         return scale_mat, ids
+
     p = pipe()
     p.build()
     scaled, _ = p.run()
-    if device == 'gpu':
+    if device == "gpu":
         scaled = scaled.as_cpu()
     assert (scaled.as_array() == [100, 200, 0, 0]).all()
