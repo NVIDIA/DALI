@@ -944,8 +944,6 @@ class Pipeline(object):
     ):
         from nvidia.dali.external_source import _prep_data_for_feed_input
 
-        trace(name, data)
-
         if cuda_stream is None:
             cuda_stream = types._get_default_stream_for_array(data)
         if cuda_stream == -1:
@@ -1241,7 +1239,6 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
-        trace(self._first_iter, self._last_iter)
         self._schedule_py_workers()
 
         try:
@@ -1292,7 +1289,6 @@ class Pipeline(object):
 
         If pipeline iterator reached the end then reset its state to the beginning.
         """
-        trace(self._last_iter)
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
@@ -1308,7 +1304,6 @@ class Pipeline(object):
 
     def empty(self):
         """If there is any work scheduled in the pipeline but not yet consumed"""
-        trace(self._batches_to_consume == 0)
         return self._batches_to_consume == 0
 
     def serialize(self, define_graph=None, filename=None):
@@ -2098,36 +2093,3 @@ def _insert_experimental_pipeline_def():
 
 
 _insert_experimental_pipeline_def()
-
-
-_indent = 0
-
-
-def trace(*args, **kwargs):
-    pass
-
-
-# def trace(*args, **kwargs):
-#     print(' ' * _indent, *args, **kwargs)
-
-
-# def trace_pipeline_funcs():
-#     for name, f in inspect.getmembers(Pipeline, predicate=inspect.isfunction):
-#         if name[0:2] == '__':
-#             continue
-#         #@functools.wraps(f)
-#         def decorate(name, f):
-#             def tmp(*args, **kwargs):
-#                 global _indent
-#                 try:
-#                     trace(name, "--->")
-#                     _indent += 1
-#                     return f(*args, **kwargs)
-#                 finally:
-#                     _indent -= 1
-#                     trace("<---", name)
-#             return tmp
-#         setattr(Pipeline, name, decorate(name, f))
-
-
-# trace_pipeline_funcs()
