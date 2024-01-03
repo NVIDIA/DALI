@@ -523,6 +523,20 @@ Keyword Args
         the end of dataset - make sure it consistently raises a ``StopIteration`` in that case.
 
     |
+    .. warning::
+        The ``source``, when :ref:`conditional mode <conditional_execution>` is enabled, must not
+        be transformed by the AutoGraph. There are two conditions to prevent that:
+        1. The `source` or a factory creating the `source` must be defined at a global scope
+           (i.e. outside of `pipeline_def` scope).
+        2. If the `source` is created by a factory function that is invoked within pipeline
+           definition, the factory function must be decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`. Otherwise it will be
+           recursively converted when the pipeline definition is traced.
+
+        More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
+        documentation.
+
+    |
     .. note::
         Callable ``source`` can be run in parallel by multiple workers.
         For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
@@ -788,7 +802,7 @@ Keyword Args
                     "correctly used with parallel external source, it must remain unconverted. "
                     "To prevent conversion, two steps may need to be taken:\n"
                     "1. The `source` or a factory creating the `source` must be defined at a "
-                    "global scope (i.e.  outside of `pipeline_def` scope).\n"
+                    "global scope (i.e. outside of `pipeline_def` scope).\n"
                     "2. If the `source` is created by a factory function that is invoked within "
                     "pipeline definition, the factory function must be decorated with "
                     "`@nvidia.dali.pipeline.do_not_convert`. Otherwise it will be recursively "
@@ -954,7 +968,9 @@ def external_source(
     repeat_last=False,
     **kwargs,
 ):
-    """Creates a data node which is populated with data from a Python source.
+    """
+    Creates a data node which is populated with data from a Python source.
+
     The data can be provided by the ``source`` function or iterable, or it can be provided by
     ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
 
