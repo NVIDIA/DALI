@@ -1941,7 +1941,7 @@ def do_not_convert(func: _F = None) -> _F:
     The `source_factory` must be factored out, otherwise it would be converted as a part of pipeline
     definition. As we are interested in preventing the conversion of `source_fun` we need to
     decorate its top-level encompassing function.
-    """
+    """  # noqa(E501)
 
     if func is None:
         return do_not_convert
