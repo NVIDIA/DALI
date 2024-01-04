@@ -1974,8 +1974,7 @@ def do_not_convert(func: _F = None) -> _F:
     if inspect.isfunction(func) or inspect.ismethod(func):
         wrapper = functools.update_wrapper(wrapper, func)
 
-    # TODO(klecki): Verify if we don't have any DataNodes in the returned structure?
-    return _conditionals.do_not_convert(wrapper)
+    return _conditionals._autograph.do_not_convert(wrapper)
 
 
 def _collect_ops(output_nodes):

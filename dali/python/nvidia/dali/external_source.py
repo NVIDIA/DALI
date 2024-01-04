@@ -16,7 +16,7 @@
 from nvidia.dali import backend as _b
 from nvidia.dali import tensors as _tensors
 from nvidia.dali import types as _types
-from nvidia.dali import _conditionals
+from nvidia.dali import _autograph
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import (
@@ -797,7 +797,7 @@ Keyword Args
                     "(specify `batch=True` in the external source definition and make sure "
                     "your source returns batches)".format(what)
                 )
-            if _conditionals._is_autograph_artifact(source_desc.source):
+            if _autograph.is_autograph_artifact(source_desc.source):
                 raise ValueError(
                     "The `source` parameter that was passed to external source was created "
                     "in a scope that was converted with AutoGraph. To allow the `source` to be "
