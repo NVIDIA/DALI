@@ -1241,25 +1241,60 @@ class Pipeline(object):
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
 
-        try:
-            self._prefetch_inputs()
-            self._first_iter = False
+        # We probably need some benchmarking before we remove this code path
+        if not self._exec_separated:
+            self._legacy_interleaved_prefetch()
+            return
+
+        # The new way: try to run the inputs and then feed them, finally call _pipe.Prefetch()
+        # If this fails, we just run `_pipe.Run()` a bunch of times. This will likely blow up for
+        # separated queues, which are not properly supported anyway.
+        iters_fed = 0
+        self._first_iter = False
+        iters_fed, success = self._prefetch_inputs()
+        if success:
             self._pipe.Prefetch()
-        except StopIteration:
+        else:
             self._last_iter = True
+            for _ in range(iters_fed):
+                self._pipe.Run()
+
+    # This is the old way of prefetching - the feeding and running steps are interleaved.
+    # Running all callbacks at once, then feeding, then running - may affect the performance
+    # of the 1st iteration.
+    def _legacy_interleaved_prefetch(self):
+        for _ in range(self._cpu_queue_size):
+            try:
+                self._first_iter = False
+                self._iter_setup()
+                self._batches_to_consume += 1
+                if not self._exec_async and self._prefetch_queue_depth == 1:
+                    self.release_outputs()
+                self._pipe.Run()
+            except StopIteration:
+                self._last_iter = True
+                break
 
     def _prefetch_inputs(self):
-        self._run_input_callbacks(True)
+        prefetched, success = self._run_input_callbacks(True)
+        self._batches_to_consume += prefetched
 
-        if self._exec_separated:
-            prefetch_count = self._cpu_queue_size + self._gpu_queue_size
-            self._batches_to_consume += self._gpu_queue_size
-        else:
-            prefetch_count = self._cpu_queue_size
-            self._batches_to_consume += prefetch_count
+        if success:
+            if self._exec_separated:
+                prefetch_count = self._cpu_queue_size + self._gpu_queue_size
+            else:
+                prefetch_count = self._cpu_queue_size
 
-        for i in range(prefetch_count):
-            self.iter_setup()
+            for i in range(prefetched, prefetch_count):
+                try:
+                    self.iter_setup()
+                    prefetched = i + 1
+                    self._batches_to_consume += 1
+                except StopIteration:
+                    success = False
+                    break
+
+        return prefetched, success
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
@@ -1515,9 +1550,16 @@ class Pipeline(object):
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
+    def _iter_setup(self):
+        iters, success = self._run_input_callbacks()
+        if not success:
+            raise StopIteration
+        if iters == 0:
+            self.iter_setup()
+
     def _run_input_callbacks(self, is_prefetch=False):
         if self._input_callbacks is None:
-            return
+            return 0, True
 
         done = False
         stop_iter = False
@@ -1547,17 +1589,19 @@ class Pipeline(object):
                     stop_iter = True
 
             if stop_iter:
-                raise StopIteration()
+                return iter, False
+
+            try:
+                self.iter_setup()
+            except StopIteration:
+                return iter, False
 
             # we only fill external source queues when we know that all callbacks succeeded
             for batch in batches:
                 batch.feed()
 
             iter += 1
-
-    def _iter_setup(self):
-        self._run_input_callbacks()
-        self.iter_setup()
+        return iter, True
 
     def iter_setup(self):
         """A deprecated method of providing the pipeline with external inputs.
