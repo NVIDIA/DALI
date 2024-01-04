@@ -1606,12 +1606,12 @@ class Pipeline(object):
     def iter_setup(self):
         """A deprecated method of providing the pipeline with external inputs.
 
-        This function can be overriden by user-defined
+        This function can be overridden by a user-defined
         pipeline to perform any needed setup for each iteration.
         For example, one can use this function to feed the input
         data from NumPy arrays.
 
-        This method is deprecated and its use is discourage. Newer execution models may be
+        This method is deprecated and its use is discouraged. Newer execution models may be
         incompatible with this method of providing data to the pipeline. Use `source` argument
         in ``external_source`` instead, where possible.
         """
