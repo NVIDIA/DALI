@@ -1519,7 +1519,6 @@ class Pipeline(object):
         if self._input_callbacks is None:
             return
 
-        max_count = 1
         done = False
         stop_iter = False
         iter = 0

@@ -776,7 +776,7 @@ class DLL_PUBLIC Pipeline {
      *
      * @param owner       The pipeline
      * @param fill_queue  If true, the inputs are fed `InputFeedCount(name)` times;
-     *                    otherwise it's fed once.
+     *                    otherwise they're fed once.
      */
     void Refeed(Pipeline &owner, bool fill_queue = false);
 

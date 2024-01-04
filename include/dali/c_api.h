@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -409,6 +409,10 @@ DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
 
 /**
  * @brief Schedule initial runs to fill the buffers.
+ *
+ * This function should be called once, after a pipeline is created and external inputs
+ * (if any) are populated the required number of times.
+ * For subsequent runs, daliRun should be used.
  */
 DLL_PUBLIC void daliPrefetch(daliPipelineHandle *pipe_handle);
 
