@@ -1571,8 +1571,10 @@ class Pipeline(object):
                 try:
                     count = group.feed_count(self) if is_prefetch else 1
                     if iter < count:
-                        group.schedule_and_receive(
-                            self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                        batches.append(
+                            group.schedule_and_receive(
+                                self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                            )
                         )
                         if iter + 1 < count:
                             done = False
