@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -247,7 +247,7 @@ def accepted_arg_count(callable):
     else:
         implicit_args = 1
         callable = callable.__func__
-    return callable.__code__.co_argcount - implicit_args
+    return len(inspect.signature(callable).parameters) - implicit_args
 
 
 def get_callback_from_source(source, cycle, batch_info=False):

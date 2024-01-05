@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import random
+import functools
+import inspect
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -864,3 +866,35 @@ def _blocking_destructor(device):
 def test_blocking_destructor():
     for device in ["cpu", "gpu"]:
         yield _blocking_destructor, device
+
+
+def test_decorated_external_source():
+    def code_smashing_decorator(func=None):
+        """Decorator that hides the original __code__.co_argcount"""
+        if func is None:
+            return code_smashing_decorator
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            print(
+                f"Now `wrapper` signature: {inspect.signature(wrapper)} looks like "
+                f"`func` signature: {inspect.signature(func)}, "
+                f"but the __code__.co_argcount is different: {wrapper.__code__.co_argcount} "
+                f"vs {func.__code__.co_argcount}."
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @code_smashing_decorator
+    def my_source(sample_info):
+        return np.array([sample_info.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+    (out,) = pipe.run()
+    np.array_equal(np.array(out.as_tensor()), np.array([0, 1, 2, 3]))
