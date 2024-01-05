@@ -1963,7 +1963,7 @@ def do_not_convert(func: _F = None) -> _F:
         def disallow_data_node(node):
             if isinstance(node, DataNode):
                 raise TypeError(
-                    "Functions that process DataNodes should not be marked with @do_not_convert."
+                    "Functions that process DataNodes should not be marked with @do_not_convert. "
                     f"Found return element of class DataNode when calling {func}."
                 )
             return node
