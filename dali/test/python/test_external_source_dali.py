@@ -890,11 +890,22 @@ def test_decorated_external_source():
     def my_source(sample_info):
         return np.array([sample_info.idx_in_epoch])
 
+    class SourceClass:
+        def __init__(self, offset):
+            self.offset = offset
+
+        @code_smashing_decorator
+        def __call__(self, sample_info):
+            return np.array([sample_info.idx_in_epoch + self.offset])
+
     @pipeline_def(batch_size=4, device_id=0, num_threads=4)
     def test_pipe():
-        return fn.external_source(source=my_source, batch=False)
+        src_0 = fn.external_source(source=my_source, batch=False)
+        src_1 = fn.external_source(source=SourceClass(2), batch=False)
+        return src_0, src_1
 
     pipe = test_pipe()
     pipe.build()
-    (out,) = pipe.run()
-    np.array_equal(np.array(out.as_tensor()), np.array([0, 1, 2, 3]))
+    (out0, out1) = pipe.run()
+    np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
+    np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
