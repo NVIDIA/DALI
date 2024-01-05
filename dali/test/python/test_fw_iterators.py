@@ -902,7 +902,7 @@ def test_gluon_iterator_pass_reader_name_autoreset():
         )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -941,7 +941,7 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
     assert len(set(mirrored_data)) != 1
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_last_batch_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -989,7 +989,7 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
     assert len(set(next_mirrored_data)) == 1
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -1149,7 +1149,7 @@ def create_custom_pipeline(batch_size, num_threads, device_id, num_gpus, data_pa
     return pipe
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_feed_ndarray():
     from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
     import torch
@@ -1178,7 +1178,7 @@ def test_pytorch_iterator_feed_ndarray():
         np.testing.assert_equal(arr.cpu().numpy(), outs[0].as_cpu().as_array())
 
 
-@attr("torch")
+@attr("pytorch")
 def check_pytorch_iterator_feed_ndarray_types(data_type):
     from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
     import torch
@@ -1210,7 +1210,7 @@ def check_pytorch_iterator_feed_ndarray_types(data_type):
     assert np.all(pyt.numpy() == arr)
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_feed_ndarray_types():
     types = [
         np.float32,
@@ -1465,7 +1465,7 @@ def test_paddle_iterator_feed_ndarray_types():
         yield check_paddle_iterator_feed_ndarray_types, data_type
 
 
-@attr("torch")
+@attr("pytorch")
 def check_pytorch_iterator_pass_reader_name(
     shards_num,
     pipes_number,
@@ -1564,7 +1564,7 @@ def check_pytorch_iterator_pass_reader_name(
         (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_pass_reader_name():
     for shards_num in [3, 5, 17]:
         for batch_size in [3, 5, 7]:
@@ -1590,7 +1590,7 @@ def test_pytorch_iterator_pass_reader_name():
                                 )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
         yield (
@@ -2365,7 +2365,7 @@ def test_gluon_external_source_variable_size_fail():
 # PyTorch
 
 
-@attr("torch")
+@attr("pytorch")
 @params(*stop_iteration_case_generator())
 def test_stop_iteration_pytorch(batch_size, epochs, iter_num, total_iter_num, auto_reset, infinite):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -2387,7 +2387,7 @@ def test_stop_iteration_pytorch(batch_size, epochs, iter_num, total_iter_num, au
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_stop_iteration_pytorch_fail_multi():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2397,7 +2397,7 @@ def test_stop_iteration_pytorch_fail_multi():
     check_stop_iter_fail_multi(fw_iter)
 
 
-@attr("torch")
+@attr("pytorch")
 def test_stop_iteration_pytorch_fail_single():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2407,14 +2407,14 @@ def test_stop_iteration_pytorch_fail_single():
     check_stop_iter_fail_single(fw_iter)
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     check_iterator_wrapper_first_iteration(PyTorchIterator, output_map=["data"], size=100)
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_external_source_autoreset():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2423,7 +2423,7 @@ def test_pytorch_external_source_autoreset():
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_external_source_do_not_prepare():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2435,7 +2435,7 @@ def test_pytorch_external_source_do_not_prepare():
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_external_source_variable_size_pass():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2444,7 +2444,7 @@ def test_pytorch_external_source_variable_size_pass():
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_external_source_variable_size_fail():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2689,7 +2689,7 @@ def test_gluon_prepare_first_batch():
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_prepare_first_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2738,7 +2738,7 @@ def test_mxnet_feed_ndarray():
     )
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_feed_ndarray():
     from nvidia.dali.plugin.pytorch import feed_ndarray
     import torch
@@ -2782,7 +2782,7 @@ def check_iterator_build_error(ErrorType, Iterator, glob, *args, **kwargs):
         Iterator(pipes, size=pipes[0].epoch_size("Reader"), *args, **kwargs)
 
 
-@attr("torch")
+@attr("pytorch")
 def test_pytorch_wrong_last_batch_policy_type():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -2946,7 +2946,7 @@ def test_gluon_autoreset_iter(auto_reset_op, policy):
     check_autoreset_iter(fw_iterator, extract_data, auto_reset_op, policy)
 
 
-@attr("torch")
+@attr("pytorch")
 @params(*autoreset_iter_params())
 def test_pytorch_autoreset_iter(auto_reset_op, policy):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
