@@ -115,6 +115,9 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
 using PipelinedExecutor =
     PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
 
+template
+class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+
 class DLL_PUBLIC SeparatedPipelinedExecutor
 : public PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy> {
   using ImplBase = PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;

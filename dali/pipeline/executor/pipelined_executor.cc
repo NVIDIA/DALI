@@ -36,10 +36,7 @@ int SeparatedPipelinedExecutor::InputFeedCount(const std::string &op_name) {
   return queue_sizes_.cpu_size + queue_sizes_.gpu_size;
 }
 
-
 template
 class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template
-class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali
