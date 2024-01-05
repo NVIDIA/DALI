@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_unifor
 
 InputOperatorMixedTestParam input_operator_test_params_pipelined_executor_separate_queue[] = {
         {2, 3, true, false, true},
-        {3, 2, true, false, false},
+        {2, 2, true, false, false},
         {2, 3, true, true,  true},
         {3, 2, true, true,  false},
 };
@@ -130,7 +130,7 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
                       num_threads_, device_id_, exec_pipelined_, exec_async_, exec_separated_,
                       cpu_queue_depth_, cpu_queue_depth_, gpu_queue_depth_, 0);
   for (int iteration = 0; iteration < n_iterations_; iteration++) {
-    auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
+    int prefetch_depth = daliInputFeedCount(&h, operator_name_.c_str());
     size_t sample_size = 42;
     thrust::host_vector<int32_t> in_data(sample_size * batch_size_, 2137);
     thrust::device_vector<int32_t> ref_data = in_data;
@@ -143,8 +143,9 @@ TEST_P(InputOperatorMixedTest, InputOperatorMixedTest) {
                            DALI_ext_force_copy);
     }
 
-    daliPrefetchUniform(&h, prefetch_depth);
-    for (int i = 0; i < prefetch_depth; i++) {
+    daliPrefetch(&h);
+    int num_output_batches = std::min(cpu_queue_depth_, gpu_queue_depth_);
+    for (int i = 0; i < num_output_batches; i++) {
       daliShareOutput(&h);
       auto sz = daliNumElements(&h, 0);
       thrust::device_vector<int32_t> out_data(sz);

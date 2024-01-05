@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -403,6 +403,8 @@ TEST_F(VideoReaderTest, HEVC) {
     pipe.Build(this->Outputs());
     for (int i = 0; i < iterations; ++i) {
       pipe.Run();
+
+      pipe.Outputs(&ws);
     }
   } catch (const std::exception &e) {
     if (IsUnsupportedCodec(e.what())) {
@@ -486,6 +488,7 @@ TEST_F(VideoReaderTest, FrameLabelsFilenames) {
   Workspace ws;
   for (int i = 0; i < iterations; ++i) {
     pipe.Run();
+    pipe.Outputs(&ws);
     const auto &frames_gpu = ws.Output<dali::GPUBackend>(0);
     const auto &label_gpu = ws.Output<dali::GPUBackend>(1);
     const auto &frame_num_gpu = ws.Output<dali::GPUBackend>(2);
