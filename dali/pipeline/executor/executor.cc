@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -350,17 +350,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Run() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(const std::string &op_name) {
-  OpNode &node = graph_->Node(op_name);
-  switch (node.op_type) {
-    case OpType::CPU:
-      return queue_sizes_.cpu_size;
-    case OpType::MIXED:
-    case OpType::GPU:
-      return queue_sizes_.gpu_size;
-    default:
-      assert(!"Unreachable code detected");
-      return 0;
-  }
+  (void)graph_->Node(op_name);
+  return queue_sizes_.cpu_size;
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>

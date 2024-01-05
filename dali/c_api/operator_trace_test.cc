@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,10 +45,10 @@ OperatorTraceTestParam operator_trace_test_params_pipelined_executor_uniform_que
 };
 
 OperatorTraceTestParam operator_trace_test_params_pipelined_executor_separate_queue[] = {
-        {2, 3, true, false},
-        {3, 2, true, false},
         {2, 3, true, true},
         {3, 2, true, true},
+        {2, 3, true, false},
+        {2, 2, true, false},
 };
 
 std::array<std::string, 2> operator_under_test_names = {
@@ -234,7 +234,8 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     auto prefetch_depth = std::min(cpu_queue_depth_, gpu_queue_depth_);
 
     // Feed CPU input data.
-    int feed_count_cpu = daliInputFeedCount(&h, "OP_TACE_IN_CPU");
+    int feed_count_cpu = daliInputFeedCount(&h, "OP_TRACE_IN_CPU");
+    ASSERT_GE(feed_count_cpu, 1);
     for (int i = 0; i < feed_count_cpu; i++) {
       size_t sample_size = 42;
       auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
@@ -245,7 +246,8 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     }
 
     // Feed GPU input data.
-    int feed_count_gpu = daliInputFeedCount(&h, "OP_TACE_IN_GPU");
+    int feed_count_gpu = daliInputFeedCount(&h, "OP_TRACE_IN_GPU");
+    ASSERT_GE(feed_count_gpu, 1);
     for (int i = 0; i < feed_count_gpu; i++) {
       int sample_size = 42;
       auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
