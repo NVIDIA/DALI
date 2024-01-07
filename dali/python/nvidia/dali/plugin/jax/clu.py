@@ -14,6 +14,9 @@
 
 import threading
 
+import numpy as np
+import jax.numpy as jnp
+
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.plugin.jax.iterator import DALIGenericIterator, _data_iterator_impl
 from nvidia.dali.pipeline import Pipeline, DataNode
@@ -234,6 +237,36 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             ElementSpec: Element spec for the elements returned by the iterator.
         """
         return self._element_spec
+
+    @property
+    def is_nonpadding(self):
+        """Returns array of booleans that indicate if the returned sample is a padding sample.
+
+        Returns:
+            jax.Array of booleans that indicates if the returned sample is a padding sample.
+            Shape is (batch_size,). Sharding is the same as the output.
+        """
+        left = self.batch_size - (
+            self._counter - self._shard_sizes_per_gpu_initial[self._shards_id]
+        )
+        if_drop = np.less(left, self.batch_size)
+
+        is_nonpadding_shards = []
+
+        for i in range(self._num_gpus):
+            if not if_drop[i]:
+                is_nonpadding_shards.append(jnp.ones((self.batch_size,), dtype=bool))
+            else:
+                is_nonpadding_shards.append(
+                    jnp.concatenate(
+                        (
+                            jnp.ones((left[i],), dtype=bool),
+                            jnp.zeros((self.batch_size - left[i],), dtype=bool),
+                        )
+                    )
+                )
+
+        return jax.device_put(jnp.concatenate(is_nonpadding_shards), self._sharding)
 
 
 def peekable_data_iterator(
