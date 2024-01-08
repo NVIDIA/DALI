@@ -615,14 +615,7 @@ def do_not_convert(func=None):
     if func is None:
         return do_not_convert
 
-    def wrapper(*args, **kwargs):
-        with ag_ctx.ControlStatusCtx(status=ag_ctx.Status.DISABLED):
-            return func(*args, **kwargs)
-
-    if inspect.isfunction(func) or inspect.ismethod(func):
-        wrapper = functools.update_wrapper(wrapper, func)
-
-    return autograph_artifact(wrapper)
+    return autograph_artifact(func)
 
 
 # TODO(mdan): Make private.
