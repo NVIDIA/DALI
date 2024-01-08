@@ -21,8 +21,7 @@ test_body() {
         done
     fi
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
-    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
-    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
+    ${python_new_invoke_test} -A 'mxnet' -A 'gluon' test_fw_iterators
 }
 
 pushd ../..
