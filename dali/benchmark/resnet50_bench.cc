@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,6 +240,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
   // Run once to allocate the memory
   Workspace ws;
   pipe.Run();
+  pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
     pipe.SetExternalInput("raw_jpegs", data);
@@ -349,6 +350,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
   // Run once to allocate the memory
   Workspace ws;
   pipe.Run();
+  pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
     pipe.SetExternalInput("raw_jpegs", data);
