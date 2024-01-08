@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,8 +73,8 @@ requirements:
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
-    - black =23.11.0
-    - black-jupyter =23.11.0
+    - black =23.12.0
+    - black-jupyter =23.12.0
   host:
     - python
     - future

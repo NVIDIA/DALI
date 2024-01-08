@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - run: pip install  flake8 "black[jupyter]"==23.11.0
+      - run: pip install  flake8 "black[jupyter]"==23.12.0
       - run: black --check --verbose ${{ env.PYTHON_LINT_PATHS }} ${{ env.AUTOGRAPH_LINT_PATHS }}
       - run: flake8 --config=.flake8 ${{ env.PYTHON_LINT_PATHS }}
       - run: flake8 --config=.flake8.ag ${{ env.AUTOGRAPH_LINT_PATHS }}
