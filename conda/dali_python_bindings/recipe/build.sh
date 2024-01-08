@@ -40,11 +40,6 @@ export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 export PATH=/usr/local/cuda/bin:${PATH}
 
-# For some reason `aligned_alloc` is present when we use compiler version 5.4.x
-# Adding NO_ALIGNED_ALLOC definition for cutt
-export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
-export PATH=/usr/local/cuda/bin:${PATH}
-
 # make it on by default for CUDA 11.x
 if [ "${CUDA_VERSION/./}" -ge 110 ]; then
   export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=ON
