@@ -61,10 +61,10 @@ conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
 
 # Building DALI core package
-conda mambabuild ${CONDA_BUILD_OPTIONS} dali_core/recipe
+conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 
 # Building DALI python bindings package
-conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.8, 3.9, 3.10, 3.11, 3.12]}" dali_bindings/recipe
+conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.8, 3.9, 3.10, 3.11, 3.12]}" dali_python_bindings/recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts

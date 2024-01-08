@@ -196,7 +196,7 @@ if (BUILD_PYTHON)
   message(STATUS "Generating python stubs using interpreter: ${PYTHON_STUBGEN_INTERPRETER}")
 endif ()
 
-cmake_dependent_option(PREBUILD_DALI_LIBS "Use prebuild DALI libs to compile python bindings" OFF
+cmake_dependent_option(PREBUILD_DALI_LIBS "Use prebuilt DALI libs to compile python bindings" OFF
                        "BUILD_PYTHON" OFF)
 
 if (STATIC_LIBS)
