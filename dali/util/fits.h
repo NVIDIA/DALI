@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,25 @@
 
 namespace dali {
 namespace fits {
+
+class DLL_PUBLIC FitsLock {
+ public:
+  FitsLock();
+
+ private:
+  std::mutex &mutex();
+  std::unique_lock<std::mutex> lock_;
+};
+
+DLL_PUBLIC void HandleFitsError(int status);
+
+/** @brief Wrapper that automatically handles cfitsio error checking.*/
+#define FITS_CALL(code)          \
+  do {                           \
+    fits::FitsLock lock;         \
+    fits::HandleFitsError(code); \
+  } while (0)
+
 
 const std::set<DALIDataType> supportedTypes = {DALI_UINT8,   DALI_UINT16, DALI_UINT32, DALI_UINT64,
                                                DALI_INT8,    DALI_INT16,  DALI_INT32,  DALI_INT64,
@@ -86,7 +105,7 @@ class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
     int status = 0;
     fitsfile *ff = nullptr;
 
-    fits_open_file(&ff, path, mode, &status);
+    FITS_CALL(fits_open_file(&ff, path, mode, &status));
     DALI_ENFORCE(status == 0,
                  make_string("Failed to open a file: ", path, " Make sure it exists!"));
 
@@ -97,14 +116,11 @@ class DLL_PUBLIC FitsHandle : public UniqueHandle<fitsfile *, FitsHandle> {
   /** @brief Calls fits_close_file on the file handle */
   static void DestroyHandle(fitsfile *ff) {
     int status = 0;
-    fits_close_file(ff, &status);
+    FITS_CALL(fits_close_file(ff, &status));
     DALI_ENFORCE(status == 0,
                  make_string("Failed while executing fits_close_file! Status code: ", status));
   }
 };
-
-/** @brief Wrapper that automatically handles cfitsio error checking.*/
-DLL_PUBLIC void FITS_CALL(int status);
 
 }  // namespace fits
 }  // namespace dali

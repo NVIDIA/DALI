@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,14 +78,14 @@ class FitsLoader : public FileLoader<Backend, Target> {
 
     auto path = filesystem::join_path(file_root_, filename);
     auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
-    fits::FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
+    FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
 
     // resize ouput vector according to the number of HDUs
     ResizeTarget(target, hdu_indices_.size());
 
     for (size_t output_idx = 0; output_idx < hdu_indices_.size(); output_idx++) {
       // move to appropiate hdu
-      fits::FITS_CALL(fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status));
+      FITS_CALL(fits_movabs_hdu(current_file, hdu_indices_[output_idx], NULL, &status));
 
       // read the header
       fits::HeaderData header;
