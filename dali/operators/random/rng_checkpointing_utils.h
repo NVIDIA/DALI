@@ -85,10 +85,11 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
   static void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) {
     auto deserialized = SnapshotSerializer().Deserialize<std::vector<curandState>>(data);
     curand_states states(deserialized.size());
-    CUDA_CALL(cudaMemcpy(states.states(),
-                         deserialized.data(),
-                         sizeof(curandState) * deserialized.size(),
-                         cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMemcpyAsync(states.states(),
+                              deserialized.data(),
+                              sizeof(curandState) * deserialized.size(),
+                              cudaMemcpyHostToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
     cpt.MutableCheckpointState() = states;
   }
 };
