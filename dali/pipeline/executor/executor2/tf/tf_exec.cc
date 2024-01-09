@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "executor2.h"
+#include "tf_exec.h"
 
 namespace dali {
 namespace exec2 {
