@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ class OpGraph;
 /**
  * @brief Pipeline-wide state, passed from python side
 */
-struct DLL_PUBLIC ExternalContextCheckpoint {
+struct ExternalContextCheckpoint {
   int epoch_idx;  // Epoch index, as counted by python Pipeline
   int iter;       // Iteration, as counted by python Pipeline
 };
@@ -78,7 +78,7 @@ class DLL_PUBLIC Checkpoint {
   */
   DLL_PUBLIC void DeserializeFromProtobuf(const OpGraph &graph, const std::string &serialized_data);
 
-  ExternalContextCheckpoint external_ctx_cpt_;
+  ExternalContextCheckpoint external_ctx_cpt_{};
 
  private:
   std::vector<OpCheckpoint> cpts_;
