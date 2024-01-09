@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR2_EXECUTOR2_H_
 
 #include <memory>
-#include "exec_graph.h"
+#include "graph.h"
 
 namespace dali {
 namespace exec2 {
