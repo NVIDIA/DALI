@@ -91,7 +91,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |black| replace:: black
 .. _black: https://github.com/psf/black
-.. |blackver| replace:: 23.12.0
-.. _blackver: https://pypi.org/project/black/23.12.0/
+.. |blackver| replace:: 23.12.1
+.. _blackver: https://pypi.org/project/black/23.12.1/
 .. |blacklic| replace:: MIT License
 .. _blacklic: https://github.com/psf/black/blob/main/LICENSE
