@@ -63,6 +63,7 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
   static void SaveState(OpCheckpoint &cpt, AccessOrder order, const curand_states &rng) {
     cpt.SetOrder(order);
     cpt.MutableCheckpointState() = rng.copy(order);
+    // The pipeline will perform host synchronization before serializing the checkpoints.
   }
 
   static void RestoreState(const OpCheckpoint &cpt, curand_states &rng) {
