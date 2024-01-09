@@ -59,8 +59,9 @@ struct curand_states {
   }
 
   DALI_HOST inline void set(const curand_states &other) {
-    CUDA_CALL(cudaMemcpy(states_, other.states_, sizeof(curandState) * len_,
-                         cudaMemcpyDeviceToDevice));
+    CUDA_CALL(cudaMemcpyAsync(states_, other.states_, sizeof(curandState) * len_,
+                              cudaMemcpyDeviceToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
   }
 
  private:
