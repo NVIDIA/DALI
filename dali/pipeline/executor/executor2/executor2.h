@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ class Executor {
  public:
   virtual ~Executor() = default;
 
-  virtual void Build(std::shared_ptr<Graph> graph) = 0;
+  virtual void Initialize(std::shared_ptr<Graph> graph) = 0;
   virtual void Run() = 0;
   virtual void GetOutputs(Workspace &ws) = 0;
  private:
