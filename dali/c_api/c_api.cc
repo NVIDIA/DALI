@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -310,7 +310,7 @@ void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
   auto &pipeline = (*pipe_handle)->pipeline;
   auto sz = pipeline->GetQueueSizes();
   if (cpu_queue_depth != sz.cpu_size || gpu_queue_depth != sz.gpu_size) {
-    DALI_WARN("daliPrefetchUniform is deprecated and setting queue_length different than"
+    DALI_WARN("daliPrefetchSeparate is deprecated and setting queue_length different than"
     " the one set in the pipeline has no effect. Use daliPrefetch instead.");
   }
   pipeline->Prefetch();

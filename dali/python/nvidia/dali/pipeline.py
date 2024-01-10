@@ -939,9 +939,7 @@ class Pipeline(object):
     def input_feed_count(self, input_name):
         return self._pipe.InputFeedCount(input_name)
 
-    def _feed_input(
-        self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False, is_prefetch=False
-    ):
+    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         from nvidia.dali.external_source import _prep_data_for_feed_input
 
         if cuda_stream is None:
