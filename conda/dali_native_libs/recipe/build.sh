@@ -40,11 +40,7 @@ export CXXFLAGS=${CXXFLAGS/-std=c++??/-std=c++17}
 export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
 export PATH=/usr/local/cuda/bin:${PATH}
 
-# For some reason `aligned_alloc` is present when we use compiler version 5.4.x
-# Adding NO_ALIGNED_ALLOC definition for cutt
-export CXXFLAGS="${CXXFLAGS} -DNO_ALIGNED_ALLOC"
-export PATH=/usr/local/cuda/bin:${PATH}
-
+CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 # make it on by default for CUDA 11.x
 if [ "${CUDA_VERSION/./}" -ge 110 ]; then
   export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=ON
@@ -56,8 +52,8 @@ fi
 export BUILD_NVCOMP=${BUILD_NVCOMP:-OFF}
 
 # Create build directory for cmake and enter it
-mkdir $SRC_DIR/build
-cd $SRC_DIR/build
+mkdir $SRC_DIR/build_core
+cd $SRC_DIR/build_core
 # Build
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_rt_LIBRARY=$BUILD_PREFIX/${ARCH_LONGNAME}-linux-gnu/sysroot/usr/lib/librt.so \
@@ -71,7 +67,8 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_TEST=${BUILD_TEST:-ON}                      \
       -DBUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}            \
       -DBUILD_NVTX=${BUILD_NVTX}                          \
-      -DBUILD_PYTHON=${BUILD_PYTHON:-ON}                  \
+      -DBUILD_PYTHON=OFF                                  \
+      -DPREBUILD_DALI_LIBS=OFF                            \
       -DPYTHON_STUBGEN_INTERPRETER=${PYTHON}              \
       -DBUILD_LMDB=${BUILD_LMDB:-ON}                      \
       -DBUILD_JPEG_TURBO=${BUILD_JPEG_TURBO:-ON}          \
@@ -123,15 +120,7 @@ DEPS_LIST=(
     "lib/libnvcv_types.so.0"
 )
 
-DEPS_SONAME=(
-    "libavformat.so.60"
-    "libavcodec.so.60"
-    "libavfilter.so.9"
-    "libavutil.so.58"
-    "libswscale.so.7"
-    "libcvcuda.so.0"
-    "libnvcv_types.so.0"
-)
+DEPS_PATH=/usr/local/
 
 if [ "$BUILD_NVCOMP" = "ON" ]; then
     DEPS_LIST+=(
@@ -139,16 +128,11 @@ if [ "$BUILD_NVCOMP" = "ON" ]; then
         "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
         "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
     )
-
-    DEPS_SONAME+=(
-        "libnvcomp.so"
-        "libnvcomp_gdeflate.so"
-        "libnvcomp_bitcomp.so"
-    )
 fi
 
-PKGNAME_PATH=dali/python/nvidia/dali/
-mkdir -p $PKGNAME_PATH/.libs
+PKGNAME_PATH=$PWD/dali/python/nvidia/dali
+DEPS_LIB_DST_PATH=$PKGNAME_PATH/dali_deps_libs
+mkdir -p $DEPS_LIB_DST_PATH
 
 # copy needed dependent .so files and tag them with their hash
 original=()
@@ -163,7 +147,7 @@ copy_and_patch() {
         return
     fi
     patchedname=$(fname_with_sha256 $filepath)
-    patchedpath=$PKGNAME_PATH/.libs/$patchedname
+    patchedpath=$DEPS_LIB_DST_PATH/$patchedname
     original+=("$filename")
     patched+=("$patchedname")
 
@@ -212,6 +196,9 @@ while IFS=  read -r -d $'\0'; do
 done < <(find $PKGNAME_PATH -name '*.so*' -print0)
 while IFS=  read -r -d $'\0'; do
     sofile_list+=("$REPLY")
+done < <(find $DEPS_LIB_DST_PATH -name '*.so*' -print0)
+while IFS=  read -r -d $'\0'; do
+    sofile_list+=("$REPLY")
 done < <(find $PKGNAME_PATH -name '*.bin' -print0)
 for ((i=0;i<${#sofile_list[@]};++i)); do
     sofile=${sofile_list[i]}
@@ -220,22 +207,27 @@ done
 wait
 echo "Fixed hashed names"
 
-# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/.libs
-PKGNAME_PATH=$PWD/dali/python/nvidia/dali
+# set RPATH of backend_impl.so and similar to $ORIGIN, $ORIGIN$UPDIRS, $ORIGIN$UPDIRS/dali_deps_libs
 find $PKGNAME_PATH -type f -name "*.so*" -o -name "*.bin" | while read FILE; do
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/dali_deps_libs'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/dali_deps_libs" $FILE
     patchelf --print-rpath $FILE
+    if [[ "$FILE" == *".so"* ]]; then
+        cp $FILE $PREFIX/lib/;
+    fi
+    if [[ "$FILE" == *"dali_deps_libs"* ]]; then
+        mkdir -p $PREFIX/lib/dali_deps_libs/
+        cp $FILE $PREFIX/lib/dali_deps_libs/;
+    fi
+    if [[ "$FILE" == *".bin"* ]]; then
+        cp $FILE $PREFIX/bin/;
+    fi
 done
 
-# pip install
-$PYTHON -m pip install --no-deps --ignore-installed -v dali/python
-
-# Build tensorflow plugin
-export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
-DALI_PATH=$($PYTHON -c 'import nvidia.dali as dali; import os; print(os.path.dirname(dali.__file__))')
-echo "DALI_PATH is ${DALI_PATH}"
-
-# Move tfrecord2idx to host env so it can be found at runtime
-cp $SRC_DIR/tools/tfrecord2idx $PREFIX/bin
+# copy generated headers for the bindings build
+find -iname *.pb.h | while read FILE; do
+   echo $FILE $PREFIX/include/$FILE
+   mkdir -p $(dirname $PREFIX/include/$FILE)
+   cp $FILE $PREFIX/include/$FILE
+done

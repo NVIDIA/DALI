@@ -10,9 +10,11 @@ epilog=(disable_conda)
 
 do_once() {
   # We need cmake to run the custom plugin notebook + ffmpeg, wget for video example, libasound2-dev for audio test
-  apt-get update
-  apt-get install -y --no-install-recommends wget ffmpeg cmake libasound2-dev
+  # install native compilers in conda instead of using system ones so we can link with conda packages
+  enable_conda
+  conda install gcc==9.4 gxx==9.4 alsa-lib wget ffmpeg cmake -y
   mkdir -p idx_files
+  disable_conda
 }
 
 test_body() {

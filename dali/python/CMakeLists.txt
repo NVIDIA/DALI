@@ -16,13 +16,28 @@
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_PYTHON_BACKEND_SRCS)
 
-build_per_python_lib(dali_python
-                     OUTPUT_NAME backend_impl
-                     OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
-                     PUBLIC_LIBS dali dali_operators dali_kernels dali_core ${CUDART_LIB}
-                     PRIV_LIBS ${CUDA_LIBRARIES} dynlink_cuda
-                     EXCLUDE_LIBS ${exclude_libs}
-                     SRC ${DALI_PYTHON_BACKEND_SRCS})
+if (PREBUILD_DALI_LIBS)
+# find prebuild DALI libs
+  find_library(PREBUILD_DALI_LIB NAMES dali)
+  find_library(PREBUILD_DALI_OPERATORS_LIB NAMES dali_operators)
+  find_library(PREBUILD_DALI_KERNELES_LIB NAMES dali_kernels)
+  find_library(PREBUILD_DALI_CORE_LIB NAMES dali_core)
+  build_per_python_lib(dali_python
+                       OUTPUT_NAME backend_impl
+                       OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                       PUBLIC_LIBS ${PREBUILD_DALI_LIB} ${PREBUILD_DALI_OPERATORS_LIB} ${PREBUILD_DALI_KERNELES_LIB} ${PREBUILD_DALI_CORE_LIB} ${CUDART_LIB}
+                       PRIV_LIBS ${CUDA_LIBRARIES} dynlink_cuda
+                       EXCLUDE_LIBS ${exclude_libs}
+                       SRC ${DALI_PYTHON_BACKEND_SRCS})
+else (PREBUILD_DALI_LIBS)
+  build_per_python_lib(dali_python
+                       OUTPUT_NAME backend_impl
+                       OUTPUT_DIR ${DALI_LIBRARY_OUTPUT_DIR}
+                       PUBLIC_LIBS dali dali_operators dali_kernels dali_core ${CUDART_LIB}
+                       PRIV_LIBS ${CUDA_LIBRARIES} dynlink_cuda
+                       EXCLUDE_LIBS ${exclude_libs}
+                       SRC ${DALI_PYTHON_BACKEND_SRCS})
+endif (PREBUILD_DALI_LIBS)
 
 if (DALI_BUILD_FLAVOR)
   set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")
@@ -53,8 +68,13 @@ if(NOT ${CMAKE_CROSSCOMPILING})
     set(PYTHONPATH "${PYTHON_TARGET_PATH}")
   endif()
 
-  add_custom_target(dali_python_generate_stubs ALL
-                    DEPENDS dali_python ${dali_python_function_lib} dali dali_operators copy_post_build_target)
+  if (PREBUILD_DALI_LIBS)
+    add_custom_target(dali_python_generate_stubs ALL
+                      DEPENDS dali_python ${dali_python_function_lib})
+  else (PREBUILD_DALI_LIBS)
+    add_custom_target(dali_python_generate_stubs ALL
+                      DEPENDS dali_python ${dali_python_function_lib} dali dali_operators copy_post_build_target)
+  endif (PREBUILD_DALI_LIBS)
 
   # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
   # backend from the current build.

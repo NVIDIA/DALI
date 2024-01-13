@@ -24,20 +24,37 @@ static const std::string& DummyPluginLibPath() {
   return plugin_lib;
 }
 
+static const std::string& DummyPluginLibPathGlobal() {
+  static const std::string plugin_lib = "libcustomdummyplugin.so";
+  return plugin_lib;
+}
+
 TEST(PluginManagerTest, LoadLibraryFail) {
-    EXPECT_THROW(
-        dali::PluginManager::LoadLibrary(kNonExistingLibName),
-        std::runtime_error);
+  EXPECT_THROW(
+    dali::PluginManager::LoadLibrary(kNonExistingLibName),
+    std::runtime_error);
 }
 
 TEST(PluginManagerTest, LoadLibraryOK) {
-    EXPECT_NO_THROW(
-        dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
+  EXPECT_NO_THROW(
+    {
+      try {
+        ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+      } catch(dali::DALIException &) {
+        ::dali::PluginManager::LoadLibrary(DummyPluginLibPathGlobal());
+      }
+    });
 }
 
 TEST(PluginManagerTest, LoadingSameLibraryTwiceShouldBeOk) {
-    for (int i = 0; i < 2; i++) {
-        EXPECT_NO_THROW(
-            dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
-    }
+  for (int i = 0; i < 2; i++) {
+    EXPECT_NO_THROW(
+      {
+        try {
+          ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+        } catch(dali::DALIException &) {
+          ::dali::PluginManager::LoadLibrary(DummyPluginLibPathGlobal());
+        }
+      });
+  }
 }
