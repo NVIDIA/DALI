@@ -199,3 +199,12 @@ class TestPytorch(FwTestBase):
 
     def equal(self, a, b):
         return (a == b).all()
+
+class TestPytorchRagged(FwTestBase):
+    def get_fw_iterator_class(self):
+        from nvidia.dali.plugin.pytorch import DALIRaggedIterator
+
+        return DALIRaggedIterator
+
+    def equal(self, a, b):
+        return (a == b).all()
