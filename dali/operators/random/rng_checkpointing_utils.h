@@ -63,6 +63,8 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
   static void SaveState(OpCheckpoint &cpt, AccessOrder order, const curand_states &rng) {
     cpt.SetOrder(order);
     cpt.MutableCheckpointState() = rng.copy(order);
+    // The pipeline will perform host synchronization before serializing the checkpoints.
+    // TODO(skarpinski) Move synchronization out from pipeline's GetCheckpoint.
   }
 
   static void RestoreState(const OpCheckpoint &cpt, curand_states &rng) {
@@ -85,10 +87,11 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
   static void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) {
     auto deserialized = SnapshotSerializer().Deserialize<std::vector<curandState>>(data);
     curand_states states(deserialized.size());
-    CUDA_CALL(cudaMemcpy(states.states(),
-                         deserialized.data(),
-                         sizeof(curandState) * deserialized.size(),
-                         cudaMemcpyHostToDevice));
+    CUDA_CALL(cudaMemcpyAsync(states.states(),
+                              deserialized.data(),
+                              sizeof(curandState) * deserialized.size(),
+                              cudaMemcpyHostToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
     cpt.MutableCheckpointState() = states;
   }
 };
