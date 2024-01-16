@@ -26,7 +26,11 @@ from nose2.tools import params, cartesian_params
 
 
 class FwTestBase:
-    FwIterator = None
+    def __init__(self):
+        self.FwIterator = self.get_fw_iterator_class()
+
+    def get_fw_iterator_class(self):
+        raise NotImplementedError
 
     def equal(self, a, b):
         raise NotImplementedError
@@ -188,10 +192,10 @@ class FwTestBase:
 
 
 class TestPytorch(FwTestBase):
-    def __init__(self):
+    def get_fw_iterator_class(self):
         from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
-        self.FwIterator = PyTorchIterator
+        return PyTorchIterator
 
     def equal(self, a, b):
         return (a == b).all()
