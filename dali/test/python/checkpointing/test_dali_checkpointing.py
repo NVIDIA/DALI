@@ -29,7 +29,6 @@ from test_utils import (
 )
 from nose_utils import assert_warns
 from nose2.tools import params, cartesian_params
-from nose.plugins.attrib import attr
 from dataclasses import dataclass
 from nvidia.dali import tfrecord as tfrec
 from nvidia.dali.auto_aug import auto_augment as aa
