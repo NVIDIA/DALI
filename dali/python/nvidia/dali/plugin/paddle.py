@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +25,12 @@ from nvidia.dali.backend import TensorListCPU, TensorGPU, TensorListGPU
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
-
-assert LooseVersion(paddle.__version__) == LooseVersion("0.0.0") or LooseVersion(
-    paddle.__version__
-) >= LooseVersion("2.0.0"), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
+if isinstance(paddle.__version__, str):
+    assert LooseVersion(paddle.__version__) == LooseVersion("0.0.0") or LooseVersion(
+        paddle.__version__
+    ) >= LooseVersion(
+        "2.0.0"
+    ), "DALI PaddlePaddle support requires Paddle develop or release >= 2.0.0"
 
 
 dtype_map = {
