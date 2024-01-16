@@ -24,6 +24,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
 
+
 class FwTestBase:
     FwIterator = None
 
@@ -43,18 +44,18 @@ class FwTestBase:
 
         restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data"], auto_reset=True, reader_name=reader_name, size=size)
+        iter2 = self.FwIterator(
+            restored, ["data"], auto_reset=True, reader_name=reader_name, size=size
+        )
 
         for out1, out2 in zip(iter, iter2):
             for d1, d2 in zip(out1, out2):
                 for key in d1.keys():
                     assert self.equal(d1[key], d2[key])
 
-
     def check_single_input_operator(self, op, device, **kwargs):
         pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
         self.check_pipeline_checkpointing(pipeline_factory, reader_name="Reader")
-
 
     def check_no_input_operator(self, op, device, **kwargs):
         @pipeline_def
@@ -62,7 +63,6 @@ class FwTestBase:
             return op(device=device, **kwargs)
 
         self.check_pipeline_checkpointing(pipeline_factory, size=8)
-
 
     # Reader tests section
 
