@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,8 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
   static void SaveState(OpCheckpoint &cpt, AccessOrder order, const curand_states &rng) {
     cpt.SetOrder(order);
     cpt.MutableCheckpointState() = rng.copy(order);
+    // The pipeline will perform host synchronization before serializing the checkpoints.
+    // TODO(skarpinski) Move synchronization out from pipeline's GetCheckpoint.
   }
 
   static void RestoreState(const OpCheckpoint &cpt, curand_states &rng) {
@@ -77,16 +79,19 @@ class RngCheckpointUtils<GPUBackend, curand_states> {
     const auto &states_gpu = cpt.CheckpointState<curand_states>();
     size_t n = states_gpu.length();
     std::vector<curandState> states(n);
-    cudaMemcpy(states.data(), states_gpu.states(), n * sizeof(curandState),
-               cudaMemcpyDeviceToHost);
+    CUDA_CALL(cudaMemcpy(states.data(), states_gpu.states(), n * sizeof(curandState),
+                         cudaMemcpyDeviceToHost));
     return SnapshotSerializer().Serialize(states);
   }
 
   static void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) {
     auto deserialized = SnapshotSerializer().Deserialize<std::vector<curandState>>(data);
     curand_states states(deserialized.size());
-    cudaMemcpy(states.states(), deserialized.data(), sizeof(curandState) * deserialized.size(),
-               cudaMemcpyHostToDevice);
+    CUDA_CALL(cudaMemcpyAsync(states.states(),
+                              deserialized.data(),
+                              sizeof(curandState) * deserialized.size(),
+                              cudaMemcpyHostToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
     cpt.MutableCheckpointState() = states;
   }
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,13 +53,15 @@ struct curand_states {
 
   DALI_HOST inline curand_states copy(AccessOrder order) const {
     curand_states states(len_);
-    cudaMemcpyAsync(states.states_, states_, sizeof(curandState) * len_,
-                    cudaMemcpyDeviceToDevice, order.stream());
+    CUDA_CALL(cudaMemcpyAsync(states.states_, states_, sizeof(curandState) * len_,
+                              cudaMemcpyDeviceToDevice, order.stream()));
     return states;
   }
 
   DALI_HOST inline void set(const curand_states &other) {
-    cudaMemcpy(states_, other.states_, sizeof(curandState) * len_, cudaMemcpyDeviceToDevice);
+    CUDA_CALL(cudaMemcpyAsync(states_, other.states_, sizeof(curandState) * len_,
+                              cudaMemcpyDeviceToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
   }
 
  private:

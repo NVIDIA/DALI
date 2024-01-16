@@ -166,6 +166,10 @@ def test_parallel_fork_cpu_only():
         utils.compare_pipelines(pipe0, pipe1, batch_size, iters)
 
 
+@raises(
+    RuntimeError,
+    glob="The external source cannot run in parallel mode without Python workers pool",
+)
 def test_parallel_no_workers():
     batch_size = 10
     iters = 4
@@ -180,8 +184,6 @@ def test_parallel_no_workers():
         device_id=None,
     )
     parallel_pipe.build()
-    assert parallel_pipe._py_pool is None
-    assert not parallel_pipe._py_pool_started
 
 
 @with_setup(utils.setup_function, utils.teardown_function)

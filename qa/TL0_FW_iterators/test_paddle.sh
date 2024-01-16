@@ -20,7 +20,7 @@ test_body() {
         done
         ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
     fi
-    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators.py
+    ${python_new_invoke_test} -A 'paddle' test_fw_iterators
 }
 
 pushd ../..

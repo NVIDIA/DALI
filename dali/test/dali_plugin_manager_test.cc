@@ -24,12 +24,21 @@ static const std::string& DummyPluginLibPath() {
   return plugin_lib;
 }
 
+static const std::string& DummyPluginLibPathGlobal() {
+  static const std::string plugin_lib = "libcustomdummyplugin.so";
+  return plugin_lib;
+}
+
 namespace other_ns {
 
 class DummyTest : public ::dali::DALITest {
  public:
   static void LoadDummyPlugin() {
-    ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+    try {
+      ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+    } catch(dali::DALIException &) {
+      ::dali::PluginManager::LoadLibrary(DummyPluginLibPathGlobal());
+    }
   }
 
   void TestPlugin(const std::string &backend) {

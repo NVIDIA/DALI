@@ -35,8 +35,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.83.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.83.0
+.. |preprocessorver| replace:: 1.84.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.84.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
@@ -49,8 +49,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 3.2.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.2.0
+.. |cutlassver| replace:: 3.3.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.3.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
@@ -91,7 +91,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |black| replace:: black
 .. _black: https://github.com/psf/black
-.. |blackver| replace:: 23.11.0
-.. _blackver: https://pypi.org/project/black/23.11.0/
+.. |blackver| replace:: 23.12.1
+.. _blackver: https://pypi.org/project/black/23.12.1/
 .. |blacklic| replace:: MIT License
 .. _blacklic: https://github.com/psf/black/blob/main/LICENSE

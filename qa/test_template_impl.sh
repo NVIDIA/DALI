@@ -148,8 +148,9 @@ do
         echo "Test variant run: $variant"
         # install the latest cuda wheel for CUDA 11.x and above tests if it is x86_64
         # or we just want to use CUDA from system, not wheels
+        # or we are in conda
         version_ge "${CUDA_VERSION}" "110" && \
-          if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ]; then
+          if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ] && [ -z "${CONDA_PREFIX}" ]; then
             install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
                                                    nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
                                                    nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
@@ -169,8 +170,11 @@ do
                 # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or nvidia-dali-tf-plugin-nightly
                 # Different DALI can be installed as a dependency of nvidia-dali so uninstall it too
                 pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
-                pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
-                pip install /opt/dali/nvidia_dali*.whl
+                # don't reinstall DALI wheen in conda as we use conda package
+                if [ -z "${CONDA_PREFIX}" ]; then
+                    pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
+                    pip install /opt/dali/nvidia_dali*.whl;
+                fi
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
             # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)

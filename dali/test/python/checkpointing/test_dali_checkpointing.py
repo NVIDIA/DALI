@@ -1021,7 +1021,7 @@ def test_ssd_random_crop():
     @pipeline_def
     def pipeline():
         data = fn.random.uniform(shape=(100, 100), dtype=types.DALIDataType.UINT8)
-        bbox = fn.random.uniform(shape=(4,), range=[0, 100], dtype=types.DALIDataType.FLOAT)
+        bbox = fn.random.uniform(shape=(7, 4), range=[0, 100], dtype=types.DALIDataType.FLOAT)
         labels = fn.random.uniform(shape=(1,), dtype=types.DALIDataType.INT32)
         return fn.ssd_random_crop(data, bbox, labels, device="cpu")[0]
 
@@ -1036,6 +1036,12 @@ def test_batch_permutation():
 @random_signed_off("jitter")
 def test_jitter():
     check_single_input_operator(fn.jitter, "gpu")
+
+
+@random_signed_off("random_resized_crop")
+@params("cpu", "gpu")
+def test_random_resized_crop(device):
+    check_single_input_operator(fn.random_resized_crop, device, size=(42, 24))
 
 
 @random_signed_off("random_bbox_crop")
@@ -1282,7 +1288,6 @@ unsupported_readers = [
 unsupported_ops = [
     "experimental.decoders.video",
     "experimental.inputs.video",
-    "random_resized_crop",
     "experimental.decoders.image_random_crop",
 ]
 

@@ -14,7 +14,7 @@ To use the TrivialAugment, import and call the
 :meth:`~nvidia.dali.auto_aug.trivial_augment.trivial_augment_wide` inside the pipeline definition,
 for example::
 
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import trivial_augment
 
     @pipeline_def(enable_conditionals=True)

@@ -48,7 +48,7 @@ void FitsLoaderGPU::ReadDataFromHDU(const fits::FitsHandle& current_file,
     target.data[output_idx].Resize(header.shape, header.type());
 
     // copy the image to host memory
-    fits::FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
+    FITS_CALL(fits_read_img(current_file, header.datatype_code, 1, nelem, &nulval,
                                   static_cast<uint8_t*>(target.data[output_idx].raw_mutable_data()),
                                   &anynul, &status));
   }

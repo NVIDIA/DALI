@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
 # limitations under the License.
 
 package:
-  name: nvidia-dali-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+  name: nvidia-dali-core-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
 
 source:
-  # Beware: Only commited files are used
-  - git_url: ../..
+  # Beware: Only committed files are used
+  - git_url: ../../..
 
 build:
   script_env:
@@ -29,7 +29,6 @@ build:
    - BUILD_BENCHMARK
    - BUILD_FUZZING
    - BUILD_NVTX
-   - BUILD_PYTHON
    - BUILD_LMDB
    - BUILD_JPEG_TURBO
    - BUILD_NVJPEG
@@ -57,27 +56,20 @@ build:
    - LD_LIBRARY_PATH
    - DALI_CONDA_BUILD_VERSION
    - CUDA_VERSION
-  string: py{{ python | replace(".","") }}_{{ environ.get('NVIDIA_BUILD_ID', '') }}
+  string: {{ environ.get('NVIDIA_BUILD_ID', '') }}
 
 requirements:
   build:
     skip: True  # [not linux]
     - {{ compiler('c') }}
-    - {{ compiler('cxx')}}
+    - {{ compiler('cxx') }}
     - pkg-config
     - cmake >=3.12.4
     - make
     - patchelf
     - python-clang
     - git-lfs
-    - astunparse >=1.6.0
-    - gast >=0.3.3
-    - dm-tree >=0.1.8
-    - black =23.11.0
-    - black-jupyter =23.11.0
   host:
-    - python
-    - future
     - protobuf
     - libprotobuf-static
     - libjpeg-turbo
@@ -93,12 +85,7 @@ requirements:
     - libwebp-base
     - openjpeg
     - cfitsio
-    - astunparse >=1.6.0
-    - gast >=0.3.3
-    - dm-tree >=0.1.8
   run:
-    - python
-    - future
     - libjpeg-turbo
     - lmdb
     - libtiff
@@ -114,6 +101,11 @@ requirements:
     - protobuf
     - openjpeg
     - cfitsio
-    - astunparse >=1.6.0
-    - gast >=0.3.3
-    - dm-tree >=0.1.8
+about:
+  home: https://github.com/NVIDIA/DALI
+  license: Apache-2.0 license
+  license_family: APACHE
+  license_file:
+    - ../../../LICENSE
+    - ../../../COPYRIGHT
+    - ../../../Acknowledgements.txt
