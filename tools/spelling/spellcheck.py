@@ -16,21 +16,23 @@ from common import cspell, Problem, FIXME_FILE
 import json
 import re
 
-cspell_out = json.loads(cspell('--show-context', '--reporter', '@cspell/cspell-json-reporter'))
+cspell_out = json.loads(cspell("--show-context", "--reporter", "@cspell/cspell-json-reporter"))
+
 
 def from_cspell_issue(issue):
     return Problem(
-        file=re.match('file:///workdir/(.*)', issue['uri']).group(1),
-        word=issue['text'],
-        line=issue['row'],
-        column=issue['col'],
-        ctx=issue['context']['text'],
-        offset=issue['offset'],
-        fix=''
+        file=re.match("file:///workdir/(.*)", issue["uri"]).group(1),
+        word=issue["text"],
+        line=issue["row"],
+        column=issue["col"],
+        ctx=issue["context"]["text"],
+        offset=issue["offset"],
+        fix="",
     )
 
-problems = [from_cspell_issue(issue) for issue in cspell_out['issues']]
-print(f'Found {len(problems)} problems.')
+
+problems = [from_cspell_issue(issue) for issue in cspell_out["issues"]]
+print(f"Found {len(problems)} problems.")
 
 counts = {}
 for problem in problems:
@@ -38,8 +40,8 @@ for problem in problems:
     counts[lower] = counts.get(lower, 0) + 1
 problems = list(sorted(problems, key=lambda p: (counts[p.word.lower()], p.word.lower())))
 
-print(f'Writing the problems to file: {FIXME_FILE}')
-with open(FIXME_FILE, 'w') as f:
-    f.write('\n'.join(p.export() for p in problems) + '\n')
+print(f"Writing the problems to file: {FIXME_FILE}")
+with open(FIXME_FILE, "w") as f:
+    f.write("\n".join(p.export() for p in problems) + "\n")
 
-print(f'Please now review {FIXME_FILE} and then run apply.py to apply the fixes')
+print(f"Please now review {FIXME_FILE} and then run apply.py to apply the fixes")

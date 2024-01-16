@@ -28,16 +28,18 @@ for p in problems:
 fixed = 0
 for file, problems in problems_in_file.items():
     current_offset = 0
-    with open(file, 'r') as f:
+    with open(file, "r") as f:
         text = f.read()
-    new_text = ''
+    new_text = ""
     skip_file = False
     for p in sorted(problems, key=lambda p: p.offset):
-        new_text += text[current_offset:p.offset]
-        orig = text[p.offset:p.offset + len(p.word)]
+        new_text += text[current_offset : p.offset]
+        orig = text[p.offset : p.offset + len(p.word)]
         if orig != p.word:
-            print(f'In {p.file}:{p.line}, when applying ({p.word})->({p.fix}): '
-                  f'expected "{p.word}" in the file, but there\'s "{orig}". Skipping entire file!')
+            print(
+                f"In {p.file}:{p.line}, when applying ({p.word})->({p.fix}): "
+                f'expected "{p.word}" in the file, but there\'s "{orig}". Skipping entire file!'
+            )
             skip_file = True
             break
         new_text += p.fix
@@ -45,13 +47,13 @@ for file, problems in problems_in_file.items():
         fixed += 1
     new_text += text[current_offset:]
     if not skip_file:
-        with open(file, 'w') as f:
+        with open(file, "w") as f:
             f.write(new_text)
 
-print(f'Applied {fixed} fixes.')
+print(f"Applied {fixed} fixes.")
 
 old_dict = {w.lower() for w in read_lines(DICT_FILE)}
 new_dict = old_dict | skipped
-with open(DICT_FILE, 'w') as f:
-    f.write('\n'.join(w for w in sorted(new_dict)) + '\n')
-print(f'{len(new_dict) - len(old_dict)} words were added to the dictionary.')
+with open(DICT_FILE, "w") as f:
+    f.write("\n".join(w for w in sorted(new_dict)) + "\n")
+print(f"{len(new_dict) - len(old_dict)} words were added to the dictionary.")
