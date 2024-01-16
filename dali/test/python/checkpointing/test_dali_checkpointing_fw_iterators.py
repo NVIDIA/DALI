@@ -198,6 +198,7 @@ class TestPytorch(FwTestBase):
     def equal(self, a, b):
         return (a == b).all()
 
+
 class TestPytorchRagged(FwTestBase):
     def __init__(self):
         super().__init__()
