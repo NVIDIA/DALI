@@ -33,6 +33,12 @@ class FwTestBase:
 
     # Helpers
 
+    def compare_iters(self, iter, iter2):
+        for out1, out2 in zip(iter, iter2):
+            for d1, d2 in zip(out1, out2):
+                for key in d1.keys():
+                    assert self.equal(d1[key], d2[key])
+
     def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
         pipe = pipeline_factory(**pipeline_args)
         pipe.build()
@@ -48,10 +54,7 @@ class FwTestBase:
             restored, ["data"], auto_reset=True, reader_name=reader_name, size=size
         )
 
-        for out1, out2 in zip(iter, iter2):
-            for d1, d2 in zip(out1, out2):
-                for key in d1.keys():
-                    assert self.equal(d1[key], d2[key])
+        self.compare_iters(iter, iter2)
 
     def check_single_input_operator(self, op, device, **kwargs):
         pipeline_factory = check_single_input_operator_pipeline(op, device, **kwargs)
@@ -120,10 +123,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(restored, ["data", "labels"], auto_reset=True, reader_name="Reader")
 
-        for out1, out2 in zip(iter, iter2):
-            for d1, d2 in zip(out1, out2):
-                for key in d1.keys():
-                    assert self.equal(d1[key], d2[key])
+        self.compare_iters(iter, iter2)
 
     # Random operators section
 
@@ -169,10 +169,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(restored, ["data"], auto_reset=True, size=size)
 
-        for out1, out2 in zip(iter, iter2):
-            for d1, d2 in zip(out1, out2):
-                for key in d1.keys():
-                    assert self.equal(d1[key], d2[key])
+        self.compare_iters(iter, iter2)
 
     @cartesian_params(
         ((1, 1), (4, 5)),  # (epoch size, batch size)
