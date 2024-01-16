@@ -20,7 +20,8 @@ from dataclasses import dataclass
 
 CWD = os.getcwd()
 CSPELL_DOCKER = "ghcr.io/streetsidesoftware/cspell:latest"
-CSPELL_COMMAND = f"docker run -it -v {CWD}:/workdir {CSPELL_DOCKER} lint --no-exit-code --config tools/spelling/cspell.json"
+CSPELL_COMMAND = f"docker run -it -v {CWD}:/workdir {CSPELL_DOCKER} \
+lint --no-exit-code --config tools/spelling/cspell.json"
 FIXME_FILE = "fixme.spelling"
 DICT_FILE = "tools/spelling/cspell_dicts/cspell_dict.txt"
 
