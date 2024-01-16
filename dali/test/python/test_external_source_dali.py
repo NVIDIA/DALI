@@ -886,7 +886,7 @@ def test_decorated_external_source():
 
         return wrapper
 
-    @code_smashing_decorator
+    # @code_smashing_decorator
     def my_source(sample_info):
         return np.array([sample_info.idx_in_epoch])
 
@@ -909,3 +909,81 @@ def test_decorated_external_source():
     (out0, out1) = pipe.run()
     np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
     np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
+
+
+@raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
+def test_external_source_with_disallowed_var_args():
+    def my_source(*args):
+        return np.array([args[0].idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
+def test_external_source_with_disallowed_arg_and_var_args():
+    def my_source(arg, *args):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
+def test_external_source_with_disallowed_var_kwargs():
+    def my_source(**kwargs):
+        return np.array([kwargs["sample_info"].idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
+def test_external_source_with_disallowed_arg_and_var_kwargs():
+    def my_source(arg, **kwargs):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found keyword-only argument `kw_only` which is not allowed.")
+def test_external_source_with_disallowed_arg_and_var_kwargs():
+    def my_source(*, kw_only=10):
+        return np.array([kw_only])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found more than one positional argument, which is not allowed.")
+def test_external_source_with_disallowed_too_many():
+    def my_source(arg, a, b, /):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()

@@ -238,6 +238,14 @@ def _cycle_enabled(cycle):
 
 
 def accepted_arg_count(callable):
+    """Checks the number of accepted arguments by the callable, and validates if it is either
+    0 or 1 positional argument allowed by the external source.
+
+    Raises
+    ------
+    TypeError
+        Indicates that the `source` callable accepts wrong number of type of arguments.
+    """
     if not (inspect.isfunction(callable) or inspect.ismethod(callable)) and hasattr(
         callable, "__call__"
     ):
@@ -247,7 +255,31 @@ def accepted_arg_count(callable):
     else:
         implicit_args = 1
         callable = callable.__func__
-    return len(inspect.signature(callable).parameters) - implicit_args
+    signature = inspect.signature(callable)
+    # TODO(klecki): Do we mention that callable is one of the alternatives?
+    error_msg = (
+        "The `source` callable must accept either 0 or 1 positional arguments to indicate "
+        "whether it accepts the batch or sample indexing information."
+    )
+    for p in signature.parameters.values():
+        if p.kind == inspect.Parameter.VAR_POSITIONAL:
+            raise TypeError(
+                error_msg + f" Found var-positional argument `*{p.name}` which is not allowed."
+            )
+        if p.kind == inspect.Parameter.VAR_KEYWORD:
+            raise TypeError(
+                error_msg + f" Found var-keyword argument `**{p.name}` which is not allowed."
+            )
+        if p.kind == inspect.Parameter.KEYWORD_ONLY:
+            raise TypeError(
+                error_msg + f" Found keyword-only argument `{p.name}` which is not allowed."
+            )
+    result = len(inspect.signature(callable).parameters) - implicit_args
+    if result not in [0, 1]:
+        raise TypeError(
+            error_msg + " Found more than one positional argument, which is not allowed."
+        )
+    return result
 
 
 def get_callback_from_source(source, cycle, batch_info=False):
@@ -260,7 +292,8 @@ def get_callback_from_source(source, cycle, batch_info=False):
     -------
     callback, SourceDescription
     """
-    iterable = False
+    is_iterable = False
+    is_callable = False
     desc = None
     if source is not None:
         try:
@@ -295,20 +328,24 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 # If this is callable instead, we will throw an error containing 'not iterable'
                 # in the error message.
                 iterator = iter(source)
-            iterable = True
+            is_iterable = True
             callback = lambda: next(iterator)  # noqa E731
         except TypeError as err:
             if "not iterable" not in str(err):
                 raise err
             if cycle is not None:
                 raise ValueError(
-                    "The argument `cycle` can only be specified " "if `source` is iterable"
+                    "The argument `cycle` can only be specified " "if `source` is iterable."
                 )
             if not callable(source):
                 raise TypeError(
-                    "Source must be callable, " "iterable or a parameterless generator function"
+                    "The `source` must be callable, iterable or a parameterless generator function."
                 )
             # We got a callable
+            is_callable = True
+        # We want to exit the scope of except, to raise a separate exception when doing a validation
+        # via the accepted_arg_count.
+        if is_callable:
             desc = SourceDescription(
                 source, SourceKind.CALLABLE, accepted_arg_count(source) > 0, cycle, batch_info
             )
@@ -317,7 +354,7 @@ def get_callback_from_source(source, cycle, batch_info=False):
         desc = None
         callback = None
 
-    if not iterable and cycle:
+    if not is_iterable and cycle:
         raise ValueError("`cycle` argument is only valid for iterable `source`")
     return callback, desc
 
