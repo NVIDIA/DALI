@@ -964,7 +964,7 @@ def test_external_source_with_disallowed_arg_and_var_kwargs():
 
 
 @raises(TypeError, glob="Found keyword-only argument `kw_only` which is not allowed.")
-def test_external_source_with_disallowed_arg_and_var_kwargs():
+def test_external_source_with_disallowed_kwarg_only():
     def my_source(*, kw_only=10):
         return np.array([kw_only])
 
