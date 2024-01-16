@@ -886,7 +886,7 @@ def test_decorated_external_source():
 
         return wrapper
 
-    # @code_smashing_decorator
+    @code_smashing_decorator
     def my_source(sample_info):
         return np.array([sample_info.idx_in_epoch])
 
