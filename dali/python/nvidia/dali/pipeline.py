@@ -1917,10 +1917,6 @@ def do_not_convert(func: _F = None) -> _F:
        Only functions that do not process :class:`DataNode` (so do not use DALI operators)
        should be marked with this decorator.
 
-    .. note::
-       If a function is declared outside of the pipeline definition, and is passed as a parameter,
-       but not directly invoked within the pipeline definition, it will not be converted.
-
     For example::
 
         from nvidia.dali import pipeline_def, fn
@@ -1955,6 +1951,30 @@ def do_not_convert(func: _F = None) -> _F:
     The ``source_factory`` must be factored out, otherwise it would be converted as a part of
     pipeline definition. As we are interested in preventing the AutoGraph conversion of
     ``source_fun`` we need to decorate its top-level encompassing function.
+
+    .. note::
+       If a function is declared outside of the pipeline definition, and is passed as a parameter,
+       but not directly invoked within the pipeline definition, it will not be converted.
+       In such case, a callback passed to
+       :meth:`external source <nvidia.dali.fn.external_source>` operator,
+       :meth:`python function <nvidia.dali.fn.python_function>` operator family or
+       :meth:`Numba function <nvidia.dali.plugin.numba.fn.experimental.numba_function` operator
+       is not considered as being directly invoked in pipeline definition. Such callback is
+       executed when the pipeline is run, so after the pipeline is defined and built.
+
+    For example::
+
+        from nvidia.dali import pipeline_def, fn
+
+        def source_fun(sample_info):
+            return np.full((2, 2), sample_info.iter_idx)
+
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+            return fn.external_source(source=source_fun, batch=False)
+
+    The ``source_fun`` won't be converted, as it is defined outside of pipeline definition and
+    it is only passed via name to external source.
     """  # noqa(E501)
 
     if func is None:
