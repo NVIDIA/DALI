@@ -20,10 +20,8 @@ from nvidia.dali.pipeline import do_not_convert
 from nvidia.dali._autograph import is_autograph_artifact
 
 import numpy as np
-import inspect
 
 
-# @do_not_convert
 def assert_autograph_artifact(artifact_name, expected):
     if is_autograph_artifact(artifact_name) != expected:
         raise AssertionError(f"Expected {artifact_name} to be {expected}")
