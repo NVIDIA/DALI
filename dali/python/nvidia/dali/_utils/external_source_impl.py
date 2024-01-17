@@ -274,7 +274,7 @@ def accepted_arg_count(callable):
             raise TypeError(
                 error_msg + f" Found keyword-only argument `{p.name}` which is not allowed."
             )
-    result = len(inspect.signature(callable).parameters) - implicit_args
+    result = len(signature.parameters) - implicit_args
     if result not in [0, 1]:
         raise TypeError(
             error_msg + " Found more than one positional argument, which is not allowed."

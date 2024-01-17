@@ -898,17 +898,27 @@ def test_decorated_external_source():
         def __call__(self, sample_info):
             return np.array([sample_info.idx_in_epoch + self.offset])
 
+    class SourceClassWithoutInfo:
+        def __init__(self, offset):
+            self.offset = offset
+
+        @code_smashing_decorator
+        def __call__(self):
+            return np.array([self.offset])
+
     @pipeline_def(batch_size=4, device_id=0, num_threads=4)
     def test_pipe():
         src_0 = fn.external_source(source=my_source, batch=False)
         src_1 = fn.external_source(source=SourceClass(2), batch=False)
-        return src_0, src_1
+        src_2 = fn.external_source(source=SourceClassWithoutInfo(42), batch=False)
+        return src_0, src_1, src_2
 
     pipe = test_pipe()
     pipe.build()
-    (out0, out1) = pipe.run()
+    (out0, out1, out2) = pipe.run()
     np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
     np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
+    np.array_equal(np.array(out2.as_tensor()), np.array([42, 42, 42, 42]))
 
 
 @raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
@@ -987,3 +997,26 @@ def test_external_source_with_disallowed_too_many():
 
     pipe = test_pipe()
     pipe.build()
+
+
+def test_accepted_arg_count():
+    from nvidia.dali._utils.external_source_impl import accepted_arg_count
+
+    def fun_zero():
+        pass
+
+    def fun_one(a):
+        pass
+
+    class MethodZero:
+        def __call__(self):
+            pass
+
+    class MethodOne:
+        def __call__(self, a):
+            pass
+
+    assert accepted_arg_count(fun_zero) == 0
+    assert accepted_arg_count(fun_one) == 1
+    assert accepted_arg_count(MethodZero()) == 0
+    assert accepted_arg_count(MethodOne()) == 1
