@@ -246,10 +246,13 @@ def accepted_arg_count(callable):
     TypeError
         Indicates that the `source` callable accepts wrong number of type of arguments.
     """
+
     if not (inspect.isfunction(callable) or inspect.ismethod(callable)) and hasattr(
         callable, "__call__"
     ):
         callable = callable.__call__
+    # Extracting the `__call__` for a method causes the signature to report `self` as a parameter,
+    # so we have to subtract it.
     if not inspect.ismethod(callable):
         implicit_args = 0
     else:
