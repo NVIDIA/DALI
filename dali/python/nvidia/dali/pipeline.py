@@ -1866,6 +1866,9 @@ def pipeline_def(
     """
 
     def actual_decorator(func):
+        if _conditionals._autograph.is_autograph_artifact(func):
+            raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
+
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
@@ -1897,22 +1900,26 @@ def do_not_convert(func: _F = None) -> _F:
     to transform the code, enabling us to rewrite and detect the ``if`` statements, so they can be
     used in processing the DALI pipeline.
 
-    When used with :meth:`external source <nvidia.dali.fn.external_source>` in parallel mode
-    (``parallel=True``), this may interfere with the serialization of the provided ``source``
-    parameter. To prevent this, functions that are used to create the ``source`` parameter,
-    should be decorated with :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
-
     The AutoGraph conversion is applied to any top-level function or method called within the
     pipeline definition (as well as the pipeline definition itself).
     When a function is converted, all functions defined within its syntactical scope are also
-    converted.
+    converted. The rewriting, among other effects, makes these functions non-serializable.
 
     To stop a function from being converted, its top-level encompassing function must be marked
     with this decorator. This may sometimes require refactoring the function to outer scope.
 
+    Parallel mode of :meth:`external source <nvidia.dali.fn.external_source>` (``parallel=True``),
+    requires that its ``source`` parameter is serializable. To prevent the rewriting of the
+    ``source``, the functions that are used to create the ``source``,
+    should be decorated with :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
     .. note::
        Only functions that do not process :class:`DataNode` (so do not use DALI operators)
        should be marked with this decorator.
+
+    .. note::
+       If a function is declared outside of the pipeline definition, and is passed as a parameter,
+       but not directly invoked within the pipeline definition, it will not be converted.
 
     For example::
 
@@ -1954,12 +1961,12 @@ def do_not_convert(func: _F = None) -> _F:
         return do_not_convert
 
     if getattr(func, "_is_pipeline_def", False):
-        # TODO(klecki): The other way round as well?
         raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
 
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
 
+        # Best effort at preventing user from not-converting pipeline code.
         def disallow_data_node(node):
             if isinstance(node, DataNode):
                 raise TypeError(
@@ -1974,7 +1981,8 @@ def do_not_convert(func: _F = None) -> _F:
     if inspect.isfunction(func) or inspect.ismethod(func):
         wrapper = functools.update_wrapper(wrapper, func)
 
-    return _conditionals._autograph.do_not_convert(wrapper)
+    # TODO(klecki): We may also just use _autograph.autograph_artifact(func) here.
+    return _conditionals._autograph.autograph_artifact(wrapper)
 
 
 def _collect_ops(output_nodes):

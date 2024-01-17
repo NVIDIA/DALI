@@ -127,18 +127,19 @@ def test_parallel_es_with_not_converted_callback():
     es_with_nonlocal_not_converted_source(True)
 
 
-@raises(ValueError, "EEEEAEEAEAE")
+@raises(
+    TypeError,
+    "Functions that process DataNodes should not be marked with @do_not_convert. Found return "
+    "element of class DataNode when calling*",
+)
 def test_do_not_convert_data_node():
-    # TODO(klecki): Somehow this breaks the single required argument
     @do_not_convert
-    def source(si):
+    def helper_constant():
         return types.Constant(np.array([10]))
-
-    print(f"{inspect.signature(source)=}")
 
     @pipeline_def(batch_size=4, num_threads=1, device_id=None, enable_conditionals=True)
     def pipe():
-        return fn.external_source(source=source, batch=False)
+        return helper_constant()
 
     p = pipe()
     p.build()
