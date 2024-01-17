@@ -15,7 +15,6 @@
 import numpy as np
 import os
 from nvidia.dali import pipeline_def
-from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
