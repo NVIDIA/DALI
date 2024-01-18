@@ -30,7 +30,6 @@ import ctypes
 import functools
 import inspect
 import sys
-import tree
 import warnings
 import weakref
 from .data_node import DataNode
