@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -171,10 +171,7 @@ class _ExternalSourceGroup(object):
         self.prefetch_queue_depth = prefetch_queue_depth
         self.bytes_per_sample_hint = bytes_per_sample_hint
         if callback is not None:
-            arg_count = _accepted_arg_count(callback)
-            if arg_count not in [0, 1]:
-                raise TypeError("External source callback must be a callable with 0 or 1 argument")
-            self.accepts_arg = arg_count > 0
+            self.accepts_arg = _accepted_arg_count(callback) > 0
 
     def append(self, instance):
         self.instances.append(instance)

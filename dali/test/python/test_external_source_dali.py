@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import random
+import functools
+import inspect
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -864,3 +866,157 @@ def _blocking_destructor(device):
 def test_blocking_destructor():
     for device in ["cpu", "gpu"]:
         yield _blocking_destructor, device
+
+
+def test_decorated_external_source():
+    def code_smashing_decorator(func=None):
+        """Decorator that hides the original __code__.co_argcount"""
+        if func is None:
+            return code_smashing_decorator
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            print(
+                f"Now `wrapper` signature: {inspect.signature(wrapper)} looks like "
+                f"`func` signature: {inspect.signature(func)}, "
+                f"but the __code__.co_argcount is different: {wrapper.__code__.co_argcount} "
+                f"vs {func.__code__.co_argcount}."
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @code_smashing_decorator
+    def my_source(sample_info):
+        return np.array([sample_info.idx_in_epoch])
+
+    class SourceClass:
+        def __init__(self, offset):
+            self.offset = offset
+
+        @code_smashing_decorator
+        def __call__(self, sample_info):
+            return np.array([sample_info.idx_in_epoch + self.offset])
+
+    class SourceClassWithoutInfo:
+        def __init__(self, offset):
+            self.offset = offset
+
+        @code_smashing_decorator
+        def __call__(self):
+            return np.array([self.offset])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        src_0 = fn.external_source(source=my_source, batch=False)
+        src_1 = fn.external_source(source=SourceClass(2), batch=False)
+        src_2 = fn.external_source(source=SourceClassWithoutInfo(42), batch=False)
+        return src_0, src_1, src_2
+
+    pipe = test_pipe()
+    pipe.build()
+    (out0, out1, out2) = pipe.run()
+    np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
+    np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
+    np.array_equal(np.array(out2.as_tensor()), np.array([42, 42, 42, 42]))
+
+
+@raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
+def test_external_source_with_disallowed_var_args():
+    def my_source(*args):
+        return np.array([args[0].idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
+def test_external_source_with_disallowed_arg_and_var_args():
+    def my_source(arg, *args):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
+def test_external_source_with_disallowed_var_kwargs():
+    def my_source(**kwargs):
+        return np.array([kwargs["sample_info"].idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found var-keyword argument `**kwargs` which is not allowed")
+def test_external_source_with_disallowed_arg_and_var_kwargs():
+    def my_source(arg, **kwargs):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found keyword-only argument `kw_only` which is not allowed.")
+def test_external_source_with_disallowed_kwarg_only():
+    def my_source(*, kw_only=10):
+        return np.array([kw_only])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+@raises(TypeError, glob="Found more than one positional argument, which is not allowed.")
+def test_external_source_with_disallowed_too_many():
+    def my_source(arg, a, b, /):
+        return np.array([arg.idx_in_epoch])
+
+    @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+    def test_pipe():
+        return fn.external_source(source=my_source, batch=False)
+
+    pipe = test_pipe()
+    pipe.build()
+
+
+def test_accepted_arg_count():
+    from nvidia.dali._utils.external_source_impl import accepted_arg_count
+
+    def fun_zero():
+        pass
+
+    def fun_one(a):
+        pass
+
+    class MethodZero:
+        def __call__(self):
+            pass
+
+    class MethodOne:
+        def __call__(self, a):
+            pass
+
+    assert accepted_arg_count(fun_zero) == 0
+    assert accepted_arg_count(fun_one) == 1
+    assert accepted_arg_count(MethodZero()) == 0
+    assert accepted_arg_count(MethodOne()) == 1
