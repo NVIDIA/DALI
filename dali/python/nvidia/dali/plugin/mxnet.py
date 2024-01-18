@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -304,11 +304,15 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                # This case might not be an error if we're iterating over pipeline that is
+                # currently at the end of epoch, for example because it was restored from
+                # checkpoint.
+                if all(not p.is_restored_from_checkpoint or p._first_iter for p in self._pipes):
+                    raise RuntimeError(
+                        "It seems that there is no data in the pipeline. This may happen "
+                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                        "greater than the shard size."
+                    )
 
     def __getattr__(self, key):
         # these attributes are required by MXNet thus DALI needs to provide them
@@ -319,11 +323,15 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 # this entries should be there thanks to the above call
                 return self.__dict__[key]
             except StopIteration:
-                assert False, (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                # This case might not be an error if we're iterating over pipeline that is
+                # currently at the end of epoch, for example because it was restored from
+                # checkpoint.
+                if all(not p.is_restored_from_checkpoint or p._first_iter for p in self._pipes):
+                    raise RuntimeError(
+                        "It seems that there is no data in the pipeline. This may happen "
+                        "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                        "greater than the shard size."
+                    )
         raise AttributeError
 
     def _populate_descriptors(self, data_batch):

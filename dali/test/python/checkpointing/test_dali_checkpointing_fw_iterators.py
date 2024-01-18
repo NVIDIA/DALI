@@ -39,6 +39,9 @@ class FwTestBase:
     def equal(self, a, b):
         raise NotImplementedError
 
+    def output_map(self, *, with_labels=False):
+        return ["data", "labels"] if with_labels else ["data"]
+
     # Helpers
 
     def compare_outs(self, out1, out2):
@@ -140,7 +143,7 @@ class FwTestBase:
         p = pipeline()
         p.build()
 
-        iter = self.FwIterator(p, ["data", "labels"], auto_reset=True, reader_name="Reader")
+        iter = self.FwIterator(p, self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
         for epoch in range(num_epochs):
             for i, _ in enumerate(iter):
                 if iters_into_epoch is not None:
@@ -149,7 +152,7 @@ class FwTestBase:
 
         restored = pipeline(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data", "labels"], auto_reset=True, reader_name="Reader")
+        iter2 = self.FwIterator(restored, self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
 
         self.compare_iters(iter, iter2)
 
@@ -432,3 +435,27 @@ class TestPaddle(FwTestBase):
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
+
+
+class TestMxnet(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.mxnet import DALIGenericIterator
+
+        self.FwIterator = DALIGenericIterator
+
+    def output_map(self, with_labels=False):
+        if with_labels:
+            return [("data", self.FwIterator.DATA_TAG)]
+        else:
+            return [("data", self.FwIterator.DATA_TAG), ("label", self.FwIterator.LABEL_TAG)]
+
+    def compare_iters(self, iter, iter2):
+        for out1, out2 in zip(iter, iter2):
+            for d1, d2 in zip(out1, out2):
+                assert (d1.data[0].asnumpy() == d2.data[0].asnumpy()).all()
+                assert d1.label == d2.label
+
+
+
+# TODO(skarpinski)  DALIGluonIterator
