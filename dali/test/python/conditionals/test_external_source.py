@@ -35,7 +35,9 @@ def es_with_local_source(parallel=False):
             assert_autograph_artifact(source_local, True)
             return np.full((2,), 1)
 
-        return fn.external_source(source=source_local, parallel=parallel, batch=False)
+        return fn.external_source(
+            source=source_local, parallel=parallel, batch=False, py_start_method="spawn"
+        )
 
     p = pipe_with_local()
     p.build()
@@ -60,7 +62,9 @@ def es_with_nonlocal_converted_source(parallel=False):
     def pipe_with_converted_factory():
         source = source_factory((3,))
         assert_autograph_artifact(source, True)
-        return fn.external_source(source=source, parallel=parallel, batch=False)
+        return fn.external_source(
+            source=source, parallel=parallel, batch=False, py_start_method="spawn"
+        )
 
     p = pipe_with_converted_factory()
     p.build()
@@ -86,7 +90,9 @@ def es_with_nonlocal_not_converted_source(parallel=False):
     def pipe_with_converted_factory():
         source = source_factory((3,))
         assert_autograph_artifact(source, False)
-        return fn.external_source(source=source, parallel=parallel, batch=False)
+        return fn.external_source(
+            source=source, parallel=parallel, batch=False, py_start_method="spawn"
+        )
 
     p = pipe_with_converted_factory()
     p.build()
