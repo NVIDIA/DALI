@@ -15,6 +15,7 @@
 import numpy as np
 import os
 from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
@@ -318,6 +319,25 @@ def test_numba_func_with_cond():
         shapes=[(10, 10, 10)],
         dtype=np.uint8,
         run_fn=set_all_values_to_255_batch,
+        out_types=[dali_types.UINT8],
+        in_types=[dali_types.UINT8],
+        outs_ndim=[3],
+        ins_ndim=[3],
+        setup_fn=None,
+        batch_processing=True,
+        expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
+        enable_conditionals=True,
+    )
+
+
+@with_setup(check_numba_compatibility_cpu)
+def test_numba_func_with_cond_do_not_convert():
+    # Test if do_not_convert decorated functions still work.
+    _testimpl_numba_func(
+        device="cpu",
+        shapes=[(10, 10, 10)],
+        dtype=np.uint8,
+        run_fn=do_not_convert(set_all_values_to_255_batch),
         out_types=[dali_types.UINT8],
         in_types=[dali_types.UINT8],
         outs_ndim=[3],

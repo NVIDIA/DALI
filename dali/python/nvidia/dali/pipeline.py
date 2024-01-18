@@ -1983,26 +1983,10 @@ def do_not_convert(func: _F = None) -> _F:
     if getattr(func, "_is_pipeline_def", False):
         raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
 
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-
-        # Best effort at preventing user from not-converting pipeline code.
-        def disallow_data_node(node):
-            if isinstance(node, DataNode):
-                raise TypeError(
-                    "Functions that process DataNodes should not be marked with @do_not_convert. "
-                    f"Found return element of class DataNode when calling {func}."
-                )
-            return node
-
-        _ = tree.map_structure(disallow_data_node, result)
-        return result
-
-    if inspect.isfunction(func) or inspect.ismethod(func):
-        wrapper = functools.update_wrapper(wrapper, func)
-
-    # TODO(klecki): We may also just use _autograph.autograph_artifact(func) here.
-    return _conditionals._autograph.autograph_artifact(wrapper)
+    # Marking a function as autograph_artifact will prevent it from being converted without
+    # adding any intermediate functions or adjusting the code. This is more lightweight solution
+    # that should keep numba happy.
+    return _conditionals._autograph.autograph_artifact(func)
 
 
 def _collect_ops(output_nodes):
