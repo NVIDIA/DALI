@@ -1957,7 +1957,7 @@ def do_not_convert(func: _F = None) -> _F:
        In such case, a callback passed to
        :meth:`external source <nvidia.dali.fn.external_source>` operator,
        :meth:`python function <nvidia.dali.fn.python_function>` operator family or
-       :meth:`Numba function <nvidia.dali.plugin.numba.fn.experimental.numba_function` operator
+       :meth:`Numba function <nvidia.dali.plugin.numba.fn.experimental.numba_function>` operator
        is not considered as being directly invoked in pipeline definition. Such callback is
        executed when the pipeline is run, so after the pipeline is defined and built.
 
