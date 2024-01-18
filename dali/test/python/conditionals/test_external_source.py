@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import test_external_source_parallel_utils as utils
+import numpy as np
+
 from nose_utils import raises
 
 from nvidia.dali import pipeline_def, fn, types
 from nvidia.dali.pipeline import do_not_convert
 from nvidia.dali._autograph import is_autograph_artifact
-
-import numpy as np
 
 
 def assert_autograph_artifact(artifact_name, expected):
