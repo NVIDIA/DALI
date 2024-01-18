@@ -153,7 +153,7 @@ def test_pipeline_def_with_do_not_convert():
 
         @pipeline_def
         @do_not_convert
-        def pipe():
+        def dnc_then_def_pipe():
             return 42
 
     with assert_raises(
@@ -162,5 +162,5 @@ def test_pipeline_def_with_do_not_convert():
 
         @do_not_convert
         @pipeline_def
-        def pipe():
+        def def_then_dnc_pipe():
             return 42
