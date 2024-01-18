@@ -525,7 +525,7 @@ if SMALL_DATA_SET:
     test_data = small_test_data
 
 print(
-    "GPUs: {N}, batch: {BATCH_SIZE}, workers: {WORKERS}, prefetch depth: {PREFETCH}, "
+    f"GPUs: {N}, batch: {BATCH_SIZE}, workers: {WORKERS}, prefetch depth: {PREFETCH}, "
     f"loging interval: {LOG_INTERVAL}, fp16: {FP16}, NHWC: {NHWC}, READ_SHUFFLE: {READ_SHUFFLE}, "
     f"DISABLE_MMAP: {DISABLE_MMAP}, small dataset: {SMALL_DATA_SET}, GPU ID: {GPU_ID}, "
     f"shard number: {DALI_SHARD}, number of shards {NUMBER_OF_SHARDS}"
