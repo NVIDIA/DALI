@@ -34,11 +34,14 @@ class FwTestBase:
 
     # Helpers
 
+    def compare_outs(self, out1, out2):
+        for d1, d2 in zip(out1, out2):
+            for key in d1.keys():
+                assert self.equal(d1[key], d2[key])
+
     def compare_iters(self, iter, iter2):
         for out1, out2 in zip(iter, iter2):
-            for d1, d2 in zip(out1, out2):
-                for key in d1.keys():
-                    assert self.equal(d1[key], d2[key])
+            self.compare_outs(out1, out2)
 
     def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
         pipe = pipeline_factory(**pipeline_args)
@@ -208,3 +211,15 @@ class TestPytorchRagged(FwTestBase):
 
     def equal(self, a, b):
         return (a == b).all()
+
+
+class TestJax(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.jax import DALIGenericIterator
+
+        self.FwIterator = DALIGenericIterator
+
+    def compare_outs(self, out1, out2):
+        for key in out1.keys():
+            assert (out1[key] == out2[key]).all()
