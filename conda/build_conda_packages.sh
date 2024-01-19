@@ -44,7 +44,7 @@ export DALI_TIMESTAMP=${DALI_TIMESTAMP}
 export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
 export DALI_CONDA_BUILD_VERSION=$(cat ../VERSION)$(if [ "${NVIDIA_DALI_BUILD_FLAVOR}" != "" ]; then \
-                                                     echo .${NVIDIA_DALI_BUILD_FLAVOR}.${DALI_TIMESTAMP}; \
+                                                     echo .${DALI_TIMESTAMP}; \
                                                    fi)
 export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
 export CONDA_OVERRIDE_CUDA=${CUDA_VERSION}

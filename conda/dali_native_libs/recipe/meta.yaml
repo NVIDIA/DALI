@@ -14,7 +14,7 @@
 # limitations under the License.
 
 package:
-  name: nvidia-dali-core-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+  name: nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
 
 source:
