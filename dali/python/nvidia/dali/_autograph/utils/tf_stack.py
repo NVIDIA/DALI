@@ -75,7 +75,8 @@ class StackTraceMapper(StackTraceTransform):
     def update(self):
         # pp = pprint.PrettyPrinter(indent=4)
         # print(
-        #     f"TODO: update(): {pp.pformat(self.internal_map)} \n<-\n {pp.pformat(self.get_effective_source_map())}"
+        #     f"TODO: update(): {pp.pformat(self.internal_map)} \n<-\n
+        # {pp.pformat(self.get_effective_source_map())}"
         # )
         # self.internal_map.update_to(tuple(self.get_effective_source_map().items()))
         # TODO(klecki): Update to does a reset. Do we know why?
@@ -106,7 +107,8 @@ class StackTraceFilter(StackTraceTransform):
     def update(self):
         # pp = pprint.PrettyPrinter(indent=4)
         # print(
-        #     f"TODO: update(): {pp.pformat(self.internal_set)} \n<-\n {pp.pformat(self.get_filtered_filenames())}"
+        #     f"TODO: update(): {pp.pformat(self.internal_set)} \n
+        # <-\n {pp.pformat(self.get_filtered_filenames())}"
         # )
         # self.internal_set.update_to(set(self.get_filtered_filenames()))
         # self.internal_set.clear()

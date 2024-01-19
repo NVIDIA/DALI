@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import warnings
 import traceback
 from itertools import count
 
-EXTRACT_STACK = True
 
 import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
@@ -53,6 +52,9 @@ from nvidia.dali.ops._operator_utils import (
     _build_input_sets,
     _repack_output_sets,
 )
+
+
+EXTRACT_STACK = True
 
 
 class _OpCounter(object):

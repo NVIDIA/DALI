@@ -25,8 +25,6 @@ import traceback
 # TODO: just debugging
 import pprint
 
-LOG_SOURCE_MAPS = False
-
 from nvidia.dali._autograph import operators
 from nvidia.dali._autograph import utils
 from nvidia.dali._autograph.converters import asserts
@@ -64,6 +62,8 @@ from nvidia.dali._autograph.utils import ag_logging as logging
 from nvidia.dali._autograph.utils import all_utils
 from nvidia.dali._autograph.utils import tf_stack
 from nvidia.dali._autograph.utils.all_utils import export_symbol
+
+LOG_SOURCE_MAPS = False
 
 
 def is_autograph_strict_conversion_mode():

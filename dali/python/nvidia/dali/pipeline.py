@@ -1870,7 +1870,7 @@ def pipeline_def(
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
+            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
             pipe = Pipeline(**pipeline_args)
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 
