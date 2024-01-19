@@ -50,7 +50,7 @@
             "includeRegExpList": [
                 "comments",
                 // Match strings in schemas
-                "/(DocStr|AddOptionalArg|InputDox|Deprecate)\\(\\s*([^,)]+,\\s+)*R?\"[^\"]*\"/g",
+                "/(DocStr|AddOptionalArg|InputDox|Deprecate|AddArg|AddArgIfNotExisting|AddInitializedArg|AddOutput)\\(\\s*([^,)]+,\\s+)*R?\"[^\"]*\"/g",
             ],
         },
         {
