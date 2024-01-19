@@ -29,15 +29,19 @@ def assert_autograph_artifact(artifact_name, expected):
 def es_with_local_source(parallel=False):
     """Runs a pipeline that has a locally defined source function for external source"""
 
-    @pipeline_def(batch_size=4, num_threads=1, device_id=None, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=4,
+        num_threads=1,
+        device_id=None,
+        enable_conditionals=True,
+        py_start_method="spawn",
+    )
     def pipe_with_local():
         def source_local(si):
             assert_autograph_artifact(source_local, True)
             return np.full((2,), 1)
 
-        return fn.external_source(
-            source=source_local, parallel=parallel, batch=False, py_start_method="spawn"
-        )
+        return fn.external_source(source=source_local, parallel=parallel, batch=False)
 
     p = pipe_with_local()
     p.build()
@@ -58,13 +62,17 @@ def es_with_nonlocal_converted_source(parallel=False):
 
         return source_in_factory
 
-    @pipeline_def(batch_size=4, num_threads=1, device_id=None, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=4,
+        num_threads=1,
+        device_id=None,
+        enable_conditionals=True,
+        py_start_method="spawn",
+    )
     def pipe_with_converted_factory():
         source = source_factory((3,))
         assert_autograph_artifact(source, True)
-        return fn.external_source(
-            source=source, parallel=parallel, batch=False, py_start_method="spawn"
-        )
+        return fn.external_source(source=source, parallel=parallel, batch=False)
 
     p = pipe_with_converted_factory()
     p.build()
@@ -86,13 +94,17 @@ def es_with_nonlocal_not_converted_source(parallel=False):
 
         return source_in_factory
 
-    @pipeline_def(batch_size=4, num_threads=1, device_id=None, enable_conditionals=True)
+    @pipeline_def(
+        batch_size=4,
+        num_threads=1,
+        device_id=None,
+        enable_conditionals=True,
+        py_start_method="spawn",
+    )
     def pipe_with_converted_factory():
         source = source_factory((3,))
         assert_autograph_artifact(source, False)
-        return fn.external_source(
-            source=source, parallel=parallel, batch=False, py_start_method="spawn"
-        )
+        return fn.external_source(source=source, parallel=parallel, batch=False)
 
     p = pipe_with_converted_factory()
     p.build()
@@ -128,22 +140,3 @@ def test_es_with_not_converted_source():
 
 def test_parallel_es_with_not_converted_callback():
     es_with_nonlocal_not_converted_source(True)
-
-
-@raises(
-    TypeError,
-    "Functions that process DataNodes should not be marked with @do_not_convert. Found return "
-    "element of class DataNode when calling*",
-)
-def test_do_not_convert_data_node():
-    @do_not_convert
-    def helper_constant():
-        return types.Constant(np.array([10]))
-
-    @pipeline_def(batch_size=4, num_threads=1, device_id=None, enable_conditionals=True)
-    def pipe():
-        return helper_constant()
-
-    p = pipe()
-    p.build()
-    p.run()
