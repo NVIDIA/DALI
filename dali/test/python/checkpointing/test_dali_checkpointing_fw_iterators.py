@@ -191,9 +191,9 @@ class FwTestBase:
 class TestPytorch(FwTestBase):
     def __init__(self):
         super().__init__()
-        from nvidia.dali.plugin.pytorch import DALIRaggedIterator
+        from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
-        self.FwIterator = DALIRaggedIterator
+        self.FwIterator = DALIGenericIterator
 
     def equal(self, a, b):
         return (a == b).all()
