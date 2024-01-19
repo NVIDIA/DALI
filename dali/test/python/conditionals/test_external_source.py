@@ -16,7 +16,7 @@ import numpy as np
 
 from nose_utils import raises
 
-from nvidia.dali import pipeline_def, fn, types
+from nvidia.dali import pipeline_def, fn
 from nvidia.dali.pipeline import do_not_convert
 from nvidia.dali._autograph import is_autograph_artifact
 
