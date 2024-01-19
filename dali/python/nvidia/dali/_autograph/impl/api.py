@@ -25,7 +25,7 @@ import traceback
 # TODO: just debugging
 import pprint
 
-LOG_SOURCE_MAPS = True
+LOG_SOURCE_MAPS = False
 
 from nvidia.dali._autograph import operators
 from nvidia.dali._autograph import utils
@@ -943,44 +943,6 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
         )
     )
     return textwrap.dedent(source)
-
-
-def invoke_and_convert(func, args, kwargs):
-    """Call the entry point function. If it was not converted with AG, it will be processed.
-    Used to trigger the conversion of exception from the autograph metadata do actual one.
-
-    Parameters
-    ----------
-    func : Callable
-        Function to be invoked that was converted with to_graph.
-    args : tuple
-        Arguments to be passed to the function
-    kwargs : dict
-        Keyword args to be passed to the function
-
-    Returns
-    -------
-    Tuple
-        The result of calling func(*args, **kwargs)
-
-    Raises
-    ------
-    e.ag_error_metadata.to_exception
-        _description_
-    """
-    options = converter.ConversionOptions(
-        recursive=True,
-        user_requested=True,
-        optional_features=None,
-    )
-    try:
-        # return converted_call(func, args, kwargs, options=options)
-        return func(*args, **kwargs)
-    except Exception as e:  # pylint:disable=broad-except
-        if hasattr(e, "ag_error_metadata"):
-            raise e.ag_error_metadata.to_exception(e)
-        else:
-            raise
 
 
 _TRANSPILER = None

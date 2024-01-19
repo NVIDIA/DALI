@@ -73,10 +73,10 @@ class StackTraceMapper(StackTraceTransform):
         self.internal_map = {}  # _tf_stack.PyBindSourceMap() #TODO
 
     def update(self):
-        pp = pprint.PrettyPrinter(indent=4)
-        print(
-            f"TODO: update(): {pp.pformat(self.internal_map)} \n<-\n {pp.pformat(self.get_effective_source_map())}"
-        )
+        # pp = pprint.PrettyPrinter(indent=4)
+        # print(
+        #     f"TODO: update(): {pp.pformat(self.internal_map)} \n<-\n {pp.pformat(self.get_effective_source_map())}"
+        # )
         # self.internal_map.update_to(tuple(self.get_effective_source_map().items()))
         # TODO(klecki): Update to does a reset. Do we know why?
         # self.internal_map.clear()
@@ -104,10 +104,10 @@ class StackTraceFilter(StackTraceTransform):
         self.internal_set = set()  # _tf_stack.PyBindFileSet() # TODO
 
     def update(self):
-        pp = pprint.PrettyPrinter(indent=4)
-        print(
-            f"TODO: update(): {pp.pformat(self.internal_set)} \n<-\n {pp.pformat(self.get_filtered_filenames())}"
-        )
+        # pp = pprint.PrettyPrinter(indent=4)
+        # print(
+        #     f"TODO: update(): {pp.pformat(self.internal_set)} \n<-\n {pp.pformat(self.get_filtered_filenames())}"
+        # )
         # self.internal_set.update_to(set(self.get_filtered_filenames()))
         # self.internal_set.clear()
         self.internal_set.update(self.get_filtered_filenames())
