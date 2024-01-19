@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,8 +125,6 @@ class Pipeline(object):
 
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
-
-
     `checkpoint`: str, optional, default = None
         Serialized checkpoint, received from ``checkpoint`` method.
         When pipeline is built, its state is restored from the `checkpoint` and the pipeline
@@ -134,7 +132,6 @@ class Pipeline(object):
 
         More details can be found in
         `this documentation section <advanced_topics_checkpointing.html>`_.
-
     `py_num_workers`: int, optional, default = 1
         The number of Python workers that will process ``ExternalSource`` callbacks.
         The pool starts only if there is at least one ExternalSource with ``parallel`` set to True.
