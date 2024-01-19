@@ -1134,7 +1134,7 @@ unsupported_ops = [
 
 
 def test_coverage():
-    from test_dali_stateless_operators import stateless_signed_off
+    from checkpointing.test_dali_stateless_operators import stateless_signed_off
 
     tested_ops = (
         stateless_signed_off.tested_ops
