@@ -13,47 +13,55 @@
 # limitations under the License.
 
 from common import Problem, FIXME_FILE, DICT_FILE, read_lines
+import argparse
 
-skipped = set()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=f"Apply corrections of spelling mistakes from {FIXME_FILE} "
+        "and update the dictionary."
+    )
+    parser.parse_args()
 
-problems = [Problem.parse(line) for line in read_lines(FIXME_FILE)]
+    skipped = set()
 
-problems_in_file = dict()
-for p in problems:
-    if not p.fix:
-        skipped.add(p.word.lower())
-    else:
-        problems_in_file[p.file] = problems_in_file.get(p.file, []) + [p]
+    problems = [Problem.parse(line) for line in read_lines(FIXME_FILE)]
 
-fixed = 0
-for file, problems in problems_in_file.items():
-    current_offset = 0
-    with open(file, "r") as f:
-        text = f.read()
-    new_text = ""
-    skip_file = False
-    for p in sorted(problems, key=lambda p: p.offset):
-        new_text += text[current_offset : p.offset]
-        orig = text[p.offset : p.offset + len(p.word)]
-        if orig != p.word:
-            print(
-                f"In {p.file}:{p.line}, when applying ({p.word})->({p.fix}): "
-                f'expected "{p.word}" in the file, but there\'s "{orig}". Skipping entire file!'
-            )
-            skip_file = True
-            break
-        new_text += p.fix
-        current_offset = p.offset + len(p.word)
-        fixed += 1
-    new_text += text[current_offset:]
-    if not skip_file:
-        with open(file, "w") as f:
-            f.write(new_text)
+    problems_in_file = dict()
+    for p in problems:
+        if not p.fix:
+            skipped.add(p.word.lower())
+        else:
+            problems_in_file[p.file] = problems_in_file.get(p.file, []) + [p]
 
-print(f"Applied {fixed} fixes.")
+    fixed = 0
+    for file, problems in problems_in_file.items():
+        current_offset = 0
+        with open(file, "r") as f:
+            text = f.read()
+        new_text = ""
+        skip_file = False
+        for p in sorted(problems, key=lambda p: p.offset):
+            new_text += text[current_offset : p.offset]
+            orig = text[p.offset : p.offset + len(p.word)]
+            if orig != p.word:
+                print(
+                    f"In {p.file}:{p.line}, when applying ({p.word})->({p.fix}): "
+                    f'expected "{p.word}" in the file, but there\'s "{orig}". Skipping entire file!'
+                )
+                skip_file = True
+                break
+            new_text += p.fix
+            current_offset = p.offset + len(p.word)
+            fixed += 1
+        new_text += text[current_offset:]
+        if not skip_file:
+            with open(file, "w") as f:
+                f.write(new_text)
 
-old_dict = {w.lower() for w in read_lines(DICT_FILE)}
-new_dict = old_dict | skipped
-with open(DICT_FILE, "w") as f:
-    f.write("\n".join(w for w in sorted(new_dict)) + "\n")
-print(f"{len(new_dict) - len(old_dict)} words were added to the dictionary.")
+    print(f"Applied {fixed} fixes.")
+
+    old_dict = {w.lower() for w in read_lines(DICT_FILE)}
+    new_dict = old_dict | skipped
+    with open(DICT_FILE, "w") as f:
+        f.write("\n".join(w for w in sorted(new_dict)) + "\n")
+    print(f"{len(new_dict) - len(old_dict)} words were added to the dictionary.")

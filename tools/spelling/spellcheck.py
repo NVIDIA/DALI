@@ -16,7 +16,7 @@ from common import cspell, Problem, FIXME_FILE
 import json
 import re
 
-cspell_out = json.loads(cspell("--show-context", "--reporter", "@cspell/cspell-json-reporter"))
+import argparse
 
 
 def from_cspell_issue(issue):
@@ -31,17 +31,25 @@ def from_cspell_issue(issue):
     )
 
 
-problems = [from_cspell_issue(issue) for issue in cspell_out["issues"]]
-print(f"Found {len(problems)} problems.")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=f"Check the code for spelling mistakes and generate {FIXME_FILE}."
+    )
+    parser.parse_args()
 
-counts = {}
-for problem in problems:
-    lower = problem.word.lower()
-    counts[lower] = counts.get(lower, 0) + 1
-problems = list(sorted(problems, key=lambda p: (counts[p.word.lower()], p.word.lower())))
+    cspell_out = json.loads(cspell("--show-context", "--reporter", "@cspell/cspell-json-reporter"))
 
-print(f"Writing the problems to file: {FIXME_FILE}")
-with open(FIXME_FILE, "w") as f:
-    f.write("\n".join(p.export() for p in problems) + "\n")
+    problems = [from_cspell_issue(issue) for issue in cspell_out["issues"]]
+    print(f"Found {len(problems)} problems.")
 
-print(f"Please now review {FIXME_FILE} and then run apply.py to apply the fixes")
+    counts = {}
+    for problem in problems:
+        lower = problem.word.lower()
+        counts[lower] = counts.get(lower, 0) + 1
+    problems = list(sorted(problems, key=lambda p: (counts[p.word.lower()], p.word.lower())))
+
+    print(f"Writing the problems to file: {FIXME_FILE}")
+    with open(FIXME_FILE, "w") as f:
+        f.write("\n".join(p.export() for p in problems) + "\n")
+
+    print(f"Please now review {FIXME_FILE} and then run apply.py to apply the fixes")
