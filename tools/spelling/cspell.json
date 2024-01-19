@@ -18,6 +18,8 @@
         "dali/**/*.cu",
         "dali/**/*.py",
         "docs/**/*.rst",
+        "include/**/*.cuh",
+        "include/**/*.h",
     ],
     "ignorePaths": [
         "**/_autograph/**"
