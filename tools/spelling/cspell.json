@@ -53,7 +53,7 @@
             "allowCompoundWords": false,
             "includeRegExpList": [
                 "comments",
-                "string",
+                "/\"[^\"]*\"/g", // Predefined "string" pattern doesn't work with multiline strings
             ],
         },
         {
