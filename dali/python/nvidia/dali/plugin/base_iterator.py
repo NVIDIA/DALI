@@ -403,7 +403,6 @@ class _DaliBaseIterator(object):
     def checkpoints(self):
         """
         Returns the current checkpoints of the pipelines.
-        Can only be called between the epochs (or before the first epoch).
         """
         if not self._enable_checkpointing:
             raise ValueError("Cannot access checkpoints with checkpointing disabled")

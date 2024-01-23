@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,7 +118,12 @@ def test_wrong_source():
         (no_arg_fun, (TypeError, callable_msg.format("a callable that does not accept arguments"))),
         (
             multi_arg_fun,
-            (TypeError, "External source callback must be a callable with 0 or 1 argument"),
+            (
+                TypeError,
+                "The `source` callable must accept either 0 or 1 positional arguments "
+                "to indicate whether it accepts the batch or sample indexing information. "
+                "Found more than one positional argument, which is not allowed.",
+            ),
         ),
         (Iterable(), (TypeError, batch_required_msg.format("an iterable"))),
         (generator_fun, (TypeError, batch_required_msg.format("a generator function"))),
