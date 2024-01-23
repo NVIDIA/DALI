@@ -177,6 +177,11 @@ shortcutting rules when they are evaluated.
 
 You can read more in the `conditional tutorial <examples/general/conditionals.html>`_.
 
+Preventing AutoGraph conversion
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autodecorator:: nvidia.dali.pipeline.do_not_convert
+
 .. _pipeline_class:
 
 Pipeline class

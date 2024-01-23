@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from nvidia.dali import Pipeline, pipeline_def
+from nvidia.dali.pipeline import do_not_convert
 from nose.tools import nottest
-from nose_utils import raises
+from nose_utils import raises, assert_raises
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
 import os
@@ -143,3 +144,23 @@ def test_is_pipeline_def():
     assert getattr(pipe, "_is_pipeline_def", False)
     assert getattr(pipe_unconf, "_is_pipeline_def", False)
     assert getattr(pipe_conf, "_is_pipeline_def", False)
+
+
+def test_pipeline_def_with_do_not_convert():
+    with assert_raises(
+        ValueError, glob="Pipeline definition cannot be marked with @do_not_convert."
+    ):
+
+        @pipeline_def
+        @do_not_convert
+        def dnc_then_def_pipe():
+            return 42
+
+    with assert_raises(
+        ValueError, glob="Pipeline definition cannot be marked with @do_not_convert."
+    ):
+
+        @do_not_convert
+        @pipeline_def
+        def def_then_dnc_pipe():
+            return 42

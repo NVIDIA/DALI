@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=no-member
-from typing import Any, List, Tuple, Callable, Optional, Union, overload
+from typing import Any, List, Tuple, Callable, Optional, Union, TypeVar, overload
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
@@ -26,12 +26,12 @@ from nvidia.dali._utils.external_source_impl import SourceKind as _SourceKind
 from threading import local as tls
 from . import data_node as _data_node
 import atexit
+import ctypes
 import functools
 import inspect
+import sys
 import warnings
 import weakref
-import ctypes
-import sys
 from .data_node import DataNode
 
 pipeline_tls = tls()
@@ -1862,6 +1862,9 @@ def pipeline_def(
     """
 
     def actual_decorator(func):
+        if _conditionals._autograph.is_autograph_artifact(func):
+            raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
+
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
@@ -1879,6 +1882,107 @@ def pipeline_def(
         return create_pipeline
 
     return actual_decorator(fn) if fn else actual_decorator
+
+
+# Callable preserving a signature
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def do_not_convert(func: _F = None) -> _F:
+    """Decorator that suppresses the conversion of a function by AutoGraph.
+
+    In conditional mode, DALI uses a fork of
+    `TensorFlow's AutoGraph <https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md>`_
+    to transform the code, enabling us to rewrite and detect the ``if`` statements, so they can be
+    used in processing the DALI pipeline.
+
+    The AutoGraph conversion is applied to any top-level function or method called within the
+    pipeline definition (as well as the pipeline definition itself).
+    When a function is converted, all functions defined within its syntactical scope are also
+    converted. The rewriting, among other effects, makes these functions non-serializable.
+
+    To stop a function from being converted, its top-level encompassing function must be marked
+    with this decorator. This may sometimes require refactoring the function to outer scope.
+
+    Parallel mode of :meth:`external source <nvidia.dali.fn.external_source>` (``parallel=True``),
+    requires that its ``source`` parameter is serializable. To prevent the rewriting of the
+    ``source``, the functions that are used to create the ``source``,
+    should be decorated with :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
+    .. note::
+       Only functions that do not process :class:`DataNode` (so do not use DALI operators)
+       should be marked with this decorator.
+
+    For example::
+
+        from nvidia.dali import pipeline_def, fn
+
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+
+            def source_factory(size):
+                def source_fun(sample_info):
+                    return np.full(size, sample_info.iter_idx)
+                return source_fun
+
+            source = source_factory(size=(2, 1))
+            return fn.external_source(source=source, parallel=True, batch=False)
+
+    Should be converted into::
+
+        from nvidia.dali import pipeline_def, fn
+        from nvidia.dali.pipeline import do_not_convert
+
+        @do_not_convert
+        def source_factory(size):
+            def source_fun(sample_info):
+                return np.full(size, sample_info.iter_idx)
+            return source_fun
+
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+            source = source_factory(size=(2, 1))
+            return fn.external_source(source=source, parallel=True, batch=False)
+
+    The ``source_factory`` must be factored out, otherwise it would be converted as a part of
+    pipeline definition. As we are interested in preventing the AutoGraph conversion of
+    ``source_fun`` we need to decorate its top-level encompassing function.
+
+    .. note::
+       If a function is declared outside of the pipeline definition, and is passed as a parameter,
+       but not directly invoked within the pipeline definition, it will not be converted.
+       In such case, a callback passed to
+       :meth:`external source <nvidia.dali.fn.external_source>` operator,
+       :meth:`python function <nvidia.dali.fn.python_function>` operator family or
+       :meth:`Numba function <nvidia.dali.plugin.numba.fn.experimental.numba_function>` operator
+       is not considered as being directly invoked in pipeline definition. Such callback is
+       executed when the pipeline is run, so after the pipeline is defined and built.
+
+    For example::
+
+        from nvidia.dali import pipeline_def, fn
+
+        def source_fun(sample_info):
+            return np.full((2, 2), sample_info.iter_idx)
+
+        @pipeline_def(enable_conditionals=True)
+        def pipe():
+            return fn.external_source(source=source_fun, batch=False)
+
+    The ``source_fun`` won't be converted, as it is defined outside of pipeline definition and
+    it is only passed via name to external source.
+    """  # noqa(E501)
+
+    if func is None:
+        return do_not_convert
+
+    if getattr(func, "_is_pipeline_def", False):
+        raise ValueError("Pipeline definition cannot be marked with @do_not_convert.")
+
+    # Marking a function as autograph_artifact will prevent it from being converted without
+    # adding any intermediate functions or adjusting the code. This is more lightweight solution
+    # that should keep numba happy.
+    return _conditionals._autograph.autograph_artifact(func)
 
 
 def _collect_ops(output_nodes):

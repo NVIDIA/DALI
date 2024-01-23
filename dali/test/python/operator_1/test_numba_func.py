@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 import numpy as np
 import os
 from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
@@ -127,37 +128,6 @@ def get_data_zeros(shapes, dtype):
     return [np.zeros(shape, dtype=dtype) for shape in shapes]
 
 
-@pipeline_def
-def numba_func_pipe(
-    shapes,
-    dtype,
-    device="cpu",
-    run_fn=None,
-    out_types=None,
-    in_types=None,
-    outs_ndim=None,
-    ins_ndim=None,
-    setup_fn=None,
-    batch_processing=None,
-    blocks=None,
-    threads_per_block=None,
-):
-    data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device=device)
-    return numba_function(
-        data,
-        run_fn=run_fn,
-        out_types=out_types,
-        in_types=in_types,
-        outs_ndim=outs_ndim,
-        ins_ndim=ins_ndim,
-        setup_fn=setup_fn,
-        batch_processing=batch_processing,
-        device=device,
-        blocks=blocks,
-        threads_per_block=threads_per_block,
-    )
-
-
 def _testimpl_numba_func(
     device,
     shapes,
@@ -172,7 +142,38 @@ def _testimpl_numba_func(
     expected_out,
     blocks=None,
     threads_per_block=None,
+    enable_conditionals=False,
 ):
+    @pipeline_def(enable_conditionals=enable_conditionals)
+    def numba_func_pipe(
+        shapes,
+        dtype,
+        device="cpu",
+        run_fn=None,
+        out_types=None,
+        in_types=None,
+        outs_ndim=None,
+        ins_ndim=None,
+        setup_fn=None,
+        batch_processing=None,
+        blocks=None,
+        threads_per_block=None,
+    ):
+        data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device=device)
+        return numba_function(
+            data,
+            run_fn=run_fn,
+            out_types=out_types,
+            in_types=in_types,
+            outs_ndim=outs_ndim,
+            ins_ndim=ins_ndim,
+            setup_fn=setup_fn,
+            batch_processing=batch_processing,
+            device=device,
+            blocks=blocks,
+            threads_per_block=threads_per_block,
+        )
+
     batch_size = len(shapes)
     pipe = numba_func_pipe(
         batch_size=batch_size,
@@ -306,6 +307,46 @@ def test_numba_func():
             batch_processing,
             expected_out,
         )
+
+
+@with_setup(check_numba_compatibility_cpu)
+def test_numba_func_with_cond():
+    # When the function is not converted, the numba still works with no issues.
+    # AG conversion or using a complex enough decorator would break this.
+    # TODO(klecki): Can we add any additional safeguards?
+    _testimpl_numba_func(
+        device="cpu",
+        shapes=[(10, 10, 10)],
+        dtype=np.uint8,
+        run_fn=set_all_values_to_255_batch,
+        out_types=[dali_types.UINT8],
+        in_types=[dali_types.UINT8],
+        outs_ndim=[3],
+        ins_ndim=[3],
+        setup_fn=None,
+        batch_processing=True,
+        expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
+        enable_conditionals=True,
+    )
+
+
+@with_setup(check_numba_compatibility_cpu)
+def test_numba_func_with_cond_do_not_convert():
+    # Test if do_not_convert decorated functions still work.
+    _testimpl_numba_func(
+        device="cpu",
+        shapes=[(10, 10, 10)],
+        dtype=np.uint8,
+        run_fn=do_not_convert(set_all_values_to_255_batch),
+        out_types=[dali_types.UINT8],
+        in_types=[dali_types.UINT8],
+        outs_ndim=[3],
+        ins_ndim=[3],
+        setup_fn=None,
+        batch_processing=True,
+        expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
+        enable_conditionals=True,
+    )
 
 
 @with_setup(check_numba_compatibility_gpu)
