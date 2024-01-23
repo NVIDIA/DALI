@@ -716,6 +716,30 @@ DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
  */
 DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
 
+/** @brief TODO(skarpinski) Brief description
+ *
+ * TODO(skarpinski) Long description
+ *
+ * @param pipe_handle TODO(skarpinski)
+ *
+ * @param checkpoint TODO(skarpinski)
+ *
+ * @param n TODO(skarpinski)
+*/
+DLL_PUBLIC void daliGetSerializedCheckpoint(daliPipelineHandle *pipe_handle, char **checkpoint, size_t *n);
+
+/** @brief TODO(skarpinski) Brief description
+ *
+ * TODO(skarpinski) Long description
+ *
+ * @param pipe_handle TODO(skarpinski)
+ *
+ * @param checkpoint TODO(skarpinski)
+ *
+ * @param n TODO(skarpinski)
+*/
+DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(daliPipelineHandle *pipe_handle, const char *checkpoint, size_t n);
+
 #ifdef __cplusplus
 }
 #endif

@@ -813,3 +813,17 @@ int daliPreallocatePinnedMemory(size_t bytes) {
     return -1;
   }
 }
+
+void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle, char **checkpoint, size_t *n) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  std::string cpt = pipeline->SerializedCheckpoint({});
+  *n = cpt.size();
+  *checkpoint = (char *)malloc(cpt.size());
+  DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
+  memcpy(*checkpoint, cpt.c_str(), *n);
+}
+
+void daliRestoreFromSerializedCheckpoint(daliPipelineHandle *pipe_handle, const char *checkpoint, size_t n) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
+}
