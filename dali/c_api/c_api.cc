@@ -32,6 +32,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/copy_to_external.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 using dali::AccessOrder;
 using dali::CPUBackend;
@@ -814,16 +815,27 @@ int daliPreallocatePinnedMemory(size_t bytes) {
   }
 }
 
-void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle, char **checkpoint, size_t *n) {
+void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle,
+                                 daliExternalContextCheckpoint *external_context,
+                                 char **checkpoint, size_t *n) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  std::string cpt = pipeline->SerializedCheckpoint({});
+  dali::ExternalContextCheckpoint ctx;
+  ctx.epoch_idx = external_context->epoch_idx;
+  ctx.iter = external_context->iter;
+  std::string cpt = pipeline->SerializedCheckpoint(ctx);
   *n = cpt.size();
   *checkpoint = (char *)malloc(cpt.size());
   DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
   memcpy(*checkpoint, cpt.c_str(), *n);
 }
 
-void daliRestoreFromSerializedCheckpoint(daliPipelineHandle *pipe_handle, const char *checkpoint, size_t n) {
+void daliRestoreFromSerializedCheckpoint(daliPipelineHandle *pipe_handle,
+                                         const char *checkpoint, size_t n,
+                                         daliExternalContextCheckpoint *external_context) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
+  auto ctx = pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
+  if (external_context) {
+    external_context->epoch_idx = ctx.epoch_idx;
+    external_context->iter = ctx.iter;
+  }
 }

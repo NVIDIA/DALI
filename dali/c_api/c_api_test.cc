@@ -1103,9 +1103,12 @@ TEST(CApiTest, CheckpointingTest) {
   }
 
   // Save the checkpoint
+  daliExternalContextCheckpoint mock_external_context{};
+  mock_external_context.epoch_idx = 123;
+  mock_external_context.iter = 456;
   char *cpt;
   size_t n;
-  daliGetSerializedCheckpoint(&handle1, &cpt, &n);
+  daliGetSerializedCheckpoint(&handle1, &mock_external_context, &cpt, &n);
 
   // Check pipeline's result
   double result1;
@@ -1115,7 +1118,10 @@ TEST(CApiTest, CheckpointingTest) {
 
   // Create a new pipeline from the saved checkpoint
   auto handle2 = CreateCheckpointingTestPipe();
-  daliRestoreFromSerializedCheckpoint(&handle2, cpt, n);
+  daliExternalContextCheckpoint restored_external_context{};
+  daliRestoreFromSerializedCheckpoint(&handle2, cpt, n, &restored_external_context);
+  EXPECT_EQ(restored_external_context.epoch_idx, mock_external_context.epoch_idx);
+  EXPECT_EQ(restored_external_context.iter, mock_external_context.iter);
 
   // Check the result of the new pipeline
   double result2;
