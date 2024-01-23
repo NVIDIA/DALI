@@ -265,10 +265,10 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                         )
                     )
                 )
-                
+
         if self._sharding is None:
             return np.concatenate(is_nonpadding_shards)
-        
+
         return jax.device_put(jnp.concatenate(is_nonpadding_shards), self._sharding)
 
 
