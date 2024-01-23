@@ -226,18 +226,51 @@ class _DaliBaseIterator(object):
                 )
 
         if self._enable_checkpointing:
-            # Note: currently, checkpointing is not supported with last_batch_padded=False.
-            # It is verified in FileReader, where this assumption is needed.
-            # Adding this assertion here lead to problem when reader was not used in the pipeline.
-
-            if self._last_batch_policy == LastBatchPolicy.DROP:
+            if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
                 raise NotImplementedError(
-                    "Currently, checkpointing is not supported with last_batch_policy=DROP"
-                )
+                    "Currently, checkpointing is not supported for iterators with "
+                    + "last_batch_policy=FILL and last_batch_padded=False")
 
             # Precompute the initial checkpoints, to prevent any problems
             # related to the `prepare_first_batch` flag.
             self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
+
+            if any(p.is_restored_from_checkpoint for p in self._pipes):
+                iters = [p._consumer_iter for p in self._pipes]
+                if not all(p.is_restored_from_checkpoint for p in self._pipes):
+                    logging.warning(
+                        "Some, but not all of the pipelines used were restored from checkpoint. "
+                        + "This iterator might produce unexpected results."
+                    )
+                elif not all(i == iters[0] for i in iters):
+                    logging.warning(
+                        "The provided pipelines have different number of completed iterations. "
+                        + "This iterator might produce unexpected results."
+                    )
+
+                self._restore_state(min(iters))
+
+    def _restore_state(self, pipeline_iterations):
+        """
+        Restores state of the iterator to a state after `pipeline_iterations` iterations of the
+        pipeline.
+        """
+
+        if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
+            raise NotImplementedError(
+                "Currently, checkpointing is not supported for iterators with "
+                + "last_batch_policy=FILL and last_batch_padded=False")
+
+        # In modes other than FILL + last_batch_padded=False, each epoch starts with the first
+        # sample of a shard and the number of pipeline iterations per epoch is constant.
+
+        iters_per_epoch = (self._shard_sizes_per_gpu.min() + self.batch_size - 1) // self.batch_size
+        complete_epochs = (max(0, pipeline_iterations - 1)) // iters_per_epoch
+
+        self._counter = self.batch_size * (pipeline_iterations - complete_epochs * iters_per_epoch)
+        if not self._is_stick_to_shard:
+            self._shard_sizes_per_gpu = np.roll(self._shard_sizes_per_gpu, complete_epochs)
+            self._shards_id = (self._shards_id + complete_epochs) % self._num_gpus
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)

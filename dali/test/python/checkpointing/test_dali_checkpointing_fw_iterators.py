@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+import glob
+import os
+import tempfile
+
+import numpy as np
 from checkpointing.test_dali_checkpointing import (
     warmup_epochs,
     pipeline_args,
@@ -23,6 +29,7 @@ from checkpointing.test_dali_checkpointing import (
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
 
 class FwTestBase:
@@ -128,6 +135,113 @@ class FwTestBase:
         iter2 = self.FwIterator(restored, ["data", "labels"], auto_reset=True, reader_name="Reader")
 
         self.compare_iters(iter, iter2)
+
+    @dataclass
+    class DatasetConfig:
+        dataset_size : int
+        batch_size : int
+        num_shards : int
+
+    # @cartesian_params(
+    #     (DatasetConfig(dataset_size=11+11+12, batch_size=4, num_shards=3),
+    #      DatasetConfig(dataset_size=10+10+11, batch_size=4, num_shards=3),),
+    #     range(10),
+    #     (LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL),
+    #     (True, False),  # stick_to_shard
+    #     (True, False),  # pad_last_batch
+    #     (True,),  # use_reader_name
+    # )
+    @cartesian_params(
+        (DatasetConfig(dataset_size=11+11+12, batch_size=4, num_shards=3),
+         DatasetConfig(dataset_size=10+10+11, batch_size=4, num_shards=3)),
+        range(10),
+        (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.PARTIAL, True),
+            (LastBatchPolicy.PARTIAL, False),
+        ),
+        (True, False),  # stick_to_shard
+        (True,),  # use_reader_name
+        (True, False),  # prepare_first_batch
+    )
+    def test_last_batch_policy(self, dataset_config : DatasetConfig, iterations, last_batch_config, stick_to_shard, use_reader_name, prepare_first_batch):
+        policy, pad_last_batch = last_batch_config
+        with tempfile.TemporaryDirectory() as data_dir:
+            os.mkdir(os.path.join(data_dir, '0'))
+            for i in range(dataset_config.dataset_size):
+                open(os.path.join(data_dir, f'0/{i:02}.jpg'), 'wb').write(bytes([i]))
+
+            def make_pipeline(shard_id, checkpoint=None):
+                @pipeline_def(batch_size=dataset_config.batch_size, enable_checkpointing=True, num_threads=4, device_id=0)
+                def pipeline():
+                    data, _ = fn.readers.file(
+                        file_root=data_dir,
+                        name='Reader',
+                        pad_last_batch=pad_last_batch,
+                        num_shards=dataset_config.num_shards,
+                        shard_id=shard_id,
+                        stick_to_shard=stick_to_shard)
+                    return data
+                p = pipeline(checkpoint=checkpoint)
+                p.build()
+                return p
+
+            def make_pipelines(checkpoints=None):
+                if not checkpoints:
+                    return [make_pipeline(shard_id) for shard_id in range(dataset_config.num_shards)]
+                else:
+                    assert len(checkpoints) == dataset_config.num_shards
+                    return [make_pipeline(shard_id, checkpoint=cpt) for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)]
+
+            def make_iterator(pipes):
+                kwargs = {}
+                if use_reader_name:
+                    kwargs['reader_name'] = 'Reader'
+                else:
+                    kwargs['size'] = dataset_config.dataset_size
+                    kwargs['last_batch_padded'] = pad_last_batch
+
+                return self.FwIterator(pipes, output_map=['data'], auto_reset=True, last_batch_policy=policy, prepare_first_batch=prepare_first_batch, **kwargs)
+
+            pipes = make_pipelines()
+            it = make_iterator(pipes)
+
+            completed_iterations = 0;
+            while completed_iterations < iterations:
+                try:
+                    next(it)
+                    completed_iterations += 1
+                except StopIteration:
+                    pass
+
+            def observe(it, steps):
+                results = []
+                for _ in range(steps):
+                    try:
+                        out = next(it)
+                        results.append([tuple(np.asarray(x['data']).flatten()) for x in out])
+                    except StopIteration:
+                        results.append(None)
+                return results
+
+            pipes_restored = make_pipelines(it.checkpoints())
+            it_restored = make_iterator(pipes_restored)
+
+            steps = dataset_config.dataset_size * 4 // dataset_config.batch_size
+
+            a = observe(it, steps)
+            b = observe(it_restored, steps)
+
+            # If original iterator was at the end of epoch, we allow the restored one to be reset already
+            if a[0] == None:
+                a = a[1:]
+                if b[0] == None:
+                    b = b[1:]
+
+            assert all(x == y for (x, y) in zip(a, b))
 
     # Random operators section
 
