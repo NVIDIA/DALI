@@ -255,17 +255,20 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
         for i in range(self._num_gpus):
             if not if_drop[i]:
-                is_nonpadding_shards.append(jnp.ones((self.batch_size,), dtype=bool))
+                is_nonpadding_shards.append(np.ones((self.batch_size,), dtype=bool))
             else:
                 is_nonpadding_shards.append(
-                    jnp.concatenate(
+                    np.concatenate(
                         (
-                            jnp.ones((left[i],), dtype=bool),
-                            jnp.zeros((self.batch_size - left[i],), dtype=bool),
+                            np.ones((left[i],), dtype=bool),
+                            np.zeros((self.batch_size - left[i],), dtype=bool),
                         )
                     )
                 )
-
+                
+        if self._sharding is None:
+            return np.concatenate(is_nonpadding_shards)
+        
         return jax.device_put(jnp.concatenate(is_nonpadding_shards), self._sharding)
 
 
