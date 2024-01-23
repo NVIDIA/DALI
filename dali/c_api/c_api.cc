@@ -824,7 +824,7 @@ void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle,
   ctx.iter = external_context->iter;
   std::string cpt = pipeline->SerializedCheckpoint(ctx);
   *n = cpt.size();
-  *checkpoint = (char *)malloc(cpt.size());
+  *checkpoint = reinterpret_cast<char *>(cpt.size());
   DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
   memcpy(*checkpoint, cpt.c_str(), *n);
 }

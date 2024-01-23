@@ -1082,8 +1082,7 @@ daliPipelineHandle CreateCheckpointingTestPipe() {
     OpSpec("Uniform")
       .AddArg("device", "cpu")
       .AddArg("dtype", DALI_FLOAT64)
-      .AddOutput("OUTPUT", "cpu")
-  );
+      .AddOutput("OUTPUT", "cpu"));
   pipe.SetOutputDescs({{"OUTPUT", "cpu"}});
   pipe.EnableCheckpointing();
   std::string ser = pipe.SerializeToProtobuf();
