@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,6 +161,11 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     for (auto &output : def.pipe_outputs()) {
       this->output_descs_.emplace_back(output.name(), output.device(),
                                        static_cast<DALIDataType>(output.dtype()), output.ndim());
+    }
+
+    // checkpointing
+    if (def.enable_checkpointing()) {
+      this->EnableCheckpointing();
     }
 }
 
@@ -751,6 +756,7 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_batch_size(this->max_batch_size());
   pipe.set_device_id(this->device_id());
   pipe.set_seed(this->original_seed_);
+  pipe.set_enable_checkpointing(this->checkpointing_);
 
   // loop over ops, create messages and append
   for (size_t i = 0; i < this->op_specs_for_serialization_.size(); ++i) {
