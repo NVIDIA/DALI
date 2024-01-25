@@ -171,7 +171,7 @@ libtar
 liftering
 llvmlite
 lmdb
-loging
+logging
 longlong
 lsan
 ltrb
