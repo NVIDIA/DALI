@@ -320,7 +320,7 @@ smem
 sndfile
 softmax
 spanev
-spectogram
+spectrogram
 staniewzki
 stdc
 stds
