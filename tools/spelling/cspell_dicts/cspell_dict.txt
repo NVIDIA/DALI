@@ -22,7 +22,7 @@ baaba
 bayered
 bboxes
 becasue
-begining
+beginning
 bframes
 bitstream
 bitxor
