@@ -21,7 +21,7 @@ awolant
 baaba
 bayered
 bboxes
-becasue
+because
 beginning
 bframes
 bitstream
