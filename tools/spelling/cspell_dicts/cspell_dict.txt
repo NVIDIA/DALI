@@ -101,7 +101,7 @@ fndefs
 fpow
 frecord
 frecords
-functio
+function
 gast
 gbrg
 getitem
