@@ -160,6 +160,9 @@ class ErrorMetadataBase(object):
     __slots__ = ("translated_stack", "cause_message")
 
     def __init__(self, callsite_tb, cause_metadata, cause_message, source_map, converter_filename):
+        # print(
+        #     f"_stack_trace_inside_mapped_code({callsite_tb=}, {source_map=}, {converter_filename=}"
+        # )
         translated_stack = _stack_trace_inside_mapped_code(
             callsite_tb, source_map, converter_filename
         )
@@ -171,6 +174,7 @@ class ErrorMetadataBase(object):
             # Daisy chain the translated stacks.
             self.translated_stack = cause_metadata.translated_stack + (translated_stack[-1],)
             self.cause_message = cause_metadata.cause_message
+        # print(f"Processing error {self.translated_stack}")
 
     def get_message(self):
         """Returns the message for the underlying exception."""

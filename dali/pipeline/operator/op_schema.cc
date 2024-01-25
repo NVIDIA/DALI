@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,6 +78,13 @@ to accommodate a batch of samples of this size.)code",
   AddOptionalArg("preserve", R"code(Prevents the operator from being removed from the
 graph even if its outputs are not used.)code",
                  false);
+  AddOptionalArg("_api", R"code(API variant that this operator is using.)code",
+                 std::string("fn"));
+  AddOptionalArg("_origin_stack", R"code(StackSummary - which is a List[FrameSummary].
+Produced by extract_trace(), it rewrites autograph frames to their origin information from original
+pipeline_def. Used to propagate proper error messages. TODO: for development, in string form
+as it requires adding dedicated type to retain all information.)code",
+                 std::vector<std::string>{""});
 }
 
 

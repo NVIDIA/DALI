@@ -30,6 +30,7 @@ import ctypes
 import functools
 import inspect
 import sys
+import traceback
 import warnings
 import weakref
 from .data_node import DataNode
@@ -1728,6 +1729,10 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
         Kwargs to `func`
     """
     with pipe:
+        # TODO(klecki): there is cleaner way to do it, put it in the scope manager
+        frame_before_graph = traceback.extract_stack(limit=1)[0]
+        pipe.current()._pipeline_def_prev_frame = frame_before_graph
+        pipe.current()._pipeline_def_prev_frame.lineno += 3  # Adjust for the lineno of func call
         pipe_outputs = func(*fn_args, **fn_kwargs)
         if isinstance(pipe_outputs, tuple):
             po = pipe_outputs
@@ -1735,6 +1740,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
             po = ()
         else:
             po = (pipe_outputs,)
+        pipe.current()._pipeline_def_prev_frame = None
         pipe.set_outputs(*po)
 
 
@@ -1870,7 +1876,10 @@ def pipeline_def(
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            # print(f"Show me the **kwargs: {inspect.signature(pipe_func)}")
+            # TODO(klecki): Yet again we don't obey the __signature__, so transforming a function
+            # with a generic @convert decorator doesn't work well.
+            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
             pipe = Pipeline(**pipeline_args)
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 

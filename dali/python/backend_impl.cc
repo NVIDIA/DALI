@@ -19,7 +19,9 @@
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#include "pybind11/pybind11.h"
 #include "pybind11/pytypes.h"
+#include "pyerrors.h"
 #if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
 #endif
@@ -34,6 +36,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/eager_operator.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
@@ -2107,6 +2110,17 @@ PYBIND11_MODULE(backend_impl, m) {
 #ifdef DALI_BUILD_PROTO3
     DALI_OPSPEC_ADDARG(TFFeature)
 #endif
+    // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/object.html TODO(klecki): Add a
+    // StackSummary?
+    // We may need to add a specific type, provide a storage for it, serialization
+    // and deserialization.
+    // .def("AddArg",
+    //     [](OpSpec *spec, const string &name,
+    //        std::vector<std::tuple<std::string, int, std::string, std::string>> stack_summary)
+    //        -> OpSpec& {
+    //       spec->AddArg(name, stack_summary);
+    //       return *spec;
+    //     }, py::return_value_policy::reference_internal)
     .def("AddArg",
         [](OpSpec *spec, const string &name, py::object obj) -> OpSpec& {
           DALI_FAIL("Unsupported argument type with name " + name);
@@ -2203,6 +2217,18 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeEagerOperator<MixedBackend>(m, "EagerOperatorMixed");
 
   ExposePipelineDebug(m);
+
+  // py::register_exception<DaliTypeError>(m, "DaliTypeError", PyExc_TypeError);
+
+  // We can register exception translator and translate directly into Python error, without
+  // tying DALI internals into using the py::type_error
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+        if (p) std::rethrow_exception(p);
+    } catch (const DaliTypeError &e) {
+        PyErr_SetString(PyExc_TypeError, e.what());
+    }
+  });
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";

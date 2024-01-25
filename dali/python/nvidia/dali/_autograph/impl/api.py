@@ -130,6 +130,7 @@ def _attach_error_metadata(e, f):
 
     cause_tb = traceback.extract_tb(sys.exc_info()[2])[1:]
 
+    # TODO: here we are creating new error with the error metadata we obtain from the function
     e.ag_error_metadata = _ErrorMetadata(cause_tb, metadata, message, source_map, __file__)
 
 
@@ -139,11 +140,14 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
     def __init__(self, converted_fn):
         super().__init__()
         self._source_map = converted_fn.ag_source_map
+
+        self._to_remove_todo_name = repr(converted_fn)
         # This may be called repeatedly: once on entry, by the superclass, then by
         # each child context manager.
         self._cached_map = None
 
     def get_effective_source_map(self):
+        # print(f"Calling get_effective_source_map() for {self._to_remove_todo_name}")
         if self._cached_map is not None:
             return self._cached_map
 
@@ -270,10 +274,9 @@ def _convert_actual(entity, program_ctx):
 
     transformed, module, source_map = _TRANSPILER.transform(entity, program_ctx)
     if LOG_SOURCE_MAPS:
-        print(f"{transformed=}\n\n{module=}\n\n")
-
         pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(source_map)
+
+        print(f"{transformed=} : {module=} source_map: {pp.pformat(source_map)}")
 
     assert not hasattr(transformed, "ag_module")
     assert not hasattr(transformed, "ag_source_map")
@@ -439,7 +442,7 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         print(f"{converted_f}")
 
         pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(converted_f.ag_source_map)
+        print(f"{converted_f} : source map: {pp.pformat(converted_f.ag_source_map)}")
     with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
         try:
             if kwargs is not None:
@@ -694,8 +697,8 @@ def convert(
         if inspect.isfunction(f) or inspect.ismethod(f):
             wrapper = functools.update_wrapper(wrapper, f)
 
-        decorated_wrapper = all_utils.make_decorator(f, wrapper)
-        return autograph_artifact(decorated_wrapper)
+        # decorated_wrapper = all_utils.make_decorator(f, wrapper)
+        return autograph_artifact(wrapper)
 
     return decorator
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -619,8 +619,7 @@ void Pipeline::Outputs(Workspace *ws) {
   try {
     executor_->Outputs(ws);
   } catch (std::exception &e) {
-    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
-                                         "\nCurrent pipeline object is no longer valid."));
+    throw;
   } catch (...) {
     throw std::runtime_error("Unknown critical error in pipeline.");
   }
@@ -633,8 +632,7 @@ void Pipeline::ShareOutputs(Workspace *ws) {
   try {
     executor_->ShareOutputs(ws);
   } catch (std::exception &e) {
-    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
-                                         "\nCurrent pipeline object is no longer valid."));
+    throw;
   } catch (...) {
     throw std::runtime_error("Unknown critical error in pipeline.");
   }
@@ -648,9 +646,7 @@ void Pipeline::ReleaseOutputs() {
     try {
       executor_->ReleaseOutputs();
     } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline:\n"
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
+      throw;
     } catch (...) {
       throw std::runtime_error("Unknown critical error in pipeline.");
     }

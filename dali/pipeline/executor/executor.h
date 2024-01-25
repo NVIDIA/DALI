@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 
 #include <atomic>
+#include <exception>
 #include <map>
 #include <memory>
 #include <queue>
@@ -40,6 +41,7 @@
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -251,20 +253,25 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         break;
       }
     }
+    auto origin_stack_trace = op_node.spec.GetRepeatedArgument<std::string>("_origin_stack");
+    std::string trace_msg = "";
+    for (const auto &frame_summary : origin_stack_trace) {
+      trace_msg += frame_summary + "\n";
+    }
     if (need_instance_name) {
       HandleError(make_string("Error when executing ", stage, " operator ", op_name,
                               ", instance name: \"", op_node.instance_name, "\", encountered:\n",
-                              message));
+                              trace_msg));
     } else {
       HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              " encountered:\n", message));
+                              " encountered:\n", trace_msg));
     }
   }
 
   void HandleError(const std::string& message = "Unknown exception") {
     {
       std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back(message);
+      errors_.push_back(std::make_pair(std::current_exception(), message));
     }
     exec_error_ = true;
     ShutdownQueue();
@@ -355,7 +362,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   OpGraph *graph_ = nullptr;
   EventPool event_pool_;
   ThreadPool thread_pool_;
-  std::vector<std::string> errors_;
+  std::vector<std::pair<std::exception_ptr, std::string>> errors_;
   mutable std::mutex errors_mutex_;
   bool exec_error_;
   QueueSizes queue_sizes_;
@@ -393,7 +400,15 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
                           ? QueuePolicy::IsStopSignaled() && !exec_error_
                             ? "Stop signaled"
                             : "Unknown error"
-                          : errors_.front();
+                          : errors_.front().second;
+    if (!errors_.empty()) {
+      try {
+        std::rethrow_exception(errors_.front().first);
+      } catch (DaliError &e) {
+        e.AddOriginInfo(message);
+        throw;
+      }
+    }
 
     // TODO(michalz): rethrow actual error through std::exception_ptr instead of
     //                converting everything to runtime_error

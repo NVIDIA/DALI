@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 
@@ -76,8 +77,10 @@ class PeekImageShape : public StatelessOperator<CPUBackend> {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
     size_t batch_size = input.num_samples();
-    DALI_ENFORCE(input.type() == DALI_UINT8,
-                 "The input must be a raw, undecoded file stored as a flat uint8 array.");
+    ValidateInputType(input.type(), {DALI_UINT8},
+                      "The input must be a raw, undecoded file stored as a flat uint8 array.");
+    // DALI_ENFORCE(input.type() == DALI_UINT8,
+    //              "The input must be a raw, undecoded file stored as a flat uint8 array.");
     DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded JPEG bit stream.");
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {

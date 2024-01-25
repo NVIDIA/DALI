@@ -38,6 +38,7 @@ from nvidia.dali.types import (  # noqa: F401
 from nvidia.dali import _conditionals
 
 from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
+from nvidia.dali._autograph import extract_stack as _extract_stack
 
 # reexpose what was previously visible:
 from nvidia.dali.ops._registry import (  # noqa: F401
@@ -380,8 +381,20 @@ class _OperatorInstance(object):
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
         if EXTRACT_STACK:
-            tb_stack = traceback.extract_stack()
-            self._stack = tb_stack
+            # tb_stack = traceback.extract_stack()
+            # TODO(klecki): _Pipeline.current()._definition_frame()??
+            # SOME OPERATORS ARE CREATED OUTSIDE!!!
+            # TODO + 1
+            # TODO keep as None
+            _pipeline_def_prev_frame = getattr(
+                _Pipeline.current(), "_pipeline_def_prev_frame", None
+            )
+            # For fn API it is 4, for ops around 2
+            tb_stack = _extract_stack(start_frame=_pipeline_def_prev_frame, skip_top_frames=4)
+            # self._stack = tb_stack
+            # Temporary stringify of the stack
+            str_stack = [str(frame_summary) for frame_summary in tb_stack]
+            self._spec.AddArg("_origin_stack", str_stack)
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)

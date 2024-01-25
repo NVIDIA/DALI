@@ -17,7 +17,7 @@
 import collections
 import inspect
 import threading
-
+import traceback
 
 import pprint
 
@@ -75,12 +75,15 @@ class StackTraceMapper(StackTraceTransform):
     def update(self):
         # pp = pprint.PrettyPrinter(indent=4)
         # print(
-        #     f"TODO: update(): {pp.pformat(self.internal_map)} \n<-\n
-        # {pp.pformat(self.get_effective_source_map())}"
+        #     f"TODO: update(): {pp.pformat(self.internal_map)} "
+        #     "\n<-\n"
+        #     f"{pp.pformat(self.get_effective_source_map())}"
         # )
         # self.internal_map.update_to(tuple(self.get_effective_source_map().items()))
-        # TODO(klecki): Update to does a reset. Do we know why?
-        # self.internal_map.clear()
+        # Based on the update_to implementation in tf_stack.cc, we rewrite it to pure Python.
+        # The get_effective_source_map() recalculates recursively if it doesn't have the cached
+        # value
+        self.internal_map.clear()
         self.internal_map.update(self.get_effective_source_map())
 
     def get_effective_source_map(self):
@@ -111,7 +114,7 @@ class StackTraceFilter(StackTraceTransform):
         # <-\n {pp.pformat(self.get_filtered_filenames())}"
         # )
         # self.internal_set.update_to(set(self.get_filtered_filenames()))
-        # self.internal_set.clear()
+        self.internal_set.clear()
         self.internal_set.update(self.get_filtered_filenames())
 
     def get_filtered_filenames(self):
@@ -160,6 +163,62 @@ class CurrentModuleFilter(StackTraceFilter):
             filtered_filenames |= self.parent.get_filtered_filenames()
         self._cached_set = filtered_filenames
         return filtered_filenames
+
+
+def extract_stack(start_frame=None, skip_top_frames=0, stacklevel=1):
+    # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
+    # objects. Frame summary contains filename, lineno, name and line (string representing context).
+    # The source mapper contains:
+    # (loc.filename, loc.lineno)] = (
+    #             origin.loc.filename,
+    #             origin.loc.lineno,
+    #             origin.function_name,
+    #         )
+    # The filter is a set of module names - how to use it?
+
+    stack_summary = traceback.extract_stack()[:-1-skip_top_frames]  # drop extract_stack frame
+    skip_frames = 0
+    # This ignores the line context
+    if start_frame is not None:
+        for frame_summary in stack_summary:
+            if (frame_summary.filename, frame_summary.lineno, frame_summary.name) == (
+                start_frame.filename,
+                start_frame.lineno,
+                start_frame.name,
+            ):
+                skip_frames += 1  # Skip this one as well
+                break
+            else:
+                skip_frames += 1
+    stack_summary = stack_summary[skip_frames:]
+
+    thread_key = _get_thread_key()
+    frame_map = _source_mapper_stacks[thread_key][-1].internal_map
+    frame_filter = _source_filter_stacks[thread_key][-1].internal_set
+    # print(f"TODO: extract_stack(): {tb_stack} {frame_map} {frame_filter}")]
+    origin_stack_summary = []
+    for frame_entry in stack_summary:
+        ag_entry = (frame_entry.filename, frame_entry.lineno)
+
+        if ag_entry in frame_map:
+            origin_info = frame_map[ag_entry]
+            origin_frame_entry = traceback.FrameSummary(
+                filename=origin_info[0],
+                lineno=origin_info[1],
+                name=origin_info[2],
+                line=frame_entry.line,
+            )
+        else:
+            origin_frame_entry = frame_entry
+
+        if frame_entry.filename not in frame_filter:
+            origin_stack_summary.append(origin_frame_entry)
+    # pp = pprint.PrettyPrinter(indent=4)
+    # print(
+    #     f"Extracting stack:\nFrame filter:\n{pp.pformat(frame_filter)}\n"
+    #     f"Old:\n{pp.pformat(stack_summary)}\nNew:\n{pp.pformat(origin_stack_summary)}"
+    # )
+    return origin_stack_summary
 
 
 # def extract_stack(stacklevel=1):
