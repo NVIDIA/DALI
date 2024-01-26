@@ -443,7 +443,13 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
 
         pp = pprint.PrettyPrinter(indent=4)
         print(f"{converted_f} : source map: {pp.pformat(converted_f.ag_source_map)}")
-    with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
+    # Make those modules available for filtering
+    # TODO(klecki): Filter it only once!
+    import nvidia.dali._autograph as ag
+    import nvidia.dali._conditionals as dc
+
+    # We no longer need CurrentModuleFilter here, as we filter whole autograph
+    with StackTraceMapper(converted_f), tf_stack.CustomModuleFilter([ag, dc]):
         try:
             if kwargs is not None:
                 result = converted_f(*effective_args, **kwargs)

@@ -80,11 +80,21 @@ graph even if its outputs are not used.)code",
                  false);
   AddOptionalArg("_api", R"code(API variant that this operator is using.)code",
                  std::string("fn"));
-  AddOptionalArg("_origin_stack", R"code(StackSummary - which is a List[FrameSummary].
+  AddOptionalArg("_origin_stack_filename", R"code(StackSummary - which is a List[FrameSummary].
 Produced by extract_trace(), it rewrites autograph frames to their origin information from original
-pipeline_def. Used to propagate proper error messages. TODO: for development, in string form
-as it requires adding dedicated type to retain all information.)code",
-                 std::vector<std::string>{""});
+pipeline_def. Used to propagate proper error messages.
+TODO(klecki): for simplicity we pass it as 4 separate arguments, this is just the filename
+member.)code",
+                 std::vector<std::string>{});
+  AddOptionalArg("_origin_stack_lineno", R"code(StackSummary - lineno member of FrameSummary, see
+_origin_stack_filename for rationale.)code",
+                 std::vector<int>{});
+  AddOptionalArg("_origin_stack_name", R"code(StackSummary - name member of FrameSummary, see
+_origin_stack_filename for rationale.)code",
+                 std::vector<std::string>{});
+  AddOptionalArg("_origin_stack_line", R"code(StackSummary - line member of FrameSummary, see
+_origin_stack_filename for rationale.)code",
+                 std::vector<std::string>{});
 }
 
 

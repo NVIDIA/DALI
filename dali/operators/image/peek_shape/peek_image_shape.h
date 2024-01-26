@@ -77,11 +77,13 @@ class PeekImageShape : public StatelessOperator<CPUBackend> {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
     size_t batch_size = input.num_samples();
-    ValidateInputType(input.type(), {DALI_UINT8},
+    ValidateInputType(input.type(), DALI_UINT8,
                       "The input must be a raw, undecoded file stored as a flat uint8 array.");
     // DALI_ENFORCE(input.type() == DALI_UINT8,
     //              "The input must be a raw, undecoded file stored as a flat uint8 array.");
-    DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded JPEG bit stream.");
+    ValidateInputDim(input.sample_dim(), 1,
+                     "Input must be 1D encoded JPEG bit stream.");
+    // DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded JPEG bit stream.");
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {

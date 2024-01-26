@@ -1730,9 +1730,8 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
     """
     with pipe:
         # TODO(klecki): there is cleaner way to do it, put it in the scope manager
-        frame_before_graph = traceback.extract_stack(limit=1)[0]
-        pipe.current()._pipeline_def_prev_frame = frame_before_graph
-        pipe.current()._pipeline_def_prev_frame.lineno += 3  # Adjust for the lineno of func call
+        frames_before_graph = len(traceback.extract_stack())
+        pipe.current()._frames_before_graph = frames_before_graph
         pipe_outputs = func(*fn_args, **fn_kwargs)
         if isinstance(pipe_outputs, tuple):
             po = pipe_outputs
@@ -1740,7 +1739,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
             po = ()
         else:
             po = (pipe_outputs,)
-        pipe.current()._pipeline_def_prev_frame = None
+        pipe.current()._frames_before_graph = None
         pipe.set_outputs(*po)
 
 

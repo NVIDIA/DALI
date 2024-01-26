@@ -2077,6 +2077,16 @@ PYBIND11_MODULE(backend_impl, m) {
           return ReaderMetaToDict(meta);
         });
 
+
+
+
+  // py::class_<DaliFrameSummary>(m, "DaliFrameSummary")
+  //   .def(py::init<>())
+  //   .def_readwrite("filename", &DaliFrameSummary::filename)
+  //   .def_readwrite("lineno", &DaliFrameSummary::lineno)
+  //   .def_readwrite("name", &DaliFrameSummary::name)
+  //   .def_readwrite("line", &DaliFrameSummary::line);
+
 #define DALI_OPSPEC_ADDARG(T) \
     .def("AddArg", \
         [](OpSpec *spec, const string& name, T v) -> OpSpec& { \
@@ -2110,13 +2120,13 @@ PYBIND11_MODULE(backend_impl, m) {
 #ifdef DALI_BUILD_PROTO3
     DALI_OPSPEC_ADDARG(TFFeature)
 #endif
-    // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/object.html TODO(klecki): Add a
-    // StackSummary?
-    // We may need to add a specific type, provide a storage for it, serialization
-    // and deserialization.
+    // https://pybind11.readthedocs.io/en/stable/advanced/pycpp/object.html
+    // TODO(klecki): It is much easier to just pass 4 lists instead of passing a list of
+    // FrameSummary objects (basically a named tuple)
+    // DALI_OPSPEC_ADDARG(DaliFrameSummary)
     // .def("AddArg",
     //     [](OpSpec *spec, const string &name,
-    //        std::vector<std::tuple<std::string, int, std::string, std::string>> stack_summary)
+    //        std::vector<DaliFrameSummary> stack_summary)
     //        -> OpSpec& {
     //       spec->AddArg(name, stack_summary);
     //       return *spec;
@@ -2227,6 +2237,8 @@ PYBIND11_MODULE(backend_impl, m) {
         if (p) std::rethrow_exception(p);
     } catch (const DaliTypeError &e) {
         PyErr_SetString(PyExc_TypeError, e.what());
+    } catch (const DaliValueError &e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
     }
   });
 

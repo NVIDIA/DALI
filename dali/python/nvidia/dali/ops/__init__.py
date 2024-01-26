@@ -386,15 +386,20 @@ class _OperatorInstance(object):
             # SOME OPERATORS ARE CREATED OUTSIDE!!!
             # TODO + 1
             # TODO keep as None
-            _pipeline_def_prev_frame = getattr(
-                _Pipeline.current(), "_pipeline_def_prev_frame", None
-            )
+            skip_bottom_frames = getattr(_Pipeline.current(), "_frames_before_graph", 0)
             # For fn API it is 4, for ops around 2
-            tb_stack = _extract_stack(start_frame=_pipeline_def_prev_frame, skip_top_frames=4)
+            tb_stack = _extract_stack(skip_bottom_frames=skip_bottom_frames, skip_top_frames=4)
             # self._stack = tb_stack
-            # Temporary stringify of the stack
-            str_stack = [str(frame_summary) for frame_summary in tb_stack]
-            self._spec.AddArg("_origin_stack", str_stack)
+
+            # Split the information
+            filename_stack = [frame_summary.filename for frame_summary in tb_stack]
+            lineno_stack = [frame_summary.lineno for frame_summary in tb_stack]
+            name_stack = [frame_summary.name for frame_summary in tb_stack]
+            line_stack = [frame_summary.line for frame_summary in tb_stack]
+            self._spec.AddArg("_origin_stack_filename", filename_stack)
+            self._spec.AddArg("_origin_stack_lineno", lineno_stack)
+            self._spec.AddArg("_origin_stack_name", name_stack)
+            self._spec.AddArg("_origin_stack_line", line_stack)
 
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)

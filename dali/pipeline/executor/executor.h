@@ -253,11 +253,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         break;
       }
     }
-    auto origin_stack_trace = op_node.spec.GetRepeatedArgument<std::string>("_origin_stack");
-    std::string trace_msg = "";
-    for (const auto &frame_summary : origin_stack_trace) {
-      trace_msg += frame_summary + "\n";
-    }
+    auto origin_stack_trace = GetOperatorOriginInfo(op_node.spec);
+    std::string trace_msg = FormatStack(origin_stack_trace, false);
     if (need_instance_name) {
       HandleError(make_string("Error when executing ", stage, " operator ", op_name,
                               ", instance name: \"", op_node.instance_name, "\", encountered:\n",

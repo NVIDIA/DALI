@@ -18,6 +18,7 @@ import collections
 import inspect
 import threading
 import traceback
+import pkgutil
 
 import pprint
 
@@ -165,7 +166,55 @@ class CurrentModuleFilter(StackTraceFilter):
         return filtered_filenames
 
 
-def extract_stack(start_frame=None, skip_top_frames=0, stacklevel=1):
+class CustomModuleFilter(StackTraceFilter):
+    """Filters stack frames from the modules that were listed for this filter"""
+
+    def __init__(self, module_filter: "Union[List[module], module]"):
+        super().__init__()
+        self._filtered_filenames = set()
+        if not isinstance(module_filter, list):
+            module_filter = [module_filter]
+        for module in module_filter:
+            try:
+                module_file = inspect.getfile(module)
+                init_py = "/__init__.py"
+                if module_file.endswith(init_py):
+                    module_file = module_file[: -len(init_py)]
+                self._filtered_filenames.add(module_file)
+            except TypeError as e:
+                raise TypeError(f"{module} is a built-in module and cannot be filtered.") from e
+        self._cached_set = None
+
+    def get_filtered_filenames(self):
+        if self._cached_set is not None:
+            return self._cached_set
+
+        filtered_filenames = frozenset(self._filtered_filenames)
+        if self.parent is not None:
+            filtered_filenames |= self.parent.get_filtered_filenames()
+        self._cached_set = filtered_filenames
+        return filtered_filenames
+
+
+def _collapse_callstack(stack_summary):
+    """With autograph it may appear as if we have several execution points within the same
+    function. This function leaves only the latest entry for a given function invoked in that
+    file.
+    """
+    seen_functions = set()
+    rev_result = []
+    for i in range(len(stack_summary) - 1, -1, -1):
+        seen_elem = stack_summary[i].filename, stack_summary[i].name
+        if seen_elem in seen_functions:
+            continue
+        seen_functions.add(seen_elem)
+        rev_result.append(stack_summary[i])
+    return list(reversed(rev_result))
+
+
+def extract_stack(
+    skip_bottom_frames=0, skip_top_frames=0, filter_modules=True, collapse_callstack=True
+):
     # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
     # objects. Frame summary contains filename, lineno, name and line (string representing context).
     # The source mapper contains:
@@ -176,21 +225,8 @@ def extract_stack(start_frame=None, skip_top_frames=0, stacklevel=1):
     #         )
     # The filter is a set of module names - how to use it?
 
-    stack_summary = traceback.extract_stack()[:-1-skip_top_frames]  # drop extract_stack frame
-    skip_frames = 0
-    # This ignores the line context
-    if start_frame is not None:
-        for frame_summary in stack_summary:
-            if (frame_summary.filename, frame_summary.lineno, frame_summary.name) == (
-                start_frame.filename,
-                start_frame.lineno,
-                start_frame.name,
-            ):
-                skip_frames += 1  # Skip this one as well
-                break
-            else:
-                skip_frames += 1
-    stack_summary = stack_summary[skip_frames:]
+    # -1 so we drop extract_stack frame
+    stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
 
     thread_key = _get_thread_key()
     frame_map = _source_mapper_stacks[thread_key][-1].internal_map
@@ -211,8 +247,17 @@ def extract_stack(start_frame=None, skip_top_frames=0, stacklevel=1):
         else:
             origin_frame_entry = frame_entry
 
-        if frame_entry.filename not in frame_filter:
+        # if frame_entry.filename not in frame_filter:
+        skip = False
+        if filter_modules:
+            for frame_filter_entry in frame_filter:
+                if frame_entry.filename.startswith(frame_filter_entry):
+                    skip = True
+                    break
+        if not skip:
             origin_stack_summary.append(origin_frame_entry)
+    if collapse_callstack:
+        origin_stack_summary = _collapse_callstack(origin_stack_summary)
     # pp = pprint.PrettyPrinter(indent=4)
     # print(
     #     f"Extracting stack:\nFrame filter:\n{pp.pformat(frame_filter)}\n"
