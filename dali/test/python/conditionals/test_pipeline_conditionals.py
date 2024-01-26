@@ -1141,3 +1141,23 @@ def test_multiple_input_source():
         out_42, out_idx = pipe.run()
         check_batch(out_42, [[42] if i < (batch_size / 2) else [0] for i in range(batch_size)])
         check_batch(out_idx, [i if i < (batch_size / 2) else 0 for i in range(batch_size)])
+
+
+def test_exception_explanation():
+    def throwing_helper():
+        raise ValueError("I am throwing")
+
+    @pipeline_def(batch_size=10, device_id=0, num_threads=4, enable_conditionals=True)
+    def throwing_pipeline():
+        if fn.random.coin_flip():
+            x = np.full((1, 1), 10)
+        else:
+            x = throwing_helper()
+        return x
+
+    # Check that the error message contains the user code from before the autograph translation
+    # as an explanation.
+    with assert_raises(
+        ValueError, glob="*in user code*in throwing_pipeline*in throwing_helper*ValueError"
+    ):
+        _ = throwing_pipeline()
