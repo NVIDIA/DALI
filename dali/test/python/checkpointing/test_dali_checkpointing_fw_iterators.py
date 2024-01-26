@@ -31,6 +31,7 @@ import numpy as npfrom nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nose import SkipTest
 
 
+
 class FwTestBase:
     def __init__(self):
         self.FwIterator = None
@@ -414,10 +415,11 @@ class TestJax(FwTestBase):
 
 
 class TestPaddle(FwTestBase):
-    def get_fw_iterator_class(self):
-        from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddlePaddleIterator
 
-        return PaddleIterator
+        self.FwIterator = PaddlePaddleIterator
 
     def equal(self, a, b):
         return (np.array(a) == np.array(b)).all()
