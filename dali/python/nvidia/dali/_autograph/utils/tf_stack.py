@@ -200,6 +200,7 @@ def _collapse_callstack(stack_summary):
     """With autograph it may appear as if we have several execution points within the same
     function. This function leaves only the latest entry for a given function invoked in that
     file.
+    TODO(klecki): Do not mistake it with recursion and other functions of the same name
     """
     seen_functions = set()
     rev_result = []
@@ -213,7 +214,7 @@ def _collapse_callstack(stack_summary):
 
 
 def extract_stack(
-    skip_bottom_frames=0, skip_top_frames=0, filter_modules=True, collapse_callstack=True
+    skip_bottom_frames=0, skip_top_frames=0, filter_modules=True, collapse_callstack=False
 ):
     # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
     # objects. Frame summary contains filename, lineno, name and line (string representing context).
