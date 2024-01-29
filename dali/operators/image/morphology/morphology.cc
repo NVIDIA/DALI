@@ -1,0 +1,85 @@
+// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dali/operators/image/morphology/morphology.h"
+
+namespace dali {
+
+bool Morphology::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto sh = input.shape();
+  output_desc.resize(1);
+  output_desc[0] = {sh, input.type()};
+  return true;
+}
+
+void Morphology::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
+
+  kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+  auto mask = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, mask_arg_,
+                                                                  TensorShape<1>(2));
+  auto anchor = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, anchor_arg_,
+                                                                    TensorShape<1>(2));
+
+  if (workspace_.capacity() < input.num_samples()) {
+    workspace_ = nvcv::ImageBatchVarShape(std::max(workspace_.capacity() * 2, input.num_samples()));
+  }
+  workspace_.clear();
+  nvcvop::AllocateImagesLike(input, scratchpad, workspace_);
+
+  auto input_images = GetInputBatch(ws, 0);
+  auto output_images = GetOutputBatch(ws, 0);
+  cvcuda::Morphology op{};
+  op(ws.stream(), input_images, output_images, workspace_, morph_type_, mask, anchor, iteration_,
+     border_mode_);
+}
+
+DALI_SCHEMA(Morphology)
+  .AddOptionalArg("mask", "Size of the convolution kernel.",
+                  std::vector<int32_t>({3, 3}), true, true)
+  .AddOptionalArg("anchor",
+                  "Sets the anchor point of the kernel. Default value (-1, -1)"
+                  " uses the kernel center as an anchor point.",
+                  std::vector<int32_t>({-1, -1}), true, true)
+  .AddOptionalArg("iterations",
+                  "Number of times to execute the operation, typically set to 1. "
+                  "Setting to higher than 1 is equivelent of increasing the kernel "
+                  "mask by (mask_width - 1, mask_height -1) for every iteration.",
+                  1, false, false)
+  .AddOptionalArg("border_mode",
+                  "Border mode to be used when accessing elements outside input image.",
+                  "constant")
+  .AllowSequences();
+
+DALI_SCHEMA(experimental__Dilate)
+  .DocStr("Perform a dilation operation on the input image.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("Morphology");
+
+DALI_SCHEMA(experimental__Erode)
+  .DocStr("Perform an erosion operation on the input image.")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddParent("Morphology");
+
+
+DALI_REGISTER_OPERATOR(experimental__Dilate, Dilate, GPU);
+
+DALI_REGISTER_OPERATOR(experimental__Erode, Erode, GPU);
+
+}  // namespace dali

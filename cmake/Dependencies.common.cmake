@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -264,7 +264,7 @@ if (BUILD_CVCUDA)
   set(DALI_BUILD_PYTHON ${BUILD_PYTHON})
   set(BUILD_PYTHON OFF)
   # for now we use only median blur from CV-CUDA
-  set(CV_CUDA_SRC_PATERN medianblur median_blur)
+  set(CV_CUDA_SRC_PATERN medianblur median_blur morphology)
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
   set(BUILD_PYTHON ${DALI_BUILD_PYTHON})
 endif()
