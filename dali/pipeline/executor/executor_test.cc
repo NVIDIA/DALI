@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -95,9 +96,7 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec) {
       std::vector<std::vector<uint8_t>> results;
       for (int i = 0; i < epoch_size; i++) {
-        exec->RunCPU();
-        exec->RunMixed();
-        exec->RunGPU();
+        exec->Run();
         exec->Outputs(&ws);
 
         if (ws.OutputIsType<CPUBackend>(0)) {
@@ -474,9 +473,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -521,9 +518,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -606,9 +601,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
 
   auto run = [&src_op, &exe] (TensorList<CPUBackend> &input) {
     src_op->SetDataSource(input);
-    exe->RunCPU();
-    exe->RunMixed();
-    exe->RunGPU();
+    exe->Run();
   };
 
   auto check = [&exe, &ws, &tl, batch_size] (int batch_idx) {
@@ -713,9 +706,7 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -352,9 +352,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   void RunExe() {
-    exe_->RunCPU();
-    exe_->RunMixed();
-    exe_->RunGPU();
+    exe_->Run();
   }
 
   bool RunOutputs() {
@@ -651,7 +649,7 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
   vector<string> outputs = {"data_out_cpu"};
 
   exe->Build(&graph, outputs);
-  exe->RunCPU();
+  exe->Run();
   Workspace ws;
   EXPECT_THROW(exe->ShareOutputs(&ws), std::exception);
 }
@@ -692,8 +690,7 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
     cudaStreamSynchronize(0);
     pipe.SetExternalInput("es", input_gpu);
   }
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
 
   TensorList<CPUBackend> output_cpu;
   pipe.Outputs(&ws);

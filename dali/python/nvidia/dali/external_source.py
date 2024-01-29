@@ -178,6 +178,9 @@ class _ExternalSourceGroup(object):
         self.instances.append(instance)
         self.utilized_instances = self.instances
 
+    def feed_count(self, pipeline):
+        return pipeline.input_feed_count(self.utilized_instances[0]._name)
+
     def disable_pruned_instances(self, pruned_mask):
         if len(pruned_mask) != len(self.instances):
             raise RuntimeError(
@@ -392,7 +395,7 @@ Keyword Args
 `name` : str, optional
     The name of the data node.
 
-    Used when feeding the data in ``iter_setup`` and can be omitted if
+    Used when feeding the data with a call to  ``feed_input`` and can be omitted if
     the data is provided by ``source``.
 
 `layout` : :ref:`layout str<layout_str_doc>` or list/tuple thereof, optional
@@ -974,7 +977,7 @@ def external_source(
     Creates a data node which is populated with data from a Python source.
 
     The data can be provided by the ``source`` function or iterable, or it can be provided by
-    ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
+    ``pipeline.feed_input(name, data, layout, cuda_stream)``.
 
     In the case of the GPU input, it is the user responsibility to modify the
     provided GPU memory content only using provided stream (DALI schedules a copy on it

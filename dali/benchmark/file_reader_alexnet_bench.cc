@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,8 +106,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
 
   // Run once to allocate the memory
   Workspace ws;
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   pipe.Outputs(&ws);
 
   while (st.KeepRunning()) {
@@ -115,11 +114,9 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       // We will start he processing for the next batch
       // immediately after issueing work to the gpu to
       // pipeline the cpu/copy/gpu work
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
     }
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     if (st.iterations() == st.max_iterations && pipelined) {

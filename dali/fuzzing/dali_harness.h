@@ -66,8 +66,7 @@ class FileListHarness {
     SetupPipeline(pipeline);
 
     Workspace ws;
-    pipeline.RunCPU();
-    pipeline.RunGPU();
+    pipeline.Run();
     pipeline.Outputs(&ws);
   }
 

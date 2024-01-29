@@ -1927,8 +1927,8 @@ PYBIND11_MODULE(backend_impl, m) {
           }
           p->SetOutputDescs(out_desc);
         })
-    .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
-    .def("RunGPU", &Pipeline::RunGPU, py::call_guard<py::gil_scoped_release>())
+    .def("Run", &Pipeline::Run, py::call_guard<py::gil_scoped_release>())
+    .def("Prefetch", &Pipeline::Prefetch, py::call_guard<py::gil_scoped_release>())
     .def("Outputs",
         [](Pipeline *p) {
           Workspace ws;
@@ -1986,6 +1986,7 @@ PYBIND11_MODULE(backend_impl, m) {
              }
              return ret;
          })
+    .def("InputFeedCount", &Pipeline::InputFeedCount, "input_name"_a)
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {

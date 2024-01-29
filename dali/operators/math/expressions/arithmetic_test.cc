@@ -266,8 +266,7 @@ class BinaryArithmeticOpsTest
     pipe.SetExternalInput("data0", batch[0]);
     pipe.SetExternalInput("data1", batch[1]);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
     vector<T> result_cpu(shape.num_elements());
@@ -324,8 +323,7 @@ class BinaryArithmeticOpsTest
 
     pipe.SetExternalInput("data0", batch[0]);
     pipe.SetExternalInput("data1", batch[1]);
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
     ASSERT_EQ(DALI_INT32, ws.Output<Backend>(0).type());
@@ -446,8 +444,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
 
   pipe.SetExternalInput("data0", batch);
   pipe.SetExternalInput("data1", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
 
@@ -503,8 +500,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
 
   pipe.SetExternalInput("data0", batch[0]);
   pipe.SetExternalInput("data1", batch[1]);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
   ASSERT_EQ(ws.Output<CPUBackend>(0).type(), DALI_FLOAT);
@@ -571,8 +567,7 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   FillBatch<int>(batch, uniform_list_shape(batch_size, {tensor_elements}));
 
   pipe.SetExternalInput("data0", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
 
@@ -635,8 +630,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
 
       pipe.SetExternalInput("data0", batch[0]);
       pipe.SetExternalInput("data1", batch[1]);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
 
@@ -779,8 +773,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   }
 
   pipe.SetExternalInput("data0", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
   vector<int32_t> result1_cpu(tensor_elements);

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,8 +77,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Workspace ws;
     while (sequence_id < num_sequences) {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       pipe.Outputs(&ws);
 
       auto &frame_video_output = ws.Output<Backend>(0);
@@ -144,8 +143,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     Workspace ws;
     for (int sequence_id = 0; sequence_id < num_sequences; ++sequence_id) {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       pipe.Outputs(&ws);
 
       auto &frame_video_output = ws.Output<Backend>(0);
@@ -327,8 +325,7 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
 
   for (int batch_id = 0; batch_id < 20; ++batch_id) {
     Workspace ws;
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     auto &cpu_frame_output = ws.Output<dali::CPUBackend>(0);

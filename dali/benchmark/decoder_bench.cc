@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,8 +56,7 @@ class DecoderBench : public DALIBenchmark {
     // Run once to allocate the memory
     Workspace ws;
     pipe.SetExternalInput("raw_jpegs", data);
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     pipe.Outputs(&ws);
 
     while (st.KeepRunning()) {
@@ -66,13 +65,11 @@ class DecoderBench : public DALIBenchmark {
         // immediately after issueing work to the gpu to
         // pipeline the cpu/copy/gpu work
         pipe.SetExternalInput("raw_jpegs", data);
-        pipe.RunCPU();
-        pipe.RunGPU();
+        pipe.Run();
       }
 
       pipe.SetExternalInput("raw_jpegs", data);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       pipe.Outputs(&ws);
 
       if (st.iterations() == st.max_iterations) {

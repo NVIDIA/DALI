@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -229,6 +229,15 @@ DLL_PUBLIC void
 daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
                            const char *data_id);
 
+/**
+ * @brief Returns how many times daliSetExternalInput on a given input before calling daliPrefetch
+ *
+ * @param pipe_handle The handle to the pipeline
+ * @param input_name The name of the input in question
+ * @return The number of calls to be made
+ */
+DLL_PUBLIC int
+daliInputFeedCount(daliPipelineHandle *pipe_handle, const char *input_name);
 
 /** @} */
 
@@ -399,12 +408,26 @@ DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const c
 DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
 
 /**
+ * @brief Schedule initial runs to fill the buffers.
+ *
+ * This function should be called once, after a pipeline is created and external inputs
+ * (if any) are populated the required number of times.
+ * For subsequent runs, daliRun should be used.
+ */
+DLL_PUBLIC void daliPrefetch(daliPipelineHandle *pipe_handle);
+
+/**
  * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
+ * @param queue_depth Ignored; must be equal to the pipeline's queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth);
 
 /**
  * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
+ * @param cpu_queue_depth Ignored; must be equal to the pipeline's CPU queue depth
+ * @param gpu_queue_depth Ignored; must be equal to the pipeline's GPU queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
                                      int cpu_queue_depth, int gpu_queue_depth);

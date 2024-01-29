@@ -41,8 +41,7 @@ class RNGCheckpointingTest : public ::testing::Test {
 
     Workspace ws;
     auto run_iteration = [&](Pipeline &pipe) {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       pipe.Outputs(&ws);
 
       std::vector<DataType> result;

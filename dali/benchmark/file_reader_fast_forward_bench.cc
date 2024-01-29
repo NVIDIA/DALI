@@ -70,8 +70,7 @@ BENCHMARK_DEFINE_F(FileReaderFastForward, FastForward)(benchmark::State& st) { /
 
   Workspace ws;
   for (int i = 0; i < snapshot_at; i++) {
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
     pipe->Outputs(&ws);
   }
 
@@ -85,8 +84,7 @@ BENCHMARK_DEFINE_F(FileReaderFastForward, FastForward)(benchmark::State& st) { /
     pipe2->RestoreFromCheckpoint(cpt);
 
     st.PauseTiming();
-    pipe2->RunCPU();
-    pipe2->RunGPU();
+    pipe2->Run();
     pipe2->Outputs(&ws);
     st.ResumeTiming();
   }

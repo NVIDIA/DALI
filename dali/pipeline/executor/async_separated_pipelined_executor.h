@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,12 +76,6 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
     }
   }
 
-  DLL_PUBLIC void RunCPU() override;
-
-  DLL_PUBLIC void RunMixed() override;
-
-  DLL_PUBLIC void RunGPU() override;
-
   DLL_PUBLIC void Outputs(Workspace *ws) override {
     CheckForErrors();
     try {
@@ -97,7 +91,17 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
     }
   }
 
+  DLL_PUBLIC int InputFeedCount(const std::string &op_name) override;
+
  protected:
+  DLL_PUBLIC void Prefetch() override;
+
+  DLL_PUBLIC void RunCPU() override;
+
+  DLL_PUBLIC void RunMixed() override;
+
+  DLL_PUBLIC void RunGPU() override;
+
   void CheckForErrors() {
     cpu_thread_.CheckForErrors();
     mixed_thread_.CheckForErrors();

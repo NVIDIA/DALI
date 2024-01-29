@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -251,6 +251,7 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
   bool se = separated_execution != 0;
   bool pe = pipelined_execution != 0;
   bool ae = async_execution != 0;
+
   auto pipeline =
           std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
                                            num_threads, device_id, pe, prefetch_queue_depth, ae);
@@ -283,26 +284,36 @@ int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
   return (*pipe_handle)->pipeline->max_batch_size();
 }
 
+int daliInputFeedCount(daliPipelineHandle_t pipe_handle, const char *input_name) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  return pipeline->InputFeedCount(input_name);
+}
+
+void daliPrefetch(daliPipelineHandle_t pipe_handle) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  pipeline->Prefetch();
+}
 
 void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (queue_depth != sz.cpu_size || queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchUniform is deprecated and setting queue_length different than"
+    " the one set in the pipeline has no effect. Use daliPrefetch instead.");
   }
+  pipeline->Prefetch();
 }
 
 
 void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < gpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (cpu_queue_depth != sz.cpu_size || gpu_queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchSeparate is deprecated and setting queue_length different than"
+    " the one set in the pipeline has no effect. Use daliPrefetch instead.");
   }
-  for (int i = 0; i < cpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-  }
+  pipeline->Prefetch();
 }
 
 
@@ -402,8 +413,7 @@ dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle, cons
 
 void daliRun(daliPipelineHandle_t pipe_handle) {
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
-  pipeline->RunCPU();
-  pipeline->RunGPU();
+  pipeline->Run();
 }
 
 

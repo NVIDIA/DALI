@@ -71,9 +71,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual ~ExecutorBase() {}
   DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
-  DLL_PUBLIC virtual void RunCPU() = 0;
-  DLL_PUBLIC virtual void RunMixed() = 0;
-  DLL_PUBLIC virtual void RunGPU() = 0;
+  DLL_PUBLIC virtual void Run() = 0;
+  DLL_PUBLIC virtual void Prefetch() = 0;
   DLL_PUBLIC virtual void Outputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
@@ -83,6 +82,7 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void Shutdown() = 0;
   DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
   DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
+  DLL_PUBLIC virtual int InputFeedCount(const std::string &input_name) = 0;
 
  protected:
   // virtual to allow the TestPruneWholeGraph test in gcc
@@ -133,10 +133,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     checkpointing_ = checkpointing;
   }
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
+  DLL_PUBLIC void Run() override;
+  DLL_PUBLIC void Prefetch() override;
   DLL_PUBLIC void Init() override {}
-  DLL_PUBLIC void RunCPU() override;
-  DLL_PUBLIC void RunMixed() override;
-  DLL_PUBLIC void RunGPU() override;
   DLL_PUBLIC void Outputs(Workspace *ws) override;
   DLL_PUBLIC void ShareOutputs(Workspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
@@ -164,7 +163,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   */
   DLL_PUBLIC void RestoreStateFromCheckpoint(const Checkpoint &cpt) override;
 
+  DLL_PUBLIC int InputFeedCount(const std::string &op_name) override;
+
  protected:
+  DLL_PUBLIC virtual void RunCPU();
+  DLL_PUBLIC virtual void RunMixed();
+  DLL_PUBLIC virtual void RunGPU();
   DLL_PUBLIC void RunCPUImpl(size_t iteration_id);
   DLL_PUBLIC void RunMixedImpl(size_t iteration_id);
   DLL_PUBLIC void RunGPUImpl(size_t iteration_id);

@@ -246,13 +246,10 @@ class Pipeline(object):
         self._deserialized = False  # Marked True when deserializing
         self._first_iter = True
         self._last_iter = False
-        self._iter = 0
         self._epoch_idx = 0
         self._consumer_iter = 0
         self._consumer_epoch_idx = 0
         self._batches_to_consume = 0
-        self._cpu_batches_to_consume = 0
-        self._gpu_batches_to_consume = 0
         self._names_and_devices = None
         self._exec_async = exec_async
         self._bytes_per_sample = bytes_per_sample
@@ -284,6 +281,10 @@ class Pipeline(object):
         self._is_restored_from_checkpoint = False
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
+            if not exec_async:
+                raise ValueError(
+                    "`exec_async` must not evaluate to `False` when using separated queues."
+                )
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
             self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
         elif type(prefetch_queue_depth) is int:
@@ -905,7 +906,7 @@ class Pipeline(object):
         if self._checkpoint is not None:
             external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
             self._consumer_epoch_idx = self._epoch_idx = external_ctx_cpt.epoch_idx
-            self._consumer_iter = self._iter = external_ctx_cpt.iter
+            self._consumer_iter = external_ctx_cpt.iter
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.current_iter = external_ctx_cpt.iter
@@ -934,6 +935,9 @@ class Pipeline(object):
         self._pipe.Build(self._generate_build_args())
         self._restore_state_from_checkpoint()
         self._built = True
+
+    def input_feed_count(self, input_name):
+        return self._pipe.InputFeedCount(input_name)
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         from nvidia.dali.external_source import _prep_data_for_feed_input
@@ -1044,23 +1048,6 @@ class Pipeline(object):
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
-    def _run_cpu(self):
-        """Run CPU portion of the pipeline."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if not self._last_iter:
-            self._pipe.RunCPU()
-            self._cpu_batches_to_consume += 1
-
-    def _run_gpu(self):
-        """Run GPU portion of the pipeline."""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if self._cpu_batches_to_consume > 0:
-            self._pipe.RunGPU()
-            self._cpu_batches_to_consume -= 1
-            self._gpu_batches_to_consume += 1
-
     def outputs(self):
         """Returns the outputs of the pipeline and releases previous buffer.
 
@@ -1073,12 +1060,11 @@ class Pipeline(object):
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
-            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+            if self._batches_to_consume == 0:
                 self._consumer_iter = 0
                 self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
-            self._gpu_batches_to_consume -= 1
             return self._outputs()
 
     def schedule_run(self):
@@ -1123,12 +1109,11 @@ class Pipeline(object):
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
-            if self._batches_to_consume == 0 or self._gpu_batches_to_consume == 0:
+            if self._batches_to_consume == 0:
                 self._consumer_iter = 0
                 self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
-            self._gpu_batches_to_consume -= 1
             return self._pipe.ShareOutputs()
 
     # for the backward compatibility
@@ -1151,7 +1136,8 @@ class Pipeline(object):
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if not self._built:
                 raise RuntimeError("Pipeline must be built first.")
-            return self._pipe.ReleaseOutputs()
+            ret = self._pipe.ReleaseOutputs()
+            return ret
 
     # for the backward compatibility
     def _release_outputs(self):
@@ -1252,12 +1238,61 @@ class Pipeline(object):
         if not self._pipe:
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
-        if self._exec_separated:
-            self._fill_separated_queues()
-        else:
-            for _ in range(self._prefetch_queue_depth):
-                self._run_once()
+
+        # We probably need some benchmarking before we remove this code path
+        if not self._exec_separated:
+            self._legacy_interleaved_prefetch()
+            return
+
+        # The new way: try to run the inputs and then feed them, finally call _pipe.Prefetch()
+        # If this fails, we just run `_pipe.Run()` a bunch of times. This will likely blow up for
+        # separated queues, which are not properly supported anyway.
+        iters_fed = 0
         self._first_iter = False
+        iters_fed, success = self._prefetch_inputs()
+        if success:
+            self._pipe.Prefetch()
+        else:
+            self._last_iter = True
+            for _ in range(iters_fed):
+                self._pipe.Run()
+
+    # This is the old way of prefetching - the feeding and running steps are interleaved.
+    # Running all callbacks at once, then feeding, then running - may affect the performance
+    # of the 1st iteration.
+    def _legacy_interleaved_prefetch(self):
+        for _ in range(self._cpu_queue_size):
+            try:
+                self._first_iter = False
+                self._iter_setup()
+                self._batches_to_consume += 1
+                if not self._exec_async and self._prefetch_queue_depth == 1:
+                    self.release_outputs()
+                self._pipe.Run()
+            except StopIteration:
+                self._last_iter = True
+                break
+
+    def _prefetch_inputs(self):
+        prefetched, success = self._run_input_callbacks(True)
+        self._batches_to_consume += prefetched
+
+        if success:
+            if self._exec_separated:
+                prefetch_count = self._cpu_queue_size + self._gpu_queue_size
+            else:
+                prefetch_count = self._cpu_queue_size
+
+            for i in range(prefetched, prefetch_count):
+                try:
+                    self.iter_setup()
+                    prefetched = i + 1
+                    self._batches_to_consume += 1
+                except StopIteration:
+                    success = False
+                    break
+
+        return prefetched, success
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
@@ -1271,23 +1306,8 @@ class Pipeline(object):
             # Special case to prevent a deadlock if user didn't release the only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
-            self._run_cpu()
-            self._run_gpu()
-        except StopIteration:
-            self._last_iter = True
-
-    def _run_up_to(self, stage_name):
-        """Call the `_run_X` up to `stage_name` (inclusive)."""
-        try:
             if not self._last_iter:
-                self._iter_setup()
-                self._batches_to_consume += 1
-                self._run_cpu()
-                if stage_name == "cpu":
-                    return
-                self._run_gpu()
-                if stage_name == "gpu":
-                    return
+                self._pipe.Run()
         except StopIteration:
             self._last_iter = True
 
@@ -1297,19 +1317,6 @@ class Pipeline(object):
         for i, group in enumerate(self._parallel_input_callbacks):
             group.prefetch(self._py_pool, i, self._max_batch_size, self._epoch_idx)
 
-    def _fill_separated_queues(self):
-        """When using separated execution fill each of the prefetch queues"""
-        if not self._built:
-            raise RuntimeError("Pipeline must be built first.")
-        if not self._first_iter:
-            raise RuntimeError("Queues can be filled only on first iteration.")
-        if not self._exec_separated:
-            raise RuntimeError("This function should be only used with separated execution.")
-        for i in range(self._gpu_queue_size):
-            self._run_up_to("gpu")
-        for i in range(self._cpu_queue_size):
-            self._run_up_to("cpu")
-
     def reset(self):
         """Resets pipeline iterator
 
@@ -1318,7 +1325,6 @@ class Pipeline(object):
         if self._last_iter:
             self._first_iter = True
             self._last_iter = False
-            self._iter = 0
             self._epoch_idx += 1
             if self._input_callbacks:
                 for group in self._input_callbacks:
@@ -1542,43 +1548,73 @@ class Pipeline(object):
         It returns a list of outputs created by calling DALI Operators."""
         raise NotImplementedError
 
-    def _run_input_callbacks(self):
-        if self._input_callbacks is None:
-            return
-
-        batches = []  # data from external source callbacks is gathered here
-        stop_iter = False
-        for i, group in enumerate(self._parallel_input_callbacks):
-            try:
-                batches.append(
-                    group.schedule_and_receive(
-                        self, self._py_pool, i, self._max_batch_size, self._epoch_idx
-                    )
-                )
-            except StopIteration:
-                stop_iter = True
-        for group in self._seq_input_callbacks:
-            try:
-                batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
-            except StopIteration:
-                stop_iter = True
-        if stop_iter:
-            raise StopIteration()
-
-        # we only fill external source queues when we know that all callbacks succeeded
-        for batch in batches:
-            batch.feed()
-
     def _iter_setup(self):
-        self._run_input_callbacks()
-        self.iter_setup()
-        self._iter += 1
+        iters, success = self._run_input_callbacks()
+        if not success:
+            raise StopIteration
+        if iters == 0:
+            self.iter_setup()
+
+    def _run_input_callbacks(self, is_prefetch=False):
+        if self._input_callbacks is None:
+            return 0, True
+
+        done = False
+        stop_iter = False
+        iter = 0
+        while not done and not stop_iter:
+            done = True
+            batches = []  # data from external source callbacks is gathered here
+            for i, group in enumerate(self._parallel_input_callbacks):
+                try:
+                    count = group.feed_count(self) if is_prefetch else 1
+                    if iter < count:
+                        batches.append(
+                            group.schedule_and_receive(
+                                self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                            )
+                        )
+                        if iter + 1 < count:
+                            done = False
+                except StopIteration:
+                    stop_iter = True
+            for group in self._seq_input_callbacks:
+                try:
+                    count = group.feed_count(self) if is_prefetch else 1
+                    if iter < count:
+                        batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
+                        if iter + 1 < count:
+                            done = False
+                except StopIteration:
+                    stop_iter = True
+
+            if stop_iter:
+                return iter, False
+
+            try:
+                self.iter_setup()
+            except StopIteration:
+                return iter, False
+
+            # we only fill external source queues when we know that all callbacks succeeded
+            for batch in batches:
+                batch.feed()
+
+            iter += 1
+        return iter, True
 
     def iter_setup(self):
-        """This function can be overriden by user-defined
+        """A deprecated method of providing the pipeline with external inputs.
+
+        This function can be overridden by a user-defined
         pipeline to perform any needed setup for each iteration.
         For example, one can use this function to feed the input
-        data from NumPy arrays."""
+        data from NumPy arrays.
+
+        This method is deprecated and its use is discouraged. Newer execution models may be
+        incompatible with this method of providing data to the pipeline. Use `source` argument
+        in ``external_source`` instead, where possible.
+        """
         pass
 
     def _generate_build_args(self):

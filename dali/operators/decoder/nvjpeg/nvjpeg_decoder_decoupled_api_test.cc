@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -241,8 +241,7 @@ class CudaDecoderUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(CudaDecoderUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
@@ -296,8 +295,7 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
 
 TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
@@ -342,8 +340,7 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderMemoryPoolTest, MemoryPoolTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 }
 
 class HwDecoderSliceUtilizationTest : public ::testing::Test {
@@ -408,8 +405,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
@@ -461,9 +457,7 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderCropUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
-
+  this->pipeline_.Run();
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
   auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
@@ -514,8 +508,7 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderRandomCropUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 }
 #endif
 
@@ -550,8 +543,7 @@ class Nvjpeg2kTest : public ::testing::Test {
 
 
 TEST_F(Nvjpeg2kTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
   auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
   auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");

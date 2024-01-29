@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,8 +183,7 @@ class SplitMergeTest : public ::testing::Test {
     pipe.SetExternalInput("input", input);
     pipe.SetExternalInput("pred", predicate);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     return {std::move(input), std::move(predicate)};
   }
 
@@ -435,8 +434,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedMerge) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
@@ -472,8 +470,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedSplit) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
@@ -511,8 +508,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedTypes) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
@@ -562,8 +558,7 @@ TEST_F(SplitMergePinnedInputsTest, Mixes) {
     pipe.SetExternalInput("pinned_input", pinned_input);
     pipe.SetExternalInput("pred", predicate);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
 

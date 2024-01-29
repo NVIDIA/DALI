@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
-#include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 
@@ -273,7 +273,8 @@ class DLL_PUBLIC Pipeline {
    * @param async_execution Use worker threads for RunX() functions
    */
   DLL_PUBLIC void SetExecutionTypes(bool pipelined_execution = true,
-                                    bool separated_execution = false, bool async_execution = true) {
+                                    bool separated_execution = false,
+                                    bool async_execution = true) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed - cannot change execution type.");
     pipelined_execution_ = pipelined_execution;
@@ -387,6 +388,10 @@ class DLL_PUBLIC Pipeline {
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
 
+  DLL_PUBLIC QueueSizes GetQueueSizes() const {
+    return prefetch_queue_depth_;
+  }
+
   /** @{ */
   /**
    * @brief Set descriptors of the outputs of the pipeline. Used to update the graph without
@@ -402,30 +407,39 @@ class DLL_PUBLIC Pipeline {
   /** @} */
 
   /**
-   * @brief Run the cpu portion of the pipeline.
+   * @brief Run the pipeline
    */
-  DLL_PUBLIC void RunCPU();
+  DLL_PUBLIC void Run();
 
   /**
-   * @brief Run the gpu portion of the pipeline.
+   * @brief Fills the prefetch queues
+   *
+   * Runs a prefetching function in the executor so that internal and output queues are full.
+   * Note that it requires populating the external sources InputFeedCount(name) times.
    */
-  DLL_PUBLIC void RunGPU();
+  DLL_PUBLIC void Prefetch();
+
+  /**
+   * @brief Calculates how many times a given input must be populated before the pipeline can be run
+   *
+   * @param input_name The name of the input, as specified in the input operator.
+   * @return The number of times that feed_input needs to be called.
+   */
+  DLL_PUBLIC int InputFeedCount(const std::string &input_name);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
-   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
-   * must be called prior to calling this or this method will result in
-   * deadlock.
+   * This method blocks until the next batch is complete. Run must be called prior to calling this
+   * method or it will result in a deadlock.
    */
   DLL_PUBLIC void Outputs(Workspace *ws);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * To release previously returned buffers ReleaseOutputs need to be called.
-   * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
-   * must be called prior to calling this or this method will result in
-   * deadlock.
+   * This method blocks until the next batch is complete. Run must be called prior to calling this
+   * method or it will result in a deadlock.
    */
   DLL_PUBLIC void ShareOutputs(Workspace *ws);
 
@@ -465,7 +479,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the reader meta for a node with given name
    */
-  DLL_PUBLIC ReaderMeta GetReaderMeta(std::string name);
+  DLL_PUBLIC ReaderMeta GetReaderMeta(const std::string &name);
 
   /**
    * @brief Get the data layout required by the external input with a given name.
@@ -668,24 +682,24 @@ class DLL_PUBLIC Pipeline {
 
   const int MAX_SEEDS = 1024;
 
-  bool built_;
-  int max_batch_size_, num_threads_, device_id_;
-  bool pipelined_execution_;
-  bool separated_execution_;
-  bool async_execution_;
-  size_t bytes_per_sample_hint_;
-  int set_affinity_;
-  int max_num_stream_;
-  int default_cuda_stream_priority_;
+  bool built_ = false;
+  int max_batch_size_ = 1, num_threads_ = 0, device_id_ = CPU_ONLY_DEVICE_ID;
+  bool pipelined_execution_ = false;
+  bool separated_execution_ = false;
+  bool async_execution_ = false;
+  size_t bytes_per_sample_hint_ = 0;
+  int set_affinity_ = 0;
+  int max_num_stream_ = 0;
+  int default_cuda_stream_priority_ = 0;
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
-  QueueSizes prefetch_queue_depth_;
+  QueueSizes prefetch_queue_depth_{};
   bool enable_memory_stats_ = false;
   bool checkpointing_ = false;
 
   std::vector<int64_t> seed_;
-  int original_seed_;
-  size_t current_seed_;
+  int original_seed_ = 0;
+  size_t current_seed_ = 0;
 
   std::unique_ptr<ExecutorBase> executor_;
   OpGraph graph_;
@@ -718,7 +732,8 @@ class DLL_PUBLIC Pipeline {
    * This class maintains a list of such nodes, stores the most recently fed input and re-submits
    * it if no new data was fed.
    */
-  struct RepeatLastInputs {
+  class RepeatLastInputs {
+   public:
     void FindNodes(const OpGraph &graph);
 
     template <typename OperatorBackend, typename DataBackend>
@@ -756,8 +771,18 @@ class DLL_PUBLIC Pipeline {
       return true;
     }
 
+    /**
+     * @brief Feeds the recently set inputs to the inputs that have `repeat_last` property
+     *
+     * @param owner       The pipeline
+     * @param fill_queue  If true, the inputs are fed `InputFeedCount(name)` times;
+     *                    otherwise they're fed once.
+     */
+    void Refeed(Pipeline &owner, bool fill_queue = false);
+
+   private:
     template <typename Backend>
-    void Refeed(Pipeline &owner);
+    void Refeed(Pipeline &owner, bool fill_queue);
 
     template <typename Backend>
     struct RepeatLastInput {
@@ -767,6 +792,10 @@ class DLL_PUBLIC Pipeline {
       TensorList<InputBackend> last_input;
       std::optional<std::string> data_id;
     };
+
+    bool empty() const {
+      return cpu_nodes_.empty() && gpu_nodes_.empty() && mixed_nodes_.empty();
+    }
 
     std::map<std::string, RepeatLastInput<CPUBackend>> cpu_nodes_;
     std::map<std::string, RepeatLastInput<GPUBackend>> gpu_nodes_;
@@ -785,16 +814,6 @@ class DLL_PUBLIC Pipeline {
 
   RepeatLastInputs repeat_last_;
 };
-
-template <typename Backend>
-void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner) {
-  auto &nodes = GetNodes<Backend>();
-  for (auto &[name, node] : nodes) {
-    owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
-      InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
-      true);
-  }
-}
 
 }  // namespace dali
 

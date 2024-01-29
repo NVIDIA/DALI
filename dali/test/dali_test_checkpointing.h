@@ -80,8 +80,7 @@ class PipelineWrapper {
 
   template<typename OutputType>
   std::vector<OutputType> RunIteration() {
-    pipe_->RunCPU();
-    pipe_->RunGPU();
+    pipe_->Run();
     pipe_->Outputs(&ws_);
 
     auto collect_value_from_each_sample = [](const TensorList<CPUBackend> &data) {

@@ -183,13 +183,13 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
     using Clock = std::chrono::high_resolution_clock;
     this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
     this->pipelined_execution_ = pipelined_execution;
-    this->separated_execution_ = separated_execution;
     this->async_execution_ = async_execution;
     this->bytes_per_sample_hint_ = bytes_per_sample_hint;
     this->set_affinity_ = set_affinity;
     this->max_num_stream_ = max_num_stream;
     this->default_cuda_stream_priority_ = default_cuda_stream_priority;
     this->prefetch_queue_depth_ = prefetch_queue_depth;
+    this->separated_execution_ = (prefetch_queue_depth.cpu_size != prefetch_queue_depth.gpu_size);
     DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
 
     int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
@@ -582,19 +582,18 @@ void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
   output_descs_ = std::move(output_descs);
 }
 
-void Pipeline::RunCPU() {
+void Pipeline::Run() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  repeat_last_.Refeed<CPUBackend>(*this);
-  repeat_last_.Refeed<GPUBackend>(*this);
-  executor_->RunCPU();
+  repeat_last_.Refeed(*this);
+  executor_->Run();
 }
 
-void Pipeline::RunGPU() {
+void Pipeline::Prefetch() {
   DALI_ENFORCE(built_,
       "\"Build()\" must be called prior to executing the pipeline.");
-  executor_->RunMixed();
-  executor_->RunGPU();
+  repeat_last_.Refeed(*this, true);
+  executor_->Prefetch();
 }
 
 bool Pipeline::ValidateOutputs(const Workspace &ws) const {
@@ -807,7 +806,7 @@ std::map<std::string, ReaderMeta> Pipeline::GetReaderMeta() {
   return ret;
 }
 
-ReaderMeta Pipeline::GetReaderMeta(std::string name) {
+ReaderMeta Pipeline::GetReaderMeta(const std::string &name) {
   ReaderMeta meta;
   for (Index i = 0; i < graph_.NumOp(); ++i) {
     const OpNode &current = graph_.Node(i);
@@ -819,6 +818,9 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
+int Pipeline::InputFeedCount(const std::string &name) {
+  return executor_->InputFeedCount(name);
+}
 
 const TensorLayout &Pipeline::GetInputLayout(const std::string &name) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"GetInputLayout()\".");
@@ -1101,6 +1103,24 @@ void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
     else
       assert(!"Unexpected backend for an ExternalSource node.");
   }
+}
+
+template <typename Backend>
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
+  auto &nodes = GetNodes<Backend>();
+  for (auto &[name, node] : nodes) {
+    int count = fill_queue ? owner.InputFeedCount(name.c_str()) : 1;
+    for (int i = 0; i < count; i++)
+      owner.SetExternalInputHelper(name, node.last_input, node.data_id, node.last_input.order(),
+        InputOperatorSettingMode{false, false, InputOperatorNoCopyMode::FORCE_NO_COPY},
+        true);
+  }
+}
+
+void Pipeline::RepeatLastInputs::Refeed(Pipeline &owner, bool fill_queue) {
+  Refeed<CPUBackend>(owner, fill_queue);
+  Refeed<MixedBackend>(owner, fill_queue);
+  Refeed<GPUBackend>(owner, fill_queue);
 }
 
 }  // namespace dali

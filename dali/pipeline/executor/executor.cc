@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -339,6 +339,33 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
 
   // We do not release, but handle to used outputs
   QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::Run() {
+  RunCPU();
+  RunMixed();
+  RunGPU();
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+int Executor<WorkspacePolicy, QueuePolicy>::InputFeedCount(const std::string &op_name) {
+  (void)graph_->Node(op_name);
+  return queue_sizes_.cpu_size;
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::Prefetch() {
+  int i;
+  for (i = 0; i < std::min(queue_sizes_.gpu_size, queue_sizes_.cpu_size); i++) {
+    RunCPU();
+    RunMixed();
+    RunGPU();
+  }
+
+  for (; i < queue_sizes_.cpu_size; i++) {
+    RunCPU();
+  }
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>

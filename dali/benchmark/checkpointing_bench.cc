@@ -40,13 +40,11 @@ class CheckpointingOverhead : public DALIBenchmark {
     Workspace ws;
 
     // Warmup
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
     pipe->Outputs(&ws);
 
     while (st.KeepRunning()) {
-      pipe->RunCPU();
-      pipe->RunGPU();
+      pipe->Run();
       pipe->Outputs(&ws);
       if (policy == CheckpointingPolicy::SaveEveryIter) {
         volatile auto cpt = pipe->GetCheckpoint();

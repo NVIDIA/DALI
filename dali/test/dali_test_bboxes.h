@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_BBOXES_H_
 #define DALI_TEST_DALI_TEST_BBOXES_H_
 
@@ -49,8 +49,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);
@@ -89,8 +88,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "gpu"}, {"resized_boxes", "gpu"}});
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);
@@ -136,8 +134,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);
