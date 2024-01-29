@@ -9,3 +9,4 @@ JAX Framework
    jax-multigpu_example.ipynb
    flax-basic_example.ipynb
    pax-basic_example.ipynb
+   t5x-basic_example.ipynb
