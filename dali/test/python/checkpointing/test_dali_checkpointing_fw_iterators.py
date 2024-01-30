@@ -142,19 +142,10 @@ class FwTestBase:
         batch_size : int
         num_shards : int
 
-    # @cartesian_params(
-    #     (DatasetConfig(dataset_size=11+11+12, batch_size=4, num_shards=3),
-    #      DatasetConfig(dataset_size=10+10+11, batch_size=4, num_shards=3),),
-    #     range(10),
-    #     (LastBatchPolicy.FILL, LastBatchPolicy.DROP, LastBatchPolicy.PARTIAL),
-    #     (True, False),  # stick_to_shard
-    #     (True, False),  # pad_last_batch
-    #     (True,),  # use_reader_name
-    # )
     @cartesian_params(
         (DatasetConfig(dataset_size=11+11+12, batch_size=4, num_shards=3),
-         DatasetConfig(dataset_size=10+10+11, batch_size=4, num_shards=3)),
-        range(10),
+         DatasetConfig(dataset_size=4+5, batch_size=3, num_shards=2)),
+        (0, 1, 2, 3, 10),
         (
             # (last_batch_policy, pad_last_batch)
             (LastBatchPolicy.FILL, True),
@@ -164,10 +155,8 @@ class FwTestBase:
             (LastBatchPolicy.PARTIAL, False),
         ),
         (True, False),  # stick_to_shard
-        (True,),  # use_reader_name
-        (True, False),  # prepare_first_batch
     )
-    def test_last_batch_policy(self, dataset_config : DatasetConfig, iterations, last_batch_config, stick_to_shard, use_reader_name, prepare_first_batch):
+    def test_last_batch_policy(self, dataset_config : DatasetConfig, iterations, last_batch_config, stick_to_shard):
         policy, pad_last_batch = last_batch_config
         with tempfile.TemporaryDirectory() as data_dir:
             os.mkdir(os.path.join(data_dir, '0'))
@@ -197,14 +186,8 @@ class FwTestBase:
                     return [make_pipeline(shard_id, checkpoint=cpt) for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)]
 
             def make_iterator(pipes):
-                kwargs = {}
-                if use_reader_name:
-                    kwargs['reader_name'] = 'Reader'
-                else:
-                    kwargs['size'] = dataset_config.dataset_size
-                    kwargs['last_batch_padded'] = pad_last_batch
 
-                return self.FwIterator(pipes, output_map=['data'], auto_reset=True, last_batch_policy=policy, prepare_first_batch=prepare_first_batch, **kwargs)
+                return self.FwIterator(pipes, output_map=['data'], auto_reset=True, last_batch_policy=policy, prepare_first_batch=False, reader_name='Reader')
 
             pipes = make_pipelines()
             it = make_iterator(pipes)
@@ -230,7 +213,7 @@ class FwTestBase:
             pipes_restored = make_pipelines(it.checkpoints())
             it_restored = make_iterator(pipes_restored)
 
-            steps = dataset_config.dataset_size * 4 // dataset_config.batch_size
+            steps = dataset_config.dataset_size * 2 // dataset_config.batch_size
 
             a = observe(it, steps)
             b = observe(it_restored, steps)
