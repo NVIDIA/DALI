@@ -46,14 +46,17 @@ class FwTestBase:
                 assert self.equal(d1[key], d2[key])
 
     def compare_iters(self, iter, iter2):
-        for out1, out2 in zip(iter, iter2):
+        outs1 = list(x for x in iter)
+        outs2 = list(x for x in iter2)
+        assert len(outs1) == len(outs2)
+        for out1, out2 in zip(outs1, outs2):
             self.compare_outs(out1, out2)
 
     def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
         pipe = pipeline_factory(**pipeline_args)
         pipe.build()
 
-        iter = self.FwIterator(pipe, ["data"], auto_reset=True, reader_name=reader_name, size=size)
+        iter = self.FwIterator(pipe, ["data"], auto_reset=True, reader_name=reader_name, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True)
         for _ in range(warmup_epochs):
             for _ in iter:
                 pass
@@ -61,7 +64,7 @@ class FwTestBase:
         restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
         restored.build()
         iter2 = self.FwIterator(
-            restored, ["data"], auto_reset=True, reader_name=reader_name, size=size
+            restored, ["data"], auto_reset=True, reader_name=reader_name, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True
         )
 
         self.compare_iters(iter, iter2)
@@ -284,14 +287,13 @@ class FwTestBase:
         pipeline = pipeline_factory()
         pipeline.build()
 
-        iter = self.FwIterator(pipeline, ["data"], auto_reset=True, size=size)
+        iter = self.FwIterator(pipeline, ["data"], auto_reset=True, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True)
 
         run(iter, iterations)
 
         restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data"], auto_reset=True, size=size)
-
+        iter2 = self.FwIterator(restored, ["data"], auto_reset=True, size=size, last_batch_policy=LastBatchPolicy.FILL, last_batch_padded=True)
         self.compare_iters(iter, iter2)
 
     @cartesian_params(
@@ -304,7 +306,7 @@ class FwTestBase:
         epoch_size, batch_size = dataset_info
         source = make_dummy_source(epoch_size, batch_size, mode)
         pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
-        self.check_external_source_pipeline_checkpointing(pf, iterations)
+        self.check_external_source_pipeline_checkpointing(pf, iterations, size=epoch_size * batch_size)
 
 
 # Framework tests

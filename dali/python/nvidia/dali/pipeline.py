@@ -1326,6 +1326,8 @@ class Pipeline(object):
             self._first_iter = True
             self._last_iter = False
             self._epoch_idx += 1
+            self._consumer_epoch_idx += 1
+            self._consumer_iter = 0
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.reset_indices()

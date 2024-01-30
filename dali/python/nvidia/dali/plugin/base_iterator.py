@@ -266,11 +266,17 @@ class _DaliBaseIterator(object):
         # In modes other than FILL + last_batch_padded=False, each epoch starts with the first
         # sample of a shard and the number of pipeline iterations per epoch is constant.
 
-        iters_per_epoch = (self._shard_sizes_per_gpu.min() + self.batch_size - 1) // self.batch_size
+        size = self._shard_sizes_per_gpu.min() if self._reader_name else self._size
+        iters_per_epoch = (size + self.batch_size - 1) // self.batch_size
         complete_epochs = (max(0, pipeline_iterations - 1)) // iters_per_epoch
 
         self._counter = self.batch_size * (pipeline_iterations - complete_epochs * iters_per_epoch)
-        if not self._is_stick_to_shard:
+
+        if not self._reader_name:
+            # If not in reader_name mode, the counter keeps the total count for all pipelines
+            self._counter *= self._num_gpus
+
+        if self._reader_name and not self._is_stick_to_shard:
             self._shard_sizes_per_gpu = np.roll(self._shard_sizes_per_gpu, complete_epochs)
             self._shards_id = (self._shards_id + complete_epochs) % self._num_gpus
 
