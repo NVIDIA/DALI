@@ -1723,7 +1723,7 @@ def _regroup_args(func, pipeline_def_kwargs, fn_call_kwargs):
 def _preprocess_pipe_func(func, conditionals_on):
     """Transform the pipeline definition function if the conditionals are enabled"""
     if conditionals_on:
-        return _conditionals._autograph.to_graph(func)
+        return _conditionals._autograph.convert(recursive=True, user_requested=True)(func)
     else:
         return func
 
@@ -1906,7 +1906,12 @@ def pipeline_def(
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            # TODO(klecki): Rewrite _discriminate_args used by _regroup_args in the means of the
+            # inspect.signature, so it obeys the signature produced by the wrapper.
+            # The getfullargspec ignores wrappers, so we need to use func here for argument
+            # redistribution, as _preprocess_pipe_func returns a wrapper in conditional mode.
+            # After this we can pass pipe_func below.
+            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
             pipe = Pipeline(**pipeline_args)
             _preprocess_pipe_object(pipe, conditionals_on, args, fn_kwargs)
 
@@ -2106,7 +2111,8 @@ def _pipeline_def_experimental(fn=None, *, enable_conditionals=False, **pipeline
             conditionals_on = kwargs.get("enable_conditionals", enable_conditionals)
 
             pipe_func = _preprocess_pipe_func(func, conditionals_on)
-            pipeline_args, fn_kwargs = _regroup_args(pipe_func, pipeline_kwargs, kwargs)
+            # TODO(klecki): Use pipe_func here after similar todo is resolved in regular decorator.
+            pipeline_args, fn_kwargs = _regroup_args(func, pipeline_kwargs, kwargs)
             if debug_mode_on:
                 pipe = _PipelineDebug(
                     functools.partial(pipe_func, *args, **fn_kwargs), **pipeline_args
