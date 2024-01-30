@@ -62,20 +62,27 @@ DALI_SCHEMA(Morphology)
                   1, false, false)
   .AddOptionalArg("border_mode",
                   "Border mode to be used when accessing elements outside input image.",
-                  "constant")
-  .AllowSequences();
+                  "constant");
 
 DALI_SCHEMA(experimental__Dilate)
+  .AddParent("Morphology")
   .DocStr("Perform a dilation operation on the input image.")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("Morphology");
+  .InputDox(0, "input", "TensorList",
+            "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
+  .AllowSequences()
+  .InputLayout({"HWC", "FHWC", "CHW", "FCHW"});
 
 DALI_SCHEMA(experimental__Erode)
+  .AddParent("Morphology")
   .DocStr("Perform an erosion operation on the input image.")
   .NumInput(1)
   .NumOutput(1)
-  .AddParent("Morphology");
+  .InputDox(0, "input", "TensorList",
+            "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
+  .AllowSequences()
+  .InputLayout({"HWC", "FHWC", "CHW", "FCHW"});
 
 
 DALI_REGISTER_OPERATOR(experimental__Dilate, Dilate, GPU);
