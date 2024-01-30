@@ -226,7 +226,7 @@ class _DaliBaseIterator(object):
                 )
 
         if self._enable_checkpointing:
-            if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
+            if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded is False:
                 raise NotImplementedError(
                     "Currently, checkpointing is not supported for iterators with "
                     + "last_batch_policy=FILL and last_batch_padded=False"
@@ -257,7 +257,7 @@ class _DaliBaseIterator(object):
         pipeline.
         """
 
-        if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
+        if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded is False:
             raise NotImplementedError(
                 "Currently, checkpointing is not supported for iterators with "
                 + "last_batch_policy=FILL and last_batch_padded=False"
