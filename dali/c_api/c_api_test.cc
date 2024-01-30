@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1074,6 +1074,64 @@ TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
   EXPECT_EQ(daliGetDeclaredOutputNdim(&handle, 0), ndim);
 
   daliDeletePipeline(&handle);
+}
+
+daliPipelineHandle CreateCheckpointingTestPipe() {
+  dali::Pipeline pipe(1, 1, 0, -1, true, 1);
+  pipe.AddOperator(
+    OpSpec("Uniform")
+      .AddArg("device", "cpu")
+      .AddArg("dtype", DALI_FLOAT64)
+      .AddOutput("OUTPUT", "cpu"));
+  pipe.SetOutputDescs({{"OUTPUT", "cpu"}});
+  pipe.EnableCheckpointing();
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  return handle;
+}
+
+TEST(CApiTest, CheckpointingTest) {
+  // Create the first pipeline
+  auto handle1 = CreateCheckpointingTestPipe();
+
+  // Run it for a few iterations
+  for (int i = 0; i < 3; i++) {
+      daliRun(&handle1);
+      daliOutput(&handle1);
+  }
+
+  // Save the checkpoint
+  daliExternalContextCheckpoint mock_external_context{};
+  mock_external_context.epoch_idx = 123;
+  mock_external_context.iter = 456;
+  char *cpt;
+  size_t n;
+  daliGetSerializedCheckpoint(&handle1, &mock_external_context, &cpt, &n);
+
+  // Check pipeline's result
+  double result1;
+  daliRun(&handle1);
+  daliOutput(&handle1);
+  daliOutputCopy(&handle1, &result1, 0, device_type_t::CPU, 0, DALI_ext_default);
+
+  // Create a new pipeline from the saved checkpoint
+  auto handle2 = CreateCheckpointingTestPipe();
+  daliExternalContextCheckpoint restored_external_context{};
+  daliRestoreFromSerializedCheckpoint(&handle2, cpt, n, &restored_external_context);
+  EXPECT_EQ(restored_external_context.epoch_idx, mock_external_context.epoch_idx);
+  EXPECT_EQ(restored_external_context.iter, mock_external_context.iter);
+
+  // Check the result of the new pipeline
+  double result2;
+  daliRun(&handle2);
+  daliOutput(&handle2);
+  daliOutputCopy(&handle2, &result2, 0, device_type_t::CPU, 0, DALI_ext_default);
+  EXPECT_EQ(result1, result2);
+
+  // Delete the pipelines
+  daliDeletePipeline(&handle1);
+  daliDeletePipeline(&handle2);
 }
 
 }  // namespace dali

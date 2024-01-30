@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,6 +73,8 @@ message PipelineDef {
   repeated InputOutput pipe_outputs = 7;
   optional int32 device_id = 8 [default = 0];
   optional int64 seed = 9 [default = -1];
+
+  optional bool enable_checkpointing = 10 [default = false];
 }
 
 message Checkpoint {

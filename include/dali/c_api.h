@@ -85,6 +85,16 @@ typedef struct {
   size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
 } daliExecutorMetadata;
 
+
+/*
+ * Need to keep that in sync with ExternalContextCheckpoint from checkpoint.h
+ */
+typedef struct {
+  int epoch_idx;
+  int iter;
+} daliExternalContextCheckpoint;
+
+
 /**
  * @brief DALI initialization
  *
@@ -715,6 +725,43 @@ DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
  * @return Zero, if the allocation was successful, otherwise nonzero
  */
 DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
+
+/** @brief Returns serialized pipeline checkpoint
+ *
+ * Saves pipeline state together with provided external context.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ *
+ * @param external_context External context to include in the checkpoint.
+ *
+ * @param checkpoint Output pointer to which checkpoint data should be saved.
+ *                   The buffer is allocated with `malloc`, freeing it is caller's responsibility.
+ *
+ * @param n Output argument for checkpoint size in bytes.
+*/
+DLL_PUBLIC void daliGetSerializedCheckpoint(
+  daliPipelineHandle *pipe_handle,
+  const daliExternalContextCheckpoint *external_context,
+  char **checkpoint, size_t *n);
+
+/** @brief Restores pipeline state from serialized checkpoint
+ *
+ * Should be called before running the pipeline.
+ * The pipeline needs to have checkpointing enabled.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ *
+ * @param checkpoint Serialized checkpoint to restore from.
+ *
+ * @param n Size of the checkpoint, in bytes.
+ *
+ * @param external_context Output buffer to which checkpoint's external context will be saved.
+ *                         Ignored if null.
+*/
+DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(
+  daliPipelineHandle *pipe_handle,
+  const char *checkpoint, size_t n,
+  daliExternalContextCheckpoint *external_context);
 
 #ifdef __cplusplus
 }
