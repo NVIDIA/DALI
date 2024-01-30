@@ -819,6 +819,7 @@ void daliGetSerializedCheckpoint(
     daliPipelineHandle_t pipe_handle,
     const daliExternalContextCheckpoint *external_context,
     char **checkpoint, size_t *n) {
+  DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
   auto &pipeline = (*pipe_handle)->pipeline;
   dali::ExternalContextCheckpoint ctx;
   ctx.epoch_idx = external_context->epoch_idx;
