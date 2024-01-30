@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,11 +44,17 @@ class CommonPipeline(Pipeline):
         super(CommonPipeline, self).__init__(
             batch_size, num_threads, device_id, random_shuffle, prefetch_queue_depth=prefetch
         )
-        if decoder_type == "roi":
+        print(f"decoder type: {decoder_type}")
+        if "experimental" in decoder_type:
+            decoders_module = ops.experimental.decoders
+        else:
+            decoders_module = ops.decoders
+
+        if "roi" in decoder_type:
             print("Using nvJPEG with ROI decoding")
-            self.decode_gpu = ops.decoders.ImageRandomCrop(device="mixed", output_type=types.RGB)
+            self.decode_gpu = decoders_module.ImageRandomCrop(device="mixed", output_type=types.RGB)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
-        elif decoder_type == "cached":
+        elif "cached" in decoder_type:
             assert decoder_cache_params["cache_enabled"]
             cache_size = decoder_cache_params["cache_size"]
             cache_threshold = decoder_cache_params["cache_threshold"]
@@ -57,7 +63,7 @@ class CommonPipeline(Pipeline):
                 f"Using nvJPEG with cache (size : {cache_size} "
                 f"threshold: {cache_threshold}, type: {cache_type})"
             )
-            self.decode_gpu = ops.decoders.Image(
+            self.decode_gpu = decoders_module.Image(
                 device="mixed",
                 output_type=types.RGB,
                 cache_size=cache_size,
@@ -68,7 +74,7 @@ class CommonPipeline(Pipeline):
             self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
         else:
             print("Using nvJPEG")
-            self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
+            self.decode_gpu = decoders_module.Image(device="mixed", output_type=types.RGB)
             self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 
         layout = types.NHWC if nhwc else types.NCHW
@@ -332,7 +338,7 @@ parser.add_argument(
     default="",
     type=str,
     metavar="N",
-    help="roi, cached (default: regular nvjpeg)",
+    help="roi, cached, (default: regular nvjpeg). Also admit +experimental",
 )
 parser.add_argument("--cache_size", default=0, type=int, metavar="N", help="Cache size (in MB)")
 parser.add_argument("--cache_threshold", default=0, type=int, metavar="N", help="Cache threshold")

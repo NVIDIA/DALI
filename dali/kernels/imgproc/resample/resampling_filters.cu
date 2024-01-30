@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
-#include <vector>
 #include <utility>
-#include "dali/kernels/imgproc/resample/resampling_filters.cuh"
-#include "dali/kernels/imgproc/resample/resampling_windows.h"
+#include <vector>
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/memory.h"
 #include "dali/core/span.h"
-#include "dali/core/cuda_stream_pool.h"
+#include "dali/kernels/imgproc/resample/resampling_filters.cuh"
+#include "dali/kernels/imgproc/resample/resampling_windows.h"
 
 namespace dali {
 namespace kernels {

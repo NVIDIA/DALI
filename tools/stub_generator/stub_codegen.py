@@ -1,5 +1,5 @@
 # Copyright 2020 The TensorFlow Runtime Authors
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,6 +79,8 @@ def main():
 void *{0}LoadSymbol(const char *name);
 
 #define LOAD_SYMBOL_FUNC {0}##LoadSymbol
+
+#pragma GCC diagnostic ignored "-Wattributes"
 
 """
 

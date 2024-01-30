@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include "dali/image/jpeg.h"
 #include <cmath>
 #include <memory>
-#include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
+#include "dali/operators/decoder/jpeg/jpeg_mem.h"
 #include "dali/util/ocv.h"
 #include "dali/core/byte_io.h"
 
@@ -81,7 +81,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  imgcodec::jpeg::UncompressFlags flags;
+  jpeg::UncompressFlags flags;
   if (UseFastIdct()) {
     flags.dct_method = JDCT_FASTEST;
   }
@@ -104,7 +104,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
-  std::shared_ptr<uint8_t> decoded_image(imgcodec::jpeg::Uncompress(jpeg, length, flags).release(),
+  std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(jpeg, length, flags).release(),
                                          [](uint8_t *data) { delete[] data; });
 
   if (decoded_image == nullptr) {
@@ -123,7 +123,7 @@ Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
   int height = 0, width = 0, components = 0;
 #ifdef DALI_USE_JPEG_TURBO
   DALI_ENFORCE(
-    imgcodec::jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
+    jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
 #else
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width, &components));
 #endif

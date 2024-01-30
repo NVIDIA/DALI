@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,13 +39,17 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 # Build options
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
-option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraires dynamically (NPP, nvJPEG, cuFFT)" OFF)
+option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraries dynamically (NPP, nvJPEG, cuFFT)" OFF)
 cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+
+# TODO(janton): handle OFF option
+option(WITH_DYNAMIC_NVIMGCODEC "Links nvimgcodec library dynamically during runtime" ON)
+
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
@@ -82,6 +86,8 @@ cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_NVIMAGECODEC "Build with support for nvimagecodec library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 
 cmake_dependent_option(BUILD_CVCUDA "Build with CV-CUDA" ON
@@ -151,11 +157,9 @@ set(BUILD_DALI_KERNELS ON)
 if (BUILD_DALI_KERNELS AND NOT BUILD_DALI_NODEPS)
   set(BUILD_DALI_PIPELINE ON)
   set(BUILD_DALI_OPERATORS ON)
-  set(BUILD_DALI_IMGCODEC ON)
 else()
   set(BUILD_DALI_PIPELINE OFF)
   set(BUILD_DALI_OPERATORS OFF)
-  set(BUILD_DALI_IMGCODEC OFF)
 endif()
 
 # Experimental, only enabled for BUILD_DALI_NODEPS=ON
@@ -297,6 +301,7 @@ propagate_option(LINK_DRIVER)
 propagate_option(WITH_DYNAMIC_NVJPEG)
 propagate_option(WITH_DYNAMIC_CUFFT)
 propagate_option(WITH_DYNAMIC_NPP)
+propagate_option(WITH_DYNAMIC_NVIMGCODEC)
 
 # add more flags after they are populated by find_package from Dependencies.cmake
 
@@ -452,8 +457,4 @@ endif()
 
 if (BUILD_DALI_OPERATORS)
   add_library(DALI::dali_operators ALIAS dali_operators)
-endif()
-
-if (BUILD_DALI_IMGCODEC)
-  add_library(DALI::dali_imgcodec ALIAS dali_imgcodec)
 endif()

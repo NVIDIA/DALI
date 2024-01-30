@@ -1,7 +1,0 @@
-DALI_IMGCODEC_@DALI_VERSION@ {
-     global:
-         *;
-     # cufile.h declares all its symbols with the default visibility so our wrappers
-     # are exported as well. We don't want this so hide it explicitly here
-     local: cuFile*;
-};

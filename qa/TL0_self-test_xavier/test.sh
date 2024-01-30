@@ -5,8 +5,7 @@ test_body() {
     "dali_core_test.bin" \
     "dali_kernel_test.bin" \
     "dali_test.bin" \
-    "dali_operator_test.bin" \
-    "dali_imgcodec_test.bin"
+    "dali_operator_test.bin"
   do
     for DIRNAME in \
       "../../build/dali/python/nvidia/dali" \

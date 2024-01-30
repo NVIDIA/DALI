@@ -15,6 +15,7 @@
 if(BUILD_LIBSND)
   add_subdirectory(audio)
 endif()
+add_subdirectory(jpeg)
 add_subdirectory(cache)
 add_subdirectory(host)
 if (BUILD_NVJPEG)

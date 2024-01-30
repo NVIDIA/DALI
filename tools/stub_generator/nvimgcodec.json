@@ -1,0 +1,24 @@
+{
+   "extra_include":[
+      "<nvimgcodec.h>"
+   ],
+   "return_type":"nvimgcodecStatus_t",
+   "calling_conv":"NVIMGCODECAPI",
+   "not_found_error":"NVIMGCODEC_STATUS_IMPLEMENTATION_UNSUPPORTED",
+"functions": {
+      "nvimgcodecInstanceCreate": {},
+      "nvimgcodecCodeStreamCreateFromHostMem": {},
+      "nvimgcodecCodeStreamGetImageInfo": {},
+      "nvimgcodecDecoderCreate": {},
+      "nvimgcodecFutureGetProcessingStatus": {},
+      "nvimgcodecInstanceDestroy": {},
+      "nvimgcodecImageDestroy": {},
+      "nvimgcodecCodeStreamGetCodecName": {},
+      "nvimgcodecFutureDestroy": {},
+      "nvimgcodecCodeStreamDestroy": {},
+      "nvimgcodecImageCreate": {},
+      "nvimgcodecDecoderDestroy": {},
+      "nvimgcodecInstanceCreate": {},
+      "nvimgcodecDecoderDecode": {}
+   }
+}

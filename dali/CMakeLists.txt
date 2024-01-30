@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,22 +43,23 @@ endif()
 
 if (BUILD_DALI_PIPELINE)
   add_subdirectory(pipeline)
-  add_subdirectory(image)
   add_subdirectory(util)
   add_subdirectory(plugin)
   add_subdirectory(c_api)
 endif()
 
-if (BUILD_NVJPEG AND (BUILD_DALI_OPERATORS OR BUILD_DALI_IMGCODEC))
-  add_subdirectory(nvjpeg)
-endif()
+if(BUILD_DALI_OPERATORS)
+  add_subdirectory(image)
 
-if (BUILD_DALI_OPERATORS)
+  if(BUILD_NVJPEG)
+    add_subdirectory(nvjpeg)
+  endif()
+
+  if(BUILD_NVIMAGECODEC)
+    add_subdirectory(nvimgcodec)
+  endif()
+
   add_subdirectory(operators)
-endif()
-
-if (BUILD_DALI_IMGCODEC)
-  add_subdirectory(imgcodec)
 endif()
 
 # Collect source files for dali

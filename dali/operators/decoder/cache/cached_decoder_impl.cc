@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,9 +76,12 @@ void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
   CUDA_CALL((scatter_gather_->Run(stream, true, copy_method), cudaGetLastError()));
 }
 
+bool CachedDecoderImpl::IsInCache(const std::string& file_name) {
+  return cache_ && cache_->IsCached(file_name);
+}
+
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {
-  return cache_ && cache_->IsCached(file_name) ?
-    cache_->GetShape(file_name) : ImageCache::ImageShape{};
+  return IsInCache(file_name) ? cache_->GetShape(file_name) : ImageCache::ImageShape{};
 }
 
 void CachedDecoderImpl::CacheStore(const std::string& file_name, const uint8_t *data,

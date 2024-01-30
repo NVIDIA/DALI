@@ -91,6 +91,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}     \
       -DWITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}       \
       -DWITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}           \
+      -DWITH_DYNAMIC_NVIMGCODEC=${WITH_DYNAMIC_NVIMGCODEC:-ON} \
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
       -DWERROR=${WERROR:-ON}                              \
       -DBUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}           \

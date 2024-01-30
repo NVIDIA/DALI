@@ -140,5 +140,6 @@ CMD cmake                \
   -DWITH_DYNAMIC_NVJPEG=ON\
   -DWITH_DYNAMIC_CUFFT=ON\
   -DWITH_DYNAMIC_NPP=ON  \
+  -DWITH_DYNAMIC_NVIMGCODEC=ON  \
   .. &&                  \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

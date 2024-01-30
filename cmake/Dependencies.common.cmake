@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -267,4 +267,30 @@ if (BUILD_CVCUDA)
   set(CV_CUDA_SRC_PATERN medianblur median_blur)
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
   set(BUILD_PYTHON ${DALI_BUILD_PYTHON})
+endif()
+
+##################################################################
+# nvimagecodec
+##################################################################
+if(BUILD_NVIMAGECODEC)
+  # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+  include(FetchContent)
+  FetchContent_Declare(
+    nvimgcodec_headers
+    URL      http://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.2.0.6-archive.tar.xz
+    URL_HASH SHA512=6577a8ff5589400cdf5767aa4a507245527a96e48065f23f626dfc6ba13b136960cacfe7f61c345dc158ed0352e1e971834aec6fd98038649b08b250c3306aeb
+  )
+  FetchContent_Populate(nvimgcodec_headers)
+  set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+  find_path(nvimgcodec_INCLUDE_DIR nvimgcodec.h PATHS "${nvimgcodec_SEARCH_PATH}")
+  if (${nvimgcodec_INCLUDE_DIR} STREQUAL "nvimgcodec_INCLUDE_DIR-NOTFOUND")
+    message(FATAL_ERROR "nvimgcodec not found in ${nvimgcodec_SEARCH_PATH} - something went wrong with the download")
+  endif()
+  message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
+  include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
+
+  # Setting default installation path for dynamic loading
+  set(NVIMGCODEC_DEFAULT_INSTALL_PATH "/opt/nvidia/nvimgcodec_cuda${CUDA_VERSION_MAJOR}")
+  message(DEBUG "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
+  add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
 endif()

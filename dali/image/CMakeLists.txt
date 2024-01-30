@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_TEST_SRCS PARENT_SCOPE)
+collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
 
 if (NOT BUILD_LIBTIFF)
-    list(REMOVE_ITEM DALI_SRCS
+    list(REMOVE_ITEM DALI_OPERATOR_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/tiff_libtiff.cc
     )
 endif()
-
-set(DALI_SRCS ${DALI_SRCS}
-    "${DALI_ROOT}/dali/imgcodec/decoders/jpeg/jpeg_mem.cc"
-    "${DALI_ROOT}/dali/imgcodec/decoders/jpeg/jpeg_handle.cc"
-    PARENT_SCOPE)

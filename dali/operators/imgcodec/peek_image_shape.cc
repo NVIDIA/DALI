@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,9 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/imgcodec/peek_image_shape.h"
-#include "dali/operators/imgcodec/operator_utils.h"
-#include "dali/imgcodec/registry.h"
-#include "dali/imgcodec/util/output_shape.h"
+#include "dali/operators/imgcodec/util/output_shape.h"
 
 namespace dali {
 namespace imgcodec {
@@ -53,6 +51,20 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   }
   use_orientation_ = spec.GetArgument<bool>("adjust_orientation");
   image_type_ = spec.GetArgument<DALIImageType>("image_type");
+
+  nvimgcodecInstanceCreateInfo_t instance_create_info;
+  instance_create_info.struct_type = NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  instance_create_info.struct_size = sizeof(nvimgcodecInstanceCreateInfo_t);
+  instance_create_info.struct_next = nullptr;
+  instance_create_info.load_extension_modules = 1;
+  instance_create_info.load_builtin_modules = 1;
+  instance_create_info.extension_modules_path = nullptr;
+  instance_create_info.create_debug_messenger = 1;
+  instance_create_info.message_severity = NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL |
+                                          NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR |
+                                          NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING;
+  instance_create_info.message_category = NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL;
+  instance_ = NvImageCodecInstance::Create(&instance_create_info);
 }
 
 bool ImgcodecPeekImageShape::CanInferOutputs() const {
@@ -77,15 +89,17 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 
   for (int i = 0; i < input.num_samples(); i++) {
     thread_pool.AddWork([i, &input, &output, this] (int tid) {
-      auto src = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
-      auto *format = ImageFormatRegistry::instance().GetImageFormat(&src);
-      DALI_ENFORCE(format, make_string("Cannot parse the image: ", src.SourceInfo()));
-      auto info = format->Parser()->GetInfo(&src);
+      const void* data = input.raw_tensor(i);
+      size_t data_len = input.tensor_shape_span(i)[0];
+      auto encoded_stream = NvImageCodecCodeStream::FromHostMem(instance_, data, data_len);
+      nvimgcodecImageInfo_t nvimgcodec_img_info{NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO,
+                                                sizeof(nvimgcodecImageInfo_t), nullptr};
+      CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetImageInfo(encoded_stream, &nvimgcodec_img_info));
+      auto info = to_dali_img_info(nvimgcodec_img_info);
+
       TensorShape<> shape;
-      DecodeParams params;
-      params.format = image_type_;
-      params.use_orientation = use_orientation_;
-      OutputShape(shape, info, params, {});
+      OutputShape(shape, info, image_type_, false, use_orientation_, {});
+
       TYPE_SWITCH(output_type_, type2id, Type,
                   (int32_t, uint32_t, int64_t, uint64_t, float, double), (
         auto out = view<Type, 1>(output[i]);
