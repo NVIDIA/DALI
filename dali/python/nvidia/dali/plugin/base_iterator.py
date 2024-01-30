@@ -229,7 +229,8 @@ class _DaliBaseIterator(object):
             if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
                 raise NotImplementedError(
                     "Currently, checkpointing is not supported for iterators with "
-                    + "last_batch_policy=FILL and last_batch_padded=False")
+                    + "last_batch_policy=FILL and last_batch_padded=False"
+                )
 
             # Precompute the initial checkpoints, to prevent any problems
             # related to the `prepare_first_batch` flag.
@@ -259,7 +260,8 @@ class _DaliBaseIterator(object):
         if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded == False:
             raise NotImplementedError(
                 "Currently, checkpointing is not supported for iterators with "
-                + "last_batch_policy=FILL and last_batch_padded=False")
+                + "last_batch_policy=FILL and last_batch_padded=False"
+            )
 
         # In modes other than FILL + last_batch_padded=False, each epoch starts with the first
         # sample of a shard and the number of pipeline iterations per epoch is constant.

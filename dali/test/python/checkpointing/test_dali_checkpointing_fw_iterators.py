@@ -138,13 +138,15 @@ class FwTestBase:
 
     @dataclass
     class DatasetConfig:
-        dataset_size : int
-        batch_size : int
-        num_shards : int
+        dataset_size: int
+        batch_size: int
+        num_shards: int
 
     @cartesian_params(
-        (DatasetConfig(dataset_size=11+11+12, batch_size=4, num_shards=3),
-         DatasetConfig(dataset_size=4+5, batch_size=3, num_shards=2)),
+        (
+            DatasetConfig(dataset_size=11 + 11 + 12, batch_size=4, num_shards=3),
+            DatasetConfig(dataset_size=4 + 5, batch_size=3, num_shards=2),
+        ),
         (0, 1, 2, 3, 10),
         (
             # (last_batch_policy, pad_last_batch)
@@ -156,43 +158,63 @@ class FwTestBase:
         ),
         (True, False),  # stick_to_shard
     )
-    def test_last_batch_policy(self, dataset_config : DatasetConfig, iterations, last_batch_config, stick_to_shard):
+    def test_last_batch_policy(
+        self, dataset_config: DatasetConfig, iterations, last_batch_config, stick_to_shard
+    ):
         policy, pad_last_batch = last_batch_config
         with tempfile.TemporaryDirectory() as data_dir:
-            os.mkdir(os.path.join(data_dir, '0'))
+            os.mkdir(os.path.join(data_dir, "0"))
             for i in range(dataset_config.dataset_size):
-                open(os.path.join(data_dir, f'0/{i:02}.jpg'), 'wb').write(bytes([i]))
+                open(os.path.join(data_dir, f"0/{i:02}.jpg"), "wb").write(bytes([i]))
 
             def make_pipeline(shard_id, checkpoint=None):
-                @pipeline_def(batch_size=dataset_config.batch_size, enable_checkpointing=True, num_threads=4, device_id=0)
+                @pipeline_def(
+                    batch_size=dataset_config.batch_size,
+                    enable_checkpointing=True,
+                    num_threads=4,
+                    device_id=0,
+                )
                 def pipeline():
                     data, _ = fn.readers.file(
                         file_root=data_dir,
-                        name='Reader',
+                        name="Reader",
                         pad_last_batch=pad_last_batch,
                         num_shards=dataset_config.num_shards,
                         shard_id=shard_id,
-                        stick_to_shard=stick_to_shard)
+                        stick_to_shard=stick_to_shard,
+                    )
                     return data
+
                 p = pipeline(checkpoint=checkpoint)
                 p.build()
                 return p
 
             def make_pipelines(checkpoints=None):
                 if not checkpoints:
-                    return [make_pipeline(shard_id) for shard_id in range(dataset_config.num_shards)]
+                    return [
+                        make_pipeline(shard_id) for shard_id in range(dataset_config.num_shards)
+                    ]
                 else:
                     assert len(checkpoints) == dataset_config.num_shards
-                    return [make_pipeline(shard_id, checkpoint=cpt) for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)]
+                    return [
+                        make_pipeline(shard_id, checkpoint=cpt)
+                        for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)
+                    ]
 
             def make_iterator(pipes):
-
-                return self.FwIterator(pipes, output_map=['data'], auto_reset=True, last_batch_policy=policy, prepare_first_batch=False, reader_name='Reader')
+                return self.FwIterator(
+                    pipes,
+                    output_map=["data"],
+                    auto_reset=True,
+                    last_batch_policy=policy,
+                    prepare_first_batch=False,
+                    reader_name="Reader",
+                )
 
             pipes = make_pipelines()
             it = make_iterator(pipes)
 
-            completed_iterations = 0;
+            completed_iterations = 0
             while completed_iterations < iterations:
                 try:
                     next(it)
@@ -205,7 +227,7 @@ class FwTestBase:
                 for _ in range(steps):
                     try:
                         out = next(it)
-                        results.append([tuple(np.asarray(x['data']).flatten()) for x in out])
+                        results.append([tuple(np.asarray(x["data"]).flatten()) for x in out])
                     except StopIteration:
                         results.append(None)
                 return results
