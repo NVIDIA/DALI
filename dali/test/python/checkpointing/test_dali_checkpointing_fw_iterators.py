@@ -56,7 +56,15 @@ class FwTestBase:
         pipe = pipeline_factory(**pipeline_args)
         pipe.build()
 
-        iter = self.FwIterator(pipe, ["data"], auto_reset=True, reader_name=reader_name, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True)
+        iter = self.FwIterator(
+            pipe,
+            ["data"],
+            auto_reset=True,
+            reader_name=reader_name,
+            size=size,
+            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_padded=True,
+        )
         for _ in range(warmup_epochs):
             for _ in iter:
                 pass
@@ -64,7 +72,13 @@ class FwTestBase:
         restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
         restored.build()
         iter2 = self.FwIterator(
-            restored, ["data"], auto_reset=True, reader_name=reader_name, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True
+            restored,
+            ["data"],
+            auto_reset=True,
+            reader_name=reader_name,
+            size=size,
+            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_padded=True,
         )
 
         self.compare_iters(iter, iter2)
@@ -226,6 +240,10 @@ class FwTestBase:
                     pass
 
             def observe(it, steps):
+                """
+                Returns a list with data returned on each step or None if there was an epoch end.
+                This allows to compare behavior of two iterators precisely.
+                """
                 results = []
                 for _ in range(steps):
                     try:
@@ -242,12 +260,6 @@ class FwTestBase:
 
             a = observe(it, steps)
             b = observe(it_restored, steps)
-
-            # If original iterator was at the end of epoch, we allow the restored one to be reset already
-            if a[0] == None:
-                a = a[1:]
-                if b[0] == None:
-                    b = b[1:]
 
             assert all(x == y for (x, y) in zip(a, b))
 
@@ -287,13 +299,27 @@ class FwTestBase:
         pipeline = pipeline_factory()
         pipeline.build()
 
-        iter = self.FwIterator(pipeline, ["data"], auto_reset=True, size=size, last_batch_policy=LastBatchPolicy.PARTIAL, last_batch_padded=True)
+        iter = self.FwIterator(
+            pipeline,
+            ["data"],
+            auto_reset=True,
+            size=size,
+            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_padded=True,
+        )
 
         run(iter, iterations)
 
         restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data"], auto_reset=True, size=size, last_batch_policy=LastBatchPolicy.FILL, last_batch_padded=True)
+        iter2 = self.FwIterator(
+            restored,
+            ["data"],
+            auto_reset=True,
+            size=size,
+            last_batch_policy=LastBatchPolicy.FILL,
+            last_batch_padded=True,
+        )
         self.compare_iters(iter, iter2)
 
     @cartesian_params(
@@ -306,7 +332,9 @@ class FwTestBase:
         epoch_size, batch_size = dataset_info
         source = make_dummy_source(epoch_size, batch_size, mode)
         pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
-        self.check_external_source_pipeline_checkpointing(pf, iterations, size=epoch_size * batch_size)
+        self.check_external_source_pipeline_checkpointing(
+            pf, iterations, size=epoch_size * batch_size
+        )
 
 
 # Framework tests
