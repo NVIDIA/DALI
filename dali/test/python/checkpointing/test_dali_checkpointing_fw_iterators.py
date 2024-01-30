@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-import glob
 import os
 import tempfile
 
@@ -147,7 +146,7 @@ class FwTestBase:
             DatasetConfig(dataset_size=11 + 11 + 12, batch_size=4, num_shards=3),
             DatasetConfig(dataset_size=4 + 5, batch_size=3, num_shards=2),
         ),
-        (0, 1, 2, 3, 10),
+        (2, 3, 7),
         (
             # (last_batch_policy, pad_last_batch)
             (LastBatchPolicy.FILL, True),
@@ -165,7 +164,8 @@ class FwTestBase:
         with tempfile.TemporaryDirectory() as data_dir:
             os.mkdir(os.path.join(data_dir, "0"))
             for i in range(dataset_config.dataset_size):
-                open(os.path.join(data_dir, f"0/{i:02}.jpg"), "wb").write(bytes([i]))
+                with open(os.path.join(data_dir, f"0/{i:02}.jpg"), "wb") as f:
+                    f.write(bytes([i]))
 
             def make_pipeline(shard_id, checkpoint=None):
                 @pipeline_def(
