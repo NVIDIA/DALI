@@ -815,9 +815,10 @@ int daliPreallocatePinnedMemory(size_t bytes) {
   }
 }
 
-void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle,
-                                 daliExternalContextCheckpoint *external_context,
-                                 char **checkpoint, size_t *n) {
+void daliGetSerializedCheckpoint(
+    daliPipelineHandle_t pipe_handle,
+    const daliExternalContextCheckpoint *external_context,
+    char **checkpoint, size_t *n) {
   auto &pipeline = (*pipe_handle)->pipeline;
   dali::ExternalContextCheckpoint ctx;
   ctx.epoch_idx = external_context->epoch_idx;
@@ -829,9 +830,12 @@ void daliGetSerializedCheckpoint(daliPipelineHandle_t pipe_handle,
   memcpy(*checkpoint, cpt.c_str(), *n);
 }
 
-void daliRestoreFromSerializedCheckpoint(daliPipelineHandle *pipe_handle,
-                                         const char *checkpoint, size_t n,
-                                         daliExternalContextCheckpoint *external_context) {
+void daliRestoreFromSerializedCheckpoint(
+    daliPipelineHandle *pipe_handle,
+    const char *checkpoint, size_t n,
+    daliExternalContextCheckpoint *external_context) {
+  DALI_ENFORCE(external_context != nullptr,
+               "Null external context provided.");
   auto &pipeline = (*pipe_handle)->pipeline;
   auto ctx = pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
   if (external_context) {

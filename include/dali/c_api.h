@@ -741,7 +741,7 @@ DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
 */
 DLL_PUBLIC void daliGetSerializedCheckpoint(
   daliPipelineHandle *pipe_handle,
-  daliExternalContextCheckpoint *external_context,
+  const daliExternalContextCheckpoint *external_context,
   char **checkpoint, size_t *n);
 
 /** @brief Restores pipeline state from serialized checkpoint
