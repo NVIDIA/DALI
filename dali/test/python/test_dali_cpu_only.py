@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1541,6 +1541,8 @@ excluded_methods = [
     "experimental.remap",  # operator is GPU-only
     "experimental.readers.fits",  # lacking test files in DALI_EXTRA
     "experimental.median_blur",  # not supported for CPU
+    "experimental.dilate",  # not supported for CPU
+    "experimental.erode",  # not supported for CPU
 ]
 
 
