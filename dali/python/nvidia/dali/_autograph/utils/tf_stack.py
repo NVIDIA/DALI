@@ -12,14 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Functions used to extract and analyze stacks.  Faster than Python libs."""
+
+# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # pylint: disable=g-bad-name
 import collections
 import inspect
 import threading
 
-from tensorflow.core.framework import graph_debug_info_pb2
-from tensorflow.python.util import _tf_stack
 
 # Generally such lookups should be done using `threading.local()`. See
 # https://blogs.gnome.org/jamesh/2008/06/11/tls-python/ for a detailed
@@ -70,10 +82,11 @@ class StackTraceMapper(StackTraceTransform):
     _stack_dict = _source_mapper_stacks
 
     def __init__(self):
-        self.internal_map = _tf_stack.PyBindSourceMap()
+        self.internal_map = {}
 
     def update(self):
-        self.internal_map.update_to(tuple(self.get_effective_source_map().items()))
+        self.internal_map.clear()
+        self.internal_map.update(self.get_effective_source_map())
 
     def get_effective_source_map(self):
         """Returns a map (filename, lineno) -> (filename, lineno, function_name)."""
@@ -95,10 +108,11 @@ class StackTraceFilter(StackTraceTransform):
     _stack_dict = _source_filter_stacks
 
     def __init__(self):
-        self.internal_set = _tf_stack.PyBindFileSet()
+        self.internal_set = set()
 
     def update(self):
-        self.internal_set.update_to(set(self.get_filtered_filenames()))
+        self.internal_set.clear()
+        self.internal_set.update(self.get_filtered_filenames())
 
     def get_filtered_filenames(self):
         raise NotImplementedError("subclasses need to override this")
@@ -150,40 +164,4 @@ class CurrentModuleFilter(StackTraceFilter):
 
 
 def extract_stack(stacklevel=1):
-    """An eager-friendly alternative to traceback.extract_stack.
-
-    Args:
-      stacklevel: number of initial frames to skip when producing the stack.
-
-    Returns:
-      A list-like FrameSummary containing StackFrame-like objects, which are
-      namedtuple-like objects with the following fields: filename, lineno, name,
-      line, meant to masquerade as traceback.FrameSummary objects.
-    """
-    thread_key = _get_thread_key()
-    return _tf_stack.extract_stack(
-        _source_mapper_stacks[thread_key][-1].internal_map,
-        _source_filter_stacks[thread_key][-1].internal_set,
-        stacklevel,
-    )
-
-
-def LoadTracesFromDebugInfo(debug_info):
-    return _tf_stack.LoadTracesFromDebugInfo(debug_info.SerializeToString())
-
-
-class GraphDebugInfoBuilder(_tf_stack.GraphDebugInfoBuilder):
-
-    def AppendGraphDebugInfo(self, fn_name, fn_debug_info):
-        debug_info_str = fn_debug_info.SerializeToString()
-        super().AppendGraphDebugInfo(fn_name, debug_info_str)
-
-    def Build(self):
-        debug_info_str = super().Build()
-        debug_info = graph_debug_info_pb2.GraphDebugInfo()
-        debug_info.ParseFromString(debug_info_str)
-        return debug_info
-
-
-StackSummary = _tf_stack.StackTrace
-FrameSummary = _tf_stack.StackFrame
+    pass

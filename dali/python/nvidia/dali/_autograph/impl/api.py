@@ -58,8 +58,7 @@ from nvidia.dali._autograph.utils import hooks
 from nvidia.dali._autograph.utils import ag_logging as logging
 from nvidia.dali._autograph.utils import all_utils
 
-# TODO(klecki): replace missing functionality
-# from nvidia.dali._autograph.utils import tf_stack
+from nvidia.dali._autograph.utils import tf_stack
 from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 
@@ -130,40 +129,45 @@ def _attach_error_metadata(e, f):
     e.ag_error_metadata = _ErrorMetadata(cause_tb, metadata, message, source_map, __file__)
 
 
-# class StackTraceMapper(tf_stack.StackTraceMapper):
-#   """Remaps generated code to code it originated from."""
+class StackTraceMapper(tf_stack.StackTraceMapper):
+    """Remaps generated code to code it originated from."""
 
-#   def __init__(self, converted_fn):
-#     super().__init__()
-#     self._source_map = converted_fn.ag_source_map
-#     # This may be called repeatedly: once on entry, by the superclass, then by
-#     # each child context manager.
-#     self._cached_map = None
+    def __init__(self, converted_fn):
+        super().__init__()
+        self._source_map = converted_fn.ag_source_map
+        # This may be called repeatedly: once on entry, by the superclass, then by
+        # each child context manager.
+        self._cached_map = None
 
-#   def get_effective_source_map(self):
-#     if self._cached_map is not None:
-#       return self._cached_map
+    def get_effective_source_map(self):
+        if self._cached_map is not None:
+            return self._cached_map
 
-#     parent_map = self.parent.get_effective_source_map()
+        parent_map = self.parent.get_effective_source_map()
 
-#     effective_source_map = {}
-#     for loc, origin in self._source_map.items():
-#       effective_source_map[(loc.filename, loc.lineno)] = (origin.loc.filename,
-#                                                           origin.loc.lineno,
-#                                                           origin.function_name)
+        effective_source_map = {}
+        for loc, origin in self._source_map.items():
+            effective_source_map[(loc.filename, loc.lineno)] = (
+                origin.loc.filename,
+                origin.loc.lineno,
+                origin.function_name,
+            )
 
-#     for key, value in parent_map.items():
-#       filename, lineno, _ = value
-#       value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
-#       if value_loc in self._source_map:
-#         origin = self._source_map[value_loc]
-#         effective_source_map[key] = (origin.loc.filename, origin.loc.lineno,
-#                                      origin.function_name)
-#       else:
-#         effective_source_map[key] = value
+        for key, value in parent_map.items():
+            filename, lineno, _ = value
+            value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
+            if value_loc in self._source_map:
+                origin = self._source_map[value_loc]
+                effective_source_map[key] = (
+                    origin.loc.filename,
+                    origin.loc.lineno,
+                    origin.function_name,
+                )
+            else:
+                effective_source_map[key] = value
 
-#     self._cached_map = effective_source_map
-#     return effective_source_map
+        self._cached_map = effective_source_map
+        return effective_source_map
 
 
 #
@@ -418,16 +422,15 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
             raise
         return _fall_back_unconverted(f, args, kwargs, options, e)
 
-    # TODO(klecki): Revert the stack trace mapping functionality
-    # with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
-    try:
-        if kwargs is not None:
-            result = converted_f(*effective_args, **kwargs)
-        else:
-            result = converted_f(*effective_args)
-    except Exception as e:
-        _attach_error_metadata(e, converted_f)
-        raise
+    with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
+        try:
+            if kwargs is not None:
+                result = converted_f(*effective_args, **kwargs)
+            else:
+                result = converted_f(*effective_args)
+        except Exception as e:
+            _attach_error_metadata(e, converted_f)
+            raise
 
     return result
 
