@@ -31,6 +31,7 @@
 import collections
 import inspect
 import threading
+from typing import List, Union
 
 
 # Generally such lookups should be done using `threading.local()`. See
@@ -163,5 +164,34 @@ class CurrentModuleFilter(StackTraceFilter):
         return filtered_filenames
 
 
-def extract_stack(stacklevel=1):
-    pass
+class CustomModuleFilter(StackTraceFilter):
+    """Filters stack frames from the modules that were listed for this filter.
+
+    We detect the top directory of given module and filter all frames from that path or its subpath.
+    """
+
+    def __init__(self, module_filter: "Union[List[module], module]"):
+        super().__init__()
+        self._filtered_filenames = set()
+        if not isinstance(module_filter, list):
+            module_filter = [module_filter]
+        for module in module_filter:
+            try:
+                module_file = inspect.getfile(module)
+                init_py = "/__init__.py"
+                if module_file.endswith(init_py):
+                    module_file = module_file[: -len(init_py)]
+                self._filtered_filenames.add(module_file)
+            except TypeError as e:
+                raise TypeError(f"{module} is a built-in module and cannot be filtered.") from e
+        self._cached_set = None
+
+    def get_filtered_filenames(self):
+        if self._cached_set is not None:
+            return self._cached_set
+
+        filtered_filenames = frozenset(self._filtered_filenames)
+        if self.parent is not None:
+            filtered_filenames |= self.parent.get_filtered_filenames()
+        self._cached_set = filtered_filenames
+        return filtered_filenames

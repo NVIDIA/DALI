@@ -422,7 +422,11 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
             raise
         return _fall_back_unconverted(f, args, kwargs, options, e)
 
-    with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
+    # We no longer need CurrentModuleFilter here, as we filter whole autograph
+    import nvidia.dali._conditionals as dc
+    import nvidia.dali._autograph as ag
+
+    with StackTraceMapper(converted_f), tf_stack.CustomModuleFilter([ag, dc]):
         try:
             if kwargs is not None:
                 result = converted_f(*effective_args, **kwargs)
