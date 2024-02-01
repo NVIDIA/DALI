@@ -27,6 +27,7 @@
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
 #include "dali/operators/imgcodec/util/output_shape.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #ifndef DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
@@ -109,7 +110,7 @@ static int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
 }
 
 template <typename Backend>
-class ImageDecoder : public Operator<Backend> {
+class ImageDecoder : public StatelessOperator<Backend> {
  public:
   ~ImageDecoder() override = default;
 
@@ -147,7 +148,7 @@ class ImageDecoder : public Operator<Backend> {
   };
 
 
-  explicit ImageDecoder(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit ImageDecoder(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     device_id_ = std::is_same<CPUBackend, Backend>::value ? CPU_ONLY_DEVICE_ID :
                                                             spec.GetArgument<int>("device_id");
     format_ = spec.GetArgument<DALIImageType>("output_type");
