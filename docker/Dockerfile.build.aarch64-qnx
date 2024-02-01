@@ -5,6 +5,7 @@ FROM ${QNX_BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libssl-dev \
     curl \
     wget \
     unzip \

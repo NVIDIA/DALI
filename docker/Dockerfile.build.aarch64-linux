@@ -10,6 +10,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libssl-dev \
     curl \
     wget \
     unzip \
