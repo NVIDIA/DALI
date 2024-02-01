@@ -195,3 +195,13 @@ class CustomModuleFilter(StackTraceFilter):
             filtered_filenames |= self.parent.get_filtered_filenames()
         self._cached_set = filtered_filenames
         return filtered_filenames
+
+
+def get_frame_map():
+    thread_key = _get_thread_key()
+    return _source_mapper_stacks[thread_key][-1].internal_map
+
+
+def get_frame_filter():
+    thread_key = _get_thread_key()
+    return _source_filter_stacks[thread_key][-1].internal_set

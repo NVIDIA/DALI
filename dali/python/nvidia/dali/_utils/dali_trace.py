@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import traceback
+from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filter
 
 
 def extract_stack(
@@ -25,15 +26,14 @@ def extract_stack(
     #             origin.loc.filename,
     #             origin.loc.lineno,
     #             origin.function_name,
+    #             origin.source_code_line,
     #         )
-    # The filter is a set of module names - how to use it?
+    frame_map = get_frame_map()
+    frame_filter = get_frame_filter()
 
     # -1 so we drop extract_stack frame
     stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
 
-    thread_key = _get_thread_key()
-    frame_map = _source_mapper_stacks[thread_key][-1].internal_map
-    frame_filter = _source_filter_stacks[thread_key][-1].internal_set
     # print(f"TODO: extract_stack(): {tb_stack} {frame_map} {frame_filter}")]
     origin_stack_summary = []
     for frame_entry in stack_summary:
@@ -45,7 +45,7 @@ def extract_stack(
                 filename=origin_info[0],
                 lineno=origin_info[1],
                 name=origin_info[2],
-                line=frame_entry.line,
+                line=origin_info[3],
             )
         else:
             origin_frame_entry = frame_entry
@@ -59,8 +59,8 @@ def extract_stack(
                     break
         if not skip:
             origin_stack_summary.append(origin_frame_entry)
-    if collapse_callstack:
-        origin_stack_summary = _collapse_callstack(origin_stack_summary)
+    # if collapse_callstack:
+    #     origin_stack_summary = _collapse_callstack(origin_stack_summary)
     # pp = pprint.PrettyPrinter(indent=4)
     # print(
     #     f"Extracting stack:\nFrame filter:\n{pp.pformat(frame_filter)}\n"

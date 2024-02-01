@@ -151,6 +151,7 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
                 origin.loc.filename,
                 origin.loc.lineno,
                 origin.function_name,
+                origin.source_code_line,
             )
 
         for key, value in parent_map.items():
@@ -162,6 +163,7 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
                     origin.loc.filename,
                     origin.loc.lineno,
                     origin.function_name,
+                    origin.source_code_line,
                 )
             else:
                 effective_source_map[key] = value
