@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -200,11 +200,61 @@ ProcessingOrder<ndim> GetProcessingOrder(
   return poc();
 }
 
+inline int GetMaxElementsPerBlockEnv() {
+  char *env = getenv("DALI_RESIZE_MAX_ELEMENTS_PER_BLOCK");
+  if (env) {
+    int ret = atoi(env);
+    if (ret < 1024)
+      DALI_FAIL(make_string("DALI_RESIZE_MAX_ELEMENTS_PER_BLOCK must be at least 1024, got ", ret));
+    return ret;
+  } else {
+    return 1<<18;  // 256k
+  }
+}
+
+inline int GetMaxElementsPerBlock() {
+  static int ret = GetMaxElementsPerBlockEnv();
+  return ret;
+}
+
+
+inline int GetBlockSizeEnv(int ndim) {
+  char *env = getenv("DALI_RESIZE_CUDA_BLOCK");
+  if (env) {
+    int ret = atoi(env);
+    if (ret > 1024 || (ret & 31)) {
+      DALI_FAIL(make_string(
+        "DALI_RESIZE_CUDA_BLOCK must be a multiple of 32 between 32 and 1024, got ", ret));
+    }
+    return ret;
+  } else {
+    return ndim == 2 ? 24*32 : 8*32;
+  }
+}
+
+template <int ndim>
+inline int GetBlockSize() {
+  static int ret = GetBlockSizeEnv(ndim);
+  return ret;
+}
+
+
+template <>
+SeparableResamplingSetup<2>::SeparableResamplingSetup() {
+  block_dim = { 32, GetBlockSize<2>() / 32, 1 };
+}
+
+template <>
+SeparableResamplingSetup<3>::SeparableResamplingSetup() {
+  block_dim = { 32, GetBlockSize<3>() / 32, 1 };
+}
+
 /**
  * @brief Calculates block layout for a 2D sample
  */
 template <>
 void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
+  int64_t max_elements_per_block = GetMaxElementsPerBlock();
   for (int pass = 0; pass < 2; pass++) {
     int axis = sample.order[pass];
     // Horizontal pass (axis == 0) is processed in vertical slices
@@ -214,6 +264,11 @@ void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
 
     ivec2 blk = sample.shapes[pass+1];
     blk[axis] = block_dim[axis];
+    int64_t block_vol = volume(blk);
+    if (block_vol > max_elements_per_block) {
+      int den = div_ceil(block_vol, max_elements_per_block);
+      blk[1 - axis] = align_up(blk[1 - axis] / den, 32);
+    }
     sample.logical_block_shape[pass] = blk;
   }
 }
@@ -231,7 +286,7 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
 
-    const int MaxElementsPerBlock = 1<<18;  // 256k elements, incl. channels
+    int max_elements_per_block = GetMaxElementsPerBlock();
 
     // Horizontal pass (axis == 0) is processed in vertical slices
     // the width of block_dim and extending down the entire image.
@@ -245,10 +300,10 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
     ivec3 blk = pass_output_shape;
     if (axis < 2) {
       blk[axis] = block_dim[axis];
-      blk.z = MaxElementsPerBlock / (blk[0] * blk[1] * sample.channels);
+      blk.z = max_elements_per_block / (blk[0] * blk[1] * sample.channels);
     } else {
       blk.z = block_dim.y;  // (yes, .y)
-      blk.y = MaxElementsPerBlock / (blk[0] * blk[2] * sample.channels);
+      blk.y = max_elements_per_block / (blk[0] * blk[2] * sample.channels);
     }
     blk = clamp(blk, ivec3(1, 1, 1), pass_output_shape);
     sample.logical_block_shape[pass] = blk;

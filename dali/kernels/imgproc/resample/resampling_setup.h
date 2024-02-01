@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -109,9 +109,8 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
 template <int _spatial_ndim>
 class SeparableResamplingSetup {
  public:
-  SeparableResamplingSetup() {
-    block_dim = { 32, _spatial_ndim == 2 ? 24 : 8, 1 };
-  }
+  DLL_PUBLIC SeparableResamplingSetup();
+
   static constexpr int channel_dim = _spatial_ndim;  // assumes interleaved channel data
   static constexpr int spatial_ndim = _spatial_ndim;
   static constexpr int tensor_ndim = spatial_ndim + (channel_dim >= 0 ? 1 : 0);
