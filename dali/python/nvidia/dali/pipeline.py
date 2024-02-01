@@ -30,6 +30,7 @@ import ctypes
 import functools
 import inspect
 import sys
+import traceback
 import warnings
 import weakref
 from .data_node import DataNode
@@ -295,6 +296,8 @@ class Pipeline(object):
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
         self._conditionals_enabled = False
         self._condition_stack = None
+        # Tracking the stack frame where pipeline definition starts
+        self._definition_stack_frame = None
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -594,6 +597,8 @@ class Pipeline(object):
 
         prev = Pipeline.current()
         pipeline_tls.current_pipeline = pipeline
+        # TODO(klecki): Handle usage of with/push_current better
+        pipeline._definition_stack_frame = len(traceback.extract_stack()) - 2
         stack = getattr(pipeline_tls, "pipeline_stack", None)
         if stack is None:
             pipeline_tls.pipeline_stack = [prev]
@@ -604,6 +609,7 @@ class Pipeline(object):
     @staticmethod
     def pop_current():
         """Restores previous pipeline as current. Complementary to :meth:`push_current`."""
+        pipeline_tls.current_pipeline._definition_stack_frame = None
         pipeline_tls.current_pipeline = pipeline_tls.pipeline_stack.pop()
 
     def __enter__(self):

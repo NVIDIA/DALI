@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ from nvidia.dali.types import (  # noqa: F401
 from nvidia.dali import _conditionals
 
 from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
+
+from nvidia.dali._utils.dali_trace import extract_stack as _extract_stack
 
 # reexpose what was previously visible:
 from nvidia.dali.ops._registry import (  # noqa: F401
@@ -372,6 +374,25 @@ class _OperatorInstance(object):
         self._op = op
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
+
+        if _Pipeline.current():
+            skip_bottom_frames = _Pipeline.current()._definition_stack_frame
+        else:
+            skip_bottom_frames = 0
+        # For fn API it is 4, for ops around 2
+        tb_stack = _extract_stack(skip_bottom_frames=skip_bottom_frames, skip_top_frames=4)
+        # self._stack = tb_stack
+
+        # Split the information TODO(klecki): move it to the function
+        filename_stack = [frame_summary.filename for frame_summary in tb_stack]
+        lineno_stack = [frame_summary.lineno for frame_summary in tb_stack]
+        name_stack = [frame_summary.name for frame_summary in tb_stack]
+        line_stack = [frame_summary.line for frame_summary in tb_stack]
+        self._spec.AddArg("_origin_stack_filename", filename_stack)
+        self._spec.AddArg("_origin_stack_lineno", lineno_stack)
+        self._spec.AddArg("_origin_stack_name", name_stack)
+        self._spec.AddArg("_origin_stack_line", line_stack)
+
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
         if _conditionals.conditionals_enabled():

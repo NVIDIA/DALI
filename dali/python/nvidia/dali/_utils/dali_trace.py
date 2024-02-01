@@ -28,6 +28,9 @@ def extract_stack(
     #             origin.function_name,
     #             origin.source_code_line,
     #         )
+    # The frame map and filter are only populated when we use AG, so without conditional mode
+    # we will simply extract part of the stack.
+    # TODO(klecki): Add an if for the simple case.
     frame_map = get_frame_map()
     frame_filter = get_frame_filter()
 

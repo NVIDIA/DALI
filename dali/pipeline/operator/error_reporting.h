@@ -19,6 +19,7 @@
 #include <stdexcept>
 
 // #include "dali/core/error_handling.h"
+#include "dali/core/api_helper.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
 namespace dali {
@@ -31,8 +32,11 @@ namespace dali {
  *
  */
 struct DaliFrameSummary {
-  DaliFrameSummary(std::string &&filename, int lineno, std::string &&name, std::string &&line) :
-    filename(std::move(filename)), lineno(lineno), name(std::move(name)), line(std::move(line)) {}
+  DaliFrameSummary(std::string &&filename, int lineno, std::string &&name, std::string &&line)
+      : filename(std::move(filename)),
+        lineno(lineno),
+        name(std::move(name)),
+        line(std::move(line)) {}
   std::string filename;
   int lineno;
   std::string name;
@@ -45,9 +49,10 @@ struct DaliFrameSummary {
  * The returned DaliFrameSummary corresponds to Python traceback.FrameSummary
  * The `line` context may be invalid in autograph transformed code.
  */
-std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec);
+DLL_PUBLIC std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec);
 
-std::string FormatStack(const std::vector<DaliFrameSummary> &stack_summary, bool include_context);
+DLL_PUBLIC std::string FormatStack(const std::vector<DaliFrameSummary> &stack_summary,
+                                   bool include_context);
 
 }  // namespace dali
 
