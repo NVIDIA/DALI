@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_spec.h"
-
-#include <sstream>
-
 
 namespace dali {
 

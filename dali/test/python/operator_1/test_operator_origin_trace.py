@@ -14,7 +14,7 @@
 
 import numpy as np
 
-from nvidia.dali import pipeline_def, fn, plugin_manager
+from nvidia.dali import pipeline_def, fn
 from test_utils import load_test_operator_plugin
 
 

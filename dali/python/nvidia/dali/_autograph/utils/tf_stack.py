@@ -31,6 +31,7 @@
 import collections
 import inspect
 import threading
+from types import ModuleType
 from typing import List, Union
 
 
@@ -170,7 +171,7 @@ class CustomModuleFilter(StackTraceFilter):
     We detect the top directory of given module and filter all frames from that path or its subpath.
     """
 
-    def __init__(self, module_filter: "Union[List[module], module]"):
+    def __init__(self, module_filter: "Union[List[ModuleType], ModuleType]"):
         super().__init__()
         self._filtered_filenames = set()
         if not isinstance(module_filter, list):

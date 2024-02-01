@@ -15,10 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 #define DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 
-#include <exception>
-#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
-// #include "dali/core/error_handling.h"
 #include "dali/core/api_helper.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
