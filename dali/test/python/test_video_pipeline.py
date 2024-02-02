@@ -628,3 +628,24 @@ def test_10bit_vid_reconfigure():
         b = b.as_cpu().as_array()
         absdiff = np.abs(a.astype(int) - b.astype(int))
         assert np.mean(absdiff) < 2, f"error is {np.mean(absdiff)}"
+
+
+def test_2gb_sequence():
+    # make sure the sequence extends 2GB
+    sequence_length = int(math.ceil((1 << 31) / 720 / 1280 / 3) + 3)
+
+    @pipeline_def
+    def video_pipe():
+        video, label = fn.readers.video(
+            device="gpu",
+            sequence_length=sequence_length,
+            filenames=os.path.join(video_data_root, "hevc", "sintel_trailer-720p.mp4"),
+            labels=[],
+        )
+        return video, label
+
+    batch_size = 1
+    pipe = video_pipe(batch_size=batch_size, num_threads=1, device_id=0)
+    pipe.build()
+    for _ in range(2):
+        pipe.run()
