@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1519,6 +1519,18 @@ def test_conditional():
     )
 
 
+def test_random_crop_gen():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device)
+        out = fn.random_crop_generator(data)
+        pipe.set_outputs(out)
+        return pipe
+
+    sh = (2,)
+    run_pipeline(generate_data(31, 13, sh), pipeline_fn=pipe)
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
@@ -1636,6 +1648,7 @@ tested_methods = [
     "random.normal",
     "random.uniform",
     "random_bbox_crop",
+    "random_crop_generator",
     "random_resized_crop",
     "reductions.max",
     "reductions.mean",
