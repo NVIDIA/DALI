@@ -1061,8 +1061,6 @@ class Pipeline(object):
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
             if self._batches_to_consume == 0:
-                self._consumer_iter = 0
-                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             return self._outputs()
@@ -1110,8 +1108,6 @@ class Pipeline(object):
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self._consumer_iter += 1
             if self._batches_to_consume == 0:
-                self._consumer_iter = 0
-                self._consumer_epoch_idx += 1
                 raise StopIteration
             self._batches_to_consume -= 1
             return self._pipe.ShareOutputs()
@@ -1326,8 +1322,9 @@ class Pipeline(object):
             self._first_iter = True
             self._last_iter = False
             self._epoch_idx += 1
-            self._consumer_epoch_idx += 1
-            self._consumer_iter = 0
+            if self._consumer_iter > 0:
+                self._consumer_epoch_idx += 1
+                self._consumer_iter = 0
             if self._input_callbacks:
                 for group in self._input_callbacks:
                     group.reset_indices()
