@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import os.path
 from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
 from test_utils import check_batch, get_dali_extra_path, as_array
+from nose2.tools import params
 
 import PIL.Image
 
@@ -801,6 +802,45 @@ def test_very_small_output():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:
             yield _test_very_small_output, dim, device
+
+
+large_data = None
+large_data_resized = None
+
+
+@params((types.INTERP_NN, False), (types.INTERP_LINEAR, False), (types.INTERP_LINEAR, True))
+def test_large_gpu(interp, antialias):
+    def make_cube(d, h, w):
+        z = np.arange(d)[:, np.newaxis, np.newaxis]
+        z = (z * 256 / z.size).astype(np.uint8)
+        z = np.stack([z, np.zeros_like(z), np.zeros_like(z)], axis=3)
+        y = np.arange(h)[np.newaxis, :, np.newaxis]
+        y = (y * 256 / y.size).astype(np.uint8)
+        y = np.stack([np.zeros_like(y), y, np.zeros_like(y)], axis=3)
+        x = np.arange(w)[np.newaxis, np.newaxis, :]
+        x = (x * 256 / x.size).astype(np.uint8)
+        x = np.stack([np.zeros_like(x), np.zeros_like(x), x], axis=3)
+        return x + y + z
+
+    global large_data
+    if large_data is None:
+        large_data = make_cube(350, 1080, 1920)
+
+    @pipeline_def(num_threads=3, batch_size=1, device_id=0)
+    def resize_pipe():
+        ext = fn.external_source(source=[[large_data]], layout="DHWC", cycle=True, device="gpu")
+        return fn.resize(
+            ext, size=(350, 224, 224), device="gpu", interp_type=interp, antialias=antialias
+        )
+
+    pipe = resize_pipe()
+    pipe.build()
+    (outs,) = pipe.run()
+    out = outs.as_cpu().at(0)
+    global large_data_resized
+    if large_data_resized is None:
+        large_data_resized = make_cube(350, 224, 224)
+    assert np.max(np.abs(out - large_data_resized)) < 2
 
 
 def test_checkerboard_dali_vs_onnx_ref():

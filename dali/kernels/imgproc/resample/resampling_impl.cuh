@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,8 +66,8 @@ __device__ void ResampleHorz_Channels(
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
-  int out_stride = out_strides.x;
-  int in_stride = in_strides.x;
+  ptrdiff_t out_stride = out_strides.x;
+  ptrdiff_t in_stride = in_strides.x;
   int in_w = in_shape.x;
 
   src_x0 += 0.5f * scale - 0.5f - filter.anchor;
@@ -182,10 +182,10 @@ __device__ void ResampleHorz_Channels(
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
-  int out_stride_y = out_strides.x;  // coordinates are shifted, because
-  int out_stride_z = out_strides.y;  // X stride is implicitly equal to the number of channels
-  int in_stride_y = in_strides.x;
-  int in_stride_z = in_strides.y;
+  ptrdiff_t out_stride_y = out_strides.x;  // coordinates are shifted, because
+  ptrdiff_t out_stride_z = out_strides.y;  // X stride is implicitly equal to the number of channels
+  ptrdiff_t in_stride_y = in_strides.x;
+  ptrdiff_t in_stride_z = in_strides.y;
   int in_w = in_shape.x;
 
   src_x0 += 0.5f * scale - 0.5f - filter.anchor;
@@ -295,8 +295,8 @@ __device__ void ResampleVert_Channels(
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
-  int out_stride = out_strides.x;
-  int in_stride = in_strides.x;
+  ptrdiff_t out_stride = out_strides.x;
+  ptrdiff_t in_stride = in_strides.x;
   int in_h = in_shape.y;
 
   src_y0 += 0.5f * scale - 0.5f - filter.anchor;
@@ -399,10 +399,10 @@ __device__ void ResampleVert_Channels(
     ResamplingFilter filter, int support) {
   using resample_shared::coeffs;
 
-  int out_stride_y = out_strides.x;
-  int in_stride_y = in_strides.x;
-  int out_stride_z = out_strides.y;
-  int in_stride_z = in_strides.y;
+  ptrdiff_t out_stride_y = out_strides.x;
+  ptrdiff_t in_stride_y = in_strides.x;
+  ptrdiff_t out_stride_z = out_strides.y;
+  ptrdiff_t in_stride_z = in_strides.y;
   int in_h = in_shape.y;
 
   src_y0 += 0.5f * scale - 0.5f - filter.anchor;
