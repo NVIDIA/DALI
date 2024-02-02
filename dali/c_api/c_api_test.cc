@@ -1119,6 +1119,7 @@ TEST(CApiTest, CheckpointingTest) {
   auto handle2 = CreateCheckpointingTestPipe();
   daliExternalContextCheckpoint restored_external_context{};
   daliRestoreFromSerializedCheckpoint(&handle2, cpt, n, &restored_external_context);
+  free(cpt);
   EXPECT_EQ(restored_external_context.epoch_idx, mock_external_context.epoch_idx);
   EXPECT_EQ(restored_external_context.iter, mock_external_context.iter);
 
