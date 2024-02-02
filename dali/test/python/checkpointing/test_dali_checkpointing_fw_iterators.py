@@ -16,7 +16,6 @@ from dataclasses import dataclass
 import os
 import tempfile
 
-import numpy as np
 from checkpointing.test_dali_checkpointing import (
     warmup_epochs,
     pipeline_args,
