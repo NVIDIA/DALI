@@ -29,6 +29,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+from nose import SkipTest
 
 
 class FwTestBase:
@@ -62,7 +63,7 @@ class FwTestBase:
             auto_reset=True,
             reader_name=reader_name,
             size=size,
-            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_policy=LastBatchPolicy.FILL,
             last_batch_padded=True,
         )
         for _ in range(warmup_epochs):
@@ -77,7 +78,7 @@ class FwTestBase:
             auto_reset=True,
             reader_name=reader_name,
             size=size,
-            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_policy=LastBatchPolicy.FILL,
             last_batch_padded=True,
         )
 
@@ -178,6 +179,11 @@ class FwTestBase:
         self, dataset_config: DatasetConfig, iterations, last_batch_config, stick_to_shard
     ):
         policy, pad_last_batch = last_batch_config
+        if last_batch_config not in self.supported_last_batch_policies():
+            raise SkipTest(
+                f"Policy {policy} with last_batch_padded={pad_last_batch} "
+                + f"is not supported by {self.FwIterator}"
+            )
         with tempfile.TemporaryDirectory() as data_dir:
             os.mkdir(os.path.join(data_dir, "0"))
             for i in range(dataset_config.dataset_size):
@@ -248,7 +254,7 @@ class FwTestBase:
                 for _ in range(steps):
                     try:
                         out = next(it)
-                        results.append([tuple(np.asarray(x["data"]).flatten()) for x in out])
+                        results.append([x for x in out])
                     except StopIteration:
                         results.append(None)
                 return results
@@ -304,7 +310,7 @@ class FwTestBase:
             ["data"],
             auto_reset=True,
             size=size,
-            last_batch_policy=LastBatchPolicy.PARTIAL,
+            last_batch_policy=LastBatchPolicy.FILL,
             last_batch_padded=True,
         )
 
@@ -350,6 +356,16 @@ class TestPytorch(FwTestBase):
     def equal(self, a, b):
         return (a == b).all()
 
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
 
 class TestPytorchRagged(FwTestBase):
     def __init__(self):
@@ -360,6 +376,16 @@ class TestPytorchRagged(FwTestBase):
 
     def equal(self, a, b):
         return (a == b).all()
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
 
 
 class TestJax(FwTestBase):
@@ -372,3 +398,12 @@ class TestJax(FwTestBase):
     def compare_outs(self, out1, out2):
         for key in out1.keys():
             assert (out1[key] == out2[key]).all()
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
+        )
