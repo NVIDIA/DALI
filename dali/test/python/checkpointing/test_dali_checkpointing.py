@@ -717,10 +717,7 @@ class VideoConfig:
 def test_video_reader(
     num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
-    files = [
-        os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4")
-        for i in range(5)
-    ]
+    files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
 
     check_reader_checkpointing(
         fn.readers.video,
@@ -778,10 +775,7 @@ def test_video_reader(
 def test_video_reader_resize_reader(
     num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
 ):
-    files = [
-        os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4")
-        for i in range(5)
-    ]
+    files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
 
     check_reader_checkpointing(
         fn.readers.video_resize,
