@@ -631,7 +631,7 @@ def test_10bit_vid_reconfigure():
 
 
 def test_2gb_sequence():
-    # make sure the sequence extends 2GB
+    # make sure the sequence exceeds beyond 2GB
     sequence_length = int(math.ceil((1 << 31) / 720 / 1280 / 3) + 3)
 
     @pipeline_def
