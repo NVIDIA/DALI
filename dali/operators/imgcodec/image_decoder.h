@@ -26,8 +26,8 @@
 #include "dali/operators/imgcodec/util/convert_utils.h"
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
 #include "dali/operators/imgcodec/util/output_shape.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
+#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
 #ifndef DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
@@ -47,7 +47,7 @@ struct OutBackend<CPUBackend> {
 };
 
 
-static uint32_t verbosity2severity(int verbose) {
+static uint32_t verbosity_to_severity(int verbose) {
   uint32_t result = 0;
   if (verbose >= 1)
     result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL | NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR;
@@ -147,6 +147,29 @@ class ImageDecoder : public StatelessOperator<Backend> {
     SampleView<GPUBackend> decode_out_gpu;
   };
 
+  struct nvImagecodecOpts {
+    template <typename T>
+    void add_option(const string &key, const T &value) {
+      opts_.emplace_back(key, std::to_string(value));
+    }
+
+    std::string to_string() {
+      std::stringstream ss;
+      bool first = true;
+      for (auto &[key, value] : opts_) {
+        if (!first)
+          ss << " ";
+        else
+          first = false;
+        ss << key << "=" << value;
+      }
+      return ss.str();
+    }
+
+    std::vector<std::pair<std::string, std::string>> opts_;
+  };
+  nvImagecodecOpts opts_;
+
 
   explicit ImageDecoder(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     device_id_ = std::is_same<CPUBackend, Backend>::value ? CPU_ONLY_DEVICE_ID :
@@ -190,114 +213,81 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     nvimgcodecInstanceCreateInfo_t instance_create_info{
-      NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      sizeof(nvimgcodecInstanceCreateInfo_t),
-      nullptr
-    };
+        NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
+        nullptr};
     instance_create_info.load_extension_modules = static_cast<int>(true);
     instance_create_info.load_builtin_modules = static_cast<int>(true);
     instance_create_info.extension_modules_path = nullptr;
     instance_create_info.create_debug_messenger = static_cast<int>(true);
     instance_create_info.debug_messenger_desc = nullptr;
-    instance_create_info.message_severity = verbosity2severity(2);
+    instance_create_info.message_severity = verbosity_to_severity(2);
     instance_create_info.message_category = NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL;
 
     instance_ = NvImageCodecInstance::Create(&instance_create_info);
 
     std::stringstream opts_ss;
-    size_t params_count = 0;
     float hw_load = 0.65f;
-    for (auto pair : decoder_params_) {
-      if (pair.first == "use_fast_idct") {
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "libjpeg_turbo_decoder:fast_idct=" << std::any_cast<bool>(pair.second);
-      } else if (pair.first == "hybrid_huffman_threshold") {
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "nvjpeg_cuda_decoder:hybrid_huffman_threshold="
-                << std::any_cast<size_t>(pair.second);
-      } else if (pair.first == "hw_decoder_load") {
-        hw_load = std::any_cast<float>(pair.second);
-      } else if (pair.first == "jpeg_fancy_upsampling") {
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "nvjpeg_cuda_decoder:fancy_upsampling=" << std::any_cast<bool>(pair.second);
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "nvjpeg_hw_decoder:fancy_upsampling=" << std::any_cast<bool>(pair.second);
-      } else if (pair.first == "preallocate_width_hint") {
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "nvjpeg_hw_decoder:preallocate_width_hint="
-                << std::max(1, std::any_cast<int>(pair.second));
-      } else if (pair.first == "preallocate_height_hint") {
-        if (params_count)
-          opts_ss << " ";
-        opts_ss << "nvjpeg_hw_decoder:preallocate_height_hint="
-                << std::max(1, std::any_cast<int>(pair.second));
+
+    std::vector<std::pair<std::string, std::string>> option_strs;
+    for (auto &[key, value] : decoder_params_) {
+      if (key == "use_fast_idct") {
+        opts_.add_option("libjpeg_turbo_decoder:fast_idct", std::any_cast<bool>(value));
+      } else if (key == "hybrid_huffman_threshold") {
+        opts_.add_option("nvjpeg_cuda_decoder:hybrid_huffman_threshold",
+                         std::any_cast<size_t>(value));
+      } else if (key == "hw_decoder_load") {
+        hw_load = std::any_cast<float>(value);
+      } else if (key == "jpeg_fancy_upsampling") {
+        opts_.add_option("fancy_upsampling", std::any_cast<bool>(value));
+      } else if (key == "preallocate_width_hint") {
+        opts_.add_option("nvjpeg_hw_decoder:preallocate_width_hint",
+                         std::max(1, std::any_cast<int>(value)));
+      } else if (key == "preallocate_height_hint") {
+        opts_.add_option("nvjpeg_hw_decoder:preallocate_height_hint",
+                         std::max(1, std::any_cast<int>(value)));
       } else {
         continue;
       }
-      params_count++;
-    }
-
-    // TODO(janton): expose this or simply use good defaults
-    const char *e1 = std::getenv("NVIMGCODEC_NVJPEG_EXTRA_FLAGS");
-    if (e1) {
-      unsigned int nvjpeg_extra_flags = atoi(e1);
-      if (params_count)
-        opts_ss << " ";
-      opts_ss << "nvjpeg_cuda_decoder:extra_flags=" << nvjpeg_extra_flags;
-      params_count++;
     }
 
     // Batch size
-    if (params_count)
-      opts_ss << " ";
-    opts_ss << "nvjpeg_hw_decoder:preallocate_batch_size=" << std::max(1, max_batch_size_);
-    params_count++;
-
-    if (params_count)
-      opts_ss << " ";
-    opts_ss << "nvjpeg2k_cuda_decoder:num_parallel_tiles=16";
-    params_count++;
+    opts_.add_option("nvjpeg_hw_decoder:preallocate_batch_size", std::max(1, max_batch_size_));
+    // Nvjpeg2k parallel tiles
+    opts_.add_option("nvjpeg2k_cuda_decoder:num_parallel_tiles", 16);
 
     int nvimgcodec_device_id =
         device_id_ == CPU_ONLY_DEVICE_ID ? NVIMGCODEC_DEVICE_CPU_ONLY : device_id_;
 
-    int num_backends = 0;
     exec_params_.device_id = nvimgcodec_device_id;
+    backends_.clear();
+    backends_.reserve(4);
     if (nvimgcodec_device_id != NVIMGCODEC_DEVICE_CPU_ONLY) {
-      backends_[num_backends++] =
+      backends_.push_back(
           nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
                               sizeof(nvimgcodecBackend_t),
                               nullptr,
                               NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY,
                               {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, hw_load}};
-      backends_[num_backends++] =
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}};
-      backends_[num_backends++] =
-          nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                              sizeof(nvimgcodecBackend_t),
-                              nullptr,
-                              NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
-                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}};
+                               sizeof(nvimgcodecBackendParams_t), nullptr, hw_load}});
+      backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                                              sizeof(nvimgcodecBackend_t),
+                                              nullptr,
+                                              NVIMGCODEC_BACKEND_KIND_GPU_ONLY,
+                                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
+      backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                                              sizeof(nvimgcodecBackend_t),
+                                              nullptr,
+                                              NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU,
+                                              {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                                               sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
     }
-    backends_[num_backends++] =
-        nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                            sizeof(nvimgcodecBackend_t),
-                            nullptr,
-                            NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
-                            {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                             sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}};
+    backends_.push_back(nvimgcodecBackend_t{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                                            sizeof(nvimgcodecBackend_t),
+                                            nullptr,
+                                            NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
+                                            {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                                             sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
 
     // Forcing allocations, so that we have memory available in the pools when nvimgcodec requests
     // it. This should not be needed when nvjpegBufferPinnedResize/nvjpegBufferDeviceResize is
@@ -318,19 +308,17 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     exec_params_.backends = backends_.data();
-    exec_params_.num_backends = num_backends;
+    exec_params_.num_backends = backends_.size();
     exec_params_.device_allocator = dev_alloc_ptr;
     exec_params_.pinned_allocator = pinned_alloc_ptr;
     exec_params_.executor = &executor_;
     exec_params_.max_num_cpu_threads = num_threads_;
     exec_params_.pre_init = 1;
-
-    std::string opts = opts_ss.str();
-    decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts, hw_load);
+    decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string(), hw_load);
   }
 
   nvimgcodecStatus_t launch(int device_id, int sample_idx, void *task_context,
-                           void (*task)(int thread_id, int sample_idx, void *task_context)) {
+                            void (*task)(int thread_id, int sample_idx, void *task_context)) {
     assert(tp_);
     tp_->AddWork([=](int tid) { task(tid, sample_idx, task_context); }, 0, true);
     return NVIMGCODEC_STATUS_SUCCESS;
@@ -343,9 +331,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   static nvimgcodecStatus_t static_launch(void *instance, int device_id, int sample_idx,
-                                         void *task_context,
-                                         void (*task)(int thread_id, int sample_idx,
-                                                      void *task_context)) {
+                                          void *task_context,
+                                          void (*task)(int thread_id, int sample_idx,
+                                                       void *task_context)) {
     auto *handle = reinterpret_cast<ImageDecoder<Backend> *>(instance);
     return handle->launch(device_id, sample_idx, task_context, task);
   }
@@ -390,13 +378,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArgument<int>(spec, "num_threads");
     GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
-
-    if (decoder_params_.count("nvjpeg_num_threads") == 0)
-      decoder_params_["nvjpeg_num_threads"] = decoder_params_["num_threads"];
-
-    if (decoder_params_.count("nvjpeg2k_num_threads") == 0)
-      decoder_params_["nvjpeg2k_num_threads"] = decoder_params_["nvjpeg2k_num_threads"];
-
     // Make sure we set the default that DALI expects
     if (decoder_params_.count("jpeg_fancy_upsampling") == 0)
       decoder_params_["jpeg_fancy_upsampling"] = false;
@@ -416,7 +397,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                               static_cast<void *>(&parsed_sample.nvimgcodec_jpeg_info)};
 
     CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetImageInfo(parsed_sample.encoded_stream,
-                                                    &parsed_sample.nvimgcodec_img_info));
+                                                      &parsed_sample.nvimgcodec_img_info));
 
     // nvjpeg lossless backend (used by nvimgcodec) can only decode to uint16 (no uint8)
     if (parsed_sample.nvimgcodec_jpeg_info.encoding == NVIMGCODEC_JPEG_ENCODING_LOSSLESS_HUFFMAN) {
@@ -429,25 +410,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
     auto &info = parsed_sample.dali_img_info = to_dali_img_info(parsed_sample.nvimgcodec_img_info);
 
     auto sample_type = parsed_sample.nvimgcodec_img_info.plane_info[0].sample_type;
-    switch (sample_type) {
-      case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8:
-        parsed_sample.orig_dtype = DALI_UINT8;
-        break;
-      case NVIMGCODEC_SAMPLE_DATA_TYPE_INT8:
-        parsed_sample.orig_dtype = DALI_INT8;
-        break;
-      case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT16:
-        parsed_sample.orig_dtype = DALI_UINT16;
-        break;
-      case NVIMGCODEC_SAMPLE_DATA_TYPE_INT16:
-        parsed_sample.orig_dtype = DALI_INT16;
-        break;
-      case NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT32:
-        parsed_sample.orig_dtype = DALI_FLOAT;
-        break;
-      default:
-        throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
-    }
+    parsed_sample.orig_dtype = to_dali_dtype(sample_type);
+    if (parsed_sample.orig_dtype == DALI_NO_TYPE)
+      throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
   }
 
   ThreadPool *GetThreadPool(Workspace &ws) {
@@ -691,8 +656,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
       decode_status_.resize(decode_nsamples);
       size_t status_size;
       CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, batch_encoded_streams_.data(),
-                                             batch_images_.data(), decode_nsamples, &decode_params,
-                                             &future));
+                                               batch_images_.data(), decode_nsamples,
+                                               &decode_params, &future));
       nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(), &status_size);
       if (static_cast<int>(status_size) != decode_nsamples)
         throw std::logic_error("Failed to retrieve processing status");
@@ -766,7 +731,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                      &static_get_num_threads};
   nvimgcodecDeviceAllocator_t dev_alloc_;
   nvimgcodecPinnedAllocator_t pinned_alloc_;
-  std::array<nvimgcodecBackend_t, 4> backends_;
+  std::vector<nvimgcodecBackend_t> backends_;
   nvimgcodecExecutionParams_t exec_params_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
 

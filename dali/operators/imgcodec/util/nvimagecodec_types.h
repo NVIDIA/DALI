@@ -22,6 +22,7 @@
 #include "dali/core/nvtx.h"
 #include "dali/core/unique_handle.h"
 #include "dali/operators/imgcodec/imgcodec.h"
+#include "dali/pipeline/data/types.h"
 
 #define CHECK_NVIMGCODEC(call)                             \
   {                                                       \
@@ -36,6 +37,23 @@
 namespace dali {
 namespace imgcodec {
 
+static DALIDataType to_dali_dtype(nvimgcodecSampleDataType_t dtype) {
+  switch (dtype) {
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8:
+      return DALI_UINT8;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_INT8:
+      return DALI_INT8;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT16:
+      return DALI_UINT16;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_INT16:
+      return DALI_INT16;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT32:
+      return DALI_FLOAT;
+    default:
+      return DALI_NO_TYPE;
+  }
+}
+
 static ImageInfo to_dali_img_info(const nvimgcodecImageInfo_t& info) {
   ImageInfo ret;
   ret.orientation = info.orientation;
@@ -49,6 +67,7 @@ static ImageInfo to_dali_img_info(const nvimgcodecImageInfo_t& info) {
   ret.shape = TensorShape{info.plane_info[0].height, info.plane_info[0].width, num_channels};
   return ret;
 }
+
 struct DLL_PUBLIC NvImageCodecInstance
     : public UniqueHandle<nvimgcodecInstance_t, NvImageCodecInstance> {
   DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecInstance_t, NvImageCodecInstance);

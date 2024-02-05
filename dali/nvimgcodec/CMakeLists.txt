@@ -31,7 +31,7 @@ if(WITH_DYNAMIC_NVIMGCODEC)
     "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/nvimgcodec.json" ${NVIMGCODEC_GENERATED_STUB}
     "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
 
-    # for some reason QNX fails with 'too many errors emitted' is this is not set
+    # for some reason QNX fails with 'too many errors emitted' if this is not set
     "-ferror-limit=0"
     ${DEFAULT_COMPILER_INCLUDE}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
