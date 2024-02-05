@@ -49,8 +49,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 3.3.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.3.0
+.. |cutlassver| replace:: 3.4.0
+.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.4.0
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
