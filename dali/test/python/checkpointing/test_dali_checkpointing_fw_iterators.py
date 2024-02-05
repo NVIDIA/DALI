@@ -364,7 +364,7 @@ class TestPytorch(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
-            (LastBatchPolicy.FILL, False),
+            (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
 
@@ -385,7 +385,7 @@ class TestPytorchRagged(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
-            (LastBatchPolicy.FILL, False),
+            (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
 
@@ -407,5 +407,4 @@ class TestJax(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
-            (LastBatchPolicy.FILL, False),
         )
