@@ -84,20 +84,22 @@ def file_reader_pipeline(
         exts = [exts]
 
     return tuple(
-        readers.file(
-            files=filter_ext(files, ext),
-            dont_use_mmap=dont_use_mmap,
-            prefetch_queue_depth=1,
-            num_shards=num_shards,
-            shard_id=shard_id,
-            stick_to_shard=stick_to_shard,
-            skip_cached_images=skip_cached_images,
-            pad_last_batch=pad_last_batch,
-            lazy_init=lazy_init,
-            read_ahead=read_ahead,
-        )[0]
-        if type(ext) in {str, set}
-        else ext
+        (
+            readers.file(
+                files=filter_ext(files, ext),
+                dont_use_mmap=dont_use_mmap,
+                prefetch_queue_depth=1,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                stick_to_shard=stick_to_shard,
+                skip_cached_images=skip_cached_images,
+                pad_last_batch=pad_last_batch,
+                lazy_init=lazy_init,
+                read_ahead=read_ahead,
+            )[0]
+            if type(ext) in {str, set}
+            else ext
+        )
         for ext in exts
     )
 

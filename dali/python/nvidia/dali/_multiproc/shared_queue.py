@@ -25,7 +25,6 @@ class QueueMeta(Structure):
 
 
 class ShmQueue:
-
     """
     Simple fixed capacity shared memory queue of fixed size messages.
     Writing to a full queue fails, attempt to get from an empty queue blocks until data is
@@ -184,7 +183,6 @@ class ShmQueue:
 
 
 class Dispatcher:
-
     """Wrapper around the queue that enables writing to the queue in a separate thread, just in
     case a writing process would have to wait too long for a lock on the queue when multiple
     readers pop the items one by one."""

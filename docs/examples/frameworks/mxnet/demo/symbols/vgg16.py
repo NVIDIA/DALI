@@ -5,6 +5,7 @@ large-scale image recognition." arXiv preprint arXiv:1409.1556 (2014).
 
 This implements Variant D from the paper.
 """
+
 import mxnet as mx
 
 

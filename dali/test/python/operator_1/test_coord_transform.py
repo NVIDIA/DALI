@@ -94,9 +94,11 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
             MT = 0
 
         M, T, MT = (
-            x
-            if isinstance(x, dali.data_node.DataNode)
-            else dali.types.Constant(x, dtype=dali.types.FLOAT)
+            (
+                x
+                if isinstance(x, dali.data_node.DataNode)
+                else dali.types.Constant(x, dtype=dali.types.FLOAT)
+            )
             for x in (M, T, MT)
         )
 

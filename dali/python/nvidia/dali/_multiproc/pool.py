@@ -68,7 +68,6 @@ process about completed tasks being ready for consumption by the main process.
 
 
 class ShmChunkManager:
-
     """Two dimensional buffer of shared memory chunks (queue_depth X num_minibatches),
     chunks can be accessed either by providing two coordinates or via shm chunk's unique id.
     Each ExternalSource callback gets its own buffer, first dimension is cycled

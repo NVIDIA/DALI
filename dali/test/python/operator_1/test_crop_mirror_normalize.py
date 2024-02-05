@@ -909,9 +909,11 @@ def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale,
         outs = p.run()
         for s in range(batch_size):
             out, image_like, mean, std = [
-                np.array(o[s].as_cpu())
-                if isinstance(o, dali.backend_impl.TensorListGPU)
-                else np.array(o[s])
+                (
+                    np.array(o[s].as_cpu())
+                    if isinstance(o, dali.backend_impl.TensorListGPU)
+                    else np.array(o[s])
+                )
                 for o in outs
             ]
         ref_scale = scale or 1.0
