@@ -252,8 +252,7 @@ class FwTestBase:
                 results = []
                 for _ in range(steps):
                     try:
-                        out = next(it)
-                        results.append([x for x in out])
+                        results.append(next(it))
                     except StopIteration:
                         results.append(None)
                 return results
@@ -266,7 +265,11 @@ class FwTestBase:
             a = observe(it, steps)
             b = observe(it_restored, steps)
 
-            assert all(x == y for (x, y) in zip(a, b))
+            for (x, y) in zip(a, b):
+                if x is None or y is None:
+                    assert x is None and y is None
+                else:
+                    self.compare_outs(x, y)
 
     # Random operators section
 
