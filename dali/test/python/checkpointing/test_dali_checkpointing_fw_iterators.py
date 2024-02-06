@@ -265,6 +265,8 @@ class FwTestBase:
             a = observe(it, steps)
             b = observe(it_restored, steps)
 
+            assert len(a) == len(b)
+
             for x, y in zip(a, b):
                 if x is None or y is None:
                     assert x is None and y is None
