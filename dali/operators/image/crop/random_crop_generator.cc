@@ -19,7 +19,9 @@ namespace dali {
 DALI_SCHEMA(RandomCropGenerator)
   .DocStr(R"code(Produces a cropping window with a randomly selected area and aspect ratio.
 
-Expects a one-dimensional input representing the shape of the input we want to crop (HW or HWC representation).)code")
+Expects a one-dimensional input representing the shape of the input we want to crop (HW or HWC representation).
+
+Produces two outputs, representing the anchor and shape of the cropping window.)code")
   .NumInput(1)
   .NumOutput(2)
   .AddParent("RandomCropAttr");

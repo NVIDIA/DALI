@@ -961,6 +961,18 @@ def test_image_random_crop(device):
 
     check_pipeline_checkpointing_native(pipeline)
 
+@params("cpu", "mixed")
+@random_signed_off("random_crop_generator")
+def test_random_crop_generator(device):
+    @pipeline_def
+    def pipeline():
+        shapes = fn.random.uniform(shape=(3,), range=[100, 1000], dtype=types.DALIDataType.INT64)
+        anchor, shape = fn.random_crop_generator(shapes, device=device)
+        return anchor, shape
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
 
 # External source
 
