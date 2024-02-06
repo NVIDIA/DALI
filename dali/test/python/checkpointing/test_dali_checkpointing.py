@@ -35,7 +35,7 @@ from nvidia.dali.auto_aug import auto_augment as aa
 from nvidia.dali.auto_aug import rand_augment as ra
 from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
-
+from nose.plugins.attrib import attr
 
 reader_signed_off = create_sign_off_decorator()
 random_signed_off = create_sign_off_decorator()
@@ -1049,6 +1049,7 @@ def make_dummy_source(epoch_size, batch_size, mode):
     return src
 
 
+@attr("sanitizer_skip")
 @cartesian_params(
     ((1, 1), (3, 4)),  # (epoch size, batch size)
     (0, 3, 15),  # test iterations
