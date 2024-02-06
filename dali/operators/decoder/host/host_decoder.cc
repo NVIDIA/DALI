@@ -17,7 +17,7 @@
 #include <opencv2/opencv.hpp>
 #include <tuple>
 #include "dali/core/nvtx.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 
 namespace dali {
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/dali_test_decoder.h"
+#include "dali/operators/decoder/peek_shape/peek_image_shape.h"
 
 namespace dali {
 
-// Fixture for jpeg decode testing. Templated
-// to make googletest run our tests grayscale & rgb
-template <typename ImgType>
-class JpegDecodeTest : public GenericDecoderTest<ImgType> {
-};
+DALI_SCHEMA(PeekImageShape)
+  .DocStr(R"code(Obtains the shape of the encoded image.)code")
+  .NumInput(1)
+  .NumOutput(1)
+  .AddOptionalTypeArg("dtype",
+    R"code(Data type, to which the sizes are converted.)code", DALI_INT64)
+  .DeprecateArgInFavorOf("type", "dtype");  // deprecated since 1.16dev
 
-// Run RGB & grayscale tests
-typedef ::testing::Types<RGB, BGR, Gray> Types;
-TYPED_TEST_SUITE(JpegDecodeTest, Types);
-
-TYPED_TEST(JpegDecodeTest, DecodeJPEGHost) {
-  this->RunTestDecode(this->jpegs_);
-}
+DALI_REGISTER_OPERATOR(PeekImageShape, PeekImageShape, CPU);
 
 }  // namespace dali

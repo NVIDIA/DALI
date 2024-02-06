@@ -49,8 +49,6 @@ if (BUILD_DALI_PIPELINE)
 endif()
 
 if(BUILD_DALI_OPERATORS)
-  add_subdirectory(image)
-
   if(BUILD_NVJPEG)
     add_subdirectory(nvjpeg)
   endif()

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_TIFF_LIBTIFF_H_
-#define DALI_IMAGE_TIFF_LIBTIFF_H_
+#ifndef DALI_OPERATORS_DECODER_IMAGE_TIFF_LIBTIFF_H_
+#define DALI_OPERATORS_DECODER_IMAGE_TIFF_LIBTIFF_H_
 
 #include <tiffio.h>
 #include <utility>
 #include <memory>
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/image/generic_image.h"
+#include "dali/operators/decoder/image/generic_image.h"
 
 namespace dali {
 
@@ -51,4 +51,4 @@ class TiffImage_Libtiff : public GenericImage {
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_TIFF_LIBTIFF_H_
+#endif  // DALI_OPERATORS_DECODER_IMAGE_TIFF_LIBTIFF_H_

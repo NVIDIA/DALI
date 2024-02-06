@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, Lennart Behme. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_PNM_H_
-#define DALI_IMAGE_PNM_H_
+#ifndef DALI_OPERATORS_DECODER_IMAGE_WEBP_H_
+#define DALI_OPERATORS_DECODER_IMAGE_WEBP_H_
 
-#include "dali/image/generic_image.h"
+#include "dali/operators/decoder/image/generic_image.h"
 
 namespace dali {
 
 /**
- * PNM image decoding is performed using OpenCV, thus it's the same as Generic decoding
+ * WebP image decoding is performed using OpenCV, thus it's the same as Generic decoding
  */
-class PnmImage final : public GenericImage {
+class WebpImage final : public GenericImage {
  public:
-  PnmImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  WebpImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
 
  private:
-  Image::Shape PeekShapeImpl(const uint8_t *pnm, size_t length) const override;
+  Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_PNM_H_
+#endif  // DALI_OPERATORS_DECODER_IMAGE_WEBP_H_

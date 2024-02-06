@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "dali/util/crop_window.h"
 #include "dali/core/backend_tags.h"
 #include "dali/kernels/common/copy.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 
 #if WITH_DYNAMIC_NVJPEG_ENABLED
   bool nvjpegIsSymbolAvailable(const char *name);

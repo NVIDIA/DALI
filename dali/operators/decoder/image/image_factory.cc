@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/image/image_factory.h"
-#include "dali/image/generic_image.h"
-#include "dali/image/png.h"
-#include "dali/image/bmp.h"
-#include "dali/image/jpeg.h"
-#include "dali/image/jpeg2k.h"
+#include "dali/operators/decoder/image/image_factory.h"
+#include "dali/operators/decoder/image/generic_image.h"
+#include "dali/operators/decoder/image/png.h"
+#include "dali/operators/decoder/image/bmp.h"
+#include "dali/operators/decoder/image/jpeg.h"
+#include "dali/operators/decoder/image/jpeg2k.h"
 #if LIBTIFF_ENABLED
-#include "dali/image/tiff_libtiff.h"
+#include "dali/operators/decoder/image/tiff_libtiff.h"
 #else
-#include "dali/image/tiff.h"
+#include "dali/operators/decoder/image/tiff.h"
 #endif
-#include "dali/image/pnm.h"
-#include "dali/image/webp.h"
+#include "dali/operators/decoder/image/pnm.h"
+#include "dali/operators/decoder/image/webp.h"
 
 namespace dali {
 

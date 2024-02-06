@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_IMAGE_H_
-#define DALI_IMAGE_IMAGE_H_
+#ifndef DALI_OPERATORS_DECODER_IMAGE_IMAGE_H_
+#define DALI_OPERATORS_DECODER_IMAGE_IMAGE_H_
 
 #include <algorithm>
 #include <array>
@@ -143,4 +143,4 @@ class Image {
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_IMAGE_H_
+#endif  // DALI_OPERATORS_DECODER_IMAGE_IMAGE_H_

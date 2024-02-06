@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_PNG_H_
-#define DALI_IMAGE_PNG_H_
+#ifndef DALI_OPERATORS_DECODER_IMAGE_JPEG_H_
+#define DALI_OPERATORS_DECODER_IMAGE_JPEG_H_
 
-#include "dali/image/generic_image.h"
+#include <utility>
+#include <memory>
+
+#include "dali/core/common.h"
+#include "dali/operators/decoder/image/generic_image.h"
 
 namespace dali {
 
-/**
- * PNG image decoding is performed using OpenCV, thus it's the same as Generic decoding
- */
-class PngImage final : public GenericImage {
+class JpegImage final : public GenericImage {
  public:
-  PngImage(const uint8_t *encoded_buffer, size_t length, DALIImageType image_type);
+  JpegImage(const uint8_t *encoded_buffer,
+            size_t length,
+            DALIImageType image_type);
 
- private:
+  ~JpegImage() override = default;
+
+ protected:
+  std::pair<std::shared_ptr<uint8_t>, Shape>
+  DecodeImpl(DALIImageType image_type, const uint8_t *encoded_buffer, size_t length) const override;
+
   Shape PeekShapeImpl(const uint8_t *encoded_buffer, size_t length) const override;
 };
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_PNG_H_
+#endif  // DALI_OPERATORS_DECODER_IMAGE_JPEG_H_

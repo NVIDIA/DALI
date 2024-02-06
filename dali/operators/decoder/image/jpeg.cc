@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/image/jpeg.h"
+#include "dali/operators/decoder/image/jpeg.h"
 #include <cmath>
 #include <memory>
 #include "dali/operators/decoder/jpeg/jpeg_mem.h"

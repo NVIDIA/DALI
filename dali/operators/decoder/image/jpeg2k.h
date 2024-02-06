@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_JPEG2K_H_
-#define DALI_IMAGE_JPEG2K_H_
+#ifndef DALI_OPERATORS_DECODER_IMAGE_JPEG2K_H_
+#define DALI_OPERATORS_DECODER_IMAGE_JPEG2K_H_
 
 #include <utility>
 #include <memory>
 
 #include "dali/core/common.h"
-#include "dali/image/generic_image.h"
+#include "dali/operators/decoder/image/generic_image.h"
 
 namespace dali {
 
@@ -38,4 +38,4 @@ class Jpeg2kImage : public GenericImage {
 
 }  // namespace dali
 
-#endif  // DALI_IMAGE_JPEG2K_H_
+#endif  // DALI_OPERATORS_DECODER_IMAGE_JPEG2K_H_

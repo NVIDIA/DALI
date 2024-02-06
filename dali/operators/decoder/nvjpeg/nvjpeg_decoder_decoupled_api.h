@@ -29,7 +29,7 @@
 #include "dali/core/mm/memory.h"
 #include "dali/core/nvtx.h"
 #include "dali/core/static_switch.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"

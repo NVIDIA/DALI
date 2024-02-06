@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
-#define DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
+#ifndef DALI_OPERATORS_DECODER_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
+#define DALI_OPERATORS_DECODER_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
 
 #include <vector>
 #include "dali/core/backend_tags.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
@@ -105,4 +105,4 @@ class PeekImageShape : public StatelessOperator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
+#endif  // DALI_OPERATORS_DECODER_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_

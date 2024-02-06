@@ -58,7 +58,7 @@
 //
 // ****************************************************************************************
 
-#include "dali/image/tiff_libtiff.h"
+#include "dali/operators/decoder/image/tiff_libtiff.h"
 #include <tiffio.h>
 #include <cstring>
 #include <vector>

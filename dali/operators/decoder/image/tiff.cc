@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/image/tiff.h"
+#include "dali/operators/decoder/image/tiff.h"
 
 namespace dali {
 
