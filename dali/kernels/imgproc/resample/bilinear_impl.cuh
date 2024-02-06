@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,8 +42,8 @@ __device__ void LinearHorz_Channels(
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels) {
   src_x0 += 0.5f * scale - 0.5f;
 
-  int out_stride = out_strides[0];
-  int in_stride = in_strides[0];
+  ptrdiff_t out_stride = out_strides[0];
+  ptrdiff_t in_stride = in_strides[0];
   int in_w = in_shape.x;
 
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
@@ -141,8 +141,8 @@ __device__ void LinearVert(
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int channels) {
   src_y0 += 0.5f * scale - 0.5f;
 
-  int out_stride = out_strides[0];
-  int in_stride = in_strides[0];
+  ptrdiff_t out_stride = out_strides[0];
+  ptrdiff_t in_stride = in_strides[0];
   int in_h = in_shape.y;
 
   // columns are independent - we can safely merge columns with channels
