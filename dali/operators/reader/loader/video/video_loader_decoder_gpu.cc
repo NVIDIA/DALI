@@ -42,6 +42,7 @@ void VideoLoaderDecoderGpu::InitCudaStream() {
   {
     nvml::Init();
     static float driver_version = nvml::GetDriverVersion();
+    nvml::Shutdown();
     if (driver_version > 460 && driver_version < 470.21) {
       DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
       return;

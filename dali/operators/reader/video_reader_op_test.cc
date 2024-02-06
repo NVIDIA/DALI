@@ -125,6 +125,7 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
 #if NVML_ENABLED
   nvml::Init();
   driverVersion = nvml::GetDriverVersion();
+  nvml::Shutdown();
 #endif
 
 
@@ -188,10 +189,6 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
         FAIL() << "Unexpected label";
     }
   }
-
-#if NVML_ENABLED
-  nvml::Shutdown();
-#endif
 }
 
 TEST_F(VideoReaderTest, PackedBFrames) {

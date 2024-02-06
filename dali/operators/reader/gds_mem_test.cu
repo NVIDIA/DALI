@@ -62,7 +62,9 @@ void SkipIfIncompatible(TestBody &&body) {
 #if NVML_ENABLED
   static const int driverVersion = []() {
     nvml::Init();
-    return nvml::GetCudaDriverVersion();
+    auto ret = nvml::GetCudaDriverVersion();
+    nvml::Shutdown();
+    return ret;
   }();
 #if defined(__aarch64__)
   if (driverVersion < 12020) {

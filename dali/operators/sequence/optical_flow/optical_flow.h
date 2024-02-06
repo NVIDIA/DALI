@@ -78,7 +78,11 @@ class OpticalFlow : public StatelessOperator<Backend> {
 #endif
   }
 
-  ~OpticalFlow();
+  ~OpticalFlow() {
+#if NVML_ENABLED
+    nvml::Shutdown();
+#endif
+  }
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:

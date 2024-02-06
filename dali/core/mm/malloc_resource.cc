@@ -95,7 +95,9 @@ cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_
 #if NVML_ENABLED
   static const float driverVersion = []() {
     nvml::Init();
-    return nvml::GetDriverVersion();
+    auto ret = nvml::GetDriverVersion();
+    nvml::Shutdown();
+    return ret;
   }();
   if (driverVersion < 470.60) {
     cudaMemPool_t memPool;
