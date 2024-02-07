@@ -27,9 +27,9 @@ from checkpointing.test_dali_checkpointing import (
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
-import numpy as npfrom nvidia.dali.plugin.base_iterator import LastBatchPolicy
+import numpy as np
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nose import SkipTest
-
 
 
 class FwTestBase:
@@ -404,7 +404,6 @@ class TestJax(FwTestBase):
         for key in out1.keys():
             assert (out1[key] == out2[key]).all()
 
-
     def supported_last_batch_policies(self):
         return (
             # (last_batch_policy, pad_last_batch)
@@ -424,3 +423,12 @@ class TestPaddle(FwTestBase):
     def equal(self, a, b):
         return (np.array(a) == np.array(b)).all()
 
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
