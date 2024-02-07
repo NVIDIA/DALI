@@ -86,6 +86,7 @@ requirements:
     - libwebp-base
     - openjpeg
     - cfitsio
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   run:
     - libjpeg-turbo
     - lmdb
@@ -102,6 +103,8 @@ requirements:
     - protobuf >=3.6.1
     - openjpeg
     - cfitsio
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+
 about:
   home: https://github.com/NVIDIA/DALI
   license: Apache-2.0 license

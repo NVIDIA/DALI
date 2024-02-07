@@ -89,6 +89,8 @@ cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVIMAGECODEC "Build with support for nvimagecodec library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+set(NVIMGCODEC_DEFAULT_INSTALL_PATH "/opt/nvidia/nvimgcodec_cuda${CUDA_VERSION_MAJOR}" CACHE STRING
+    "Path of the nvimagecodec installation")
 
 cmake_dependent_option(BUILD_CVCUDA "Build with CV-CUDA" ON
                        "NOT STATIC_LIBS" OFF)  # Built from thirdparty sources; doesn't support static libs build

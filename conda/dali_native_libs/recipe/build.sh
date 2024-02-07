@@ -86,6 +86,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}                      \
       -DBUILD_CVCUDA=${BUILD_CVCUDA:-ON}                  \
+      -DBUILD_NVIMAGECODEC=${BUILD_NVIMAGECODEC:-ON}      \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
       -DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}     \
@@ -99,6 +100,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_WITH_UBSAN=${BUILD_WITH_UBSAN:-OFF}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
+      -DNVIMGCODEC_DEFAULT_INSTALL_PATH=$PREFIX/opt/nvidia/nvimgcodec \
       ..
 make -j"$(nproc --all)"
 

@@ -60,6 +60,9 @@ conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
 # but wiht mpeg4_unpack_bframes enabled
 conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
 
+# Build nvimagecodec
+conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_nvimagecodec/recipe
+
 # Building DALI core package
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 
