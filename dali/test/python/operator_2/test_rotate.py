@@ -310,9 +310,9 @@ def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch, axis_
         assert axis_batch is None or len(axis_batch) == len(angle_batch)
         offset = 0
         for group in unfolded_extents:
-            yield input_batch[offset : offset + group], angle_batch[
-                offset : offset + group
-            ], None if axis_batch is None else axis_batch[offset : offset + group]
+            yield input_batch[offset : offset + group], angle_batch[offset : offset + group], (
+                None if axis_batch is None else axis_batch[offset : offset + group]
+            )
             offset += group
 
     sequence_output_shape = [

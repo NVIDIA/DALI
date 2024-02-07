@@ -129,9 +129,9 @@ def erase_func(anchor, shape, axis_names, axes, layout, fill_value, image):
         if len(start) == 3:
             image[start[0] : end[0], start[1] : end[1], start[2] : end[2]] = fill_value
         elif len(start) == 4:
-            image[
-                start[0] : end[0], start[1] : end[1], start[2] : end[2], start[3] : end[3]
-            ] = fill_value
+            image[start[0] : end[0], start[1] : end[1], start[2] : end[2], start[3] : end[3]] = (
+                fill_value
+            )
         else:
             assert False
     return image

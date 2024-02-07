@@ -360,9 +360,9 @@ def _test_global_function_pickled_by_reference(name, py_callback_pickler):
 def _test_pickle_by_value_decorator_on_global_function(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference,
     # which is default Python behavior, would fail
-    _simple_callback_by_value.__name__ = (
-        _simple_callback_by_value.__qualname__
-    ) = "simple_callback_by_value"
+    _simple_callback_by_value.__name__ = _simple_callback_by_value.__qualname__ = (
+        "simple_callback_by_value"
+    )
     _create_and_compare_simple_pipelines(
         _simple_callback_by_value, py_callback_pickler, batch_size=4, py_num_workers=2
     )

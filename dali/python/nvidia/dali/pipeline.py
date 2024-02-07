@@ -1780,8 +1780,7 @@ def _generate_graph(pipe, func, fn_args, fn_kwargs):
 @overload
 def pipeline_def(
     __func: Callable[..., Union[DataNode, Tuple[DataNode, ...]]]
-) -> Callable[..., Pipeline]:
-    ...
+) -> Callable[..., Pipeline]: ...
 
 
 # Decorator with arguments
@@ -1808,8 +1807,7 @@ def pipeline_def(
     py_callback_pickler: Optional[Any] = None,
     output_dtype: Union[types.DALIDataType, Tuple[types.DALIDataType, ...], None] = None,
     output_ndim: Union[int, Tuple[int, ...], None] = None,
-) -> Callable[[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]], Callable[..., Pipeline]]:
-    ...
+) -> Callable[[Callable[..., Union[DataNode, Tuple[DataNode, ...]]]], Callable[..., Pipeline]]: ...
 
 
 # Implementation

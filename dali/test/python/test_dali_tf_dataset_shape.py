@@ -150,9 +150,7 @@ def test_batch_N_valid_shapes():
     # Omitted batch of size `1`
     output_shape = (200, 200, 3)
     for i in range(2 ** len(output_shape)):
-        noned_shape = tuple(
-            (dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape)
-        )
+        noned_shape = tuple((dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape))
         yield dali_pipe_batch_N, noned_shape, tf.uint8, 1
 
 

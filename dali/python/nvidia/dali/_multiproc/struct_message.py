@@ -17,7 +17,6 @@ import struct
 
 
 class Structure:
-
     """
     Utility around Python `struct` module (https://docs.python.org/3.6/library/struct.html)
      that allows to access and modify `_fields` like an ordinary object attributes

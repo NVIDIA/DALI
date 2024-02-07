@@ -25,8 +25,7 @@ class ArrayInterface(Protocol):
     to its operators. Such parameter would be broadcast for all samples in the batch.
     """
 
-    def __array__(self) -> Any:
-        ...
+    def __array__(self) -> Any: ...
 
 
 class CudaArrayInterface(Protocol):
@@ -37,8 +36,7 @@ class CudaArrayInterface(Protocol):
     """
 
     @property
-    def __cuda_array_interface__(self) -> Any:
-        ...
+    def __cuda_array_interface__(self) -> Any: ...
 
 
 TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]

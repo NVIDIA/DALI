@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,8 +72,8 @@ requirements:
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
-    - black =23.12.1
-    - black-jupyter =23.12.1
+    - black =24.1.1
+    - black-jupyter =24.1.1
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
   host:
     - dali-opencv
