@@ -78,10 +78,10 @@ requirements:
   host:
     - dali-opencv
     - dali-ffmpeg
-    - libprotobuf-static
+    - libprotobuf-static >=3.6.1
     - python
     - future
-    - protobuf
+    - protobuf >=3.6.1
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
