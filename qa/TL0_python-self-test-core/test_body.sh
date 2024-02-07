@@ -55,7 +55,7 @@ test_checkpointing() {
         ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
 
         # External source tests are slow and Python-side mostly, but let's run just one of them
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!san_skip' checkpointing.test_dali_checkpointing:1
+        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!san_skip' checkpointing.test_dali_checkpointing.test_external_source_checkpointing:1
     fi
 }
 
