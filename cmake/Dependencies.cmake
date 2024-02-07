@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,14 +118,10 @@ if (BUILD_PROTOBUF)
   # deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
   # then use Protobuf to utilize our FindProtobuf.cmake to discover the rest
   find_package(protobuf REQUIRED CONFIG)
-  find_package(Protobuf 2.0 REQUIRED)
-  if(${Protobuf_VERSION} VERSION_LESS "3.0")
-    message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
-  else()
-    message(STATUS "Enabling TensorFlow TFRecord file format support")
-    add_definitions(-DDALI_BUILD_PROTO3=1)
-    set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
-  endif()
+  find_package(Protobuf 3.6.1 REQUIRED)
+  message(STATUS "Enabling TensorFlow TFRecord file format support")
+  add_definitions(-DDALI_BUILD_PROTO3=1)
+  set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
 
   include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
   list(APPEND DALI_LIBS protobuf::libprotobuf)
