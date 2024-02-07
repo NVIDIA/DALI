@@ -70,8 +70,8 @@ requirements:
     - python-clang
     - git-lfs
   host:
-    - protobuf
-    - libprotobuf-static
+    - protobuf >=3.6.1
+    - libprotobuf-static >=3.6.1
     - libjpeg-turbo
     - dali-opencv
     - dali-ffmpeg
@@ -98,7 +98,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - protobuf
+    - protobuf >=3.6.1
     - openjpeg
     - cfitsio
 about:
