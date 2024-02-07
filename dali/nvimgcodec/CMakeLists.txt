@@ -14,11 +14,11 @@
 
 # Generate necessary stub for nvimgcodec if needed
 
-DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" INFERED_COMPILER_INCLUDE)
+DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" INFERRED_COMPILER_INCLUDE)
 
 # transform a list of paths into a list of include directives
 set(DEFAULT_COMPILER_INCLUDE)
-foreach(incl_dir ${INFERED_COMPILER_INCLUDE})
+foreach(incl_dir ${INFERRED_COMPILER_INCLUDE})
   set(DEFAULT_COMPILER_INCLUDE "${DEFAULT_COMPILER_INCLUDE} -I${incl_dir}")
 endforeach(incl_dir)
 separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_INCLUDE}")
