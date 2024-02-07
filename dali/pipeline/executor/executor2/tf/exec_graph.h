@@ -23,6 +23,7 @@
 #include "../graph.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 #include "third_party/taskflow/taskflow/taskflow.hpp"  // TODO(michalz): Add it to cmake
 
@@ -94,6 +95,25 @@ struct ExecNode {
 
   tf::Semaphore concurrency{1};
   std::optional<tf::Semaphore> output_queue;
+
+  OperatorBase *op = nullptr;
+
+  std::queue<std::unique_ptr<Workspace>> workspaces;
+
+  std::unique_ptr<Workspace> GetWorkspace() {
+    if (!workspaces.empty()) {
+      auto ret = std::move(workspaces.front());
+      workspaces.pop();
+      return ret;
+    } else {
+      return CreateWorkspace();
+    }
+  }
+
+  std::unique_ptr<Workspace> CreateWorkspace() {
+    
+  }
+
 };
 
 struct ExecGraph {
@@ -147,18 +167,6 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
   std::vector<SchedNode> nodes;
   std::vector<SchedEdge> edges;
 
-  void init_workspaces() {
-    for (auto &node : nodes) {
-      int max_input_idx = -1, max_output_idx = -1;
-      for (auto &in : node.inputs)
-        max_input_idx = std::max(max_input_idx, in.consumer_input_idx);
-      for (auto &out : node.outputs)
-        max_output_idx = std::max(max_output_idx, out.consumer_input_idx);
-      node.ws.in.resize(max_input_idx + 1);
-      node.ws.out.resize(max_output_idx + 1);
-    }
-  }
-
   SchedGraph &operator=(const SchedGraph &g) {
     nodes.resize(g.nodes.size());
     edges = g.edges;
@@ -183,15 +191,14 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     for (int i = 0; i < V; i++) {
       nodes[i].definition = g.nodes[i].definition;
       nodes[i].inputs = nodes[i].outputs = {};
-      nodes[i].ws.in.resize(g.nodes[i].ws.in.size());
-      nodes[i].ws.out.resize(g.nodes[i].ws.out.size());
+      nodes[i].ws = nodes[i].definition->GetWorkspace();
 
       if (!g.nodes[i].inputs.empty())
         nodes[i].inputs =
-            std::span(g.nodes[i].inputs.data() + edge_fixup, g.nodes[i].inputs.size());
+            span(g.nodes[i].inputs.data() + edge_fixup, g.nodes[i].inputs.size());
       if (!g.nodes[i].outputs.empty())
         nodes[i].outputs =
-            std::span(g.nodes[i].outputs.data() + edge_fixup, g.nodes[i].outputs.size());
+            span(g.nodes[i].outputs.data() + edge_fixup, g.nodes[i].outputs.size());
 
       assert(nodes[i].inputs.data() == nullptr ||
              (nodes[i].inputs.data() >= edges.data() &&

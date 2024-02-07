@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sched_graph.cc"
+#include "exec_graph.h"
 
 namespace dali {
 namespace exec2 {
