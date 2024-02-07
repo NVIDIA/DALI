@@ -259,8 +259,6 @@ class DALIGenericIterator(_DaliBaseIterator):
             prepare_first_batch=prepare_first_batch,
         )
 
-        self._counter = 0
-
         self._first_batch = None
         if self._prepare_first_batch:
             try:
