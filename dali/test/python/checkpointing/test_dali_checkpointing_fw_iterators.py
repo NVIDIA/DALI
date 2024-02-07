@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+import os
+import tempfile
+
 from checkpointing.test_dali_checkpointing import (
     warmup_epochs,
     pipeline_args,
@@ -23,6 +27,8 @@ from checkpointing.test_dali_checkpointing import (
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
+from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+from nose import SkipTest
 
 
 class FwTestBase:
@@ -40,14 +46,25 @@ class FwTestBase:
                 assert self.equal(d1[key], d2[key])
 
     def compare_iters(self, iter, iter2):
-        for out1, out2 in zip(iter, iter2):
+        outs1 = list(x for x in iter)
+        outs2 = list(x for x in iter2)
+        assert len(outs1) == len(outs2)
+        for out1, out2 in zip(outs1, outs2):
             self.compare_outs(out1, out2)
 
     def check_pipeline_checkpointing(self, pipeline_factory, reader_name=None, size=-1):
         pipe = pipeline_factory(**pipeline_args)
         pipe.build()
 
-        iter = self.FwIterator(pipe, ["data"], auto_reset=True, reader_name=reader_name, size=size)
+        iter = self.FwIterator(
+            pipe,
+            ["data"],
+            auto_reset=True,
+            reader_name=reader_name,
+            size=size,
+            last_batch_policy=LastBatchPolicy.FILL,
+            last_batch_padded=True,
+        )
         for _ in range(warmup_epochs):
             for _ in iter:
                 pass
@@ -55,7 +72,13 @@ class FwTestBase:
         restored = pipeline_factory(**pipeline_args, checkpoint=iter.checkpoints()[0])
         restored.build()
         iter2 = self.FwIterator(
-            restored, ["data"], auto_reset=True, reader_name=reader_name, size=size
+            restored,
+            ["data"],
+            auto_reset=True,
+            reader_name=reader_name,
+            size=size,
+            last_batch_policy=LastBatchPolicy.FILL,
+            last_batch_padded=True,
         )
 
         self.compare_iters(iter, iter2)
@@ -129,6 +152,127 @@ class FwTestBase:
 
         self.compare_iters(iter, iter2)
 
+    @dataclass
+    class DatasetConfig:
+        dataset_size: int
+        batch_size: int
+        num_shards: int
+
+    @cartesian_params(
+        (
+            DatasetConfig(dataset_size=11 + 11 + 12, batch_size=4, num_shards=3),
+            DatasetConfig(dataset_size=4 + 5, batch_size=3, num_shards=2),
+        ),
+        (2, 3, 7),
+        (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.PARTIAL, True),
+            (LastBatchPolicy.PARTIAL, False),
+        ),
+        (True, False),  # stick_to_shard
+    )
+    def test_last_batch_policy(
+        self, dataset_config: DatasetConfig, iterations, last_batch_config, stick_to_shard
+    ):
+        policy, pad_last_batch = last_batch_config
+        if last_batch_config not in self.supported_last_batch_policies():
+            raise SkipTest(
+                f"Policy {policy} with last_batch_padded={pad_last_batch} "
+                + f"is not supported by {self.FwIterator}"
+            )
+        with tempfile.TemporaryDirectory() as data_dir:
+            os.mkdir(os.path.join(data_dir, "0"))
+            for i in range(dataset_config.dataset_size):
+                with open(os.path.join(data_dir, f"0/{i:02}.jpg"), "wb") as f:
+                    f.write(bytes([i]))
+
+            def make_pipeline(shard_id, checkpoint=None):
+                @pipeline_def(
+                    batch_size=dataset_config.batch_size,
+                    enable_checkpointing=True,
+                    num_threads=4,
+                    device_id=0,
+                )
+                def pipeline():
+                    data, _ = fn.readers.file(
+                        file_root=data_dir,
+                        name="Reader",
+                        pad_last_batch=pad_last_batch,
+                        num_shards=dataset_config.num_shards,
+                        shard_id=shard_id,
+                        stick_to_shard=stick_to_shard,
+                    )
+                    return data
+
+                p = pipeline(checkpoint=checkpoint)
+                p.build()
+                return p
+
+            def make_pipelines(checkpoints=None):
+                if not checkpoints:
+                    return [
+                        make_pipeline(shard_id) for shard_id in range(dataset_config.num_shards)
+                    ]
+                else:
+                    assert len(checkpoints) == dataset_config.num_shards
+                    return [
+                        make_pipeline(shard_id, checkpoint=cpt)
+                        for (shard_id, cpt) in zip(range(dataset_config.num_shards), checkpoints)
+                    ]
+
+            def make_iterator(pipes):
+                return self.FwIterator(
+                    pipes,
+                    output_map=["data"],
+                    auto_reset=True,
+                    last_batch_policy=policy,
+                    prepare_first_batch=False,
+                    reader_name="Reader",
+                )
+
+            pipes = make_pipelines()
+            it = make_iterator(pipes)
+
+            completed_iterations = 0
+            while completed_iterations < iterations:
+                try:
+                    next(it)
+                    completed_iterations += 1
+                except StopIteration:
+                    pass
+
+            def observe(it, steps):
+                """
+                Returns a list with data returned on each step or None if there was an epoch end.
+                This allows to compare behavior of two iterators precisely.
+                """
+                results = []
+                for _ in range(steps):
+                    try:
+                        results.append(next(it))
+                    except StopIteration:
+                        results.append(None)
+                return results
+
+            pipes_restored = make_pipelines(it.checkpoints())
+            it_restored = make_iterator(pipes_restored)
+
+            steps = dataset_config.dataset_size * 2 // dataset_config.batch_size
+
+            a = observe(it, steps)
+            b = observe(it_restored, steps)
+
+            assert len(a) == len(b)
+
+            for x, y in zip(a, b):
+                if x is None or y is None:
+                    assert x is None and y is None
+                else:
+                    self.compare_outs(x, y)
+
     # Random operators section
 
     @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
@@ -165,14 +309,27 @@ class FwTestBase:
         pipeline = pipeline_factory()
         pipeline.build()
 
-        iter = self.FwIterator(pipeline, ["data"], auto_reset=True, size=size)
+        iter = self.FwIterator(
+            pipeline,
+            ["data"],
+            auto_reset=True,
+            size=size,
+            last_batch_policy=LastBatchPolicy.FILL,
+            last_batch_padded=True,
+        )
 
         run(iter, iterations)
 
         restored = pipeline_factory(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data"], auto_reset=True, size=size)
-
+        iter2 = self.FwIterator(
+            restored,
+            ["data"],
+            auto_reset=True,
+            size=size,
+            last_batch_policy=LastBatchPolicy.FILL,
+            last_batch_padded=True,
+        )
         self.compare_iters(iter, iter2)
 
     @cartesian_params(
@@ -185,7 +342,9 @@ class FwTestBase:
         epoch_size, batch_size = dataset_info
         source = make_dummy_source(epoch_size, batch_size, mode)
         pf = make_external_source_test_pipeline_factory(source, mode, batch_size, parallel)
-        self.check_external_source_pipeline_checkpointing(pf, iterations)
+        self.check_external_source_pipeline_checkpointing(
+            pf, iterations, size=epoch_size * batch_size
+        )
 
 
 # Framework tests
@@ -201,6 +360,16 @@ class TestPytorch(FwTestBase):
     def equal(self, a, b):
         return (a == b).all()
 
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
 
 class TestPytorchRagged(FwTestBase):
     def __init__(self):
@@ -211,6 +380,16 @@ class TestPytorchRagged(FwTestBase):
 
     def equal(self, a, b):
         return (a == b).all()
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
 
 
 class TestJax(FwTestBase):
@@ -223,3 +402,11 @@ class TestJax(FwTestBase):
     def compare_outs(self, out1, out2):
         for key in out1.keys():
             assert (out1[key] == out2[key]).all()
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+        )
