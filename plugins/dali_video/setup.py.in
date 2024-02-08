@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     skbuild.setup(
         name="nvidia-dali-video-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@",
-        description="Video Processing NVIDIA DALI @DALI_FLAVOR@ plugin for CUDA @CUDA_VERSION_SHORT@, with full NVENC/NVDEC hardware acceleration. Git SHA: @GIT_SHA@",
+        description="Video Processing plugin for NVIDIA DALI, @DALI_FLAVOR@ CUDA @CUDA_VERSION_SHORT@, with full NVENC/NVDEC hardware acceleration. Git SHA: @GIT_SHA@",
         url='https://github.com/NVIDIA/DALI',
         version='@DALI_VERSION@',
         author='NVIDIA Corporation',
@@ -57,6 +57,8 @@ if __name__ == "__main__":
             'Programming Language :: Python :: 3.9',
             'Programming Language :: Python :: 3.10',
             'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
+            'Programming Language :: Python :: 3.13',
             ],
         install_requires = [
           'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
