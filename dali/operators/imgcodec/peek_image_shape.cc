@@ -52,10 +52,9 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   use_orientation_ = spec.GetArgument<bool>("adjust_orientation");
   image_type_ = spec.GetArgument<DALIImageType>("image_type");
 
-  nvimgcodecInstanceCreateInfo_t instance_create_info;
-  instance_create_info.struct_type = NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  instance_create_info.struct_size = sizeof(nvimgcodecInstanceCreateInfo_t);
-  instance_create_info.struct_next = nullptr;
+  nvimgcodecInstanceCreateInfo_t instance_create_info = {
+      NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
+      nullptr};
   instance_create_info.load_extension_modules = 1;
   instance_create_info.load_builtin_modules = 1;
   instance_create_info.extension_modules_path = nullptr;

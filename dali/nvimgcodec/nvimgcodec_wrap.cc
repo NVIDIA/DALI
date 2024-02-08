@@ -32,23 +32,23 @@ namespace {
 
 typedef void *NVIMGCODECDRIVER;
 
-static const char __NvimgcodecLibNameFullVer[] = "libnvimgcodec.so." FULL_VER_STR;
-static const char __NvimgcodecLibNameMajorVer[] = "libnvimgcodec.so." MAJOR_VER_STR;
-static const char __NvimgcodecLibName[] = "libnvimgcodec.so";
-static const char __NvimgcodecLibDefaultPathFullVer[] =
+const char nvimgcodecLibNameFullVer[] = "libnvimgcodec.so." FULL_VER_STR;
+const char nvimgcodecLibNameMajorVer[] = "libnvimgcodec.so." MAJOR_VER_STR;
+const char nvimgcodecLibName[] = "libnvimgcodec.so";
+const char nvimgcodecLibDefaultPathFullVer[] =
     NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so." FULL_VER_STR;
-static const char __NvimgcodecLibDefaultPathMajorVer[] =
+const char nvimgcodecLibDefaultPathMajorVer[] =
     NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so." MAJOR_VER_STR;
-static const char __NvimgcodecLibDefaultPath[] =
+const char nvimgcodecLibDefaultPath[] =
     NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so";
 
 NVIMGCODECDRIVER loadNvimgcodecLibrary() {
-  static const char *paths[] = {__NvimgcodecLibNameFullVer,
-                                __NvimgcodecLibNameMajorVer,
-                                __NvimgcodecLibName,
-                                __NvimgcodecLibDefaultPathFullVer,
-                                __NvimgcodecLibDefaultPathMajorVer,
-                                __NvimgcodecLibDefaultPath};
+  static const char *paths[] = {nvimgcodecLibNameFullVer,
+                                nvimgcodecLibNameMajorVer,
+                                nvimgcodecLibName,
+                                nvimgcodecLibDefaultPathFullVer,
+                                nvimgcodecLibDefaultPathMajorVer,
+                                nvimgcodecLibDefaultPath};
   NVIMGCODECDRIVER ret = nullptr;
   for (const char *path : paths) {
     ret = dlopen(path, RTLD_NOW);

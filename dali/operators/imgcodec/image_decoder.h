@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/mm/memory.h"
+#include "dali/core/call_at_exit.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/image/crop/crop_attr.h"
@@ -47,7 +48,7 @@ struct OutBackend<CPUBackend> {
 };
 
 
-static uint32_t verbosity_to_severity(int verbose) {
+constexpr uint32_t verbosity_to_severity(int verbose) {
   uint32_t result = 0;
   if (verbose >= 1)
     result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL | NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR;
@@ -65,8 +66,8 @@ static uint32_t verbosity_to_severity(int verbose) {
 static constexpr size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
 static constexpr size_t kHostAlignment = 64;  // cache alignment
 
-static int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
-  auto *mr = reinterpret_cast<mm::device_async_resource *>(ctx);
+inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
+  auto *mr = static_cast<mm::device_async_resource *>(ctx);
   try {
     *ptr = mr->allocate_async(size, kDevAlignment, stream);
     return cudaSuccess;
@@ -81,14 +82,14 @@ static int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStr
   }
 }
 
-static int static_dali_device_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
-  auto *mr = reinterpret_cast<mm::device_async_resource *>(ctx);
+inline int static_dali_device_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
+  auto *mr = static_cast<mm::device_async_resource *>(ctx);
   mr->deallocate_async(ptr, size, kDevAlignment, stream);
   return cudaSuccess;
 }
 
-static int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
-  auto *mr = reinterpret_cast<mm::pinned_async_resource *>(ctx);
+inline int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
+  auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
   try {
     *ptr = mr->allocate_async(size, kHostAlignment, stream);
     return cudaSuccess;
@@ -103,8 +104,8 @@ static int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStr
   }
 }
 
-static int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
-  auto *mr = reinterpret_cast<mm::pinned_async_resource *>(ctx);
+inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
+  auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
   mr->deallocate_async(ptr, size, kHostAlignment, stream);
   return cudaSuccess;
 }
@@ -149,8 +150,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   struct nvImagecodecOpts {
     template <typename T>
-    void add_option(const string &key, const T &value) {
-      opts_.emplace_back(key, std::to_string(value));
+    void add_global_option(const std::string &key, const T &value) {
+      opts_.emplace_back(":" + key, std::to_string(value));
+    }
+
+    template <typename T>
+    void add_module_option(const std::string &module, const std::string &key, const T &value) {
+      opts_.emplace_back(module + ":" + key, std::to_string(value));
     }
 
     std::string to_string() {
@@ -184,7 +190,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     if (std::is_same<MixedBackend, Backend>::value) {
       thread_pool_ = std::make_unique<ThreadPool>(num_threads_, device_id_,
                                                   spec.GetArgument<bool>("affine"), "MixedDecoder");
-      tp_ = thread_pool_.get();
 
       if (spec_.HasArgument("cache_size"))
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
@@ -226,34 +231,41 @@ class ImageDecoder : public StatelessOperator<Backend> {
     instance_ = NvImageCodecInstance::Create(&instance_create_info);
 
     std::stringstream opts_ss;
-    float hw_load = 0.65f;
+    float hw_load = 0.9f;
 
     std::vector<std::pair<std::string, std::string>> option_strs;
     for (auto &[key, value] : decoder_params_) {
       if (key == "use_fast_idct") {
-        opts_.add_option("libjpeg_turbo_decoder:fast_idct", std::any_cast<bool>(value));
+        opts_.add_module_option("libjpeg_turbo_decoder", "fast_idct", std::any_cast<bool>(value));
       } else if (key == "hybrid_huffman_threshold") {
-        opts_.add_option("nvjpeg_cuda_decoder:hybrid_huffman_threshold",
-                         std::any_cast<size_t>(value));
+        opts_.add_module_option("nvjpeg_cuda_decoder", "hybrid_huffman_threshold",
+                                std::any_cast<size_t>(value));
       } else if (key == "hw_decoder_load") {
         hw_load = std::any_cast<float>(value);
       } else if (key == "jpeg_fancy_upsampling") {
-        opts_.add_option("fancy_upsampling", std::any_cast<bool>(value));
+        // TODO(janton): Make fancy_upsampling default `true` and let the option control the CPU
+        // decoder as well. For backward compatibility reasons, we don't set the fancy upsampling
+        // flag for CPU decoders (old decoder always uses fancy_upsampling with CPU decoders)
+        opts_.add_module_option("nvjpeg_cuda_decoder", "fancy_upsampling",
+                                std::any_cast<bool>(value));
+        opts_.add_module_option("nvjpeg_hw_decoder", "fancy_upsampling",
+                                std::any_cast<bool>(value));
       } else if (key == "preallocate_width_hint") {
-        opts_.add_option("nvjpeg_hw_decoder:preallocate_width_hint",
-                         std::max(1, std::any_cast<int>(value)));
+        opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_width_hint",
+                                std::max(1, std::any_cast<int>(value)));
       } else if (key == "preallocate_height_hint") {
-        opts_.add_option("nvjpeg_hw_decoder:preallocate_height_hint",
-                         std::max(1, std::any_cast<int>(value)));
+        opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_height_hint",
+                                std::max(1, std::any_cast<int>(value)));
       } else {
         continue;
       }
     }
 
     // Batch size
-    opts_.add_option("nvjpeg_hw_decoder:preallocate_batch_size", std::max(1, max_batch_size_));
+    opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_batch_size",
+                            std::max(1, max_batch_size_));
     // Nvjpeg2k parallel tiles
-    opts_.add_option("nvjpeg2k_cuda_decoder:num_parallel_tiles", 16);
+    opts_.add_module_option("nvjpeg2k_cuda_decoder", "num_parallel_tiles", 16);
 
     int nvimgcodec_device_id =
         device_id_ == CPU_ONLY_DEVICE_ID ? NVIMGCODEC_DEVICE_CPU_ONLY : device_id_;
@@ -334,12 +346,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                           void *task_context,
                                           void (*task)(int thread_id, int sample_idx,
                                                        void *task_context)) {
-    auto *handle = reinterpret_cast<ImageDecoder<Backend> *>(instance);
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
     return handle->launch(device_id, sample_idx, task_context, task);
   }
 
   static int static_get_num_threads(void *instance) {
-    auto *handle = reinterpret_cast<ImageDecoder<Backend> *>(instance);
+    auto *handle = static_cast<ImageDecoder<Backend> *>(instance);
     return handle->get_num_threads();
   }
 
@@ -415,15 +427,18 @@ class ImageDecoder : public StatelessOperator<Backend> {
       throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
   }
 
-  ThreadPool *GetThreadPool(Workspace &ws) {
+  ThreadPool *GetThreadPool(const Workspace &ws) {
     return std::is_same<MixedBackend, Backend>::value ? thread_pool_.get() : &ws.GetThreadPool();
   }
 
 
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
-    if (std::is_same<CPUBackend, Backend>::value)
-      tp_ = &ws.GetThreadPool();
+    tp_ = GetThreadPool(ws);
+    assert(tp_ != nullptr);
+    auto auto_cleanup = AtScopeExit([&] {
+      tp_ = nullptr;
+    });
 
     output_descs.resize(1);
     auto &input = ws.template Input<CPUBackend>(0);
@@ -437,7 +452,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     rois_.resize(nsamples);
     bool is_planar_layout = false;
 
-    assert(tp_ != nullptr);
 
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
     auto get_task = [&](int block_idx, int nblocks) {
@@ -488,7 +502,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
   template <typename OutBackend>
   void PrepareOutput(SampleState &st, SampleView<OutBackend> out, const ROI &roi,
                      const Workspace &ws) {
-    st.image_info = st.parsed_sample.nvimgcodec_img_info;  // copy we modify
+    // Make a copy of the parsed img info. We might modify it
+    // (for example, request planar vs. interleaved, etc)
+    st.image_info = st.parsed_sample.nvimgcodec_img_info;
     st.orig_layout = st.req_layout = "HWC";
     st.req_img_type = format_;
     auto info = st.parsed_sample.dali_img_info;
@@ -496,6 +512,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     int64_t &nchannels = decode_out_sh[2];
 
     // Decode to format
+    st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
     if (format_ == DALI_ANY_DATA) {
       st.image_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED;
       st.orig_img_type = DALI_ANY_DATA;
@@ -509,7 +526,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
       nchannels = 3;
     }
 
-    st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
     st.image_info.region.ndim = roi.use_roi() ? 2 : 0;
@@ -521,6 +537,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
       decode_out_sh[0] = roi.end[0] - roi.begin[0];
       decode_out_sh[1] = roi.end[1] - roi.begin[1];
     }
+
+    // At the moment we are not dealing with floating point outputs in nvimagecodec
+    assert(IsIntegral(st.parsed_sample.orig_dtype));
 
     int precision = st.image_info.plane_info[0].precision;
     if (precision == 0)
@@ -574,14 +593,18 @@ class ImageDecoder : public StatelessOperator<Backend> {
     int nsamples = input.num_samples();
     assert(output.num_samples() == nsamples);
 
+    tp_ = GetThreadPool(ws);
     assert(tp_ != nullptr);
+    auto auto_cleanup = AtScopeExit([&] {
+      tp_ = nullptr;
+    });
 
     bool has_any_roi = false;
     for (auto &roi : rois_)
       has_any_roi |= roi.use_roi();
 
-    nvimgcodecDecodeParams_t decode_params;
-    memset(&decode_params, 0, sizeof(nvimgcodecDecodeParams_t));
+    nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
+                                              sizeof(nvimgcodecDecodeParams_t), nullptr};
     decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
     decode_params.enable_roi = static_cast<int>(has_any_roi);
 
@@ -636,9 +659,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
         for (; block_idx < tp_->NumThreads(); block_idx++) {
           tp_->AddWork(get_task(block_idx, nblocks), -block_idx);
         }
-        tp_->RunAll(false);                // start work but not wait
+        tp_->RunAll(false);                 // start work but not wait
         get_task(block_idx, nblocks)(-1);  // run last block
-        tp_->WaitForWork();                // wait for the other threads
+        tp_->WaitForWork();                 // wait for the other threads
       } else {                             // not worth parallelizing
         get_task(0, 1)(-1);                // run all in current thread
       }
@@ -654,14 +677,15 @@ class ImageDecoder : public StatelessOperator<Backend> {
       DomainTimeRange tr("Decode", DomainTimeRange::kOrange);
       nvimgcodecFuture_t future;
       decode_status_.resize(decode_nsamples);
-      size_t status_size;
+      size_t status_size = 0;
       CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, batch_encoded_streams_.data(),
                                                batch_images_.data(), decode_nsamples,
                                                &decode_params, &future));
-      nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(), &status_size);
+      CHECK_NVIMGCODEC(
+          nvimgcodecFutureGetProcessingStatus(future, decode_status_.data(), &status_size));
       if (static_cast<int>(status_size) != decode_nsamples)
         throw std::logic_error("Failed to retrieve processing status");
-      nvimgcodecFutureDestroy(future);
+      CHECK_NVIMGCODEC(nvimgcodecFutureDestroy(future));
 
       for (int i = 0; i < decode_nsamples; i++) {
         if (decode_status_[i] != NVIMGCODEC_PROCESSING_STATUS_SUCCESS) {
@@ -718,10 +742,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   std::unique_ptr<ThreadPool> thread_pool_;
   std::unique_ptr<CachedDecoderImpl> cache_;
-  ThreadPool *tp_ = nullptr;
 
-  NvImageCodecInstance instance_;
-  NvImageCodecDecoder decoder_;
+  NvImageCodecInstance instance_ = {};
+  NvImageCodecDecoder decoder_ = {};
 
   nvimgcodecExecutorDesc_t executor_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTOR_DESC,
                                      sizeof(nvimgcodecExecutorDesc_t),
@@ -729,8 +752,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                      this,
                                      &static_launch,
                                      &static_get_num_threads};
-  nvimgcodecDeviceAllocator_t dev_alloc_;
-  nvimgcodecPinnedAllocator_t pinned_alloc_;
+  nvimgcodecDeviceAllocator_t dev_alloc_ = {};
+  nvimgcodecPinnedAllocator_t pinned_alloc_ = {};
   std::vector<nvimgcodecBackend_t> backends_;
   nvimgcodecExecutionParams_t exec_params_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
@@ -744,6 +767,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   bool use_orientation_ = true;
   int max_batch_size_ = 1;
   int num_threads_ = -1;
+  ThreadPool* tp_ = nullptr;
 
   std::vector<std::unique_ptr<SampleState>> state_;
   std::vector<nvimgcodecCodeStream_t> batch_encoded_streams_;

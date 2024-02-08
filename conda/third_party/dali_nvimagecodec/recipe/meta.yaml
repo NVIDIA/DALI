@@ -12,23 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+{% set build_version = "0.2.0" %}
+
 package:
   name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
-  version: {{ environ.get('BUILD_VERSION', '') }}
+  version: {{ build_version }}
 
 source:
   git_url: https://github.com/NVIDIA/nvImageCodec.git
   git_rev: v0.2.0
 
 build:
-  script_env:
-   - CUDA_TARGET_ARCHS
-   - CMAKE_BUILD_TYPE
-   - BUILD_ID
-   - BUILD_VERSION
-   - TIMESTAMP
-   - GIT_SHA
-  string: py{{ python | replace(".","") }}_{{ environ.get('BUILD_ID', '') }}
+  number: 0
+  string: dali_nvimagecodec
 
 requirements:
   build:
@@ -41,8 +38,6 @@ requirements:
     - python-clang
     - git-lfs
   host:
-    - python
-    - future
     - libjpeg-turbo
     - libtiff
     - dali-opencv
@@ -52,8 +47,6 @@ requirements:
     - openjpeg
 
   run:
-    - python
-    - future
     - libjpeg-turbo
     - libtiff
     # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)

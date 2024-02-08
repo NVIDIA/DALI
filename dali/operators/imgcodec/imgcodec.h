@@ -1,4 +1,3 @@
-
 // Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,6 +64,7 @@ struct ROI {
    */
   TensorShape<> shape() const {
     TensorShape<> out = end;
+    assert(out.sample_dim() >= begin.sample_dim());
     for (int d = 0; d < begin.sample_dim(); d++)
       out[d] -= begin[d];
     return out;

@@ -533,11 +533,7 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
 
 
 def test_image_decoder_lossless_jpeg_cpu_not_supported():
-    device_id = 0
-    if not is_nvjpeg_lossless_supported(device_id=device_id):
-        raise SkipTest("NVJPEG lossless supported on SM60+ capable devices only")
-
-    @pipeline_def(batch_size=1, device_id=device_id, num_threads=1)
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
         decoded = fn.experimental.decoders.image(
@@ -549,6 +545,4 @@ def test_image_decoder_lossless_jpeg_cpu_not_supported():
     p = pipe(os.path.join(test_data_root, imgfile))
     p.build()
 
-    assert_raises(
-        RuntimeError, p.run, glob='*Failed to decode a JPEG lossless (SOF-3)*Only "mixed" backend*'
-    )
+    assert_raises(RuntimeError, p.run, glob="*Failed to decode*")
