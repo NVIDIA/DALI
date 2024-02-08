@@ -1792,7 +1792,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .export_values();
 
   // DALIInterpType
-  py::enum_<DALIInterpType>(types_m, "DALIInterpType", "Interpolation mode\n<SPHINX_IGNORE>")
+  py::enum_<DALIInterpType>(types_m, "DALIInterpType", "Interpolation mode")
     .value("INTERP_NN", DALI_INTERP_NN)
     .value("INTERP_LINEAR", DALI_INTERP_LINEAR,
            "Linear interpolation in DALI is separable with regards to dimensions. "
