@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 
 # Load the Custom Operator
 import nvidia.dali.plugin_manager as plugin_manager
+
 plugin_manager.load_library("./build/libnaivehistogram.so")
 
 
@@ -43,6 +44,7 @@ def naive_hist_pipe():
     img = img.gpu()
     img = fn.naive_histogram(img, n_bins=24)
     return img
+
 
 def test_naive_histogram():
     pipe = naive_hist_pipe(batch_size=2, num_threads=1, device_id=0)
