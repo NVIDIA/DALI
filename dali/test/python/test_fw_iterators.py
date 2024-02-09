@@ -1784,7 +1784,7 @@ def check_paddle_iterator_pass_reader_name(
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(
-            AssertionError,
+            RuntimeError,
             PaddleIterator,
             pipes,
             output_map=["data"],
