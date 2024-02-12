@@ -62,7 +62,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipe,
-            ["data"],
+            self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -77,7 +77,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            ["data"],
+            self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -230,7 +230,7 @@ class FwTestBase:
             def make_iterator(pipes):
                 return self.FwIterator(
                     pipes,
-                    output_map=["data"],
+                    output_map=self.output_map(with_labels=False),
                     auto_reset=True,
                     last_batch_policy=policy,
                     prepare_first_batch=False,
@@ -315,7 +315,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipeline,
-            ["data"],
+            self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -328,7 +328,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            ["data"],
+            self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -445,16 +445,26 @@ class TestMxnet(FwTestBase):
         self.FwIterator = DALIGenericIterator
 
     def output_map(self, with_labels=False):
-        if with_labels:
+        if not with_labels:
             return [("data", self.FwIterator.DATA_TAG)]
         else:
             return [("data", self.FwIterator.DATA_TAG), ("label", self.FwIterator.LABEL_TAG)]
 
-    def compare_iters(self, iter, iter2):
-        for out1, out2 in zip(iter, iter2):
-            for d1, d2 in zip(out1, out2):
-                assert (d1.data[0].asnumpy() == d2.data[0].asnumpy()).all()
-                assert d1.label == d2.label
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
+    def compare_outs(self, out1, out2):
+        assert len(out1) == len(out2)
+        for d1, d2 in zip(out1, out2):
+            assert (d1.data[0].asnumpy() == d2.data[0].asnumpy()).all()
+            assert d1.label == d2.label
 
 
 
