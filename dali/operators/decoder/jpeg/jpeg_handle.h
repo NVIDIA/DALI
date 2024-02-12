@@ -31,6 +31,19 @@ namespace jpeg {
 // Handler for fatal JPEG library errors: clean up & return
 void CatchError(j_common_ptr cinfo);
 
+// Handler for monitoring progress od jpeg decoding
+// Can be used to limit the number of scans for progressive jpegs
+// or arithmetic encoding, which could be exploited to exhaust CPU
+// with a malicious file, see
+// https://libjpeg-turbo.org/pmwiki/uploads/About/TwoIssueswiththeJPEGStandard.pdf
+struct ProgressMgr{
+  struct jpeg_progress_mgr pub;  // MUST be the first member to have the same address
+  int max_scans;
+  int scans_exceeded;
+};
+void ValidateProgress(j_common_ptr cinfo);
+void SetupProgressMgr(j_decompress_ptr cinfo, ProgressMgr *progress);
+
 typedef struct {
   struct jpeg_destination_mgr pub;
   JOCTET *buffer;

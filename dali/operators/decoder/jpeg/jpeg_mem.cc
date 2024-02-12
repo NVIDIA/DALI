@@ -105,11 +105,23 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   JPEGErrors error = JPEGERRORS_OK;
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
+  struct ProgressMgr progress{};
   cinfo.err = jpeg_std_error(&jerr);
   jmp_buf jpeg_jmpbuf;
   cinfo.client_data = &jpeg_jmpbuf;
   jerr.error_exit = CatchError;
   if (setjmp(jpeg_jmpbuf)) {
+    // For progressive scan failure, error out with hard error not to let the
+    // opencv fallback to kick-in
+    DALI_ENFORCE(
+        progress.scans_exceeded == 0,
+        make_string(
+            "The number of scans (", progress.scans_exceeded,
+            ") during progressive decoding of the image exceeded ",
+            "the currently supported value of ", progress.max_scans,
+            ". If that's intentional, you can increase the limit ",
+            "of progressive scans by setting the environmental variable "
+            "`DALI_MAX_JPEG_SCANS` to the desired limit."));
     return nullptr;
   }
 
@@ -117,6 +129,10 @@ std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler
   auto destroy_cinfo = AtScopeExit([&cinfo]() {
     jpeg_destroy_decompress(&cinfo);
   });
+  // The progress mgr must be set after the call to the
+  // `jpeg_create_decompress` which overwrites/initializes
+  // the `cinfo.progress` to NULL.
+  SetupProgressMgr(&cinfo, &progress);
 
   SetSrc(&cinfo, srcdata, datasize, flags.try_recover_truncated_jpeg);
   jpeg_read_header(&cinfo, TRUE);
