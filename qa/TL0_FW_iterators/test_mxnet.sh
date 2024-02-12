@@ -22,6 +22,8 @@ test_body() {
     fi
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
     ${python_new_invoke_test} -A 'mxnet' -A 'gluon' test_fw_iterators
+    ${python_new_invoke_test} checkpointing.test_dali_checkpointing_fw_iterators.TestMxnet
+    ${python_new_invoke_test} checkpointing.test_dali_checkpointing_fw_iterators.TestGluon
 }
 
 pushd ../..
