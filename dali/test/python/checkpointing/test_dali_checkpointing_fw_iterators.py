@@ -62,7 +62,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipe,
-            self.output_map(with_labels=False),
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -77,7 +77,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            self.output_map(with_labels=False),
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -143,7 +143,7 @@ class FwTestBase:
         p = pipeline()
         p.build()
 
-        iter = self.FwIterator(p, self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
+        iter = self.FwIterator(p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
         for epoch in range(num_epochs):
             for i, _ in enumerate(iter):
                 if iters_into_epoch is not None:
@@ -152,7 +152,7 @@ class FwTestBase:
 
         restored = pipeline(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
+        iter2 = self.FwIterator(restored, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
 
         self.compare_iters(iter, iter2)
 
@@ -315,7 +315,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipeline,
-            self.output_map(with_labels=False),
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -328,7 +328,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            self.output_map(with_labels=False),
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -467,5 +467,31 @@ class TestMxnet(FwTestBase):
             assert d1.label == d2.label
 
 
+class TestGluon(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.mxnet import DALIGluonIterator
 
-# TODO(skarpinski)  DALIGluonIterator
+        def iterator_wrapper(pipeline, **kwargs):
+            if 'output_map' in kwargs:
+                kwargs.pop('output_map')
+            return DALIGluonIterator(pipeline, **kwargs)
+
+        self.FwIterator = iterator_wrapper
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
+    def compare_outs(self, out1, out2):
+        assert len(out1) == len(out2)
+        for list1, list2 in zip(out1, out2):
+            assert len(list1) == len(list2)
+            for x1, x2 in zip(list1, list2):
+                assert (x1.asnumpy() == x2.asnumpy()).all()
