@@ -1523,12 +1523,12 @@ def test_random_crop_gen():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         data = fn.external_source(source=input_data, cycle=False, device=device)
-        out = fn.random_crop_generator(data)
-        pipe.set_outputs(out)
+        anchor, shape = fn.random_crop_generator(data)
+        pipe.set_outputs(anchor, shape)
         return pipe
 
     sh = (2,)
-    run_pipeline(generate_data(31, 13, sh), pipeline_fn=pipe)
+    run_pipeline(generate_data(31, 13, sh, dtype=np.int64), pipeline_fn=pipe, devices=["cpu"])
 
 
 tested_methods = [

@@ -120,7 +120,6 @@ class RandomCropGeneratorOp : public Operator<Backend> {
 
  private:
   RandomCropAttr crop_attr_;
-  std::vector<CropWindow> crops_;
 };
 
 }  // namespace dali
