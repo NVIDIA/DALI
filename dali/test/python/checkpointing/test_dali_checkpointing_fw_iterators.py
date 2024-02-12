@@ -143,7 +143,9 @@ class FwTestBase:
         p = pipeline()
         p.build()
 
-        iter = self.FwIterator(p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
+        iter = self.FwIterator(
+            p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader"
+        )
         for epoch in range(num_epochs):
             for i, _ in enumerate(iter):
                 if iters_into_epoch is not None:
@@ -152,7 +154,12 @@ class FwTestBase:
 
         restored = pipeline(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader")
+        iter2 = self.FwIterator(
+            restored,
+            output_map=self.output_map(with_labels=True),
+            auto_reset=True,
+            reader_name="Reader",
+        )
 
         self.compare_iters(iter, iter2)
 
@@ -473,8 +480,8 @@ class TestGluon(FwTestBase):
         from nvidia.dali.plugin.mxnet import DALIGluonIterator
 
         def iterator_wrapper(pipeline, **kwargs):
-            if 'output_map' in kwargs:
-                kwargs.pop('output_map')
+            if "output_map" in kwargs:
+                kwargs.pop("output_map")
             return DALIGluonIterator(pipeline, **kwargs)
 
         self.FwIterator = iterator_wrapper
