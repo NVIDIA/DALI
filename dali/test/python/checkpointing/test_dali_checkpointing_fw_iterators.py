@@ -471,7 +471,10 @@ class TestMxnet(FwTestBase):
         assert len(out1) == len(out2)
         for d1, d2 in zip(out1, out2):
             assert (d1.data[0].asnumpy() == d2.data[0].asnumpy()).all()
-            assert (d1.label[0].asnumpy() == d2.label[0].asnumpy()).all()
+            if d1.label:
+                assert (d1.label[0].asnumpy() == d2.label[0].asnumpy()).all()
+            else:
+                assert not d2.label
 
 
 class TestGluon(FwTestBase):
