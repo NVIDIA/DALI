@@ -38,14 +38,27 @@ test_py_with_framework() {
     fi
 
 
-    ${python_new_invoke_test} -s decoder
+    ${python_new_invoke_test} -A '!jpeg_scans_limit' -s decoder
 
 
     ${python_new_invoke_test} -s input
 }
 
+test_jpeg_scan_limit() {
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+      # test various broken cases with smaller limit to make the test faster
+      DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit
+      # test default limit for one case
+      ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
+    else
+      # let's check if error handling does not lead to leaks
+      DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
+    fi
+}
+
 test_no_fw() {
     test_py_with_framework
+    test_jpeg_scan_limit
 }
 
 run_all() {
