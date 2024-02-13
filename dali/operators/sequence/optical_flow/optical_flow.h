@@ -74,7 +74,7 @@ class OpticalFlow : public StatelessOperator<Backend> {
                  std::to_string(spec.NumInput()));
     sync_ = CUDAEvent::Create(device_id_);
 #if NVML_ENABLED
-    nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlHandle();
 #endif
   }
 
@@ -229,7 +229,7 @@ class OpticalFlow : public StatelessOperator<Backend> {
   CUDAEvent sync_;
 
 #if NVML_ENABLED
-  nvml::nvmlHandle nvml_handle_;
+  nvml::NvmlInstance nvml_handle_;
 #endif
 };
 

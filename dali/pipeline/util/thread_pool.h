@@ -97,7 +97,7 @@ class DLL_PUBLIC ThreadPool {
   //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
 #if NVML_ENABLED
-  nvml::nvmlHandle nvml_handle_;
+  nvml::NvmlInstance nvml_handle_;
 #endif
 };
 

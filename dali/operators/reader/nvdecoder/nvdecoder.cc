@@ -62,7 +62,7 @@ NvDecoder::NvDecoder(int device_id,
   bool use_default_stream = false;
 #if NVML_ENABLED
   {
-    nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlHandle();
     static float driver_version = nvml::GetDriverVersion();
     if (driver_version > 460 && driver_version < 470.21)
       use_default_stream = true;

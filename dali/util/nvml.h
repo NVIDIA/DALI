@@ -242,34 +242,34 @@ inline void Shutdown() {
 }
 
 
-class nvmlHandle {
+class NvmlInstance {
  public:
-  static nvmlHandle CreateNvmlHandle() {
-    return nvmlHandle(true);
+  static NvmlInstance CreateNvmlInstance() {
+    return NvmlInstance(true);
   }
 
-  explicit nvmlHandle(bool init = false) {
+  explicit NvmlInstance(bool init = false) {
     if (init) {
       Init();
       is_created_ = true;
     }
   }
 
-  nvmlHandle(const nvmlHandle &) = delete;
+  NvmlInstance(const NvmlInstance &) = delete;
 
-  nvmlHandle &operator=(const nvmlHandle &) = delete;
+  NvmlInstance &operator=(const NvmlInstance &) = delete;
 
-  inline nvmlHandle(nvmlHandle &&other) : is_created_(other.is_created_) {
+  inline NvmlInstance(NvmlInstance &&other) : is_created_(other.is_created_) {
     other.is_created_ = false;
   }
 
-  inline nvmlHandle &operator=(nvmlHandle &&other) {
+  inline NvmlInstance &operator=(NvmlInstance &&other) {
     is_created_ = other.is_created_;
     other.is_created_ = false;
     return *this;
   }
 
-  ~nvmlHandle() {
+  ~NvmlInstance() {
     if (is_created_)
       Shutdown();
   }

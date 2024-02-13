@@ -70,7 +70,7 @@ class WorkerThread {
   inline WorkerThread(int device_id, bool set_affinity, const std::string &name) :
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
-    nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlHandle();
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
         this, device_id, set_affinity, make_string("[DALI][WT]", name));
@@ -232,7 +232,7 @@ class WorkerThread {
 
   Barrier barrier_;
 #if NVML_ENABLED
-  nvml::nvmlHandle nvml_handle_;
+  nvml::NvmlInstance nvml_handle_;
 #endif
 };
 

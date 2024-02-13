@@ -235,7 +235,7 @@ class NvDecoder {
 
   std::thread thread_convert_;
 #if NVML_ENABLED
-  nvml::nvmlHandle nvml_handle_;
+  nvml::NvmlInstance nvml_handle_;
 #endif
 };
 

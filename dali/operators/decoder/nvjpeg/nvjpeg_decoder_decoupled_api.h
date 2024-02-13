@@ -119,7 +119,7 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
-      nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
+      nvml_handle_ = nvml::NvmlInstance::CreateNvmlHandle();
       float driverVersion = nvml::GetDriverVersion();
       if (driverVersion < 455) {
         try_init_hw_decoder = false,
@@ -1185,7 +1185,7 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
   unsigned int num_hw_cores_per_engine_ = 1;
 
 #if NVML_ENABLED
-  nvml::nvmlHandle nvml_handle_;
+  nvml::NvmlInstance nvml_handle_;
 #endif
 };
 
