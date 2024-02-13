@@ -241,6 +241,43 @@ inline void Shutdown() {
   CUDA_CALL(nvmlShutdown());
 }
 
+
+class nvmlHandle {
+ public:
+  static nvmlHandle CreateNvmlHandle() {
+    return nvmlHandle(true);
+  }
+
+  explicit nvmlHandle(bool init = false) {
+    if (init) {
+      Init();
+      is_created_ = true;
+    }
+  }
+
+  nvmlHandle(const nvmlHandle &) = delete;
+
+  nvmlHandle &operator=(const nvmlHandle &) = delete;
+
+  inline nvmlHandle(nvmlHandle &&other) : is_created_(other.is_created_) {
+    other.is_created_ = false;
+  }
+
+  inline nvmlHandle &operator=(nvmlHandle &&other) {
+    is_created_ = other.is_created_;
+    other.is_created_ = false;
+    return *this;
+  }
+
+  ~nvmlHandle() {
+    if (is_created_)
+      Shutdown();
+  }
+
+ private:
+  bool is_created_ = false;
+};
+
 /**
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
  */

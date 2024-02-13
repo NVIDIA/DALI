@@ -27,12 +27,12 @@ namespace dali {
 
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
     : threads_(num_thread), running_(true), work_complete_(true), started_(false)
-    , active_threads_(0), device_id_(device_id) {
+    , active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   // only for the CPU pipeline
-  if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    nvml::Init();
+  if (device_id != CPU_ONLY_DEVICE_ID) {
+    nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
   }
 #endif
   // Start the threads in the main loop
@@ -54,11 +54,6 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
-#if NVML_ENABLED
-  if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    nvml::Shutdown();
-  }
-#endif
 }
 
 void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {

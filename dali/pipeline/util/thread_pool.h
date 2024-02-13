@@ -25,6 +25,9 @@
 #include <vector>
 #include <string>
 #include "dali/core/common.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif
 
 
 namespace dali {
@@ -87,13 +90,15 @@ class DLL_PUBLIC ThreadPool {
   bool work_complete_;
   bool started_;
   int active_threads_;
-  int device_id_;
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;
 
   //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
+#if NVML_ENABLED
+  nvml::nvmlHandle nvml_handle_;
+#endif
 };
 
 }  // namespace dali

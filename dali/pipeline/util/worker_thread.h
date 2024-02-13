@@ -68,11 +68,9 @@ class WorkerThread {
   typedef std::function<void(void)> Work;
 
   inline WorkerThread(int device_id, bool set_affinity, const std::string &name) :
-    running_(true), work_complete_(true), barrier_(2), device_id_(device_id) {
+    running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
-    if (device_id_ != CPU_ONLY_DEVICE_ID) {
-      nvml::Init();
-    }
+    nvml_handle_ = nvml::nvmlHandle::CreateNvmlHandle();
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
         this, device_id, set_affinity, make_string("[DALI][WT]", name));
@@ -80,11 +78,6 @@ class WorkerThread {
 
   inline ~WorkerThread() {
     Shutdown();
-#if NVML_ENABLED
-    if (device_id_ != CPU_ONLY_DEVICE_ID) {
-      nvml::Shutdown();
-    }
-#endif
   }
 
   /*
@@ -238,7 +231,9 @@ class WorkerThread {
   std::queue<string> errors_;
 
   Barrier barrier_;
-  int device_id_;
+#if NVML_ENABLED
+  nvml::nvmlHandle nvml_handle_;
+#endif
 };
 
 }  // namespace dali
