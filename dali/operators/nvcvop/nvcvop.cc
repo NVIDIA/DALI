@@ -114,21 +114,22 @@ nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat 
   return WrapImage(data, shape, format);
 }
 
-void AllocateImagesLike(const TensorList<GPUBackend> &t_list,
-                        kernels::DynamicScratchpad &scratchpad, nvcv::ImageBatchVarShape &output) {
+void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBackend> &t_list,
+                        kernels::Scratchpad &scratchpad) {
   auto channel_dim = t_list.GetLayout().find('C');
   uint8_t *buffer = scratchpad.AllocateGPU<uint8_t>(t_list.nbytes());
   size_t offset = 0;
   for (int s = 0; s < t_list.num_samples(); ++s) {
-    auto num_channels = (channel_dim >= 0) ? t_list[s].shape()[channel_dim] : 1;
+    auto tensor = t_list[s];
+    auto num_channels = (channel_dim >= 0) ? tensor.shape()[channel_dim] : 1;
     auto format = GetImageFormat(t_list.type(), num_channels);
-    auto image = WrapImage(buffer + offset, t_list[s].shape(), format);
+    auto image = WrapImage(buffer + offset, tensor.shape(), format);
     output.pushBack(image);
-    offset += volume(t_list[s].shape()) * t_list.type_info().size();
+    offset += volume(tensor.shape()) * t_list.type_info().size();
   }
 }
 
-void PushImagesToBatch(const TensorList<GPUBackend> &t_list, nvcv::ImageBatchVarShape &batch) {
+void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list) {
   auto channel_dim = t_list.GetLayout().find('C');
   for (int s = 0; s < t_list.num_samples(); ++s) {
     auto num_channels = (channel_dim >= 0) ? t_list[s].shape()[channel_dim] : 1;

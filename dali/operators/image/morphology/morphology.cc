@@ -35,16 +35,17 @@ void Morphology::RunImpl(Workspace &ws) {
   auto anchor = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, anchor_arg_,
                                                                     TensorShape<1>(2));
 
-  if (workspace_.capacity() < input.num_samples()) {
-    workspace_ = nvcv::ImageBatchVarShape(std::max(workspace_.capacity() * 2, input.num_samples()));
+  if (op_workspace_.capacity() < input.num_samples()) {
+    op_workspace_ =
+        nvcv::ImageBatchVarShape(std::max(op_workspace_.capacity() * 2, input.num_samples()));
   }
-  workspace_.clear();
-  nvcvop::AllocateImagesLike(input, scratchpad, workspace_);
+  op_workspace_.clear();
+  nvcvop::AllocateImagesLike(op_workspace_, input, scratchpad);
 
   auto input_images = GetInputBatch(ws, 0);
   auto output_images = GetOutputBatch(ws, 0);
   cvcuda::Morphology op{};
-  op(ws.stream(), input_images, output_images, workspace_, morph_type_, mask, anchor, iteration_,
+  op(ws.stream(), input_images, output_images, op_workspace_, morph_type_, mask, anchor, iteration_,
      border_mode_);
 }
 
@@ -72,7 +73,7 @@ DALI_SCHEMA(experimental__Dilate)
   .InputDox(0, "input", "TensorList",
             "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
   .AllowSequences()
-  .InputLayout({"HWC", "FHWC", "CHW", "FCHW"});
+  .InputLayout({"HW", "HWC", "FHWC", "CHW", "FCHW"});
 
 DALI_SCHEMA(experimental__Erode)
   .AddParent("Morphology")
@@ -82,7 +83,7 @@ DALI_SCHEMA(experimental__Erode)
   .InputDox(0, "input", "TensorList",
             "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
   .AllowSequences()
-  .InputLayout({"HWC", "FHWC", "CHW", "FCHW"});
+  .InputLayout({"HW", "HWC", "FHWC", "CHW", "FCHW"});
 
 
 DALI_REGISTER_OPERATOR(experimental__Dilate, Dilate, GPU);

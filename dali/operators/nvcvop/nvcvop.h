@@ -70,14 +70,17 @@ nvcv::Image AsImage(ConstSampleView<GPUBackend> sample, const nvcv::ImageFormat 
  * Allocated images have the shape and data type matching the samples in the given TensorList.
  *
  * It can be used to allocate a workspace batch that matches a given input batch.
+ *
+ * The output images are valid only for the lifetime of the scratchpad.
  */
-void AllocateImagesLike(const TensorList<GPUBackend> &t_list,
-                        kernels::DynamicScratchpad &scratchpad, nvcv::ImageBatchVarShape &output);
+void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBackend> &t_list,
+                        kernels::Scratchpad &scratchpad);
 
 /**
  * @brief Wrap samples from the given TensorList into nvcv Images and push them to an output Image batch
+ * The resulting images cannot outlive the TensorList.
  */
-void PushImagesToBatch(const TensorList<GPUBackend> &t_list, nvcv::ImageBatchVarShape &batch);
+void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list);
 
 /**
  * @brief A base class for the CVCUDA operators.
@@ -92,15 +95,19 @@ class NVCVOperator: public BaseOp {
   /**
    * @brief Get an operator argument as an nvcv Tensor.
    * This method uses the dynamic scratchpad to allocate the (pinned and device) buffers
-   *  used by the output tensor.
+   * used by the output tensor.
+   *
+   * The scratchpad should return its memory in an order that is compatible with ws.stream().
+   * The output is valid only for the lifetime of the scratchpad.
    *
    * @tparam T data type of the DALI operator argument
    * @tparam DTYPE expected nvcv Tensor data type
-   * @param arg_shape shape of the DALI operator argument
+   * @param arg_shape shape of the DALI operator argument.
    */
   template <typename T, NVCVDataType DTYPE>
   nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::DynamicScratchpad &scratchpad,
-                                     ArgValue<T, 1> &arg, const TensorShape<> &arg_shape) {
+                                     ArgValue<T, 1> &arg, const TensorShape<> &arg_shape,
+                                     TensorLayout layout = "") {
     auto dtype = nvcv::DataType(DTYPE);
     int num_samples = ws.GetInputBatchSize(0);
     int arg_sample_vol = volume(arg_shape);
@@ -113,31 +120,51 @@ class NVCVOperator: public BaseOp {
     }
     T *device_buffer = scratchpad.AllocateGPU<T>(num_samples * arg_sample_vol, dtype.alignment());
     MemCopy(device_buffer, staging_buffer, num_samples * arg_sample_vol * sizeof(T), ws.stream());
-    int ndim = arg_shape.sample_dim();
-    auto inner_dim = arg_shape[ndim - 1];
-    DALI_ENFORCE(inner_dim % dtype.numChannels() == 0, "Invalid argument shape.");
-    std::vector<int64_t> shape_data(ndim);
-    shape_data[0] = num_samples;
-    for (int d = 0; d < ndim; ++d) {
-      shape_data[d + 1] = arg_shape[d];
-    }
-    if (inner_dim != dtype.numChannels()) {
-      shape_data.push_back(inner_dim / dtype.numChannels());
-    }
+
+    auto shape_data = CalcTensorShape(arg_shape, num_samples, dtype);
     nvcv::TensorDataStridedCuda::Buffer inBuf;
     inBuf.basePtr = reinterpret_cast<NVCVByte*>(device_buffer);
     inBuf.strides[shape_data.size() - 1] = dtype.strideBytes();
     for (int d = shape_data.size() - 2; d >= 0; --d) {
       inBuf.strides[d] = shape_data[d + 1] * inBuf.strides[d + 1];
     }
-    nvcv::TensorShape shape(shape_data.data(), shape_data.size(), nvcv::TensorLayout(""));
+    TensorLayout out_layout = layout.empty() ? layout : "N" + layout;
+    nvcv::TensorShape shape(shape_data.data(), shape_data.size(),
+                            nvcv::TensorLayout(out_layout.c_str()));
     nvcv::TensorDataStridedCuda inData(shape, dtype, inBuf);
     return nvcv::TensorWrapData(inData);
+  }
+
+  std::vector<int64_t> CalcTensorShape(const TensorShape<> &arg_shape, int num_samples,
+                                       const nvcv::DataType &dtype) {
+    int ndim = arg_shape.sample_dim();
+    int64_t inner_dim = arg_shape[ndim - 1];
+    DALI_ENFORCE(inner_dim % dtype.numChannels() == 0, "Invalid argument shape.");
+    std::vector<int64_t> shape_data;
+    // If number of channels in the data type matches the innermost dimension,
+    // we remove this dimension
+    if (inner_dim == dtype.numChannels()) {
+      shape_data.resize(ndim);
+      shape_data[0] = num_samples;
+      for (int d = 0; d < ndim - 1; ++d) {
+        shape_data[d + 1] = arg_shape[d];
+      }
+    } else {
+      shape_data.resize(ndim + 1);
+      shape_data[0] = num_samples;
+      for (int d = 0; d < ndim - 1; ++d) {
+        shape_data[d + 1] = arg_shape[d];
+      }
+      shape_data[ndim] = inner_dim / dtype.numChannels();
+    }
+    return shape_data;
   }
 
   /**
    * @brief Get input image batch.
    * This method allocates the ImageBatchVarShape and wraps the input data as nvcv images.
+   *
+   * The output should be used only within the RunImpl method.
    */
   const nvcv::ImageBatchVarShape &GetInputBatch(Workspace &ws, size_t input_idx) {
     if (inputs_.size() < input_idx + 1) {
@@ -148,14 +175,15 @@ class NVCVOperator: public BaseOp {
     if (input.capacity() < tl_input.num_samples()) {
       input = nvcv::ImageBatchVarShape(std::max(input.capacity() * 2, tl_input.num_samples()));
     }
-    input.clear();
-    PushImagesToBatch(tl_input, input);
+    PushImagesToBatch(input, tl_input);
     return input;
   }
 
   /**
    * @brief Get output image batch.
    * This method allocates the ImageBatchVarShape and wraps the input data as nvcv images.
+   *
+   * The output should be used only within the RunImpl method.
    */
   nvcv::ImageBatchVarShape &GetOutputBatch(Workspace &ws, size_t output_idx) {
     if (outputs_.size() < output_idx + 1) {
@@ -166,9 +194,25 @@ class NVCVOperator: public BaseOp {
     if (output.capacity() < tl_output.num_samples()) {
       output = nvcv::ImageBatchVarShape(std::max(output.capacity() * 2, tl_output.num_samples()));
     }
-    output.clear();
-    PushImagesToBatch(tl_output, output);
+    PushImagesToBatch(output, tl_output);
     return output;
+  }
+
+  void Run(Workspace &ws) override {
+    BaseOp::Run(ws);
+    ClearBatches();
+  }
+
+
+ private:
+  void ClearBatches() {
+    for (auto &inp : inputs_) {
+      inp.clear();
+    }
+
+    for (auto &out : outputs_) {
+      out.clear();
+    }
   }
 
   std::vector<nvcv::ImageBatchVarShape> inputs_;
