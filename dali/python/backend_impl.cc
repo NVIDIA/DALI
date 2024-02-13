@@ -1699,6 +1699,15 @@ PYBIND11_MODULE(backend_impl, m) {
     return ret;
   });
 
+  m.def("GetNvimgcodecVersion", [] {
+    int ret = -1;
+    try {
+      // we don't want to throw when it is not available, just return -1
+      ret = GetNvimgcodecVersion();
+    } catch (const std::runtime_error &) {}
+    return ret;
+  });
+
 #if SHM_WRAPPER_ENABLED
 
   py::class_<SharedMem>(m, "SharedMem")

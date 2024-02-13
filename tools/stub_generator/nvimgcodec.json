@@ -19,6 +19,7 @@
       "nvimgcodecImageCreate": {},
       "nvimgcodecDecoderDestroy": {},
       "nvimgcodecInstanceCreate": {},
-      "nvimgcodecDecoderDecode": {}
+      "nvimgcodecDecoderDecode": {},
+      "nvimgcodecGetProperties": {}
    }
 }
