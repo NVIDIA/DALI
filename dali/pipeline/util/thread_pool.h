@@ -87,6 +87,7 @@ class DLL_PUBLIC ThreadPool {
   bool work_complete_;
   bool started_;
   int active_threads_;
+  int device_id_;
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;

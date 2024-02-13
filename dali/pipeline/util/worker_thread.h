@@ -68,9 +68,9 @@ class WorkerThread {
   typedef std::function<void(void)> Work;
 
   inline WorkerThread(int device_id, bool set_affinity, const std::string &name) :
-    running_(true), work_complete_(true), barrier_(2) {
+    running_(true), work_complete_(true), barrier_(2), device_id_(device_id) {
 #if NVML_ENABLED
-    if (device_id != CPU_ONLY_DEVICE_ID) {
+    if (device_id_ != CPU_ONLY_DEVICE_ID) {
       nvml::Init();
     }
 #endif
@@ -81,7 +81,9 @@ class WorkerThread {
   inline ~WorkerThread() {
     Shutdown();
 #if NVML_ENABLED
-    nvml::Shutdown();
+    if (device_id_ != CPU_ONLY_DEVICE_ID) {
+      nvml::Shutdown();
+    }
 #endif
   }
 
@@ -236,6 +238,7 @@ class WorkerThread {
   std::queue<string> errors_;
 
   Barrier barrier_;
+  int device_id_;
 };
 
 }  // namespace dali
