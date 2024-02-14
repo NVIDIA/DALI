@@ -63,7 +63,7 @@ class CUDAEventLease : public CUDAEvent {
   CUDAEventPool *owner_;
 };
 
-struct ExecNode;
+class ExecNode;
 
 template <typename NodeType = ExecNode>
 struct DataEdge {
@@ -71,12 +71,14 @@ struct DataEdge {
   NodeType *consumer = nullptr;
   int producer_output_idx = 0;
   int consumer_input_idx = 0;
+  StorageDevice device = {};
 
   constexpr bool operator==(const DataEdge &other) const {
     return producer == other.producer &&
            consumer == other.consumer &&
            producer_output_idx == other.producer_output_idx &&
-           consumer_input_idx == other.consumer_input_idx;
+           consumer_input_idx == other.consumer_input_idx &&
+           device == other.device;
   }
 
   constexpr bool operator!=(const DataEdge &other) const {
@@ -86,7 +88,8 @@ struct DataEdge {
 
 using ExecEdge = DataEdge<ExecNode>;
 
-struct ExecNode {
+class ExecNode {
+ public:
   ExecNode() = default;
   explicit ExecNode(std::function<void(Workspace &)> fn) : task_fn(std::move(fn)) {}
 
@@ -110,9 +113,29 @@ struct ExecNode {
     }
   }
 
-  std::unique_ptr<Workspace> CreateWorkspace() {
-    
+  std::unique_ptr<Workspace> CreateWorkspace() const {
+    auto &spec = op->GetSpec();
+    auto ws = std::make_unique<Workspace>();
+    for (int i = 0; i < spec.NumInput(); i++) {
+      bool arg = spec.IsArgumentInput(i);
+      bool gpu = spec.InputDevice(i) == "gpu";
+      assert((inputs[i]->device == StorageDevice::GPU) == gpu);
+      if (arg) {
+        ws->AddArgumentInput(spec.ArgumentInputName(i), nullptr);
+      } else if (gpu) {
+        ws->AddInput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
+      } else {
+        ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
+      }
+    }
+    return ws;
   }
+
+  void PutWorkspace(std::unique_ptr<Workspace> ws) {
+    workspaces.push(std::move(ws));
+  }
+
+  mutable bool visited = false;
 
 };
 
@@ -130,16 +153,39 @@ struct ExecGraph {
     producer->outputs.push_back(&edge);
     consumer->inputs.push_back(&edge);
   }
+
+  void sort(std::vector<ExecNode *> sorted) {
+    for (auto &n : nodes)
+      n.visited = false;
+
+    sorted.clear();
+    sorted.reserve(nodes.size());
+
+    for (auto &node : nodes)
+      sort_subgraph(sorted, &node);
+  }
+
+  template <typename NodePtrs>
+  void sort_subgraph(NodePtrs &sorted, ExecNode *node) {
+    if (node->visited)
+      return;
+    for (auto e : node->inputs)
+      sort_subgraph(sorted, e->producer);
+
+    sorted.push_back(node);
+  };
+
 };
 
 
-struct SchedNode;
+class SchedNode;
 
 using SchedEdge = DataEdge<SchedNode>;
 
 struct SchedGraph;
 
-struct SchedNode {
+class SchedNode {
+ public:
   ExecNode *definition;
   span<const SchedEdge> inputs, outputs;
 
@@ -217,6 +263,9 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     nodes.clear();
     edges.clear();
 
+    std::vector<ExecNode *> sorted;
+    def.sort(sorted);
+
     int num_edges = 0;
     for (auto &node : def.nodes) {
       node_indices.insert({&node, node_indices.size()});
@@ -228,12 +277,12 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
 
     int i = 0;
     int e = 0;
-    for (auto &exec_node : def.nodes) {
-      assert(node_indices[&exec_node] == i);
+    for (auto &exec_node : sorted) {
       auto &sched_node = nodes[i++];
-      sched_node.definition = &exec_node;
+      sched_node.definition = exec_node;
+      sched_node.ws = sched_node.definition->GetWorkspace();
       SchedEdge *inp = &edges[e];
-      for (auto *exec_edge : exec_node.inputs) {
+      for (auto *exec_edge : exec_node->inputs) {
         assert(e < (int)edges.size());
         auto &sched_edge = edges[e++];
         sched_edge.producer_output_idx = exec_edge->producer_output_idx;
@@ -242,7 +291,7 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
         sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
       }
       SchedEdge *out = &edges[e];
-      for (auto *exec_edge : exec_node.outputs) {
+      for (auto *exec_edge : exec_node->outputs) {
         assert(e < (int)edges.size());
         auto &sched_edge = edges[e++];
         sched_edge.producer_output_idx = exec_edge->producer_output_idx;
@@ -251,12 +300,10 @@ struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
         sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
       }
       SchedEdge *end = &edges[e];
-      sched_node.inputs = std::span(inp, out);
-      sched_node.outputs = std::span(out, end);
+      sched_node.inputs = span(inp, out);
+      sched_node.outputs = span(out, end);
     }
-    assert(e == edges.size());
-
-    init_workspaces();
+    assert(static_cast<size_t>(e) == edges.size());
   }
 
   static auto from_def(ExecGraph &def) {
