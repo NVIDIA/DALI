@@ -35,9 +35,10 @@ void Morphology::RunImpl(Workspace &ws) {
   auto anchor = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, anchor_arg_,
                                                                     TensorShape<1>(2));
 
-  if (op_workspace_.capacity() < input.num_samples()) {
+  if (!op_workspace_ || (op_workspace_.capacity() < input.num_samples())) {
+    int current_size = (op_workspace_) ? op_workspace_.capacity() : 0;
     op_workspace_ =
-        nvcv::ImageBatchVarShape(std::max(op_workspace_.capacity() * 2, input.num_samples()));
+        nvcv::ImageBatchVarShape(std::max(current_size * 2, input.num_samples()));
   }
   op_workspace_.clear();
   nvcvop::AllocateImagesLike(op_workspace_, input, scratchpad);
