@@ -40,6 +40,7 @@ leak:dali::kernels::DynamicScratchpad::~DynamicScratchpad
 leak:dali::kernels::DynamicScratchpad::AllocImpl
 leak:dali::mm::GPUHog::init()
 leak:dali::mm::detail::fixed_size_allocator
+leak:nvmlInitWithFlags
 # no idea how to suppress them other than as below but they are not caused by DALI
 # still there is some danger that any of the  below functions appear in a valid leak
 leak:std::string::_Rep::_S_create
