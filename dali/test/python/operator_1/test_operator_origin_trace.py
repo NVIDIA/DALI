@@ -22,7 +22,7 @@ from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
 set_verbosity(5, True)
 
-@do_not_convert
+# @do_not_convert
 def helper(n=2):
     if n:
         return helper(n - 1)

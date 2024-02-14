@@ -41,6 +41,7 @@ def extract_stack(
 
     # print(f"TODO: extract_stack(): {tb_stack} {frame_map} {frame_filter}")]
     origin_stack_summary = []
+    is_ag_function_call_start = False
     current_function_region = None
     for i, frame_entry in enumerate(stack_summary):
         ag_entry = (frame_entry.filename, frame_entry.lineno)
@@ -65,25 +66,41 @@ def extract_stack(
                     break
         # Transformed function, so it's not something from filtered AutoGraph modules.
         # It can be from AutoAugment.
-        if (frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py") and frame_entry.name == "converted_call"):
-            prepare_for_ag_call_region = True
-        if (frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py") and frame_entry.name == "_call_unconverted"):
-            prepare_for_ag_call_region = False
 
-        if prepare_for_ag_call_region and not skip:
-            prepare_for_ag_call_region = False
+        # AutoGraph is wrapping a function call
+        if (
+            frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py")
+            and frame_entry.name == "converted_call"
+        ):
+            is_ag_function_call_start = True
+        # It quits to a non-AG code, treat it as normal
+        if (
+            frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py")
+            and frame_entry.name == "_call_unconverted"
+        ):
+            is_ag_function_call_start = False
+            current_function_region = None
+        # We are in the first part of the converted_func call (as we are in user code, remember
+        # the function)
+        if is_ag_function_call_start and not skip:
+            is_ag_function_call_start = False
             current_function_region = origin_frame_entry
             skip = True
             origin_stack_summary.append(origin_frame_entry)
-
-
 
         # if origin_frame_entry.name == f"autograph__{frame_entry.name}":
         #     # we start the function region here
         #     print(f"Start of function: {origin_frame_entry.name}")
         #     current_function_region = origin_frame_entry.name
         if not skip:
-            if origin_stack_summary and origin_stack_summary[-1].name == current_function_region.name and origin_stack_summary[-1].filename == current_function_region.filename:
+            # If we are in the same function region, we replace previous entry so we keep only the
+            # last one.
+            if (
+                origin_stack_summary
+                and current_function_region
+                and origin_stack_summary[-1].name == current_function_region.name
+                and origin_stack_summary[-1].filename == current_function_region.filename
+            ):
                 origin_stack_summary.pop()
             origin_stack_summary.append(origin_frame_entry)
         print(f"\n\nProcessing: [{i}] {skip=}:\n{frame_entry=}\n->\n{origin_frame_entry=}")
@@ -95,7 +112,6 @@ def extract_stack(
     #     f"Old:\n{pp.pformat(stack_summary)}\nNew:\n{pp.pformat(origin_stack_summary)}"
     # )
     return origin_stack_summary
-
 
 
 # TODO(klecki!!!!): CHECK HOW THIS BEHAVES WITH allowed calls and automatic augments.
