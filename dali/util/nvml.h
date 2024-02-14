@@ -270,8 +270,10 @@ class NvmlInstance {
   }
 
   ~NvmlInstance() {
-    if (is_created_)
+    if (is_created_) {
       Shutdown();
+      is_created_ = false;
+    }
   }
 
  private:
