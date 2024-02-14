@@ -932,6 +932,17 @@ def test_random_bbox_crop():
     check_single_input_operator(wrapper, "cpu")
 
 
+@random_signed_off("random_crop_generator")
+def test_random_crop_generator():
+    @pipeline_def
+    def pipeline():
+        data = fn.random.uniform(shape=(2,), dtype=types.DALIDataType.INT64)
+        crop_anchor, crop_shape = fn.random_crop_generator(data)
+        return crop_anchor, crop_shape
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
 @params("cpu", "gpu")
 @random_signed_off("noise.gaussian")
 def test_noise_gaussian(device):

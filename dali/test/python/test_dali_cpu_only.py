@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1348,6 +1348,15 @@ def test_conditional():
     pipe.run()
 
 
+def get_shape_data():
+    out = [np.random.randint(100, 800, size=(2,), dtype=np.int64) for _ in range(batch_size)]
+    return out
+
+
+def test_random_crop_generator_cpu():
+    check_single_input(fn.random_crop_generator, get_data=get_shape_data, input_layout=None)
+
+
 tested_methods = [
     "_conditional.merge",
     "_conditional.split",
@@ -1445,6 +1454,7 @@ tested_methods = [
     "water",
     "sphere",
     "erase",
+    "random_crop_generator",
     "random_resized_crop",
     "ssd_random_crop",
     "bbox_paste",
