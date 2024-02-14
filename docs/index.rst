@@ -73,6 +73,6 @@ NVIDIA DALI Documentation
    :hidden:
    :caption: Reference
 
-   Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes.html>
+   Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
    GitHub <https://github.com/NVIDIA/DALI>
-   Roadmap <https://github.com/NVIDIA/DALI/issues/4578>
+   Roadmap <https://github.com/NVIDIA/DALI/issues/5320>
