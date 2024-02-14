@@ -32,7 +32,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const c
 #if NVML_ENABLED
   // only for the CPU pipeline
   if (device_id != CPU_ONLY_DEVICE_ID) {
-    nvml_handle_ = nvml::NvmlInstance::CreateNvmlHandle();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
   }
 #endif
   // Start the threads in the main loop

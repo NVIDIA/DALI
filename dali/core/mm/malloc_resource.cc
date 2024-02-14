@@ -94,7 +94,7 @@ cuda_malloc_async_memory_resource::cuda_malloc_async_memory_resource(int device_
   dummy_host_stream_ = CUDAStreamPool::instance().Get(device_id_);
 #if NVML_ENABLED
   static const float driverVersion = []() {
-    auto nvml_handle = nvml::NvmlInstance::CreateNvmlHandle();
+    auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
     auto ret = nvml::GetDriverVersion();
     return ret;
   }();
