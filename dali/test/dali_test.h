@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,10 +28,10 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/image.h"
+#include "dali/util/crop_window.h"
 #include "dali/util/ocv.h"
 
 namespace dali {

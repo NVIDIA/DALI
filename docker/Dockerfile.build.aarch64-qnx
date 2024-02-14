@@ -135,10 +135,12 @@ CMD cmake                \
   -DBUILD_NVDEC=OFF      \
   -DBUILD_NVML=OFF       \
   -DBUILD_CUFILE=OFF     \
+  -DBUILD_NVIMGCODEC=ON  \
   -DVERBOSE_LOGS=OFF     \
   -DWITH_DYNAMIC_CUDA_TOOLKIT=ON\
   -DWITH_DYNAMIC_NVJPEG=ON\
   -DWITH_DYNAMIC_CUFFT=ON\
   -DWITH_DYNAMIC_NPP=ON  \
+  -DWITH_DYNAMIC_NVIMGCODEC=ON  \
   .. &&                  \
   make install -j"$(grep ^processor /proc/cpuinfo | wc -l)"

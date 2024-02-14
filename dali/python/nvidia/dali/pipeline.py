@@ -763,6 +763,7 @@ class Pipeline(object):
 
     def _init_pipeline_backend(self):
         device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
+        b.check_nvimgcodec()
         if device_id != types.CPU_ONLY_DEVICE_ID:
             b.check_cuda_runtime()
         self._pipe = b.Pipeline(

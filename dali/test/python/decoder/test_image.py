@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -250,8 +250,8 @@ def check_FastDCT_body(batch_size, img_type, device):
 
 
 def test_FastDCT():
-    for device in {"cpu", "mixed"}:
-        for batch_size in {1, 8}:
+    for device in ["cpu", "mixed"]:
+        for batch_size in [1, 8]:
             for img_type in test_good_path:
                 yield check_FastDCT_body, batch_size, img_type, device
 

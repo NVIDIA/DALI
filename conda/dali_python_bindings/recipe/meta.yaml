@@ -86,6 +86,7 @@ requirements:
     - gast >=0.3.3
     - dm-tree >=0.1.8
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   run:
     - python
     - future
@@ -93,6 +94,7 @@ requirements:
     - gast >=0.3.3
     - dm-tree >=0.1.8
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
 about:
   home: https://github.com/NVIDIA/DALI
   license: Apache-2.0 license

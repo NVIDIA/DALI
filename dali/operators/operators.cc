@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 #if DALI_USE_NVJPEG
   #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #endif
+
+#include <nvimgcodec.h>
 
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
@@ -46,6 +48,15 @@ DLL_PUBLIC int GetNvjpegVersion() {
   return -1;
 #endif
 }
+
+DLL_PUBLIC int GetNvimgcodecVersion() {
+  nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
+                                    sizeof(nvimgcodecProperties_t), 0};
+  if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
+    return -1;
+  return static_cast<int>(properties.version);
+}
+
 
 }  // namespace dali
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ adjust_source_file_language_property("${DALI_OPERATOR_SRCS}")
 add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_OBJ})
 set_target_properties(dali_operators PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${DALI_LIBRARY_OUTPUT_DIR}")
-target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core dali_imgcodec)
+target_link_libraries(dali_operators PUBLIC dali dali_kernels dali_core)
 target_link_libraries(dali_operators PRIVATE dynlink_cuda ${DALI_LIBS})
 if (BUILD_NVML)
   target_link_libraries(dali_operators PRIVATE dynlink_nvml)
@@ -101,6 +101,11 @@ if (BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
   target_link_libraries(dali_operators PRIVATE dynlink_nvjpeg)
   target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
 endif(BUILD_NVJPEG AND WITH_DYNAMIC_NVJPEG)
+
+if (BUILD_NVIMAGECODEC AND WITH_DYNAMIC_NVIMGCODEC)
+  target_link_libraries(dali_operators PRIVATE dynlink_nvimgcodec)
+  target_link_libraries(dali_operators PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvimgcodec>")
+endif(BUILD_NVIMAGECODEC AND WITH_DYNAMIC_NVIMGCODEC)
 
 if (WITH_DYNAMIC_NPP)
   target_link_libraries(dali_operators PRIVATE dynlink_npp)

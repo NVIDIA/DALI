@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <map>
 #include "dali/core/common.h"
-#include "dali/image/image.h"
+#include "dali/operators/decoder/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/loader/utils.h"
 

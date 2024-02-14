@@ -28,8 +28,7 @@ test_body() {
     "dali_core_test.bin" \
     "dali_kernel_test.bin" \
     "dali_test.bin" \
-    "dali_operator_test.bin" \
-    "dali_imgcodec_test.bin"
+    "dali_operator_test.bin"
   do
     # DecodeJPEGHost doesn't work well for Conda as OpenCV there uses libjpeg that returns a bit different
     # results that libturbo-jpeg DALI uses, also OpenCV conflicts with FFMpeg >= 4.2 which is reguired

@@ -13,7 +13,8 @@ test_py_with_framework() {
 
 test_py() {
     python test_detection_pipeline.py -i 300
-    python test_RN50_data_pipeline.py -s -i 10
+    python test_RN50_data_pipeline.py -s -i 10 --decoder_type "legacy"
+    python test_RN50_data_pipeline.py -s -i 10 --decoder_type "experimental"
     python test_coco_tfrecord.py -i 64
     python test_data_containers.py -s -b 20
     python test_data_containers.py -s -b 20 -n

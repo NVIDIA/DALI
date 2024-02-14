@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,14 +85,14 @@ def run_decode(data_path, batch, device, threads):
 
 
 def test_image_decoder():
-    for device in {"cpu", "mixed"}:
-        for batch_size in {1, 10}:
+    for device in ["cpu", "mixed"]:
+        for batch_size in [1, 10]:
             for img_type in test_good_path:
-                for threads in {1, random.choice([2, 3, 4])}:
+                for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, good_path, img_type)
                     yield run_decode, data_path, batch_size, device, threads
             for img_type in test_misnamed_path:
-                for threads in {1, random.choice([2, 3, 4])}:
+                for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, misnamed_path, img_type)
                     yield run_decode, data_path, batch_size, device, threads
 
@@ -205,7 +205,7 @@ def test_image_decoder_fused():
                 return np.allclose(x, y)
 
             validation_fun = mean_close
-        for device in {"cpu", "mixed"}:
+        for device in ["cpu", "mixed"]:
             for img_type in test_good_path:
                 yield (
                     run_decode_fused,
@@ -246,8 +246,8 @@ def check_FastDCT_body(batch_size, img_type, device):
 
 
 def test_FastDCT():
-    for device in {"cpu", "mixed"}:
-        for batch_size in {1, 8}:
+    for device in ["cpu", "mixed"]:
+        for batch_size in [1, 8]:
             for img_type in test_good_path:
                 yield check_FastDCT_body, batch_size, img_type, device
 
@@ -326,9 +326,6 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*"
 def test_image_decoder_consistency():
     for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
         for file_fmt in test_good_path:
-            if (file_fmt == "jpeg2k" or file_fmt == "mixed") and out_img_type == types.ANY_DATA:
-                # TODO(staniewzki, michalz) Fix ANY_DATA support in OpenCV
-                continue
             path = os.path.join(good_path, file_fmt)
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
 
@@ -338,11 +335,6 @@ def test_image_decoder_consistency():
             ("png", "db/single/multichannel/with_alpha", "png"),
         ]:
             subdir = None  # In those paths the images are not organized in subdirs
-
-            if (file_fmt == "jpeg2k" or file_fmt == "mixed") and out_img_type == types.ANY_DATA:
-                # TODO(michalz) Fix ANY_DATA support in OpenCV
-                continue
-
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
 
 
@@ -418,24 +410,6 @@ def _testimpl_image_decoder_slice_error_oob(device):
 def test_image_decoder_slice_error_oob():
     for device in ["cpu", "mixed"]:
         yield _testimpl_image_decoder_slice_error_oob, device
-
-
-# TODO(msala) Implement HW decoder in nvJPEG
-
-# def test_pinned_input_hw_decoder():
-#     file_root = os.path.join(test_data_root, good_path, "jpeg")
-
-#     @pipeline_def(batch_size=128, device_id=0, num_threads=4)
-#     def pipe():
-#         encoded, _ = fn.readers.file(file_root=file_root)
-#         encoded_gpu = encoded.gpu()
-#         # encoded.gpu() should make encoded pinned
-#         decoded = fn.experimental.decoders.image(encoded, device="mixed")
-#         return decoded, encoded_gpu
-
-#     p = pipe()
-#     p.build()
-#     p.run()
 
 
 def test_tiff_palette():
@@ -559,11 +533,7 @@ def test_image_decoder_lossless_jpeg(img_name, output_type, dtype, precision):
 
 
 def test_image_decoder_lossless_jpeg_cpu_not_supported():
-    device_id = 0
-    if not is_nvjpeg_lossless_supported(device_id=device_id):
-        raise SkipTest("NVJPEG lossless supported on SM60+ capable devices only")
-
-    @pipeline_def(batch_size=1, device_id=device_id, num_threads=1)
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(file):
         encoded, _ = fn.readers.file(files=[file])
         decoded = fn.experimental.decoders.image(
@@ -575,6 +545,4 @@ def test_image_decoder_lossless_jpeg_cpu_not_supported():
     p = pipe(os.path.join(test_data_root, imgfile))
     p.build()
 
-    assert_raises(
-        RuntimeError, p.run, glob='*Failed to decode a JPEG lossless (SOF-3)*Only "mixed" backend*'
-    )
+    assert_raises(RuntimeError, p.run, glob="*Failed to decode*")
