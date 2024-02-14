@@ -264,8 +264,8 @@ class NvmlInstance {
   }
 
   inline NvmlInstance &operator=(NvmlInstance &&other) {
-    is_created_ = other.is_created_;
-    other.is_created_ = false;
+    std::swap(is_created_, other.is_created_);
+    other.~NvmlInstance();
     return *this;
   }
 
