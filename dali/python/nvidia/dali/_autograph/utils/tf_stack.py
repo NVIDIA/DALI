@@ -91,7 +91,7 @@ class StackTraceMapper(StackTraceTransform):
         self.internal_map.update(self.get_effective_source_map())
 
     def get_effective_source_map(self):
-        """Returns a map (filename, lineno) -> (filename, lineno, function_name)."""
+        """Returns a map (filename, lineno) -> (filename, lineno, function_name, line)."""
         raise NotImplementedError("subclasses need to override this")
 
 

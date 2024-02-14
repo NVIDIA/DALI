@@ -155,7 +155,7 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
             )
 
         for key, value in parent_map.items():
-            filename, lineno, _ = value
+            filename, lineno, _, _ = value
             value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
             if value_loc in self._source_map:
                 origin = self._source_map[value_loc]
@@ -425,6 +425,7 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
         return _fall_back_unconverted(f, args, kwargs, options, e)
 
     # We no longer need CurrentModuleFilter here, as we filter whole autograph
+    # TODO(klecki): Filter them just once.
     import nvidia.dali._conditionals as dc
     import nvidia.dali._autograph as ag
 

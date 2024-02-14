@@ -14,8 +14,20 @@
 
 import numpy as np
 
-from nvidia.dali import pipeline_def, fn
+from nvidia.dali import pipeline_def, fn, types
 from test_utils import load_test_operator_plugin
+from nvidia.dali.pipeline import do_not_convert
+
+from nvidia.dali._autograph.utils.ag_logging import set_verbosity
+
+set_verbosity(5, True)
+
+@do_not_convert
+def helper(n=2):
+    if n:
+        return helper(n - 1)
+    else:
+        return fn.origin_trace_dump()
 
 
 def test_plugin_ops():
@@ -23,11 +35,11 @@ def test_plugin_ops():
 
     @pipeline_def(batch_size=2, num_threads=1, device_id=0, enable_conditionals=True)
     def pipe():
-        for _ in range(1):
-            if 0:
-                return fn.origin_trace_dump()
-            else:
-                return fn.origin_trace_dump()
+        if 0:
+            x = fn.origin_trace_dump()
+        else:
+            x = helper()
+        return x
 
     p = pipe()
     p.build()
