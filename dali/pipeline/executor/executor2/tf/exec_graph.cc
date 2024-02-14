@@ -18,16 +18,9 @@ namespace dali {
 namespace exec2 {
 
 
-void ExecNode::schedule(std::shared_ptr<ExecGraph> eg, tf::Taskflow &flow) {
+void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
   main_task = flow.emplace([this]() {
     runs++;
-    for (auto &out : ws.out) {
-      if (!out)
-        out = std::make_shared<Buffer>("unnamed");
-      assert(out->readers == 0);
-      out->writers++;
-    }
-
     for (auto &e : inputs) {
       assert(!e.producer || ws.in[e.consumer_input_idx]);
     }
@@ -52,7 +45,7 @@ void ExecNode::schedule(std::shared_ptr<ExecGraph> eg, tf::Taskflow &flow) {
     }
 
     for (int i = 0, nout = outputs.size(); i < nout; i++) {
-      const ExecEdge &out_edge = outputs[i];
+      const SchedEdge &out_edge = outputs[i];
       if (out_edge.consumer) {
         Workspace &consumer_ws = out_edge.consumer->ws;
         auto &buf = ws.out[out_edge.producer_output_idx];
@@ -61,8 +54,8 @@ void ExecNode::schedule(std::shared_ptr<ExecGraph> eg, tf::Taskflow &flow) {
         consumer_ws.in[out_edge.consumer_input_idx] = buf;
       }
     }
-    for (auto &out : ws.out)
-      out.reset();
+    for (int i = 0; i < ws->NumOutput(); i++)
+      ws->SetOutput(i, nullptr);
   });
 
   for (auto &in : inputs) {
