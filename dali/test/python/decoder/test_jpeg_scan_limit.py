@@ -152,7 +152,7 @@ class ProgressiveJpeg(unittest.TestCase):
         ("ac_first", "ac_refine", "dc_first", "dc_refine"),
     )
     def test_scans_limit(self, decoding_device, decoding_method, decoding_step):
-        max_scans = int(os.environ.get("DALI_MAX_JPEG_SCANS", "500"))
+        max_scans = int(os.environ.get("DALI_MAX_JPEG_SCANS", "256"))
 
         @pipeline_def(batch_size=1, device_id=0, num_threads=4)
         def pipeline():

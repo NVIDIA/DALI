@@ -36,7 +36,7 @@ void CatchError(j_common_ptr cinfo) {
 }
 
 inline int GetLibJpegMaxProgressiveScansEnv() {
-  static constexpr int kDefaultScansNum = 500;
+  static constexpr int kDefaultScansNum = 256;
   char *env = getenv("DALI_MAX_JPEG_SCANS");
   if (env) {
     int ret = atoi(env);
