@@ -124,19 +124,6 @@ with little reduction in quality.)code",
 The option corresponds to the `JPEG fancy upsampling` available in libjpegturbo or
 ImageMagick.)code",
       false)
-  .AddOptionalArg("memory_stats",
-      R"code(Applies **only** to the ``mixed`` backend type.
-
-Prints debug information about nvJPEG allocations. The information about the largest
-allocation might be useful to determine suitable values for ``device_memory_padding`` and
-``host_memory_padding`` for a dataset.
-
-.. note::
-  The statistics are global for the entire process, not per operator instance, and include
-  the allocations made during construction if the padding hints are non-zero.
-)code",
-      false)
-  .DeprecateArg("memory_stats")  // deprecated in Nov 2022
   .AddOptionalTypeArg("dtype",
       R"code(Output data type of the image.
 
@@ -144,25 +131,32 @@ Values will be converted to the dynamic range of the requested type.)code",
       DALI_UINT8)
   .AddOptionalArg("adjust_orientation",
       R"code(Use EXIF orientation metadata to rectify the images)code",
-      true);
+      true)
+  // deprecated and removed (ignored)
+  .AddOptionalArg("split_stages", "", false)
+  .DeprecateArg("split_stages", false)  // deprecated since DALI 1.0
+  .AddOptionalArg("use_chunk_allocator", "", false)
+  .DeprecateArg("use_chunk_allocator", false)  // deprecated since DALI 1.0
+  .AddOptionalArg("memory_stats", "", false)
+  .DeprecateArg("memory_stats", false);  // deprecated since in Nov 2022
+
 
 DALI_SCHEMA(experimental__decoders__Image)
   .DocStr(R"code(Decodes images.
 
-For jpeg images, depending on the backend selected ("mixed" and "cpu"), the implementation uses
-the *nvJPEG* library or *libjpeg-turbo*, respectively. Other image formats are decoded
-with *OpenCV* or other specific libraries, such as *libtiff*.
-
-If used with a ``mixed`` backend, and the hardware is available, the operator will use
-a dedicated hardware decoder.
-
-.. warning::
-  Due to performance reasons, hardware decoder is disabled for driver < 455.x
+Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
-Please note that GPU acceleration for JPEG 2000 decoding is only available for CUDA 11.
+The implementation uses NVIDIA nvImageCodec to decode images.
+You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
+or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
+CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
+
+.. note::
+  GPU accelerated decoding is only available for a subset of the image formats (JPEG, and JPEG2000).
+  For other formats, a CPU based decoder is used. For JPEG, a dedicated HW decoder will be used when
+  available.
 
 .. note::
   WebP decoding currently only supports the simple file format (lossy and lossless compression).
@@ -177,18 +171,28 @@ DALI_SCHEMA(experimental__decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
 by fixed window dimensions and variable anchors.
 
-When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
-image format, it will decode the entire image and crop the selected ROI.
+Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
+The implementation uses NVIDIA nvImageCodec to decode images.
+You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
+or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
+CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
+
+When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
 
 .. note::
-  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
-  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``decoders.image`` and ``crop`` operators.)code")
+  GPU accelerated decoding is only available for a subset of the image formats (JPEG, and JPEG2000).
+  For other formats, a CPU based decoder is used. For JPEG, a dedicated HW decoder will be used when
+  available.
+
+.. note::
+  WebP decoding currently only supports the simple file format (lossy and lossless compression).
+  For details on the different WebP file formats, see
+  https://developers.google.com/speed/webp/docs/riff_container
+
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
@@ -197,6 +201,15 @@ Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest.
+
+Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
+
+The output of the decoder is in *HWC* layout.
+
+The implementation uses NVIDIA nvImageCodec to decode images.
+You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
+or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
+CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
 
 The slice can be specified by proving the start and end coordinates, or start coordinates
 and shape of the slice. Both coordinates and shapes can be provided in absolute or relative terms.
@@ -225,18 +238,19 @@ arguments.
 By default, the :meth:`nvidia.dali.fn.decoders.image_slice` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
-When possible, the argument uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to optimize the decoding time and memory usage. When the ROI decoding is not supported for a given
-image format, it will decode the entire image and crop the selected ROI.
-
-The output of the decoder is in the *HWC* layout.
-
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
+When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
 
 .. note::
-  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
-  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``decoders.image`` and ``slice`` operators.)code")
+  GPU accelerated decoding is only available for a subset of the image formats (JPEG, and JPEG2000).
+  For other formats, a CPU based decoder is used. For JPEG, a dedicated HW decoder will be used when
+  available.
+
+.. note::
+  WebP decoding currently only supports the simple file format (lossy and lossless compression).
+  For details on the different WebP file formats, see
+  https://developers.google.com/speed/webp/docs/riff_container
+
+)code")
   .NumInput(1, 3)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
@@ -261,24 +275,30 @@ interpreted as absolute or relative coordinates, depending on the value of
 DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
   .DocStr(R"code(Decodes images and randomly crops them.
 
-The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
-a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
-
-When possible, the operator uses the ROI decoding APIs (for example, *libjpeg-turbo* and *nvJPEG*)
-to reduce the decoding time and memory usage. When the ROI decoding is not supported for a given
-image format, it will decode the entire image and crop the selected ROI.
+Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
 
 The output of the decoder is in *HWC* layout.
 
-Supported formats: JPG, BMP, PNG, TIFF, PNM, PPM, PGM, PBM, JPEG 2000, WebP.
+The implementation uses NVIDIA nvImageCodec to decode images.
+You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads
+or simply do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where
+CUDA_MAJOR_VERSION is your CUDA major version (e.g. 12).
+
+The cropping window's area (relative to the entire image) and aspect ratio can be restricted to
+a range of values specified by ``area`` and ``aspect_ratio`` arguments, respectively.
+
+When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
 
 .. note::
-  JPEG 2000 region-of-interest (ROI) decoding is not accelerated on the GPU, and will use
-  a CPU implementation regardless of the selected backend. For a GPU accelerated implementation,
-  consider using separate ``decoders.image`` and ``random_crop`` operators.
+  GPU accelerated decoding is only available for a subset of the image formats (JPEG, and JPEG2000).
+  For other formats, a CPU based decoder is used. For JPEG, a dedicated HW decoder will be used when
+  available.
 
 .. note::
-  EXIF orientation metadata is used to rectify the image.)code")
+  WebP decoding currently only supports the simple file format (lossy and lossless compression).
+  For details on the different WebP file formats, see
+  https://developers.google.com/speed/webp/docs/riff_container
+)code")
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")

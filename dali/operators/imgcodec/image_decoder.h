@@ -130,9 +130,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
     ParsedSample parsed_sample = {};
     NvImageCodecImage image = {};
     nvimgcodecImageInfo_t image_info = {};
+    TensorShape<> out_shape = {};
     bool need_processing = true;
 
-    TensorLayout orig_layout;
     TensorLayout req_layout;
     DALIImageType orig_img_type;
     DALIImageType req_img_type;
@@ -326,7 +326,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     exec_params_.executor = &executor_;
     exec_params_.max_num_cpu_threads = num_threads_;
     exec_params_.pre_init = 1;
-    decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string(), hw_load);
+    decoder_ = NvImageCodecDecoder::Create(instance_, &exec_params_, opts_.to_string());
   }
 
   nvimgcodecStatus_t launch(int device_id, int sample_idx, void *task_context,
@@ -378,18 +378,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   void GetDecoderSpecificArguments(const OpSpec &spec) {
     GetDecoderSpecificArgument<uint64_t>(spec, "hybrid_huffman_threshold");
-    GetDecoderSpecificArgument<size_t>(spec, "device_memory_padding");
-    GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding");
-    GetDecoderSpecificArgument<size_t>(spec, "device_memory_padding_jpeg2k");
-    GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding_jpeg2k");
+    GetDecoderSpecificArgument<int>(spec, "device_memory_padding");
+    GetDecoderSpecificArgument<int>(spec, "host_memory_padding");
+    GetDecoderSpecificArgument<int>(spec, "device_memory_padding_jpeg2k");
+    GetDecoderSpecificArgument<int>(spec, "host_memory_padding_jpeg2k");
     GetDecoderSpecificArgument<float>(spec, "hw_decoder_load");
-    GetDecoderSpecificArgument<size_t>(spec, "preallocate_width_hint");
-    GetDecoderSpecificArgument<size_t>(spec, "preallocate_height_hint");
+    GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
+    GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
     GetDecoderSpecificArgument<bool>(spec, "use_fast_idct");
     GetDecoderSpecificArgument<bool>(spec, "jpeg_fancy_upsampling");
     GetDecoderSpecificArgument<int>(spec, "num_threads");
-    GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
-    GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
     // Make sure we set the default that DALI expects
     if (decoder_params_.count("jpeg_fancy_upsampling") == 0)
       decoder_params_["jpeg_fancy_upsampling"] = false;
@@ -476,8 +474,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
                       span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
                                           volume(input_sample.shape())});
           ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->parsed_sample.dali_img_info.shape);
-          OutputShape(shapes.tensor_shape_span(i), st->parsed_sample.dali_img_info, format_,
+          OutputShape(st->out_shape, st->parsed_sample.dali_img_info, format_,
                       is_planar_layout, use_orientation_, roi);
+          shapes.set_tensor_shape(i, st->out_shape);
         }
       };
     };
@@ -505,11 +504,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     // Make a copy of the parsed img info. We might modify it
     // (for example, request planar vs. interleaved, etc)
     st.image_info = st.parsed_sample.nvimgcodec_img_info;
-    st.orig_layout = st.req_layout = "HWC";
+    st.req_layout = "HWC";
     st.req_img_type = format_;
     auto info = st.parsed_sample.dali_img_info;
-    TensorShape<> decode_out_sh = info.shape;
-    int64_t &nchannels = decode_out_sh[2];
+    int64_t &nchannels = st.out_shape[2];
 
     // Decode to format
     st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
@@ -534,8 +532,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
       st.image_info.region.start[1] = roi.begin[1];
       st.image_info.region.end[0] = roi.end[0];
       st.image_info.region.end[1] = roi.end[1];
-      decode_out_sh[0] = roi.end[0] - roi.begin[0];
-      decode_out_sh[1] = roi.end[1] - roi.begin[1];
     }
 
     // At the moment we are not dealing with floating point outputs in nvimagecodec
@@ -550,14 +546,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                   DynamicRangeMultiplier(precision, st.parsed_sample.orig_dtype) :
                                   1.0f;
 
-    st.need_processing = st.req_img_type != st.orig_img_type || st.req_layout != st.orig_layout ||
+    st.need_processing = st.req_img_type != st.orig_img_type ||
                          dtype_ != st.parsed_sample.orig_dtype || need_dynamic_range_scaling;
 
     st.image_info.buffer_kind = std::is_same<MixedBackend, Backend>::value ?
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE :
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST;
     int64_t image_buffer_size =
-        volume(decode_out_sh) * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
+        volume(st.out_shape) * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
     st.image_info.buffer_size = image_buffer_size;
 
     st.decode_out_cpu = {};
@@ -567,11 +563,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
         st.device_buf = mm::alloc_raw_async_unique<uint8_t, mm::memory_kind::device>(
             image_buffer_size, st.image_info.cuda_stream, st.image_info.cuda_stream);
         st.image_info.buffer = st.device_buf.get();
-        st.decode_out_gpu = {st.image_info.buffer, decode_out_sh, st.parsed_sample.orig_dtype};
+        st.decode_out_gpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       } else {
         st.pinned_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(image_buffer_size);
         st.image_info.buffer = st.pinned_buf.get();
-        st.decode_out_cpu = {st.image_info.buffer, decode_out_sh, st.parsed_sample.orig_dtype};
+        st.decode_out_cpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       }
     } else {
       st.image_info.buffer = static_cast<uint8_t *>(out.raw_mutable_data());
@@ -579,9 +575,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.num_planes = 1;
     st.image_info.plane_info[0].row_stride =
-        decode_out_sh[1] * nchannels * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
-    st.image_info.plane_info[0].height = decode_out_sh[0];
-    st.image_info.plane_info[0].width = decode_out_sh[1];
+        st.out_shape[1] * nchannels * TypeTable::GetTypeInfo(st.parsed_sample.orig_dtype).size();
+    st.image_info.plane_info[0].height = st.out_shape[0];
+    st.image_info.plane_info[0].width = st.out_shape[1];
     st.image_info.plane_info[0].num_channels = nchannels;
     st.image = NvImageCodecImage::Create(instance_, &st.image_info);
   }
@@ -704,13 +700,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
               DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
               auto &st = *st_ptr;
               if constexpr (std::is_same<MixedBackend, Backend>::value) {
-                ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu, st.orig_layout,
+                ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu, st.req_layout,
                            st.orig_img_type, ws.stream(), ROI{}, nvimgcodecOrientation_t{},
                            st.dyn_range_multiplier);
                 st.device_buf.reset();
               } else {
                 assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
-                ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu, st.orig_layout,
+                ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu, st.req_layout,
                            st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
                 st.pinned_buf.reset();
               }

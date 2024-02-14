@@ -91,7 +91,7 @@ struct DLL_PUBLIC NvImageCodecDecoder
 
   static NvImageCodecDecoder Create(nvimgcodecInstance_t instance,
                                     const nvimgcodecExecutionParams_t* exec_params,
-                                    const std::string& opts, float hw_load);
+                                    const std::string& opts);
 
   static constexpr nvimgcodecDecoder_t null_handle() {
     return nullptr;

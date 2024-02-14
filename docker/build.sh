@@ -172,6 +172,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_CFITSIO=${BUILD_CFITSIO}            \
                                         BUILD_CUFILE=${BUILD_CUFILE}              \
                                         BUILD_NVCOMP=${BUILD_NVCOMP}              \
+                                        BUILD_NVIMGCODEC=${BUILD_NVIMGCODEC}      \
                                         LINK_DRIVER=${LINK_DRIVER}                \
                                         WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
                                         WITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON} \

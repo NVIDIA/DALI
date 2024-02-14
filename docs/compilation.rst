@@ -355,7 +355,7 @@ Optional CMake Build Parameters
 -  ``BUILD_LMDB`` - build with support for LMDB (default: OFF)
 -  ``BUILD_NVTX`` - build with NVTX profiling enabled (default: OFF)
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
--  ``BUILD_NVJPEG2K`` - build with ``nvJPEG2k`` support (default: OFF)
+-  ``BUILD_NVJPEG2K`` - build with ``nvJPEG2k`` support (default: ON)
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
 -  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
 -  ``BUILD_CFITSIO`` - build with ``CFITSIO`` support (default: ON)
@@ -364,7 +364,8 @@ Optional CMake Build Parameters
 -  ``BUILD_NVOF`` - build with ``NVIDIA OPTICAL FLOW SDK`` support (default: ON)
 -  ``BUILD_NVDEC`` - build with ``NVIDIA NVDEC`` support (default: ON)
 -  ``BUILD_NVML`` - build with ``NVIDIA Management Library`` (``NVML``) support (default: ON)
--  ``BUILD_CUFILE`` - build with ``GPU Direct Storage support`` support (default: ON)
+-  ``BUILD_CUFILE`` - build with ``GPU Direct Storage`` support (default: ON)
+-  ``BUILD_NVIMGCODEC`` - build with ``NVIDIA nvImageCodec library`` support (default: ON)
 -  ``VERBOSE_LOGS`` - enables verbose loging in DALI. (default: OFF)
 -  ``WERROR`` - treat all build warnings as errors (default: OFF)
 -  ``BUILD_DALI_NODEPS`` - disables support for third party libraries that are normally expected to be available in the system

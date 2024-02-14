@@ -131,6 +131,7 @@ def check_cuda_runtime():
 
 nvimgcodec_checked = False
 
+
 def check_nvimgcodec():
     """
     Checks the availability of nvImageCodec library, and prints an appropriate warning.
@@ -139,8 +140,10 @@ def check_nvimgcodec():
     if not nvimgcodec_checked:
         nvimgcodec_checked = True
         if GetNvimgcodecVersion() == -1:
-             deprecation_warning(
-                "DALI's experimental image decoder functionality now requires NVIDIA nvImageCodec library to run. "
-                "You need to install it separately. See https://developer.nvidia.com/nvimgcodec-downloads or simply "
-                " do `pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}`."
+            deprecation_warning(
+                "DALI's experimental image decoder functionality now requires NVIDIA nvImageCodec "
+                "library to run. You need to install it separately. "
+                "See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
+                "`pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where CUDA_MAJOR_VERSION "
+                "is your CUDA major version (e.g. 12)."
             )

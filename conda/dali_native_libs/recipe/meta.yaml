@@ -81,8 +81,8 @@ requirements:
     - libsndfile
     - libtar
     - libvorbis =1.3.7
-    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
-    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
     - openjpeg
     - cfitsio
@@ -93,15 +93,15 @@ requirements:
     - libtiff
     - libsndfile
     - libvorbis =1.3.7
-    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
-    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
+    - openjpeg
     # libprotobuf-static we link statically depends on libabseil so add protobuf here as a runtime
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
     - protobuf >=3.6.1
-    - openjpeg
     - cfitsio
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
 

@@ -41,15 +41,15 @@ requirements:
     - libjpeg-turbo
     - libtiff
     - dali-opencv
-    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
-    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
     - openjpeg
 
   run:
     - libjpeg-turbo
     - libtiff
-    # dali-opencv we that depends on libtiff also depends on libwebp-base (silently)
-    # we link it statically so it doesn't carry the dependency, so we need to add it manually
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
     - libwebp-base
     - openjpeg

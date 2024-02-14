@@ -30,7 +30,7 @@ void NvImageCodecInstance::DestroyHandle(nvimgcodecInstance_t handle) {
 
 NvImageCodecDecoder NvImageCodecDecoder::Create(nvimgcodecInstance_t instance,
                                                 const nvimgcodecExecutionParams_t* exec_params,
-                                                const std::string& opts, float hw_load) {
+                                                const std::string& opts) {
   NvImageCodecDecoder ret;
   CHECK_NVIMGCODEC(nvimgcodecDecoderCreate(instance, &ret.handle_, exec_params, opts.c_str()));
   return ret;
