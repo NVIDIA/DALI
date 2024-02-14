@@ -24,6 +24,7 @@ from nvidia.dali.auto_aug import auto_augment
 
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
 parser.add_argument("-b", dest="batch_size", help="batch size", default=1, type=int)
+parser.add_argument("-m", dest="minibatch_size", help="minibatch size", default=32, type=int)
 parser.add_argument("-d", dest="device_id", help="device id", default=0, type=int)
 parser.add_argument(
     "-n", dest="gpu_num", help="Number of GPUs used starting from device_id", default=1, type=int
@@ -86,7 +87,7 @@ def DecoderPipeline():
 @pipeline_def(
     batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0
 )
-def RN50Pipeline():
+def RN50Pipeline(minibatch_size):
     device = "mixed" if args.device == "gpu" else "cpu"
     jpegs, _ = fn.readers.file(file_root=args.images_dir)
     images = fn.decoders.image_random_crop(
@@ -97,7 +98,7 @@ def RN50Pipeline():
         preallocate_width_hint=args.width_hint,
         preallocate_height_hint=args.height_hint,
     )
-    images = fn.resize(images, resize_x=224, resize_y=224)
+    images = fn.resize(images, resize_x=224, resize_y=224, minibatch_size=minibatch_size)
     layout = types.NCHW
     out_type = types.FLOAT16
     coin_flip = fn.random.coin_flip(probability=0.5)
@@ -248,7 +249,7 @@ if args.pipeline == "decoder":
         pipes.append(DecoderPipeline(device_id=i + args.device_id))
 elif args.pipeline == "rn50":
     for i in range(args.gpu_num):
-        pipes.append(RN50Pipeline(device_id=i + args.device_id))
+        pipes.append(RN50Pipeline(device_id=i + args.device_id, minibatch_size=args.minibatch_size))
 elif args.pipeline == "efficientnet_inference":
     for i in range(args.gpu_num):
         pipes.append(EfficientnetInferencePipeline(device_id=i + args.device_id))
