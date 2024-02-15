@@ -977,3 +977,15 @@ def test_split_and_merge(device):
             return data + types.Constant(1, dtype=types.DALIDataType.UINT8)
 
     check_is_pipeline_stateless(pipeline_factory)
+
+
+@params("gpu")
+@stateless_signed_off("experimental.dilate")
+def test_dilate_stateless(device):
+    check_single_input(fn.experimental.dilate, device)
+
+
+@params("gpu")
+@stateless_signed_off("experimental.erode")
+def test_erode_stateless(device):
+    check_single_input(fn.experimental.erode, device)
