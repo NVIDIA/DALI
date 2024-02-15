@@ -32,7 +32,9 @@
 #if WITH_DYNAMIC_NVJPEG_ENABLED
   bool nvjpegIsSymbolAvailable(const char *name);
 #else
-  #define nvjpegIsSymbolAvailable(T) (true)
+  inline bool nvjpegIsSymbolAvailable(const char *name) {
+    return true;
+  }
 #endif
 
 namespace dali {

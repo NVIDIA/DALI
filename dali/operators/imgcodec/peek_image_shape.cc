@@ -14,6 +14,7 @@
 
 #include "dali/operators/imgcodec/peek_image_shape.h"
 #include "dali/operators/imgcodec/util/output_shape.h"
+#include "dali/operators.h"
 
 namespace dali {
 namespace imgcodec {
@@ -51,6 +52,8 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   }
   use_orientation_ = spec.GetArgument<bool>("adjust_orientation");
   image_type_ = spec.GetArgument<DALIImageType>("image_type");
+
+  EnforceMinimumNvimgcodecVersion();
 
   nvimgcodecInstanceCreateInfo_t instance_create_info = {
       NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),

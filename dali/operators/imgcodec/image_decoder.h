@@ -16,8 +16,9 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/core/mm/memory.h"
 #include "dali/core/call_at_exit.h"
+#include "dali/core/mm/memory.h"
+#include "dali/operators.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/image/crop/crop_attr.h"
@@ -30,6 +31,15 @@
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+nvimgcodecStatus_t get_libjpeg_turbo_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+nvimgcodecStatus_t get_libtiff_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+nvimgcodecStatus_t get_opencv_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+nvimgcodecStatus_t get_nvjpeg_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+nvimgcodecStatus_t get_nvjpeg2k_extension_desc(nvimgcodecExtensionDesc_t* ext_desc);
+#endif
+
 
 #ifndef DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
 #define DALI_OPERATORS_IMGCODEC_IMAGE_DECODER_H_
@@ -113,7 +123,13 @@ inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
 template <typename Backend>
 class ImageDecoder : public StatelessOperator<Backend> {
  public:
-  ~ImageDecoder() override = default;
+  ~ImageDecoder() override {
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+    for (auto& extension : extensions_) {
+      nvimgcodecExtensionDestroy(extension);
+    }
+#endif
+  }
 
  protected:
   using Operator<Backend>::spec_;
@@ -195,6 +211,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
     }
 
+    EnforceMinimumNvimgcodecVersion();
+
     nvimgcodecDeviceAllocator_t *dev_alloc_ptr = nullptr;
     nvimgcodecPinnedAllocator_t *pinned_alloc_ptr = nullptr;
     if (device_id_ >= 0) {
@@ -220,7 +238,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     nvimgcodecInstanceCreateInfo_t instance_create_info{
         NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
         nullptr};
-    instance_create_info.load_extension_modules = static_cast<int>(true);
+
+    instance_create_info.load_extension_modules = static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
     instance_create_info.load_builtin_modules = static_cast<int>(true);
     instance_create_info.extension_modules_path = nullptr;
     instance_create_info.create_debug_messenger = static_cast<int>(true);
@@ -229,6 +248,36 @@ class ImageDecoder : public StatelessOperator<Backend> {
     instance_create_info.message_category = NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL;
 
     instance_ = NvImageCodecInstance::Create(&instance_create_info);
+
+    // If we link statically, we need to initialize the extensions manually
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+    auto load_ext = [&](nvimgcodecExtensionModuleEntryFunc_t func) {
+      extensions_descs_.push_back(
+          {NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC, sizeof(nvimgcodecExtensionDesc_t), nullptr});
+      extensions_.emplace_back();
+      func(&extensions_descs_.back());
+      nvimgcodecExtensionCreate(instance_, &extensions_.back(), &extensions_descs_.back());
+    };
+
+    load_ext(get_opencv_extension_desc);
+
+#if LIBJPEG_TURBO_ENABLED
+    load_ext(get_libjpeg_turbo_extension_desc);
+#endif
+
+#if LIBTIFF_ENABLED
+    load_ext(get_libtiff_extension_desc);
+#endif
+
+#if NVJPEG_ENABLED
+    load_ext(get_nvjpeg_extension_desc);
+#endif
+
+#if NVJPEG2K_ENABLED
+    load_ext(get_nvjpeg2k_extension_desc);
+#endif
+
+#endif
 
     std::stringstream opts_ss;
     float hw_load = 0.9f;
@@ -773,6 +822,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
   // In case of cache, the batch we send to the decoder might have fewer samples than the full batch
   // This vector is used to get the original index of the decoded samples
   std::vector<size_t> decode_sample_idxs_;
+
+  // Manually loaded extensions
+  std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
+  std::vector<nvimgcodecExtension_t> extensions_;
 };
 
 }  // namespace imgcodec

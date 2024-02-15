@@ -20,6 +20,8 @@
       "nvimgcodecDecoderDestroy": {},
       "nvimgcodecInstanceCreate": {},
       "nvimgcodecDecoderDecode": {},
-      "nvimgcodecGetProperties": {}
+      "nvimgcodecGetProperties": {},
+      "nvimgcodecExtensionCreate": {},
+      "nvimgcodecExtensionDestroy": {}
    }
 }
