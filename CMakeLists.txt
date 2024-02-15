@@ -213,6 +213,19 @@ else()
   set(LIBTYPE SHARED)
 endif()
 
+
+foreach(rpath IN ITEMS
+  "$ORIGIN"
+  "$ORIGIN/../cufft/lib"
+  "$ORIGIN/../npp/lib"
+  "$ORIGIN/../nvjpeg/lib"
+  "$ORIGIN/../nvimgcodec"
+  "${NVIMGCODEC_DEFAULT_INSTALL_PATH}/lib64")
+  message(STATUS "Add to rpath: ${rpath}")
+  list(APPEND CMAKE_BUILD_RPATH ${rpath})
+  list(APPEND CMAKE_INSTALL_RPATH ${rpath})
+endforeach()
+
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
 get_dali_extra_version(${PROJECT_SOURCE_DIR}/DALI_EXTRA_VERSION DALI_EXTRA_VERSION)
