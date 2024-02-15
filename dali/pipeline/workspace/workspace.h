@@ -62,7 +62,7 @@ class ArgumentWorkspace {
   int AddArgumentInput(const std::string& arg_name, shared_ptr<TensorList<CPUBackend>> input) {
     int idx = argument_input_idxs_.size();
     argument_input_idxs_[arg_name] = idx;
-    argument_inputs_[idx] = { arg_name, std::move(input) };
+    argument_inputs_.push_back({ arg_name, std::move(input) });
     return idx;
   }
 
@@ -377,7 +377,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * ws.AddInput<CPUBackend>(nullptr);
    */
   template <typename Backend>
-  void AddInput(DataObjectPtr<Backend> input) {
+  void AddInput(DataObjectPtr<Backend> input, Backend = {}) {
     AddInput(input);
   }
 
@@ -403,7 +403,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * ws.AddOutput<CPUBackend>(nullptr);
    */
   template <typename Backend>
-  void AddOutput(DataObjectPtr<Backend> output) {
+  void AddOutput(DataObjectPtr<Backend> output, Backend = {}) {
     AddOutput(output);
   }
 
@@ -419,6 +419,62 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   void AddOutput(DataObjectPtr<GPUBackend> output) {
     outputs_.push_back(IOBuffers{ StorageDevice::GPU, nullptr, std::move(output) });
+  }
+
+
+  /**
+   * @brief Sets an input
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.SetInput<CPUBackend>(idx, nullptr);
+   */
+  template <typename Backend>
+  void SetInput(int idx, DataObjectPtr<Backend> input, Backend = {}) {
+    SetInput(idx, input);
+  }
+
+  /**
+   * @brief Sets a CPU input
+   */
+  void SetInput(int idx, DataObjectPtr<CPUBackend> input) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    inputs_[idx] = IOBuffers{ StorageDevice::CPU, std::move(input), nullptr };
+  }
+
+  /**
+   * @brief Sets a GPU input
+   */
+  void SetInput(int idx, DataObjectPtr<GPUBackend> input) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    inputs_[idx] = IOBuffers{ StorageDevice::GPU, nullptr, std::move(input) };
+  }
+
+
+  /**
+   * @brief Sets an output
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.SetOutput<CPUBackend>(idx, nullptr);
+   */
+  template <typename Backend>
+  void SetOutput(int idx, DataObjectPtr<Backend> output, Backend = {}) {
+    SetOutput(idx, output);
+  }
+
+  /**
+   * @brief Sets a CPU output
+   */
+  void SetOutput(int idx, DataObjectPtr<CPUBackend> output) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    outputs_[idx] = IOBuffers{ StorageDevice::CPU, std::move(output), nullptr };
+  }
+
+  /**
+   * @brief Sets a GPU output
+   */
+  void SetOutput(int idx, DataObjectPtr<GPUBackend> output) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    outputs_[idx] = IOBuffers{ StorageDevice::GPU, nullptr, std::move(output) };
   }
 
 
