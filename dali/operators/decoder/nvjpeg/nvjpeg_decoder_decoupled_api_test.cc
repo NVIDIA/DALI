@@ -185,7 +185,7 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
 #if NVJPEG_VER_MAJOR >= 11 && NVML_ENABLED
 void PrintDeviceInfo() {
   unsigned int device_count;
-  nvml::Init();
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     auto info = nvml::GetDeviceInfo(device_idx);
@@ -195,7 +195,6 @@ void PrintDeviceInfo() {
               << " cc_m " << info.cap_minor
               << std::endl;
   }
-  nvml::Shutdown();
 }
 
 /**
@@ -204,9 +203,8 @@ void PrintDeviceInfo() {
 bool ShouldUseHwDecoder() {
   // HW decoder is disabled for drivers < 455.x, see
   // dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h for details
-  nvml::Init();
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   static float driver_version = nvml::GetDriverVersion();
-  nvml::Shutdown();
   static bool device_supports_hw_decoder = nvml::isHWDecoderSupported();
   return device_supports_hw_decoder && driver_version >= 455;
 }

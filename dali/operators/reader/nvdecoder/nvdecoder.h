@@ -37,6 +37,10 @@ extern "C" {
 #include "dali/operators/reader/nvdecoder/cuvideodecoder.h"
 #include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/util/thread_safe_queue.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif
+
 
 struct AVPacket;
 #if HAVE_AVSTREAM_CODECPAR
@@ -230,6 +234,9 @@ class NvDecoder {
   std::exception_ptr captured_exception_;
 
   std::thread thread_convert_;
+#if NVML_ENABLED
+  nvml::NvmlInstance nvml_handle_;
+#endif
 };
 
 }  // namespace dali

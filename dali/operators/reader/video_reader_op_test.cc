@@ -123,9 +123,8 @@ TEST_F(VideoReaderTest, MultipleVideoResolution) {
   float driverVersion = 0;
 
 #if NVML_ENABLED
-  nvml::Init();
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   driverVersion = nvml::GetDriverVersion();
-  nvml::Shutdown();
 #endif
 
 

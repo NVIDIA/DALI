@@ -32,7 +32,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const c
 #if NVML_ENABLED
   // only for the CPU pipeline
   if (device_id != CPU_ONLY_DEVICE_ID) {
-    nvml::Init();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
   }
 #endif
   // Start the threads in the main loop
@@ -54,9 +54,6 @@ ThreadPool::~ThreadPool() {
   for (auto &thread : threads_) {
     thread.join();
   }
-#if NVML_ENABLED
-  nvml::Shutdown();
-#endif
 }
 
 void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {

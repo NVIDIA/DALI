@@ -71,7 +71,7 @@ class WorkerThread {
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
     if (device_id != CPU_ONLY_DEVICE_ID) {
-      nvml::Init();
+      nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
     }
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
@@ -80,9 +80,6 @@ class WorkerThread {
 
   inline ~WorkerThread() {
     Shutdown();
-#if NVML_ENABLED
-    nvml::Shutdown();
-#endif
   }
 
   /*
@@ -236,6 +233,9 @@ class WorkerThread {
   std::queue<string> errors_;
 
   Barrier barrier_;
+#if NVML_ENABLED
+  nvml::NvmlInstance nvml_handle_;
+#endif
 };
 
 }  // namespace dali

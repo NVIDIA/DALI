@@ -32,8 +32,6 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/nvdecoder/imgproc.h"
 #include "dali/core/device_guard.h"
-#include "dali/util/nvml.h"
-
 namespace dali {
 
 static constexpr int kNvcuvid_success = 1;
@@ -64,7 +62,7 @@ NvDecoder::NvDecoder(int device_id,
   bool use_default_stream = false;
 #if NVML_ENABLED
   {
-    nvml::Init();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
     static float driver_version = nvml::GetDriverVersion();
     if (driver_version > 460 && driver_version < 470.21)
       use_default_stream = true;
@@ -135,11 +133,7 @@ bool NvDecoder::initialized() const {
     return parser_.initialized();
 }
 
-NvDecoder::~NvDecoder() {
-#if NVML_ENABLED
-  nvml::Shutdown();
-#endif
-}
+NvDecoder::~NvDecoder() {}
 
 VidReqStatus NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time,
                                          AVRational stream_base) {

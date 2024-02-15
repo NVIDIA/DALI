@@ -120,7 +120,7 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
     // disable HW decoder for drivers < 455.x as the memory pool for it is not available
     // and multi GPU performance is far from perfect due to frequent memory allocations
 #if NVML_ENABLED
-      nvml::Init();
+      nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
       float driverVersion = nvml::GetDriverVersion();
       if (driverVersion < 455) {
         try_init_hw_decoder = false,
@@ -298,9 +298,6 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
     try {
       DeviceGuard g(device_id_);
 
-#if NVML_ENABLED
-      nvml::Shutdown();
-#endif
       if (hw_decode_stream_)
         CUDA_CALL(cudaStreamSynchronize(hw_decode_stream_));
 
@@ -1206,6 +1203,10 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
   int64_t task_priority_seq_ = 0;
   unsigned int num_hw_engines_ = 1;
   unsigned int num_hw_cores_per_engine_ = 1;
+
+#if NVML_ENABLED
+  nvml::NvmlInstance nvml_handle_;
+#endif
 };
 
 }  // namespace dali

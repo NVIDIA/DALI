@@ -74,15 +74,12 @@ class OpticalFlow : public StatelessOperator<Backend> {
                  std::to_string(spec.NumInput()));
     sync_ = CUDAEvent::Create(device_id_);
 #if NVML_ENABLED
-    nvml::Init();
+    nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
 #endif
   }
 
-  ~OpticalFlow() {
-#if NVML_ENABLED
-    nvml::Shutdown();
-#endif
-  }
+  ~OpticalFlow() {}
+
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
@@ -230,6 +227,10 @@ class OpticalFlow : public StatelessOperator<Backend> {
   std::vector<int> sequence_sizes_;
   std::vector<DimsOrder> processing_order_;
   CUDAEvent sync_;
+
+#if NVML_ENABLED
+  nvml::NvmlInstance nvml_handle_;
+#endif
 };
 
 }  // namespace dali

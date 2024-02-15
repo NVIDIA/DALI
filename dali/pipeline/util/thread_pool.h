@@ -25,6 +25,9 @@
 #include <vector>
 #include <string>
 #include "dali/core/common.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif
 
 
 namespace dali {
@@ -93,6 +96,9 @@ class DLL_PUBLIC ThreadPool {
 
   //  Stored error strings for each thread
   vector<std::queue<string>> tl_errors_;
+#if NVML_ENABLED
+  nvml::NvmlInstance nvml_handle_;
+#endif
 };
 
 }  // namespace dali

@@ -61,9 +61,8 @@ void SkipIfIncompatible(TestBody &&body) {
   // skip test for aarch64 and CUDA < 12.2
 #if NVML_ENABLED
   static const int driverVersion = []() {
-    nvml::Init();
+    auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
     auto ret = nvml::GetCudaDriverVersion();
-    nvml::Shutdown();
     return ret;
   }();
 #if defined(__aarch64__)
