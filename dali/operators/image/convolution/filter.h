@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ class Filter : public SequenceOperator<Backend, StatelessOperator> {
   }
 
   bool ShouldExpand(const Workspace& ws) override {
-    const auto& input_layout = GetInputLayout(ws, 0);
+    const auto& input_layout = ws.GetInputLayout(0);
     int frame_idx = VideoLayoutInfo::FrameDimIndex(input_layout);
     DALI_ENFORCE(frame_idx == -1 || frame_idx == 0,
                  make_string("When the input is video-like (i.e. contains frames), the frames must "
@@ -246,7 +246,7 @@ class Filter : public SequenceOperator<Backend, StatelessOperator> {
 
   bool HasPerFrameFilters(const Workspace& ws) {
     auto filter_dim = ws.GetInputDim(1);
-    const auto& filter_layout = GetInputLayout(ws, 1);
+    const auto& filter_layout = ws.GetInputLayout(1);
     return filter_dim == 3 && filter_layout.size() == 3 && filter_layout[0] == 'F';
   }
 
@@ -254,7 +254,7 @@ class Filter : public SequenceOperator<Backend, StatelessOperator> {
     if (ws.NumInput() < 3) {
       return false;
     }
-    const auto& layout = GetInputLayout(ws, 2);
+    const auto& layout = ws.GetInputLayout(2);
     return layout.size() == 1 && layout[0] == 'F';
   }
 

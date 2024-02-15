@@ -223,7 +223,7 @@ class WorkspaceBase : public ArgumentWorkspace {
   /** @} */
 
   /**
-   * Returns shape of input at given index
+   * Returns shape of the input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
   auto GetInputShape(int input_idx) const {
@@ -231,18 +231,39 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
-   * Returns the data type of the input at given index
-   * @return DALIDataType
+   * Returns shape of the output at given index
+   * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
+   */
+  auto GetOutputShape(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->shape(); });
+  }
+
+  /**
+   * @brief Returns the type of the data in the input at given index.
    */
   DALIDataType GetInputDataType(int input_idx) const {
     return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->type(); });
   }
 
   /**
-   * @return Type of the data in the output with given index.
+   * @brief Returns the type of the data in the output at given index.
    */
   DALIDataType GetOutputDataType(int output_idx) const {
     return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->type(); });
+  }
+
+  /**
+   * @brief Returns the layout of the input at given index
+   */
+  TensorLayout GetInputLayout(int input_idx) const {
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->GetLayout(); });
+  }
+
+  /**
+   * @brief Returns the layout of the output at given index
+   */
+  TensorLayout GetOutputLayout(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->GetLayout(); });
   }
 
   /**
@@ -250,6 +271,13 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   int GetInputBatchSize(int input_idx) const {
     return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->num_samples(); });
+  }
+
+  /**
+   * Returns batch size for a given output
+   */
+  int GetOutputBatchSize(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->num_samples(); });
   }
 
   /**

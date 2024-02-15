@@ -332,7 +332,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     input_expand_desc_.reserve(num_inputs);
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
-      const auto &layout = GetInputLayout(ws, input_idx);
+      const auto &layout = ws.GetInputLayout(input_idx);
       input_expand_desc_.emplace_back(input_idx, input_shape, layout,
                                       ShouldExpandChannels(input_idx));
     }
