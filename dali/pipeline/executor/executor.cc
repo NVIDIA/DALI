@@ -59,7 +59,6 @@ bool AnyBatchPartial(const Workspace &ws, const OpSpec &spec, int max_batch_size
     for (int i = 0; i < ws.NumInput(); i++) {
       any_batch_partial = any_batch_partial || ws.GetInputBatchSize(i) < max_batch_size;
     }
-    const ArgumentWorkspace &argument_ws = ws;
     for (const auto &arg : ws.ArgumentInputs()) {
       any_batch_partial = any_batch_partial || arg.cpu->num_samples() < max_batch_size;
     }
