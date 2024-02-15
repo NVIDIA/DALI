@@ -34,10 +34,6 @@ namespace dali {
 
 namespace {
 
-bool HasTensorArgInputs(const ArgumentWorkspace& argument_ws) {
-  return begin(argument_ws) != end(argument_ws);
-}
-
 /**
  * @brief Returns true if all the inputs (regular and argument inputs) held in this ws are empty.
  */
@@ -46,9 +42,8 @@ bool AllInputsEmpty(const Workspace &ws) {
   for (int i = 0; i < ws.NumInput(); i++) {
     all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
   }
-  const ArgumentWorkspace &argument_ws = ws;
-  for (const auto &[name, arg] : argument_ws) {
-    all_inputs_empty = all_inputs_empty && arg.tvec->num_samples() == 0;
+  for (const auto &arg : ws.ArgumentInputs()) {
+    all_inputs_empty = all_inputs_empty && arg.cpu->num_samples() == 0;
   }
   return all_inputs_empty;
 }
@@ -60,13 +55,13 @@ bool AllInputsEmpty(const Workspace &ws) {
  */
 bool AnyBatchPartial(const Workspace &ws, const OpSpec &spec, int max_batch_size) {
   bool any_batch_partial = false;
-  if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
+  if (ws.NumInput() > 0 || ws.NumArgumentInput() > 0) {
     for (int i = 0; i < ws.NumInput(); i++) {
       any_batch_partial = any_batch_partial || ws.GetInputBatchSize(i) < max_batch_size;
     }
     const ArgumentWorkspace &argument_ws = ws;
-    for (const auto &[name, arg] : argument_ws) {
-      any_batch_partial = any_batch_partial || arg.tvec->num_samples() < max_batch_size;
+    for (const auto &arg : ws.ArgumentInputs()) {
+      any_batch_partial = any_batch_partial || arg.cpu->num_samples() < max_batch_size;
     }
   }
   for (int i = 0; i < spec.NumOutput(); i++) {
@@ -105,10 +100,8 @@ inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
   if (ws.NumInput() > 0) {
     return ws.GetInputBatchSize(0);
   }
-  const ArgumentWorkspace &argument_ws = ws;
-  if (HasTensorArgInputs(argument_ws)) {
-    auto [name, arg] = *begin(argument_ws);
-    return arg.tvec->num_samples();
+  if (ws.NumArgumentInput() > 0) {
+    return ws.ArgumentInput(0).num_samples();
   }
   return stage_batch_size;
 }
@@ -445,7 +438,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   }
 
   // Assuming that most operators don't expect empty input, and expect consistent input.
-  if (ws.NumInput() > 0 || HasTensorArgInputs(ws)) {
+  if (ws.NumInput() > 0 || ws.NumArgumentInput() > 0) {
     if (AllInputsEmpty(ws)) {
       // We skip the execution of this operator and Reset the outputs in case some state was still
       // present.
