@@ -119,6 +119,12 @@ class StackTraceFilter(StackTraceTransform):
     def get_filtered_filenames(self):
         raise NotImplementedError("subclasses need to override this")
 
+    def is_filtered(self, filename):
+        raise NotImplementedError("subclasses need to override this")
+
+    def __bool__(self):
+        return bool(self.internal_set)
+
 
 EMPTY_SET = frozenset()
 
@@ -164,6 +170,9 @@ class CurrentModuleFilter(StackTraceFilter):
         self._cached_set = filtered_filenames
         return filtered_filenames
 
+    def is_filtered(self, filename):
+        return filename in self.internal_set
+
 
 class CustomModuleFilter(StackTraceFilter):
     """Filters stack frames from the modules that were listed for this filter.
@@ -197,6 +206,12 @@ class CustomModuleFilter(StackTraceFilter):
         self._cached_set = filtered_filenames
         return filtered_filenames
 
+    def is_filtered(self, filename):
+        for frame_filter_entry in self.internal_set:
+            if filename.startswith(frame_filter_entry):
+                return True
+        return False
+
 
 def get_frame_map():
     thread_key = _get_thread_key()
@@ -205,4 +220,4 @@ def get_frame_map():
 
 def get_frame_filter():
     thread_key = _get_thread_key()
-    return _source_filter_stacks[thread_key][-1].internal_set
+    return _source_filter_stacks[thread_key][-1]

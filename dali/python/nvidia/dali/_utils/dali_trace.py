@@ -14,11 +14,23 @@
 
 import traceback
 from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filter
+from nvidia.dali._autograph import is_frame_converted_call, is_frame_call_unconverted
 
 
-def extract_stack(
-    skip_bottom_frames=0, skip_top_frames=0, filter_modules=True, collapse_callstack=False
-):
+def _is_matching_function(prev_frame_summary, new_frame_summary):
+    """Heuristic check if the frame summaries describe the same function.
+    Any of the arguments can be none, this means we don't have a match
+    """
+    if prev_frame_summary is None or new_frame_summary is None:
+        return False
+    return (
+        prev_frame_summary.name == new_frame_summary.name
+        and prev_frame_summary.filename == new_frame_summary.filename
+    )
+
+
+def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
+
     # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
     # objects. Frame summary contains filename, lineno, name and line (string representing context).
     # The source mapper contains:
@@ -28,22 +40,14 @@ def extract_stack(
     #             origin.function_name,
     #             origin.source_code_line,
     #         )
-    # The frame map and filter are only populated when we use AG, so without conditional mode
-    # we will simply extract part of the stack.
-    frame_map = get_frame_map()
-    frame_filter = get_frame_filter()
 
-    # -1 so we drop extract_stack frame
-    stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
-
-    if not frame_map and not frame_filter:
-        return stack_summary
-
-    # print(f"TODO: extract_stack(): {tb_stack} {frame_map} {frame_filter}")]
     origin_stack_summary = []
     is_ag_function_call_start = False
     current_function_region = None
-    for i, frame_entry in enumerate(stack_summary):
+
+    for frame_entry in stack_summary:
+        # The frame_map maps filename:lineno pairs of AG-produced code back to FrameSummary of
+        # original code.
         ag_entry = (frame_entry.filename, frame_entry.lineno)
 
         if ag_entry in frame_map:
@@ -57,27 +61,16 @@ def extract_stack(
         else:
             origin_frame_entry = frame_entry
 
-        # if frame_entry.filename not in frame_filter:
-        skip = False
-        if filter_modules:
-            for frame_filter_entry in frame_filter:
-                if frame_entry.filename.startswith(frame_filter_entry):
-                    skip = True
-                    break
-        # Transformed function, so it's not something from filtered AutoGraph modules.
-        # It can be from AutoAugment.
+        # We will skip code that is related to internal AutoGraph and conditionals implementation,
+        # leaving us with code produced by transforming user-code
+        # See api.py:converted_call for details on filtering.
+        skip = frame_filter.is_filtered(frame_entry.filename)
 
         # AutoGraph is wrapping a function call
-        if (
-            frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py")
-            and frame_entry.name == "converted_call"
-        ):
+        if is_frame_converted_call(frame_entry):
             is_ag_function_call_start = True
-        # It quits to a non-AG code, treat it as normal
-        if (
-            frame_entry.filename.endswith("nvidia/dali/_autograph/impl/api.py")
-            and frame_entry.name == "_call_unconverted"
-        ):
+        # It quits to a non-AG code, treat it as normal from now-on
+        if is_frame_call_unconverted(frame_entry):
             is_ag_function_call_start = False
             current_function_region = None
         # We are in the first part of the converted_func call (as we are in user code, remember
@@ -88,30 +81,52 @@ def extract_stack(
             skip = True
             origin_stack_summary.append(origin_frame_entry)
 
-        # if origin_frame_entry.name == f"autograph__{frame_entry.name}":
-        #     # we start the function region here
-        #     print(f"Start of function: {origin_frame_entry.name}")
-        #     current_function_region = origin_frame_entry.name
         if not skip:
             # If we are in the same function region, we replace previous entry so we keep only the
             # last one.
-            if (
-                origin_stack_summary
-                and current_function_region
-                and origin_stack_summary[-1].name == current_function_region.name
-                and origin_stack_summary[-1].filename == current_function_region.filename
-            ):
+            assert origin_stack_summary
+            if _is_matching_function(origin_stack_summary[-1], current_function_region):
                 origin_stack_summary.pop()
             origin_stack_summary.append(origin_frame_entry)
-        print(f"\n\nProcessing: [{i}] {skip=}:\n{frame_entry=}\n->\n{origin_frame_entry=}")
-    # if collapse_callstack:
-    #     origin_stack_summary = _collapse_callstack(origin_stack_summary)
-    # pp = pprint.PrettyPrinter(indent=4)
-    # print(
-    #     f"Extracting stack:\nFrame filter:\n{pp.pformat(frame_filter)}\n"
-    #     f"Old:\n{pp.pformat(stack_summary)}\nNew:\n{pp.pformat(origin_stack_summary)}"
-    # )
     return origin_stack_summary
 
 
-# TODO(klecki!!!!): CHECK HOW THIS BEHAVES WITH allowed calls and automatic augments.
+def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
+    """Extract list of FrameSummary object, optionally skipping the bottom and top ones from the place
+    of the call. If AutoGraph was used, the FrameSummary entries are filtered and remapped back
+    to the user code.'
+
+    Returns
+    -------
+    List[FrameSummary]
+    """
+    # -1 so we drop extract_stack frame
+    stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
+
+    # If those are empty, AutoGraph transformations were not used, we can return as is
+    frame_map = get_frame_map()
+    frame_filter = get_frame_filter()
+    if not frame_map and not frame_filter:
+        return stack_summary
+
+    return _filter_autograph_frames(stack_summary, frame_map, frame_filter)
+
+
+def separate_stack_summary(stack_summary):
+    """Split the list of FrameSummary into 4 separate list of each components
+
+    Parameters
+    ----------
+    stack_summary : _type_
+        _description_
+
+    Returns
+    -------
+    List(str), List(int), List(str), List(str)
+        [filename], [lineno], [name], [line]
+    """
+    filename_stack = [frame_summary.filename for frame_summary in stack_summary]
+    lineno_stack = [frame_summary.lineno for frame_summary in stack_summary]
+    name_stack = [frame_summary.name for frame_summary in stack_summary]
+    line_stack = [frame_summary.line for frame_summary in stack_summary]
+    return filename_stack, lineno_stack, name_stack, line_stack

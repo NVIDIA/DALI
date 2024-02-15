@@ -289,6 +289,20 @@ def is_autograph_artifact(entity):
     return hasattr(entity, "autograph_info__")
 
 
+def is_frame_converted_call(frame_info):
+    return (
+        frame_info.filename.endswith("nvidia/dali/_autograph/impl/api.py")
+        and frame_info.name == "converted_call"
+    )
+
+
+def is_frame_call_unconverted(frame_info):
+    return (
+        frame_info.filename.endswith("nvidia/dali/_autograph/impl/api.py")
+        and frame_info.name == "_call_unconverted"
+    )
+
+
 def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
     """Converts a function call inline.
 

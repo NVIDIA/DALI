@@ -37,7 +37,7 @@ from nvidia.dali import _conditionals
 
 from nvidia.dali.ops import _registry, _names, _docs, _operator_utils  # noqa: F401
 
-from nvidia.dali._utils.dali_trace import extract_stack as _extract_stack
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 # reexpose what was previously visible:
 from nvidia.dali.ops._registry import (  # noqa: F401
@@ -376,22 +376,17 @@ class _OperatorInstance(object):
         self._relation_id = self._counter.id
 
         if _Pipeline.current():
-            skip_bottom_frames = _Pipeline.current()._definition_stack_frame
+            skip_bottom = _Pipeline.current()._definition_stack_frame
         else:
-            skip_bottom_frames = 0
+            skip_bottom = 0
         # For fn API it is 4, for ops around 2
-        tb_stack = _extract_stack(skip_bottom_frames=skip_bottom_frames, skip_top_frames=4)
-        # self._stack = tb_stack
+        stack_summary = _dali_trace.extract_stack(skip_bottom_frames=skip_bottom, skip_top_frames=4)
+        filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
 
-        # Split the information TODO(klecki): move it to the function
-        filename_stack = [frame_summary.filename for frame_summary in tb_stack]
-        lineno_stack = [frame_summary.lineno for frame_summary in tb_stack]
-        name_stack = [frame_summary.name for frame_summary in tb_stack]
-        line_stack = [frame_summary.line for frame_summary in tb_stack]
-        self._spec.AddArg("_origin_stack_filename", filename_stack)
-        self._spec.AddArg("_origin_stack_lineno", lineno_stack)
-        self._spec.AddArg("_origin_stack_name", name_stack)
-        self._spec.AddArg("_origin_stack_line", line_stack)
+        self._spec.AddArg("_origin_stack_filename", filenames)
+        self._spec.AddArg("_origin_stack_lineno", linenos)
+        self._spec.AddArg("_origin_stack_name", names)
+        self._spec.AddArg("_origin_stack_line", lines)
 
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
