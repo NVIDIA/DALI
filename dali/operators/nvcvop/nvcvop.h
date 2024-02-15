@@ -139,24 +139,17 @@ class NVCVOperator: public BaseOp {
                                        const nvcv::DataType &dtype) {
     int ndim = arg_shape.sample_dim();
     int64_t inner_dim = arg_shape[ndim - 1];
-    DALI_ENFORCE(inner_dim % dtype.numChannels() == 0, "Invalid argument shape.");
-    std::vector<int64_t> shape_data;
-    // If number of channels in the data type matches the innermost dimension,
-    // we remove this dimension
-    if (inner_dim == dtype.numChannels()) {
-      shape_data.resize(ndim);
-      shape_data[0] = num_samples;
-      for (int d = 0; d < ndim - 1; ++d) {
-        shape_data[d + 1] = arg_shape[d];
-      }
-    } else {
-      shape_data.resize(ndim + 1);
-      shape_data[0] = num_samples;
-      for (int d = 0; d < ndim - 1; ++d) {
-        shape_data[d + 1] = arg_shape[d];
-      }
-      shape_data[ndim] = inner_dim / dtype.numChannels();
+    DALI_ENFORCE(dtype.numChannels() == 1 || inner_dim == dtype.numChannels(),
+                 make_string("Invalid argument shape. Inner dimension should match "
+                 "the number of channels in the data type: ", dtype.numChannels()));
+    std::vector<int64_t> shape_data(ndim + 1);
+    shape_data[0] = num_samples;
+    for (int d = 0; d < ndim; ++d) {
+      shape_data[d + 1] = arg_shape[d];
     }
+    // If number of channels in the data type is greater than 1,
+    // we remove the inner dimension from the DALI shape
+    shape_data.pop_back();
     return shape_data;
   }
 
