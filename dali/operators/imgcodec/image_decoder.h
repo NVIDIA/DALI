@@ -125,7 +125,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
  public:
   ~ImageDecoder() override {
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+<<<<<<< HEAD
     decoder_.reset();  // first stop the decoder
+=======
+>>>>>>> Enable build with statically linked nvimgcodec and introduces hard dependency on python package
     for (auto& extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
