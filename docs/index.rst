@@ -12,7 +12,7 @@ NVIDIA DALI Documentation
       You are currently viewing unstable developer preview of the documentation.
       To see the documentation for the latest stable release, refer to:
 
-      * `Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes.html>`_
+      * `Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>`_
       * `Developer Guide <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html>`_ (stable version of this page)
 
 .. include:: ../README.rst
@@ -73,6 +73,6 @@ NVIDIA DALI Documentation
    :hidden:
    :caption: Reference
 
-   Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes.html>
+   Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
    GitHub <https://github.com/NVIDIA/DALI>
-   Roadmap <https://github.com/NVIDIA/DALI/issues/4578>
+   Roadmap <https://github.com/NVIDIA/DALI/issues/5320>
