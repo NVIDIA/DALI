@@ -1801,13 +1801,22 @@ PYBIND11_MODULE(backend_impl, m) {
     .export_values();
 
   // DALIInterpType
-  py::enum_<DALIInterpType>(types_m, "DALIInterpType", "Interpolation mode\n<SPHINX_IGNORE>")
-    .value("INTERP_NN", DALI_INTERP_NN)
-    .value("INTERP_LINEAR", DALI_INTERP_LINEAR)
-    .value("INTERP_CUBIC", DALI_INTERP_CUBIC)
-    .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3)
-    .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR)
-    .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
+  py::enum_<DALIInterpType>(types_m, "DALIInterpType",
+                           "Interpolation mode.\n Note: for 2D inputs, linear and cubic are "
+                           "synonymous with bilinear and bicubic, respectively."
+                           "\n<SPHINX_IGNORE>")
+    .value("INTERP_NN", DALI_INTERP_NN,
+          "Nearest neighbour.")
+    .value("INTERP_LINEAR", DALI_INTERP_LINEAR,
+          "Linear interpolation. Synonymous with bilinear for 2D inputs.")
+    .value("INTERP_CUBIC", DALI_INTERP_CUBIC,
+          "Cubic interpolation. Synonymous with bicubic for 2D inputs.")
+    .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3,
+          "Resampling with a Lanczos window with 3 lobes.")
+    .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR,
+          "Resampling with a triangular window.")
+    .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN,
+           "Resampling with a Gaussian window.")
     .export_values();
 
   // Operator node
