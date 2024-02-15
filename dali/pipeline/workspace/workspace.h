@@ -222,16 +222,6 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   /** @} */
 
-  template <typename Buffers, typename Getter>
-  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
-    DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
-    auto &inp = buffers[idx];
-    if (inp.device == StorageDevice::GPU)
-      return getter(inp.gpu);
-    else
-      return getter(inp.cpu);
-  }
-
   /**
    * Returns shape of input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
@@ -273,7 +263,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Returns number of dimensions for a given output
    */
   int GetOutputDim(int output_idx) const {
-    return GetBufferProperty(inputs_, output_idx, [](auto &buf) { return buf->sample_dim(); });
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->sample_dim(); });
   }
 
   /**
@@ -610,6 +600,16 @@ class WorkspaceBase : public ArgumentWorkspace {
   SmallVector<IOBuffers, 2> outputs_;
 
  private:
+  template <typename Buffers, typename Getter>
+  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
+    DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
+    auto &inp = buffers[idx];
+    if (inp.device == StorageDevice::GPU)
+      return getter(inp.gpu);
+    else
+      return getter(inp.cpu);
+  }
+
   AccessOrder output_order_ = AccessOrder::host();
   ThreadPool *thread_pool_ = nullptr;
   cudaEvent_t event_ = nullptr;
