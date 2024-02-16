@@ -125,7 +125,6 @@ class NVCVOperator: public BaseOp {
     nvcv::TensorDataStridedCuda::Buffer inBuf;
     inBuf.basePtr = reinterpret_cast<NVCVByte*>(device_buffer);
     inBuf.strides[shape_data.size() - 1] = dtype.strideBytes();
-    std::cout << "stride: " << dtype.strideBytes() << std::endl;
     for (int d = shape_data.size() - 2; d >= 0; --d) {
       inBuf.strides[d] = shape_data[d + 1] * inBuf.strides[d + 1];
     }
