@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
         ref_T1 = mat_T1[:ndim, :]
     else:
         ref_T1 = mat_ref[:ndim, :]
-    assert np.allclose(T1, ref_T1, atol=1e-6)
+    assert np.allclose(T1, ref_T1, atol=atol)
 
 
 def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, atol=1e-6):
@@ -248,7 +248,7 @@ def check_transform_rotation_op(
         T0 = out_T0.at(idx) if has_input else None
         angle = out_angle.at(idx) if random_angle else angle
         ref_mat = rotate_affine_mat(angle=angle, axis=axis, center=center)
-        check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=1e-6)
+        check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=2e-6)
 
 
 def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):

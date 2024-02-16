@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ OpSpec& OpSpec::AddInput(const string &name, const string &device, bool regular_
       "Valid options are \"cpu\" or \"gpu\"");
   if (regular_input) {
     // We rely on the fact that regular inputs are first in inputs_ vector
-    DALI_ENFORCE(argument_inputs_indexes_.empty(),
+    DALI_ENFORCE(NumArgumentInput() == 0,
         "All regular inputs (particularly, `" + name + "`) need to be added to the op `" +
         this->name() + "` before argument inputs.");
   }
@@ -56,8 +56,9 @@ OpSpec& OpSpec::AddArgumentInput(const string &arg_name, const string &inp_name)
       "Argument '", arg_name, "' is not part of the op schema '", schema.name(), "'"));
   DALI_ENFORCE(schema.IsTensorArgument(arg_name), make_string(
       "Argument `", arg_name, "` in operator `", schema.name(), "` is not a a tensor argument."));
-  argument_inputs_[arg_name] = inputs_.size();
-  argument_inputs_indexes_.insert(inputs_.size());
+  int idx = inputs_.size();
+  argument_inputs_.push_back({ arg_name, idx });
+  argument_input_idxs_[arg_name] = idx;
   AddInput(inp_name, "cpu", false);
   return *this;
 }

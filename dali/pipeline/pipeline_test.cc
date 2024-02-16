@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -524,8 +524,8 @@ TYPED_TEST(PipelineTest, TestSeedSet) {
   OpGraph &original_graph = this->GetGraph(&pipe);
 
   // Check if seed can be manually set to the reader
-  ASSERT_EQ(original_graph.Node(3).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
-  ASSERT_NE(original_graph.Node(0).spec.Arguments().at("seed")->Get<int64_t>(), seed_set);
+  ASSERT_EQ(original_graph.Node(3).spec.GetArgument<int64_t>("seed"), seed_set);
+  ASSERT_NE(original_graph.Node(0).spec.GetArgument<int64_t>("seed"), seed_set);
 }
 
 
