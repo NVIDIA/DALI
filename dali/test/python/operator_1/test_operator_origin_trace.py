@@ -17,21 +17,18 @@ import traceback
 import re
 import fnmatch
 
-from nvidia.dali import pipeline_def, fn, types
+from nvidia.dali import pipeline_def, fn, ops
 from nvidia.dali.auto_aug import auto_augment, augmentations
 from nvidia.dali.auto_aug.core import augmentation, Policy
 from nvidia.dali._utils import dali_trace
 from test_utils import load_test_operator_plugin
 from nvidia.dali.pipeline import do_not_convert
-from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 
-from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
 dali_trace.set_tracing(enabled=True)
 
 load_test_operator_plugin()
 
-# set_verbosity(5, True)
 
 op_mode = "dali"
 extracted_stacks = []
@@ -90,10 +87,8 @@ def origin_trace():
 def compare_traces(dali_tbs, python_tbs):
     assert len(dali_tbs) == len(python_tbs)
     for dali_tb, python_tb in zip(dali_tbs, python_tbs):
-        # print(f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}")
-        assert dali_tb.startswith(
-            python_tb
-        ), f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}"
+        err = f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}"
+        assert dali_tb.startswith(python_tb), err
 
 
 def test_trace_almost_trivial():
@@ -158,6 +153,33 @@ def test_trace_recursive_do_not_convert():
     compare_traces(dali_cond_tbs, python_tbs)
 
 
+def test_trace_if():
+
+    dali_trace.set_tracing(options={"filter_ag_frames": False, "remap_ag_frames": False})
+
+    @do_not_convert
+    def recursive_helper(n=2):
+        if n:
+            return recursive_helper(n - 1)
+        else:
+            return origin_trace()
+
+    def pipe():
+        if fn.random.coin_flip():
+            x = np.array([1])
+        else:
+            x = np.array([2])
+        return x
+
+    # python_tbs = capture_python_traces(pipe)
+
+    dali_cond_pipe = pipeline_def(
+        batch_size=2, num_threads=1, device_id=0, enable_conditionals=True
+    )(pipe)
+    dali_cond_tbs = capture_dali_traces(dali_cond_pipe)
+    # compare_traces(dali_cond_tbs, python_tbs)
+
+
 def test_trace_auto_aug():
 
     # TODO(klecki): AutoGraph loses mapping for the trace_aug and points to a transformed file
@@ -200,3 +222,8 @@ def test_trace_auto_aug():
 """
     regex = fnmatch.translate(stacktrace_glob)
     assert re.match(regex, dali_cond_tbs[0])
+
+
+# TODO(klecki): ops, conditionals (split/merge)
+# For split and merge we probably want to disable some part of the filtering.
+# TODO: add a `with NoFilter():` stack trace filter :)

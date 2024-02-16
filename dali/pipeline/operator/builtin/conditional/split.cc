@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
 
+#include "dali/pipeline/operator/error_reporting.h"
 namespace dali {
 
 template <typename Backend>
@@ -51,6 +52,9 @@ bool Split<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
 
 template <typename Backend>
 void Split<Backend>::RunImpl(Workspace &ws) {
+
+  auto origin_stack_trace = GetOperatorOriginInfo(spec_);
+  std::cout <<  FormatStack(origin_stack_trace, true) << std::endl;
   const auto &input = ws.template Input<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
   auto sample_idx_in_output = uniform_array<kMaxGroups>(0);

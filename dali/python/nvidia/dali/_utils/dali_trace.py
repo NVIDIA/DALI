@@ -29,6 +29,11 @@ def set_tracing(*, enabled: bool = None, options={}):
 
     The default will change in the future, this API will remain private.
 
+    Available options:
+    * collapse_ag_frames: bool -
+    * filter_ag_frames: bool - filter frames from AutoGraph and conditionals implementation
+    * remap_ag_frames: bool - map AG produced frames back to user code
+
     """
     global _origin_trace_enabled
     global _collapse_ag_frames
