@@ -435,7 +435,8 @@ class RandomlyShapedDataIterator(object):
                 min_val = self.val_range[0]
                 max_val = self.val_range[1]
                 self.test_data.append(
-                    np.array(self.np_rng.random(shape) * max_val, dtype=self.dtype) - min_val
+                    np.array(self.np_rng.random(shape) * (max_val - min_val), dtype=self.dtype)
+                    + min_val
                 )
             elif self.dtype == np.float32:
                 self.test_data.append(

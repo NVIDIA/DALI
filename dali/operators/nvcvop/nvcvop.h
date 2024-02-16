@@ -125,6 +125,7 @@ class NVCVOperator: public BaseOp {
     nvcv::TensorDataStridedCuda::Buffer inBuf;
     inBuf.basePtr = reinterpret_cast<NVCVByte*>(device_buffer);
     inBuf.strides[shape_data.size() - 1] = dtype.strideBytes();
+    std::cout << "stride: " << dtype.strideBytes() << std::endl;
     for (int d = shape_data.size() - 2; d >= 0; --d) {
       inBuf.strides[d] = shape_data[d + 1] * inBuf.strides[d + 1];
     }
@@ -149,7 +150,9 @@ class NVCVOperator: public BaseOp {
     }
     // If number of channels in the data type is greater than 1,
     // we remove the inner dimension from the DALI shape
-    shape_data.pop_back();
+    if (dtype.numChannels() > 1) {
+      shape_data.pop_back();
+    }
     return shape_data;
   }
 

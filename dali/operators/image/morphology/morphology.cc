@@ -68,7 +68,7 @@ DALI_SCHEMA(Morphology)
 
 DALI_SCHEMA(experimental__Dilate)
   .AddParent("Morphology")
-  .DocStr("Perform a dilation operation on the input image.")
+  .DocStr("Performs a dilation operation on the input image.")
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "input", "TensorList",
@@ -78,7 +78,7 @@ DALI_SCHEMA(experimental__Dilate)
 
 DALI_SCHEMA(experimental__Erode)
   .AddParent("Morphology")
-  .DocStr("Perform an erosion operation on the input image.")
+  .DocStr("Performs an erosion operation on the input image.")
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "input", "TensorList",
