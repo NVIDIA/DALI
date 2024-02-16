@@ -14,16 +14,20 @@
 
 import numpy as np
 import traceback
+import re
+import fnmatch
 
 from nvidia.dali import pipeline_def, fn, types
 from nvidia.dali.auto_aug import auto_augment, augmentations
 from nvidia.dali.auto_aug.core import augmentation, Policy
+from nvidia.dali._utils import dali_trace
 from test_utils import load_test_operator_plugin
 from nvidia.dali.pipeline import do_not_convert
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 
 from nvidia.dali._autograph.utils.ag_logging import set_verbosity
 
+dali_trace.set_tracing(enabled=True)
 
 load_test_operator_plugin()
 
@@ -156,6 +160,10 @@ def test_trace_recursive_do_not_convert():
 
 def test_trace_auto_aug():
 
+    # TODO(klecki): AutoGraph loses mapping for the trace_aug and points to a transformed file
+    # Find out if we can somehow propagate that code mapping back. Do not convert helps with
+    # keeping regular code.
+    @do_not_convert
     def my_custom_policy() -> Policy:
         @augmentation
         def trace_aug(data, _):
@@ -169,28 +177,26 @@ def test_trace_auto_aug():
             ],
         )
 
-    # @pipeline_def(enable_conditionals=True)
+    @pipeline_def(batch_size=2, num_threads=1, device_id=0, enable_conditionals=True)
     def pipe():
-
         images = np.full((100, 100, 3), 42, dtype=np.uint8)
 
-        # Applies the AutoAugment policy for ImageNet
         augmented_images = auto_augment.apply_auto_augment(my_custom_policy(), images)
 
         return augmented_images
 
-    # debug_pipe = experimental_pipeline_def(
-    #     batch_size=2, num_threads=1, device_id=0, enable_conditionals=True, debug=True
-    # )(pipe)()
-    # debug_pipe.build()
-    # python_tbs = capture_python_traces(lambda: debug_pipe.run())
+    dali_cond_tbs = capture_dali_traces(pipe)
 
-    dali_cond_pipe = pipeline_def(
-        batch_size=2, num_threads=1, device_id=0, enable_conditionals=True
-    )(pipe)
-    dali_cond_tbs = capture_dali_traces(dali_cond_pipe)
-    print(dali_cond_tbs)
-    # compare_traces(dali_cond_tbs, python_tbs)
-
-
-# TODO(klecki!!!!): CHECK HOW THIS BEHAVES WITH allowed calls and automatic augments.
+    # It's not really feasible to generate the baseline for comparison, so I just record
+    # start and end of the expected trace, so not to rely on the callstack of the implementation
+    stacktrace_glob = """  File "*/test_operator_origin_trace.py", line *, in pipe
+    augmented_images = auto_augment.apply_auto_augment(my_custom_policy(), images)
+  File "*nvidia/dali/auto_aug/auto_augment.py", line *, in apply_auto_augment
+*
+  File "*/test_operator_origin_trace.py", line *, in trace_aug
+    return origin_trace()
+  File "*/test_operator_origin_trace.py", line *, in origin_trace
+    return fn.origin_trace_dump()*
+"""
+    regex = fnmatch.translate(stacktrace_glob)
+    assert re.match(regex, dali_cond_tbs[0])

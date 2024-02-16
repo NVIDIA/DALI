@@ -375,18 +375,21 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
-        if _Pipeline.current():
-            skip_bottom = _Pipeline.current()._definition_stack_frame
-        else:
-            skip_bottom = 0
-        # For fn API it is 4, for ops around 2
-        stack_summary = _dali_trace.extract_stack(skip_bottom_frames=skip_bottom, skip_top_frames=4)
-        filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
+        if _dali_trace.is_tracing_enabled():
+            if _Pipeline.current():
+                skip_bottom = _Pipeline.current()._definition_stack_frame
+            else:
+                skip_bottom = 0
+            # For fn API it is 4, for ops around 2
+            stack_summary = _dali_trace.extract_stack(
+                skip_bottom_frames=skip_bottom, skip_top_frames=4
+            )
+            filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
 
-        self._spec.AddArg("_origin_stack_filename", filenames)
-        self._spec.AddArg("_origin_stack_lineno", linenos)
-        self._spec.AddArg("_origin_stack_name", names)
-        self._spec.AddArg("_origin_stack_line", lines)
+            self._spec.AddArg("_origin_stack_filename", filenames)
+            self._spec.AddArg("_origin_stack_lineno", linenos)
+            self._spec.AddArg("_origin_stack_name", names)
+            self._spec.AddArg("_origin_stack_line", lines)
 
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 

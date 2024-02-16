@@ -17,6 +17,35 @@ from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filte
 from nvidia.dali._autograph import is_frame_converted_call, is_frame_call_unconverted
 
 
+_origin_trace_enabled = False
+# Processing options, mainly for debugging purposes
+_collapse_ag_frames = True
+_filter_ag_frames = True
+_remap_ag_frames = True
+
+
+def set_tracing(*, enabled: bool = None, options={}):
+    """Enable or disable tracing of operator origin information.
+
+    The default will change in the future, this API will remain private.
+
+    """
+    global _origin_trace_enabled
+    global _collapse_ag_frames
+    global _filter_ag_frames
+    global _remap_ag_frames
+    _collapse_ag_frames = options.get("collapse_ag_frames", _collapse_ag_frames)
+    _filter_ag_frames = options.get("filter_ag_frames", _filter_ag_frames)
+    _remap_ag_frames = options.get("remap_ag_frames", _remap_ag_frames)
+    if enabled is not None:
+        _origin_trace_enabled = enabled
+
+
+def is_tracing_enabled():
+    global _origin_trace_enabled
+    return _origin_trace_enabled
+
+
 def _is_matching_function(prev_frame_summary, new_frame_summary):
     """Heuristic check if the frame summaries describe the same function.
     Any of the arguments can be none, this means we don't have a match
@@ -30,17 +59,6 @@ def _is_matching_function(prev_frame_summary, new_frame_summary):
 
 
 def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
-
-    # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
-    # objects. Frame summary contains filename, lineno, name and line (string representing context).
-    # The source mapper contains:
-    # (loc.filename, loc.lineno)] = (
-    #             origin.loc.filename,
-    #             origin.loc.lineno,
-    #             origin.function_name,
-    #             origin.source_code_line,
-    #         )
-
     origin_stack_summary = []
     is_ag_function_call_start = False
     current_function_region = None
@@ -50,7 +68,7 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
         # original code.
         ag_entry = (frame_entry.filename, frame_entry.lineno)
 
-        if ag_entry in frame_map:
+        if _remap_ag_frames and ag_entry in frame_map:
             origin_info = frame_map[ag_entry]
             origin_frame_entry = traceback.FrameSummary(
                 filename=origin_info[0],
@@ -66,40 +84,46 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
         # See api.py:converted_call for details on filtering.
         skip = frame_filter.is_filtered(frame_entry.filename)
 
-        # AutoGraph is wrapping a function call
-        if is_frame_converted_call(frame_entry):
-            is_ag_function_call_start = True
-        # It quits to a non-AG code, treat it as normal from now-on
-        if is_frame_call_unconverted(frame_entry):
-            is_ag_function_call_start = False
-            current_function_region = None
-        # We are in the first part of the converted_func call (as we are in user code, remember
-        # the function)
-        if is_ag_function_call_start and not skip:
-            is_ag_function_call_start = False
-            current_function_region = origin_frame_entry
-            skip = True
-            origin_stack_summary.append(origin_frame_entry)
+        if _collapse_ag_frames:
+            # AutoGraph is wrapping a function call
+            if is_frame_converted_call(frame_entry):
+                is_ag_function_call_start = True
+            # It quits to a non-AG code, treat it as normal from now-on
+            if is_frame_call_unconverted(frame_entry):
+                is_ag_function_call_start = False
+                current_function_region = None
+            # We are in the first part of the converted_func call (as we are in user code, remember
+            # the function)
+            if is_ag_function_call_start and not skip:
+                is_ag_function_call_start = False
+                current_function_region = origin_frame_entry
+                skip = True
+                origin_stack_summary.append(origin_frame_entry)
 
         if not skip:
             # If we are in the same function region, we replace previous entry so we keep only the
-            # last one.
-            assert origin_stack_summary
-            if _is_matching_function(origin_stack_summary[-1], current_function_region):
-                origin_stack_summary.pop()
+            # last one
+            if _collapse_ag_frames:
+                assert origin_stack_summary
+                if _is_matching_function(origin_stack_summary[-1], current_function_region):
+                    origin_stack_summary.pop()
+            origin_stack_summary.append(origin_frame_entry)
+        elif not _filter_ag_frames:
             origin_stack_summary.append(origin_frame_entry)
     return origin_stack_summary
 
 
 def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
-    """Extract list of FrameSummary object, optionally skipping the bottom and top ones from the place
-    of the call. If AutoGraph was used, the FrameSummary entries are filtered and remapped back
-    to the user code.'
+    """Extract list of FrameSummary object, optionally skipping the bottom and top ones from
+    the place of the call. If AutoGraph was used, the FrameSummary entries are filtered and remapped
+    back to the user code.
 
     Returns
     -------
     List[FrameSummary]
     """
+    # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
+    # objects. Frame summary contains filename, lineno, name and line (string representing context).
     # -1 so we drop extract_stack frame
     stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
 
@@ -117,12 +141,11 @@ def separate_stack_summary(stack_summary):
 
     Parameters
     ----------
-    stack_summary : _type_
-        _description_
+    stack_summary : list[FrameSummary]
 
     Returns
     -------
-    List(str), List(int), List(str), List(str)
+    List[str], List[int], List[str], List[str]
         [filename], [lineno], [name], [line]
     """
     filename_stack = [frame_summary.filename for frame_summary in stack_summary]
