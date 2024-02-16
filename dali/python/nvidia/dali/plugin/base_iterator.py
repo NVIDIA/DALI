@@ -441,6 +441,21 @@ class _DaliBaseIterator(object):
 
         return should_end
 
+    def _report_no_data_in_pipeline(self):
+        """
+        Handles "no data in the pipeline" condition. If it's unexpected, raises an error.
+        """
+
+        # This might not be an error if we're iterating over pipeline that is
+        # currently at the end of epoch, for example because it was restored from
+        # checkpoint.
+        if all(not p.is_restored_from_checkpoint or p._first_iter for p in self._pipes):
+            raise RuntimeError(
+                "It seems that there is no data in the pipeline. This may happen "
+                "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
+                "greater than the shard size."
+            )
+
     def checkpoints(self):
         """
         Returns the current checkpoints of the pipelines.

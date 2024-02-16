@@ -487,7 +487,7 @@ def check_mxnet_iterator_pass_reader_name(
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(
-            AssertionError,
+            RuntimeError,
             MXNetIterator,
             pipes,
             [("ids", MXNetIterator.DATA_TAG)],
@@ -795,7 +795,7 @@ def check_gluon_iterator_pass_reader_name(
 
     if batch_size > data_set_size // shards_num and last_batch_policy == LastBatchPolicy.DROP:
         assert_raises(
-            AssertionError,
+            RuntimeError,
             GluonIterator,
             pipes,
             reader_name="Reader",

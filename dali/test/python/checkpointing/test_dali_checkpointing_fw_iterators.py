@@ -39,6 +39,9 @@ class FwTestBase:
     def equal(self, a, b):
         raise NotImplementedError
 
+    def output_map(self, *, with_labels=False):
+        return ["data", "labels"] if with_labels else ["data"]
+
     # Helpers
 
     def compare_outs(self, out1, out2):
@@ -59,7 +62,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipe,
-            ["data"],
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -74,7 +77,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            ["data"],
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             reader_name=reader_name,
             size=size,
@@ -140,7 +143,9 @@ class FwTestBase:
         p = pipeline()
         p.build()
 
-        iter = self.FwIterator(p, ["data", "labels"], auto_reset=True, reader_name="Reader")
+        iter = self.FwIterator(
+            p, output_map=self.output_map(with_labels=True), auto_reset=True, reader_name="Reader"
+        )
         for epoch in range(num_epochs):
             for i, _ in enumerate(iter):
                 if iters_into_epoch is not None:
@@ -149,7 +154,12 @@ class FwTestBase:
 
         restored = pipeline(checkpoint=iter.checkpoints()[0])
         restored.build()
-        iter2 = self.FwIterator(restored, ["data", "labels"], auto_reset=True, reader_name="Reader")
+        iter2 = self.FwIterator(
+            restored,
+            output_map=self.output_map(with_labels=True),
+            auto_reset=True,
+            reader_name="Reader",
+        )
 
         self.compare_iters(iter, iter2)
 
@@ -227,7 +237,7 @@ class FwTestBase:
             def make_iterator(pipes):
                 return self.FwIterator(
                     pipes,
-                    output_map=["data"],
+                    output_map=self.output_map(with_labels=False),
                     auto_reset=True,
                     last_batch_policy=policy,
                     prepare_first_batch=False,
@@ -312,7 +322,7 @@ class FwTestBase:
 
         iter = self.FwIterator(
             pipeline,
-            ["data"],
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -325,7 +335,7 @@ class FwTestBase:
         restored.build()
         iter2 = self.FwIterator(
             restored,
-            ["data"],
+            output_map=self.output_map(with_labels=False),
             auto_reset=True,
             size=size,
             last_batch_policy=LastBatchPolicy.FILL,
@@ -432,3 +442,66 @@ class TestPaddle(FwTestBase):
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
+
+
+class TestMxnet(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.mxnet import DALIGenericIterator
+
+        self.FwIterator = DALIGenericIterator
+
+    def output_map(self, with_labels=False):
+        if not with_labels:
+            return [("data", self.FwIterator.DATA_TAG)]
+        else:
+            return [("data", self.FwIterator.DATA_TAG), ("label", self.FwIterator.LABEL_TAG)]
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
+    def compare_outs(self, out1, out2):
+        assert len(out1) == len(out2)
+        for d1, d2 in zip(out1, out2):
+            assert (d1.data[0].asnumpy() == d2.data[0].asnumpy()).all()
+            if d1.label:
+                assert (d1.label[0].asnumpy() == d2.label[0].asnumpy()).all()
+            else:
+                assert not d2.label
+
+
+class TestGluon(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.mxnet import DALIGluonIterator
+
+        def iterator_wrapper(pipeline, **kwargs):
+            if "output_map" in kwargs:
+                kwargs.pop("output_map")
+            return DALIGluonIterator(pipeline, **kwargs)
+
+        self.FwIterator = iterator_wrapper
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.PARTIAL, False),
+            (LastBatchPolicy.PARTIAL, True),
+        )
+
+    def compare_outs(self, out1, out2):
+        assert len(out1) == len(out2)
+        for list1, list2 in zip(out1, out2):
+            assert len(list1) == len(list2)
+            for x1, x2 in zip(list1, list2):
+                assert (x1.asnumpy() == x2.asnumpy()).all()

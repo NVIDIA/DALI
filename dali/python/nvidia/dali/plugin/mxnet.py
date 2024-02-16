@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -304,11 +304,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                self._report_no_data_in_pipeline()
 
     def __getattr__(self, key):
         # these attributes are required by MXNet thus DALI needs to provide them
@@ -319,11 +315,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 # this entries should be there thanks to the above call
                 return self.__dict__[key]
             except StopIteration:
-                assert False, (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                self._report_no_data_in_pipeline()
+
         raise AttributeError
 
     def _populate_descriptors(self, data_batch):
@@ -765,11 +758,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, (
-                    "It seems that there is no data in the pipeline. This may happen "
-                    "if `last_batch_policy` is set to PARTIAL and the requested batch size is "
-                    "greater than the shard size."
-                )
+                self._report_no_data_in_pipeline()
 
     def __next__(self):
         self._ever_consumed = True
