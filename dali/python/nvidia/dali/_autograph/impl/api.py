@@ -443,7 +443,7 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
     import nvidia.dali._conditionals as dc
     import nvidia.dali._autograph as ag
 
-    with StackTraceMapper(converted_f), tf_stack.CustomModuleFilter([ag, dc]):
+    with StackTraceMapper(converted_f), tf_stack.CustomModuleFilter([ag]):
         try:
             if kwargs is not None:
                 result = converted_f(*effective_args, **kwargs)

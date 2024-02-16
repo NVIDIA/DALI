@@ -155,7 +155,7 @@ def test_trace_recursive_do_not_convert():
 
 def test_trace_if():
 
-    dali_trace.set_tracing(options={"filter_ag_frames": False, "remap_ag_frames": False})
+    # dali_trace.set_tracing(options={"filter_ag_frames": False, "remap_ag_frames": False})
 
     @do_not_convert
     def recursive_helper(n=2):
