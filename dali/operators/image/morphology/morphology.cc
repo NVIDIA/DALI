@@ -30,10 +30,10 @@ void Morphology::RunImpl(Workspace &ws) {
   output.SetLayout(input.GetLayout());
 
   kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
-  auto mask = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, mask_arg_,
-                                                                  TensorShape<1>(2));
-  auto anchor = AcquireTensorArgument<int32_t, NVCV_DATA_TYPE_2S32>(ws, scratchpad, anchor_arg_,
-                                                                    TensorShape<1>(2));
+  auto mask = AcquireTensorArgument<int32_t>(ws, scratchpad, mask_arg_,
+                                             TensorShape<1>(2), nvcvop::GetDataType<int32_t>(2));
+  auto anchor = AcquireTensorArgument<int32_t>(ws, scratchpad, anchor_arg_,
+                                               TensorShape<1>(2), nvcvop::GetDataType<int32_t>(2));
 
   if (!op_workspace_ || (op_workspace_.capacity() < input.num_samples())) {
     int current_size = (op_workspace_) ? op_workspace_.capacity() : 0;
@@ -51,16 +51,16 @@ void Morphology::RunImpl(Workspace &ws) {
 }
 
 DALI_SCHEMA(Morphology)
-  .AddOptionalArg("mask", "Size of the convolution kernel.",
+  .AddOptionalArg("mask_size", "Size of the structuring element.",
                   std::vector<int32_t>({3, 3}), true, true)
   .AddOptionalArg("anchor",
-                  "Sets the anchor point of the kernel. Default value (-1, -1)"
-                  " uses the kernel center as an anchor point.",
+                  "Sets the anchor point of the structuring element. Default value (-1, -1)"
+                  " uses the element's center as the anchor point.",
                   std::vector<int32_t>({-1, -1}), true, true)
   .AddOptionalArg("iterations",
                   "Number of times to execute the operation, typically set to 1. "
-                  "Setting to higher than 1 is equivelent of increasing the kernel "
-                  "mask by (mask_width - 1, mask_height -1) for every iteration.",
+                  "Setting to a value higher than 1 is equivelent to increasing the mask size "
+                  "by (mask_width - 1, mask_height -1) for every additional iteration.",
                   1, false, false)
   .AddOptionalArg("border_mode",
                   "Border mode to be used when accessing elements outside input image.",

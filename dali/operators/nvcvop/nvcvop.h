@@ -84,6 +84,21 @@ void AllocateImagesLike(nvcv::ImageBatchVarShape &output, const TensorList<GPUBa
 void PushImagesToBatch(nvcv::ImageBatchVarShape &batch, const TensorList<GPUBackend> &t_list);
 
 /**
+ * @brief Construct a DataType object with a given number of channels and given channel type
+ */
+nvcv::DataType GetDataType(DALIDataType dtype, int num_channels = 1);
+
+/**
+ * @brief Construct a DataType object with a given number of channels and given channel type
+ *
+ * @tparam T channel type
+ */
+template <typename T>
+nvcv::DataType GetDataType(int num_channels = 1) {
+  return GetDataType(TypeTable::GetTypeId<T>(), num_channels);
+}
+
+/**
  * @brief A base class for the CVCUDA operators.
  * It adds convenience methods to access inputs, outputs and arguments as nvcv types.
  */
@@ -105,11 +120,11 @@ class NVCVOperator: public BaseOp {
    * @tparam DTYPE expected nvcv Tensor data type
    * @param arg_shape shape of the DALI operator argument.
    */
-  template <typename T, NVCVDataType DTYPE>
+  template <typename T>
   nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::Scratchpad &scratchpad,
                                      ArgValue<T, 1> &arg, const TensorShape<> &arg_shape,
+                                     nvcv::DataType dtype = GetDataType<T>(),
                                      TensorLayout layout = "") {
-    auto dtype = nvcv::DataType(DTYPE);
     int num_samples = ws.GetInputBatchSize(0);
     int arg_sample_vol = volume(arg_shape);
     arg.Acquire(spec_, ws, num_samples, arg_shape);

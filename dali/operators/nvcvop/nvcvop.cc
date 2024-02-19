@@ -69,19 +69,27 @@ nvcv::Swizzle GetSimpleSwizzle(int num_channels) {
   }
 }
 
+nvcv::Packing GetPacking(DALIDataType dtype, const nvcv::Swizzle &swizzle) {
+  nvcv::PackingParams packing_params{};
+  packing_params.byteOrder = nvcv::ByteOrder::MSB;
+  packing_params.swizzle = swizzle;
+  for (int c = 0; c < nvcv::GetNumChannels(swizzle); ++c) {
+    packing_params.bits[c] = TypeTable::GetTypeInfo(dtype).size() * 8;
+  }
+  return nvcv::MakePacking(packing_params);
+}
+
 nvcv::ImageFormat GetImageFormat(DALIDataType dtype, int num_channels) {
   nvcv::MemLayout mem_layout = nvcv::MemLayout::PITCH_LINEAR;
   nvcv::DataKind data_kind = GetDataKind(dtype);
   nvcv::Swizzle swizzle = GetSimpleSwizzle(num_channels);
-  nvcv::PackingParams packing_params{};
-  packing_params.byteOrder = nvcv::ByteOrder::MSB;
-  packing_params.swizzle = swizzle;
-  for (int c = 0; c < num_channels; ++c) {
-    packing_params.bits[c] = TypeTable::GetTypeInfo(dtype).size() * 8;
-  }
-
-  auto packing = nvcv::MakePacking(packing_params);
+  auto packing = GetPacking(dtype, swizzle);
   return nvcv::ImageFormat(mem_layout, data_kind, swizzle, packing);
+}
+
+nvcv::DataType GetDataType(DALIDataType dtype, int num_channels) {
+  auto swizzle = GetSimpleSwizzle(num_channels);
+  return nvcv::DataType(GetDataKind(dtype), GetPacking(dtype, swizzle));
 }
 
 /**

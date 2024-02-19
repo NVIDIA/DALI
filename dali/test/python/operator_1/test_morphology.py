@@ -91,9 +91,9 @@ def morphology_pipe(data_src, layout, ksize_src, anchor_src, border_mode, morph_
     ksize = fn.external_source(source=ksize_src)
     anchor = fn.external_source(source=anchor_src)
     if morph_type == "dilate":
-        return fn.experimental.dilate(img, mask=ksize, anchor=anchor, border_mode=border_mode)
+        return fn.experimental.dilate(img, mask_size=ksize, anchor=anchor, border_mode=border_mode)
     else:
-        return fn.experimental.erode(img, mask=ksize, anchor=anchor, border_mode=border_mode)
+        return fn.experimental.erode(img, mask_size=ksize, anchor=anchor, border_mode=border_mode)
 
 
 def ksize_src(bs, lo, hi, seed):

@@ -55,7 +55,7 @@ class Morphology : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
 
   USE_OPERATOR_MEMBERS();
   NVCVMorphologyType morph_type_;
-  ArgValue<int32_t, 1> mask_arg_{"mask", spec_};
+  ArgValue<int32_t, 1> mask_arg_{"mask_size", spec_};
   ArgValue<int32_t, 1> anchor_arg_{"anchor", spec_};
   nvcv::ImageBatchVarShape op_workspace_{};
   NVCVBorderType border_mode_{NVCV_BORDER_CONSTANT};
