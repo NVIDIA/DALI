@@ -54,6 +54,7 @@ from nvidia.dali._autograph.lang.directives import set_loop_options
 from nvidia.dali._autograph.utils import ag_logging
 from nvidia.dali._autograph.utils.all_utils import _remove_undocumented
 from nvidia.dali._autograph.utils.hooks import OperatorBase
+from nvidia.dali._autograph.utils.tf_stack import CustomModuleFilter
 
 # TODO(mdan): Revisit this list once we finalize the generated code mechanism.
 _allowed_symbols = [

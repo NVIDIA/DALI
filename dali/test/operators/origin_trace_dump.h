@@ -61,6 +61,43 @@ class OriginTraceDump : public Operator<Backend> {
   std::string formatted_stack_;
 };
 
+template <typename Backend>
+class OriginTracePrint : public Operator<Backend> {
+ public:
+  inline explicit OriginTracePrint(const OpSpec &spec) : Operator<Backend>(spec) {
+    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
+    formatted_stack_ = FormatStack(origin_stack_trace, true);
+    std::cout << formatted_stack_ << std::endl;
+  }
+
+  inline ~OriginTracePrint() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(OriginTracePrint);
+  USE_OPERATOR_MEMBERS();
+
+ protected:
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    output_desc.resize(1);
+    int bs = ws.GetRequestedBatchSize(0);
+    const auto &input = ws.Input<Backend>(0);
+    output_desc[0].type = input.type();
+    output_desc[0].shape = input.shape();
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
+    auto &output = ws.Output<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
+    output.Copy(input);
+  }
+  std::string formatted_stack_;
+};
+
+
 }  // namespace dali
 
 #endif  // DALI_TEST_OPERATORS_ORIGIN_TRACE_DUMP_H_

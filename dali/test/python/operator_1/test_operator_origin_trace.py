@@ -155,7 +155,9 @@ def test_trace_recursive_do_not_convert():
 
 def test_trace_if():
 
-    # dali_trace.set_tracing(options={"filter_ag_frames": False, "remap_ag_frames": False})
+    # dali_trace.set_tracing(options={"filter_ag_frames": False})
+    # dali_trace.set_tracing(options={"remap_ag_frames": False})
+    # dali_trace.set_tracing(options={"collapse_ag_frames": False})
 
     @do_not_convert
     def recursive_helper(n=2):
@@ -165,10 +167,12 @@ def test_trace_if():
             return origin_trace()
 
     def pipe():
-        if fn.random.coin_flip():
-            x = np.array([1])
+        x = np.full((1,), 0, dtype=np.int32)
+        if fn.origin_trace_print(fn.random.coin_flip()):
+            if fn.origin_trace_print(fn.random.coin_flip()):
+                x = fn.origin_trace_print(np.array([1]))
         else:
-            x = np.array([2])
+            x = fn.origin_trace_print(np.array([2]))
         return x
 
     # python_tbs = capture_python_traces(pipe)
@@ -222,6 +226,7 @@ def test_trace_auto_aug():
 """
     regex = fnmatch.translate(stacktrace_glob)
     assert re.match(regex, dali_cond_tbs[0])
+    print(dali_cond_tbs[0])
 
 
 # TODO(klecki): ops, conditionals (split/merge)

@@ -21,7 +21,6 @@
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
 
-#include "dali/pipeline/operator/error_reporting.h"
 namespace dali {
 
 template <typename Backend>
@@ -52,9 +51,6 @@ bool Split<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
 
 template <typename Backend>
 void Split<Backend>::RunImpl(Workspace &ws) {
-
-  auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-  std::cout <<  FormatStack(origin_stack_trace, true) << std::endl;
   const auto &input = ws.template Input<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
   auto sample_idx_in_output = uniform_array<kMaxGroups>(0);

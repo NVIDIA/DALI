@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
+#include "dali/pipeline/operator/error_reporting.h"
 namespace dali {
 
 template <typename Backend>
@@ -32,6 +33,9 @@ class Merge : public StatelessOperator<Backend> {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
+
+    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
+    std::cout << "Merge>>> " << FormatStack(origin_stack_trace, true) << std::endl;
   }
 
   ~Merge() override = default;
