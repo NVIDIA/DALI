@@ -105,7 +105,7 @@ class NVCVOperator: public BaseOp {
    * @param arg_shape shape of the DALI operator argument.
    */
   template <typename T, NVCVDataType DTYPE>
-  nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::DynamicScratchpad &scratchpad,
+  nvcv::Tensor AcquireTensorArgument(Workspace &ws, kernels::Scratchpad &scratchpad,
                                      ArgValue<T, 1> &arg, const TensorShape<> &arg_shape,
                                      TensorLayout layout = "") {
     auto dtype = nvcv::DataType(DTYPE);
