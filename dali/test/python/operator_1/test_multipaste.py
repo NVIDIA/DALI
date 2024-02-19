@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.fn as fn
-import nvidia.dali.types as types
+from nvidia.dali import fn, pipeline_def, types
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
+from nose_utils import assert_raises
+from nose2.tools import params, cartesian_params
 
 
 DEBUG_LVL = 0
@@ -173,6 +174,7 @@ def get_pipeline(
     in_size=None,
     out_size=None,
     even_paste_count=False,
+    use_positional=False,
     k=4,
     dtype=types.UINT8,
     no_intersections=True,
@@ -190,7 +192,8 @@ def get_pipeline(
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device="cpu", output_type=types.RGB)
-        resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
+        resized_cpu = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
+        resized = resized_cpu.gpu() if use_gpu else resized_cpu
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
             k,
             batch_size,
@@ -209,7 +212,24 @@ def get_pipeline(
         in_anchors = fn.external_source(lambda: in_anchors_l)
         shapes = fn.external_source(lambda: shapes_l)
         out_anchors = fn.external_source(lambda: out_anchors_l)
-        kwargs = {"in_ids": in_idx, "output_size": out_size, "dtype": dtype}
+        kwargs = {"output_size": out_size, "dtype": dtype}
+        if not use_positional:
+            kwargs["in_ids"] = in_idx
+            args = (resized,)
+        else:
+            assert even_paste_count
+            assert len(in_idx_l) == batch_size
+
+            def source(perm):
+                def cb():
+                    return perm
+
+                return cb
+
+            paste_count = len(in_idx_l[0])
+            perms = [[sample[i] for sample in in_idx_l] for i in range(paste_count)]
+            perms = [fn.external_source(source(perm)) for perm in perms]
+            args = tuple(fn.permute_batch(resized, indices=perm) for perm in perms)
 
         if not full_input:
             kwargs["shapes"] = shapes
@@ -220,8 +240,8 @@ def get_pipeline(
         if not out_anchor_top_left:
             kwargs["out_anchors"] = out_anchors
 
-        pasted = fn.multi_paste(resized.gpu() if use_gpu else resized, **kwargs)
-        pipe.set_outputs(pasted, resized)
+        pasted = fn.multi_paste(*args, **kwargs)
+        pipe.set_outputs(pasted, resized_cpu)
     return pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 
 
@@ -292,6 +312,7 @@ def check_operator_multipaste(
     in_size,
     out_size,
     even_paste_count,
+    use_positional,
     no_intersections,
     full_input,
     in_anchor_top_left,
@@ -307,6 +328,7 @@ def check_operator_multipaste(
         in_size=in_size,
         out_size=out_size,
         even_paste_count=even_paste_count,
+        use_positional=use_positional,
         k=pastes,
         dtype=out_dtype,
         no_intersections=no_intersections,
@@ -356,6 +378,7 @@ def test_operator_multipaste():
         # - input dimensions
         # - output dimensions
         # - should each output have same number of pastes
+        # - should the inputs be passed as positional argument
         # - should generated pastes have no intersections
         # - should "shapes" parameter be omitted (shape to cover from input anchor to input end)
         # - should "in_anchors" parameter be omitted
@@ -373,6 +396,7 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
             None,
             False,
             None,
@@ -385,6 +409,23 @@ def test_operator_multipaste():
             (256, 128),
             (128, 128),
             False,
+            False,
+            True,
+            False,
+            False,
+            None,
+            False,
+            None,
+            types.UINT8,
+            0,
+        ],
+        [
+            8,
+            15,
+            (256, 128),
+            (128, 128),
+            True,
+            True,
             True,
             False,
             False,
@@ -399,6 +440,23 @@ def test_operator_multipaste():
             2,
             (128, 128),
             (256, 128),
+            True,
+            False,
+            False,
+            False,
+            False,
+            None,
+            False,
+            None,
+            types.UINT8,
+            0,
+        ],
+        [
+            4,
+            2,
+            (128, 128),
+            (256, 128),
+            True,
             True,
             False,
             False,
@@ -415,6 +473,23 @@ def test_operator_multipaste():
             (128, 128),
             (128, 256),
             True,
+            False,
+            True,
+            False,
+            False,
+            None,
+            False,
+            None,
+            types.UINT8,
+            0,
+        ],
+        [
+            4,
+            2,
+            (128, 128),
+            (128, 256),
+            True,
+            True,
             True,
             False,
             False,
@@ -431,6 +506,7 @@ def test_operator_multipaste():
             (128, 128),
             False,
             False,
+            False,
             True,
             False,
             None,
@@ -444,6 +520,7 @@ def test_operator_multipaste():
             2,
             (64, 64),
             (128, 128),
+            False,
             False,
             False,
             True,
@@ -462,6 +539,7 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
             True,
             None,
             False,
@@ -478,6 +556,7 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
             None,
             True,
             None,
@@ -493,6 +572,7 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
             None,
             False,
             None,
@@ -504,6 +584,7 @@ def test_operator_multipaste():
             2,
             (128, 128),
             (128, 128),
+            False,
             False,
             False,
             False,
@@ -523,6 +604,23 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
+            None,
+            False,
+            None,
+            types.INT32,
+            0,
+        ],
+        [
+            4,
+            2,
+            (128, 128),
+            (128, 128),
+            True,
+            True,
+            False,
+            False,
+            False,
             None,
             False,
             None,
@@ -535,6 +633,23 @@ def test_operator_multipaste():
             (128, 128),
             (128, 128),
             False,
+            False,
+            False,
+            False,
+            False,
+            None,
+            False,
+            None,
+            types.FLOAT,
+            0,
+        ],
+        [
+            4,
+            2,
+            (128, 128),
+            (128, 128),
+            True,
+            True,
             False,
             False,
             False,
@@ -553,6 +668,7 @@ def test_operator_multipaste():
             False,
             False,
             False,
+            False,
             None,
             False,
             None,
@@ -563,3 +679,134 @@ def test_operator_multipaste():
     for t in tests:
         yield (check_operator_multipaste, *t, "cpu")
         yield (check_operator_multipaste, *t, "gpu")
+
+
+@cartesian_params(("cpu", "gpu"), (True, False), (True, False), (None, (501, 501)))
+def test_input_shape_inference(device, use_uniform_shape, use_in_idx, output_size):
+
+    def get_image(sample_info):
+        if use_uniform_shape or sample_info.idx_in_batch % 2 == 0:
+            shape = (401, 501, 3)
+        else:
+            shape = (301, 301, 3)
+        return np.full(shape, sample_info.idx_in_batch, dtype=np.uint8)
+
+    def get_indices(sample_info):
+        idx_in_batch = sample_info.idx_in_batch
+        return np.array([idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32)
+
+    batch_size = 8
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def pipeline():
+        image = fn.external_source(get_image, batch=False)
+        assert device in ("gpu", "cpu")
+        image = image.gpu() if device == "gpu" else image
+        if use_in_idx:
+            args = tuple()
+            kwargs = {
+                "in_ids": fn.external_source(get_indices, batch=False),
+                "output_size": output_size,
+            }
+        else:
+            image = fn.permute_batch(image, indices=fn.batch_permutation())
+            args = (image,)
+            kwargs = {"output_size": output_size}
+
+        return fn.multi_paste(image, *args, **kwargs)
+
+    p = pipeline()
+    p.build()
+    if not use_uniform_shape and output_size is None:
+        with assert_raises(
+            RuntimeError,
+            glob="If the `output_size` is not specified, all the input "
+            "samples must have the same shape.",
+        ):
+            p.run()
+    else:
+        expected_size = (output_size or (401, 501)) + (3,)
+        (out,) = p.run()
+        assert len(out) == batch_size
+        for sample in out:
+            assert tuple(sample.shape()) == expected_size, f"{sample.shape()} vs {expected_size}"
+
+
+@params((-1, 8, "cpu"), (-1, 8, "gpu"), (1, 1, "cpu"), (9, 8, "gpu"))
+def test_out_of_bounds_idx(out_of_bound_idx, batch_size, device):
+    rng = np.random.default_rng(42)
+    bogus_idx = rng.choice(list(range(batch_size)))
+
+    def get_image(sample_info):
+        return np.full((101, 101, 3), sample_info.idx_in_batch, dtype=np.uint8)
+
+    def get_indices(sample_info):
+        idx_in_batch = sample_info.idx_in_batch
+        indices = np.array([idx_in_batch // 2, idx_in_batch // 2 + 1], dtype=np.int32)
+        if idx_in_batch == bogus_idx:
+            indices[rng.choice([0, 1])] = out_of_bound_idx
+        return indices
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def pipeline():
+        image = fn.external_source(get_image, batch=False)
+        in_ids = fn.external_source(get_indices, batch=False)
+        assert device in ("gpu", "cpu")
+        image = image.gpu() if device == "gpu" else image
+        return fn.multi_paste(image, in_ids=in_ids)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(
+        RuntimeError,
+        glob=f"The `in_idx` must be in range * Got in_idx: {out_of_bound_idx}. "
+        f"Input batch size is: {batch_size}.",
+    ):
+        p.run()
+
+
+@cartesian_params(("cpu", "gpu"), (True, False))
+def test_conflicting_channels(device, use_positional):
+    batch_size = 16
+
+    def shift_by_one(sample_info):
+        return np.array((sample_info.idx_in_batch + 1) % batch_size, dtype=np.int32)
+
+    def get_image(sample_info):
+        idx_in_batch = sample_info.idx_in_batch
+        num_channels = (idx_in_batch % 4) + 1
+        return np.full((101, 101, num_channels), sample_info.idx_in_batch, dtype=np.uint8)
+
+    def get_indices(sample_info):
+        idx_in_batch = sample_info.idx_in_batch
+        indices = np.array([idx_in_batch // 4 + i for i in range(4)], dtype=np.int32)
+        return indices
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def pipeline():
+        image = fn.external_source(get_image, batch=False)
+        assert device in ("gpu", "cpu")
+        image = image.gpu() if device == "gpu" else image
+        if not use_positional:
+            in_ids = fn.external_source(get_indices, batch=False)
+            args = tuple()
+            kwargs = {"in_ids": in_ids}
+        else:
+            perm = fn.external_source(shift_by_one, batch=False)
+            args = []
+            kwargs = {}
+            perm_image = image
+            for _ in range(3):
+                perm_image = fn.permute_batch(perm_image, indices=perm)
+                args.append(perm_image)
+            args = tuple(args)
+
+        return fn.multi_paste(image, *args, **kwargs)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(
+        RuntimeError,
+        glob="All regions pasted into given output sample must have the same number of channels",
+    ):
+        p.run()

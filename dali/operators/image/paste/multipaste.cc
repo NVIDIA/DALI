@@ -22,7 +22,7 @@ DALI_SCHEMA(MultiPaste)
     .DocStr(R"code(Performs multiple pastes from image batch to each of the outputs.
 
 If the `in_ids` is specified, the operator expects exactly one input batch.
-In that case, for each output sample, `in_ids` describe which samples
+In that case, for each output sample, `in_ids` describes which samples
 from the input batch should be pasted to the corresponding sample
 in the output batch.
 
@@ -156,7 +156,6 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
       tp.AddWork(
         [&, i, paste_count, out_sample_shape](int thread_id) {
           for (int iter = 0; iter < paste_count; iter++) {
-
             kernels::KernelContext ctx;
 
             int sample_input = hasInIdx ? 0 : iter;

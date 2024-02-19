@@ -25,8 +25,8 @@ template <int ndims>
 struct MultiPasteSampleInput {
   struct InputPatch {
     ivec<ndims> out_anchor, in_anchor, size;
-    int in_idx; // which sample in the batch
-    int batch_idx; // which batch
+    int in_idx;  // which sample in the batch
+    int batch_idx;  // which batch
   };
   std::vector<InputPatch> inputs;
   ivec<ndims> out_size;
