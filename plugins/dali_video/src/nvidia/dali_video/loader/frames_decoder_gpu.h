@@ -28,6 +28,8 @@ extern "C" {
 
 #include "VideoCodecSDKUtils/Interface/cuviddec.h"
 #include "VideoCodecSDKUtils/Interface/nvcuvid.h"
+#include "VideoCodecSDKUtils/helper_classes/Utils/cuvidFunctions.h"
+#include "VideoCodecSDKUtils/helper_classes/Utils/cuvid_dlopen.h"
 
 #include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
 #include "dali/core/unique_handle.h"

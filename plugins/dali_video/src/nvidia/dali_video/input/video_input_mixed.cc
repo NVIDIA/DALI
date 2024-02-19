@@ -40,6 +40,6 @@ class VideoInputMixed : public VideoInput<dali::MixedBackend> {
   void Run(dali::Workspace &ws) override { VideoInputRunImpl(ws); }
 };
 
-DALI_REGISTER_OPERATOR(plugin__video__VideoInput, VideoInputMixed, dali::Mixed);
+DALI_REGISTER_OPERATOR(plugin__video__decoders__input__Video, VideoInputMixed, dali::Mixed);
 
 }  // namespace dali_video

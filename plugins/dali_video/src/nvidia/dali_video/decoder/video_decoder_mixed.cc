@@ -53,6 +53,6 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
   thread_pool_.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(plugin__video__VideoDecoder, VideoDecoderMixed, dali::Mixed);
+DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderMixed, dali::Mixed);
 
 }  // namespace dali_video

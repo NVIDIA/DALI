@@ -82,7 +82,7 @@ add_library(dali_video SHARED ${VIDEO_PLUGIN_SOURCES})
 set_target_properties(dali_video PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(dali_video PUBLIC ${dali_video_SRC_DIR})
 target_link_directories(dali_video PUBLIC ${DALI_LIB_DIR})
-target_link_libraries(dali_video PUBLIC dali dali_core dali_kernels)
+target_link_libraries(dali_video PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
 
 find_package(PkgConfig REQUIRED)
 if(PKG_CONFIG_FOUND)

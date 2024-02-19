@@ -26,7 +26,7 @@ void VideoInput<dali::CPUBackend, FramesDecoder>::CreateDecoder(const dali::Work
 }
 
 
-DALI_SCHEMA(plugin__video__VideoInput)
+DALI_SCHEMA(plugin__video__decoders__input__Video)
                 .DocStr(
                         R"code(
 Streams and decodes a video from a memory buffer. To be used with long and high resolution videos.
@@ -129,6 +129,6 @@ class VideoInputCpu : public VideoInput<dali::CPUBackend> {
 };
 
 
-DALI_REGISTER_OPERATOR(plugin__video__VideoInput, VideoInputCpu, dali::CPU);
+DALI_REGISTER_OPERATOR(plugin__video__decoders__input__Video, VideoInputCpu, dali::CPU);
 
 }  // namespace dali_video
