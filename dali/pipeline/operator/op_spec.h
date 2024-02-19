@@ -268,6 +268,13 @@ class DLL_PUBLIC OpSpec {
     return argument_inputs_[idx - NumRegularInput()].first;
   }
 
+  DLL_PUBLIC int ArgumentInputIdx(const std::string &name) const {
+    auto it = argument_input_idxs_.find(name);
+    DALI_ENFORCE(it != argument_input_idxs_.end(),
+                 make_string("No such argument input: \"", name, "\""));
+    return it->second;
+  }
+
   DLL_PUBLIC inline string Output(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return TensorName(outputs_[idx].name, outputs_[idx].device);

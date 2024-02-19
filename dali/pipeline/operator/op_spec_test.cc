@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -443,5 +443,29 @@ TEST(ArgumentInputTest, OpSpecAccess) {
   Workspace ws;
   pipe.Outputs(&ws);
 }
+
+DALI_SCHEMA(Schema_TestOpSpec_Lookup)
+    .DocStr("TestOpSpec_Lookup")
+    .NumInput(1)
+    .NumOutput(1)
+    // the names of the arguments are deliberately in a reverse order (lexicographically)
+    .AddOptionalArg<int>("zero", "dummy arg that can be an argument input", 0, true)
+    .AddOptionalArg<int>("one",  "dummy arg that can be an argument input", 0, true);
+
+TEST(TestOpSpec, Lookup) {
+  OpSpec spec("Schema_TestOpSpec_Lookup");
+  spec.AddInput("input_0", "gpu");
+  spec.AddArgumentInput("one", "input_1");
+  spec.AddArgumentInput("zero", "input_2");
+  EXPECT_EQ(spec.ArgumentInputIdx("one"), 1);
+  EXPECT_EQ(spec.ArgumentInputIdx("zero"), 2);
+
+  EXPECT_EQ(spec.InputName(0), "input_0");
+  EXPECT_EQ(spec.InputName(1), "input_1");
+  EXPECT_EQ(spec.ArgumentInputName(1), "one");
+  EXPECT_EQ(spec.InputName(2), "input_2");
+  EXPECT_EQ(spec.ArgumentInputName(2), "zero");
+}
+
 
 }  // namespace dali
