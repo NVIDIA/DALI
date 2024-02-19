@@ -21,8 +21,9 @@ from nvidia.dali import pipeline_def, fn, ops
 from nvidia.dali.auto_aug import auto_augment, augmentations
 from nvidia.dali.auto_aug.core import augmentation, Policy
 from nvidia.dali._utils import dali_trace
-from test_utils import load_test_operator_plugin
 from nvidia.dali.pipeline import do_not_convert
+from nose2.tools import params
+from test_utils import load_test_operator_plugin
 
 
 dali_trace.set_tracing(enabled=True)
@@ -30,7 +31,7 @@ dali_trace.set_tracing(enabled=True)
 load_test_operator_plugin()
 
 
-op_mode = "dali"
+op_mode = "dali.fn"
 extracted_stacks = []
 base_frame = 0
 
@@ -74,8 +75,10 @@ def capture_dali_traces(pipe_def):
 def origin_trace():
     """Either return trace using test operator or capture it via Python API"""
     global op_mode
-    if op_mode == "dali":
+    if op_mode == "dali.fn":
         return fn.origin_trace_dump()
+    if op_mode == "dali.ops":
+        return ops.OriginTraceDump()()  # Yup, super obvious __init__ + __call__
     # elif op_mode == "python":
     global extracted_stacks
     global base_frame
@@ -88,10 +91,17 @@ def compare_traces(dali_tbs, python_tbs):
     assert len(dali_tbs) == len(python_tbs)
     for dali_tb, python_tb in zip(dali_tbs, python_tbs):
         err = f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}"
+        print(err)
         assert dali_tb.startswith(python_tb), err
 
 
-def test_trace_almost_trivial():
+test_modes = ["dali.fn", "dali.ops"]
+
+
+@params(*test_modes)
+def test_trace_almost_trivial(test_mode):
+    global op_mode
+    op_mode = test_mode
     def pipe():
         return origin_trace()
 
@@ -102,7 +112,10 @@ def test_trace_almost_trivial():
     compare_traces(dali_regular_tbs, python_tbs)
 
 
-def test_trace_recursive():
+@params(*test_modes)
+def test_trace_recursive(test_mode):
+    global op_mode
+    op_mode = test_mode
 
     def recursive_helper(n=2):
         if n:
@@ -132,7 +145,10 @@ def test_trace_recursive():
     compare_traces(dali_cond_tbs, python_tbs)
 
 
-def test_trace_recursive_do_not_convert():
+@params(*test_modes)
+def test_trace_recursive_do_not_convert(test_mode):
+    global op_mode
+    op_mode = test_mode
 
     @do_not_convert
     def recursive_helper(n=2):
@@ -153,7 +169,10 @@ def test_trace_recursive_do_not_convert():
     compare_traces(dali_cond_tbs, python_tbs)
 
 
-def test_trace_if():
+@params(*test_modes)
+def test_trace_if(test_mode):
+    global op_mode
+    op_mode = test_mode
 
     # dali_trace.set_tracing(options={"filter_ag_frames": False})
     # dali_trace.set_tracing(options={"remap_ag_frames": False})
@@ -184,7 +203,10 @@ def test_trace_if():
     # compare_traces(dali_cond_tbs, python_tbs)
 
 
-def test_trace_auto_aug():
+@params(*test_modes)
+def test_trace_auto_aug(test_mode):
+    global op_mode
+    op_mode = test_mode
 
     # TODO(klecki): AutoGraph loses mapping for the trace_aug and points to a transformed file
     # Find out if we can somehow propagate that code mapping back. Do not convert helps with

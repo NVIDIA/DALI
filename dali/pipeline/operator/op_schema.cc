@@ -80,9 +80,9 @@ graph even if its outputs are not used.)code",
                  false);
 
 
-// For simplicity we pass StackSummary as 4 separate arguments so we don't need to extend DALI
-// with support for special FrameSummary type.
-// List of FrameSummaries can be reconstructed using utility functions.
+  // For simplicity we pass StackSummary as 4 separate arguments so we don't need to extend DALI
+  // with support for special FrameSummary type.
+  // List of FrameSummaries can be reconstructed using utility functions.
   AddOptionalArg("_origin_stack_filename", R"code(Every operator defined in Python captures and
 processes the StackSummary (a List[FrameSummary], defined in Python traceback module) that describe
 the callstack between the start of pipeline definition tracing and the "call" to the operator
@@ -109,6 +109,9 @@ _origin_stack_filename for more information.)code",
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
+
+  AddOptionalArg("_api", "String representing API used to create operator: \"fn\" or \"ops\".",
+                 "fn");
 }
 
 

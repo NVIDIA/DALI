@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +49,9 @@ class _TFRecordReaderImpl:
         self._init_args.update({"path": self._path, "index_path": self._index_path})
         self._name = self._init_args.pop("name", None)
         self._preserve = self._init_args.get("preserve", False)
+        if "_api" not in self._init_args:
+            self._init_args["_api"] = "ops"
+        self._api = self._init_args["_api"]
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)

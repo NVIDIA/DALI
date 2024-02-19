@@ -33,8 +33,8 @@ class Split : public StatelessOperator<Backend> {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
-    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-    std::cout << "SPLIT>>> " << FormatStack(origin_stack_trace, true) << std::endl;
+    // auto origin_stack_trace = GetOperatorOriginInfo(spec_);
+    // std::cout << "SPLIT>>> " << FormatStack(origin_stack_trace, true) << std::endl;
   }
 
   ~Split() override = default;

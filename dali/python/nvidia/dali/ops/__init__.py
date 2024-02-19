@@ -375,22 +375,6 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
-        if _dali_trace.is_tracing_enabled():
-            if _Pipeline.current():
-                skip_bottom = _Pipeline.current()._definition_stack_frame
-            else:
-                skip_bottom = 0
-            # For fn API it is 4, for ops around 2
-            stack_summary = _dali_trace.extract_stack(
-                skip_bottom_frames=skip_bottom, skip_top_frames=4
-            )
-            filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
-
-            self._spec.AddArg("_origin_stack_filename", filenames)
-            self._spec.AddArg("_origin_stack_lineno", linenos)
-            self._spec.AddArg("_origin_stack_name", names)
-            self._spec.AddArg("_origin_stack_line", lines)
-
         # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
 
         if _conditionals.conditionals_enabled():
@@ -398,6 +382,7 @@ class _OperatorInstance(object):
             _conditionals.inject_implicit_scope_argument(op._schema, arg_inputs)
 
         self._process_instance_name(arguments)
+        self._process_trace(arguments)
         _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
 
         self._inputs = _process_inputs(op._schema, self._spec, inputs, type(op).__name__)
@@ -429,6 +414,23 @@ class _OperatorInstance(object):
             self._name = name
         else:
             self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
+
+    def _process_trace(self, arguments):
+        if _dali_trace.is_tracing_enabled():
+            if _Pipeline.current():
+                skip_bottom = _Pipeline.current()._definition_stack_frame
+            else:
+                skip_bottom = 0
+            skip_top = 7 if self._op._api == "fn" else 3
+            stack_summary = _dali_trace.extract_stack(
+                skip_bottom_frames=skip_bottom, skip_top_frames=skip_top
+            )
+            filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
+
+            arguments["_origin_stack_filename"] = filenames
+            arguments["_origin_stack_lineno"] = linenos
+            arguments["_origin_stack_name"] = names
+            arguments["_origin_stack_line"] = lines
 
     def _generate_outputs(self):
         pipeline = _Pipeline.current()
@@ -527,6 +529,12 @@ def python_op_factory(name, schema_name=None):
             self._spec.AddArg("device", self._device)
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
+
+            # It would be more generic to handle this in OperatorInstance, but we need it
+            # for error messages in the constructor of Operator (meta)class.
+            if "_api" not in self._init_args:
+                self._init_args["_api"] = "ops"
+            self._api = self._init_args["_api"]
 
             for k in self._call_args.keys():
                 _check_arg_input(self._schema, type(self).__name__, k)
