@@ -51,7 +51,7 @@ void VideoDecoderCpu::RunImpl(dali::Workspace &ws) {
   thread_pool.RunAll();
 }
 
-DALI_SCHEMA(plugin__video__VideoDecoder)
+DALI_SCHEMA(plugin__video__decoders__Video)
     .DocStr(
         R"code(Decodes a video file from a memory buffer (e.g. provided by external source).
 
@@ -67,6 +67,6 @@ The video streams can be in most of the container file formats. FFmpeg is used t
 If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
  Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true);
 
-DALI_REGISTER_OPERATOR(plugin__video__VideoDecoder, VideoDecoderCpu, dali::CPU);
+DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderCpu, dali::CPU);
 
 }  // namespace dali_video
