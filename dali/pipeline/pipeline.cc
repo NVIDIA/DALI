@@ -180,7 +180,7 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
                     bool pipelined_execution, bool separated_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
-    DALI_ENFORCE(cuInitChecked() || device_id == CPU_ONLY_DEVICE_ID, 
+    DALI_ENFORCE(cuInitChecked() || device_id == CPU_ONLY_DEVICE_ID,
                 "You are trying to create a GPU DALI pipeline, while CUDA is not available. "
                 "Please install CUDA or set `device_id = None` in Pipeline constructor. "
                 "If running inside Docker container, you may need to pass `--gpus all` option.");
