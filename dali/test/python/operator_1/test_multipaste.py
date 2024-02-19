@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -339,7 +339,7 @@ def check_operator_multipaste(
             out_dtype,
         )
     except RuntimeError as e:
-        if "Paste in/out coords should be within input/output bounds" in str(e):
+        if "The pasted region must be within" in str(e):
             assert verify_out_of_bounds(
                 bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size
             )
