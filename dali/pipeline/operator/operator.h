@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -247,28 +247,6 @@ class DLL_PUBLIC OperatorBase {
  */
 template <typename Backend>
 class Operator : public OperatorBase {};
-
-inline TensorLayout GetInputLayout(const Workspace &ws, int i) {
-  if (ws.InputIsType<CPUBackend>(i)) {
-    auto &in = ws.Input<CPUBackend>(i);
-    return in.GetLayout();
-  }
-
-  assert(ws.InputIsType<GPUBackend>(i));
-  auto &in = ws.Input<GPUBackend>(i);
-  return in.GetLayout();
-}
-
-inline TensorLayout GetOutputLayout(const Workspace &ws, int i) {
-  if (ws.OutputIsType<CPUBackend>(i)) {
-    auto &out = ws.Output<CPUBackend>(i);
-    return out.GetLayout();
-  }
-
-  assert(ws.OutputIsType<GPUBackend>(i));
-  auto &out = ws.Output<GPUBackend>(i);
-  return out.GetLayout();
-}
 
 template <>
 class Operator<CPUBackend> : public OperatorBase {

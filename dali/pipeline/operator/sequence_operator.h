@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -332,7 +332,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     input_expand_desc_.reserve(num_inputs);
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
-      const auto &layout = GetInputLayout(ws, input_idx);
+      const auto &layout = ws.GetInputLayout(input_idx);
       input_expand_desc_.emplace_back(input_idx, input_shape, layout,
                                       ShouldExpandChannels(input_idx));
     }
@@ -363,11 +363,11 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
 
   virtual std::unique_ptr<ExpandDesc> InferNonPositionalReferenceExpandDesc(
       const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      const std::string &name = arg_input.first;
-      const auto &batch = *shared_tvec;
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      const std::string &name = arg_input.name;
+      const auto &batch = *shared_tl;
       if (IsPerFrameArg(name, batch)) {
         return std::make_unique<ExpandDesc>(name, batch.shape(), batch.GetLayout(), false);
       }
@@ -398,18 +398,18 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   void ExpandArguments(const ArgumentWorkspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      ExpandArgument(ws, arg_input.first, *shared_tvec);
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      ExpandArgument(ws, arg_input.name, *shared_tl);
     }
   }
 
   bool HasPerFrameArgInputs(const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      if (IsPerFrameArg(arg_input.first, *shared_tvec)) {
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      if (IsPerFrameArg(arg_input.name, *shared_tl)) {
         return true;
       }
     }
@@ -499,10 +499,10 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   void InitializeExpandedArguments(const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      InitializeExpandedArgument(ws, arg_input.first, *shared_tvec);
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      InitializeExpandedArgument(ws, arg_input.name, *shared_tl);
     }
   }
 
@@ -545,7 +545,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   TensorList<CPUBackend> &ExpandedArg(const std::string &arg_name) {
-    return expanded_.UnsafeMutableArgumentInput(arg_name);
+    return *expanded_.UnsafeMutableArgumentInput(arg_name);
   }
 
   template <typename BatchType>

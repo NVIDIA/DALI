@@ -324,8 +324,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   }
 
   // Verify the argument inputs to the op
-  for (const auto& arg_pair : spec.ArgumentInputs()) {
-    Index input_idx = arg_pair.second;
+  for (const auto &[arg_name, input_idx] : spec.ArgumentInputs()) {
     std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
@@ -737,16 +736,17 @@ void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const O
   for (auto& a : spec.Arguments()) {
     // filter out args that need to be dealt with on
     // loading a serialized pipeline
-    if (a.first == "max_batch_size" ||
-        a.first == "num_threads" ||
-        a.first == "bytes_per_sample_hint") {
+    auto &name = a->get_name();
+    if (name == "max_batch_size" ||
+        name == "num_threads" ||
+        name == "bytes_per_sample_hint") {
       continue;
     }
 
     dali_proto::Argument *arg = op->add_args();
     DaliProtoPriv arg_wrap(arg);
 
-    a.second->SerializeToProtobuf(&arg_wrap);
+    a->SerializeToProtobuf(&arg_wrap);
   }
 }
 

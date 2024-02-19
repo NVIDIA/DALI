@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,10 +38,9 @@ void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
     DALI_ENFORCE(curr_batch_size == ws.GetInputBatchSize(i),
                  "Batch size has to be uniform across one iteration.");
   }
-  const ArgumentWorkspace &argument_ws = ws;
-  for (const auto &arg : argument_ws) {
+  for (const auto &arg : ws.ArgumentInputs()) {
     DALI_ENFORCE(
-        curr_batch_size == static_cast<decltype(curr_batch_size)>(arg.second.tvec->num_samples()),
+        curr_batch_size == static_cast<decltype(curr_batch_size)>(arg.cpu->num_samples()),
         "ArgumentInput has to have the same batch size as an input.");
   }
 }
