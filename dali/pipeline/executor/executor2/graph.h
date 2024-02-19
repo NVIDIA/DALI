@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,11 +64,9 @@ struct OperatorNode {
   }
 
   DataNode *ArgInput(const std::string &name) const {
-    auto &args = spec.ArgumentInputs();
-    auto it = args.find(name);
-    if (it == args.end())
-      throw std::invalid_argument(make_string("No such argument input: ", name));
-    return inputs[it->second];
+    int idx = spec.ArgumentInputIdx(name);
+    assert(static_cast<size_t>(idx) < inputs.size());
+    return inputs[idx];
   }
 
   DataNode *output(int idx) const {
