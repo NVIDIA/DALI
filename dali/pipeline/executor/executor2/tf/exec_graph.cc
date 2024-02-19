@@ -17,6 +17,14 @@
 namespace dali {
 namespace exec2 {
 
+template <typename Case>
+auto backend_switch(StorageDevice device, Case &&callable)
+{
+  if (device == StorageDevice::CPU)
+    return callable(CPUBackend());
+  else
+    return callable(GPUBackend());
+}
 
 void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
   main_task = flow.emplace([this]() {
@@ -35,11 +43,12 @@ void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
     for (int i = 0, nout = outputs.size(); i < nout; i++) {
       const SchedEdge &out_edge = outputs[i];
       if (out_edge.consumer) {
-        Workspace &consumer_ws = out_edge.consumer->ws;
-        auto &buf = ws.out[out_edge.producer_output_idx];
-        if (buf)
-          buf->readers++;
-        consumer_ws.in[out_edge.consumer_input_idx] = buf;
+        Workspace &consumer_ws = *out_edge.consumer->ws;
+        backend_switch(out_edge.device, [&](auto backend) {
+          consumer_ws.SetInput(
+            out_edge.consumer_input_idx,
+            ws->InputPtr(out_edge.producer_output_idx, backend));
+        });
       }
     }
 
@@ -75,12 +84,12 @@ void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
 
 void assert_valid(ExecGraph &eg) {
   for (auto &exec_node : eg.nodes) {
-    for (int i = 0; i < exec_node.outputs.size(); i++) {
+    for (int i = 0, nout = exec_node.outputs.size(); i < nout; i++) {
       auto *e = exec_node.outputs[i];
       assert(e->producer == &exec_node);
       assert(e->consumer->inputs[e->consumer_input_idx] == e);
     }
-    for (int i = 0; i < exec_node.inputs.size(); i++) {
+    for (int i = 0, ninp = exec_node.inputs.size(); i < ninp; i++) {
       auto *e = exec_node.inputs[i];
       assert(e->consumer == &exec_node);
       if (e->producer) {
@@ -103,7 +112,7 @@ void assert_valid(SchedGraph &eg) {
     auto &exec_node = *sched_node.definition;
 
     auto validate_edges = [](auto &sched_edges, auto &exec_edges) {
-      assert(sched_edges.size() == exec_edges.size());
+      assert(static_cast<size_t>(sched_edges.size()) == exec_edges.size());
       for (int i = 0; i < sched_edges.size(); i++) {
         assert(sched_edges[i].producer->definition == exec_edges[i]->producer);
         assert(sched_edges[i].consumer->definition == exec_edges[i]->consumer);
