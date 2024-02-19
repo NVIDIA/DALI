@@ -60,9 +60,9 @@ if __name__ == "__main__":
             'Programming Language :: Python :: 3.12',
             'Programming Language :: Python :: 3.13',
             ],
-        install_requires = [
-          'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
-        ],
+        # install_requires = [
+        #   'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
+        # ],
         include_package_data=True,
         extras_require={},
         packages=["nvidia/dali_video"],
