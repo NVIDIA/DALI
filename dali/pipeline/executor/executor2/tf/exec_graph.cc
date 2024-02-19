@@ -21,27 +21,15 @@ namespace exec2 {
 void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
   main_task = flow.emplace([this]() {
     runs++;
-    for (auto &e : inputs) {
-      assert(!e.producer || ws.in[e.consumer_input_idx]);
-    }
-
-    for (auto &in : ws.in) {
-      if (in)
-        assert(in->writers == 0);
-    }
 
     // Run the operation
-    definition->task_fn(ws);
+    definition->task_fn(*ws);
     // Reset the inputs once we're done
-    for (auto &in : ws.in) {
-      if (in) {
-        in->readers--;
-        in.reset();
-      }
-    }
-    for (auto &out : ws.out) {
-      if (out)
-        out->writers--;
+    for (int i = 0; i < ws->NumInput(); i++) {
+      if (ws->InputIsType<CPUBackend>(i))
+        ws->SetOutput<CPUBackend>(i, nullptr);
+      else
+        ws->SetOutput<GPUBackend>(i, nullptr);
     }
 
     for (int i = 0, nout = outputs.size(); i < nout; i++) {
@@ -54,8 +42,13 @@ void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
         consumer_ws.in[out_edge.consumer_input_idx] = buf;
       }
     }
-    for (int i = 0; i < ws->NumOutput(); i++)
-      ws->SetOutput(i, nullptr);
+
+    for (int i = 0; i < ws->NumOutput(); i++) {
+      if (ws->OutputIsType<CPUBackend>(i))
+        ws->SetOutput<CPUBackend>(i, nullptr);
+      else
+        ws->SetOutput<GPUBackend>(i, nullptr);
+    }
   });
 
   for (auto &in : inputs) {
