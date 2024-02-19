@@ -18,7 +18,7 @@
 
 namespace dali::nvcvop {
 
-NVCVBorderType GetBorderMode(const std::string &border_mode) {
+NVCVBorderType GetBorderMode(std::string_view border_mode) {
   if (border_mode == "constant") {
     return NVCV_BORDER_CONSTANT;
   } else if (border_mode == "replicate") {
@@ -30,7 +30,7 @@ NVCVBorderType GetBorderMode(const std::string &border_mode) {
   } else if (border_mode == "wrap") {
     return NVCV_BORDER_WRAP;
   } else {
-    DALI_FAIL("Unknown border mode: " + border_mode);
+    DALI_FAIL("Unknown border mode: " + std::string(border_mode));
   }
 }
 

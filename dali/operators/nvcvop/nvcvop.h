@@ -23,6 +23,7 @@
 #include <nvcv/Tensor.hpp>
 #include <nvcv/ImageBatch.hpp>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/operator.h"
@@ -35,7 +36,7 @@ namespace dali::nvcvop {
  *
  * @param border_mode border mode name
  */
-NVCVBorderType GetBorderMode(const std::string &border_mode);
+NVCVBorderType GetBorderMode(std::string_view border_mode);
 
 /**
  * @brief Get nvcv data kind of a given data type
@@ -135,8 +136,8 @@ class NVCVOperator: public BaseOp {
     return nvcv::TensorWrapData(inData);
   }
 
-  std::vector<int64_t> CalcTensorShape(const TensorShape<> &arg_shape, int num_samples,
-                                       const nvcv::DataType &dtype) {
+  TensorShape<> CalcTensorShape(const TensorShape<> &arg_shape, int num_samples,
+                                const nvcv::DataType &dtype) {
     int ndim = arg_shape.sample_dim();
     int64_t inner_dim = arg_shape[ndim - 1];
     DALI_ENFORCE(dtype.numChannels() == 1 || inner_dim == dtype.numChannels(),
@@ -163,12 +164,13 @@ class NVCVOperator: public BaseOp {
    */
   const nvcv::ImageBatchVarShape &GetInputBatch(Workspace &ws, size_t input_idx) {
     if (inputs_.size() < input_idx + 1) {
-      inputs_.resize(input_idx + 1, nvcv::ImageBatchVarShape{1});
+      inputs_.resize(input_idx + 1, nullptr);
     }
     const auto &tl_input = ws.Input<GPUBackend>(input_idx);
     auto &input = inputs_[input_idx];
-    if (input.capacity() < tl_input.num_samples()) {
-      input = nvcv::ImageBatchVarShape(std::max(input.capacity() * 2, tl_input.num_samples()));
+    int curr_cap = input ? input.capacity() : 0;
+    if (curr_cap < tl_input.num_samples()) {
+      input = nvcv::ImageBatchVarShape(std::max(curr_cap * 2, tl_input.num_samples()));
     }
     PushImagesToBatch(input, tl_input);
     return input;
@@ -182,20 +184,21 @@ class NVCVOperator: public BaseOp {
    */
   nvcv::ImageBatchVarShape &GetOutputBatch(Workspace &ws, size_t output_idx) {
     if (outputs_.size() < output_idx + 1) {
-      outputs_.resize(output_idx + 1, nvcv::ImageBatchVarShape{1});
+      outputs_.resize(output_idx + 1, nullptr);
     }
     const auto &tl_output = ws.Output<GPUBackend>(output_idx);
     auto &output = outputs_[output_idx];
-    if (output.capacity() < tl_output.num_samples()) {
-      output = nvcv::ImageBatchVarShape(std::max(output.capacity() * 2, tl_output.num_samples()));
+    int curr_cap = output ? output.capacity() : 0;
+    if (curr_cap < tl_output.num_samples()) {
+      output = nvcv::ImageBatchVarShape(std::max(curr_cap * 2, tl_output.num_samples()));
     }
     PushImagesToBatch(output, tl_output);
     return output;
   }
 
   void Run(Workspace &ws) override {
+    auto atexit = AtScopeExit([this]() { ClearBatches(); });
     BaseOp::Run(ws);
-    ClearBatches();
   }
 
 
