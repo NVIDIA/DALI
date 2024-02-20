@@ -19,21 +19,11 @@
 
 namespace dali {
 
-
 DALI_REGISTER_OPERATOR(OriginTraceDump, OriginTraceDump<CPUBackend>, CPU);
 
 DALI_SCHEMA(OriginTraceDump)
     .DocStr("Operator for testing origin stack trace from Python.")
     .NumInput(0, 10)
     .NumOutput(1);
-
-DALI_REGISTER_OPERATOR(OriginTracePrint, OriginTracePrint<CPUBackend>, CPU);
-DALI_REGISTER_OPERATOR(OriginTracePrint, OriginTracePrint<GPUBackend>, GPU);
-
-DALI_SCHEMA(OriginTracePrint)
-    .DocStr("Operator for testing origin stack trace from Python.")
-    .NumInput(1)
-    .NumOutput(1);
-
 
 }  // namespace dali
