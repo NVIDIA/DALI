@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,11 @@ def reference_pipe(data_src, layout, ksize_src):
     img = fn.external_source(source=data_src, batch=True, layout=layout)
     ksize = fn.external_source(source=ksize_src)
     return fn.python_function(
-        img, ksize, function=lambda im, ks: ref_func(im, ks, layout=layout), batch_processing=False
+        img,
+        ksize,
+        function=lambda im, ks: ref_func(im, ks, layout=layout),
+        batch_processing=False,
+        output_layouts=layout,
     )
 
 
