@@ -59,7 +59,7 @@ class MedianBlur : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto sh = input.shape();
     output_desc.resize(1);
@@ -67,7 +67,7 @@ class MedianBlur : public nvcvop::NVCVSequenceOperator<StatelessOperator> {
     return true;
   }
 
-  void RunImpl(Workspace &ws) {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
