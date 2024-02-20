@@ -421,7 +421,7 @@ class _OperatorInstance(object):
                 skip_bottom = _Pipeline.current()._definition_stack_frame
             else:
                 skip_bottom = 0
-            skip_top = 7 if self._op._api == "fn" else 3
+            skip_top = 5 if self._op._api == "fn" else 3
             stack_summary = _dali_trace.extract_stack(
                 skip_bottom_frames=skip_bottom, skip_top_frames=skip_top
             )

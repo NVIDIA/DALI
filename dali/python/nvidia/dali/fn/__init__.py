@@ -81,7 +81,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def fn_wrapper(*inputs, **kwargs):
         from nvidia.dali._debug_mode import _PipelineDebug
 
-        kwargs = {**kwargs, "_api": "_fn"}
+        kwargs = {**kwargs, "_api": "fn"}
 
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, "_debug_on", False):

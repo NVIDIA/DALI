@@ -91,7 +91,8 @@ def compare_traces(dali_tbs, python_tbs):
     assert len(dali_tbs) == len(python_tbs)
     for dali_tb, python_tb in zip(dali_tbs, python_tbs):
         err = f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}"
-        print(err)
+        # Check if we skipped just one frame in python_tb (2 lines)
+        assert dali_tb.count("\n") == python_tb.count("\n") + 2, err
         assert dali_tb.startswith(python_tb), err
 
 
@@ -237,20 +238,14 @@ def test_trace_auto_aug(test_mode):
 
     # It's not really feasible to generate the baseline for comparison, so I just record
     # start and end of the expected trace, so not to rely on the callstack of the implementation
-    stacktrace_glob = """  File "*/test_operator_origin_trace.py", line *, in pipe
+    stacktrace_glob = f"""  File "*/test_operator_origin_trace.py", line *, in pipe
     augmented_images = auto_augment.apply_auto_augment(my_custom_policy(), images)
   File "*nvidia/dali/auto_aug/auto_augment.py", line *, in apply_auto_augment
 *
   File "*/test_operator_origin_trace.py", line *, in trace_aug
     return origin_trace()
   File "*/test_operator_origin_trace.py", line *, in origin_trace
-    return fn.origin_trace_dump()*
+    return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
 """
     regex = fnmatch.translate(stacktrace_glob)
-    assert re.match(regex, dali_cond_tbs[0])
-    print(dali_cond_tbs[0])
-
-
-# TODO(klecki): ops, conditionals (split/merge)
-# For split and merge we probably want to disable some part of the filtering.
-# TODO: add a `with NoFilter():` stack trace filter :)
+    assert re.match(regex, dali_cond_tbs[0]), f"{dali_cond_tbs[0]} didn't match expected traceback"
