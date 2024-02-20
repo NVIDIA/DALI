@@ -36,14 +36,14 @@ extracted_stacks = []
 base_frame = 0
 
 
-def capture_python_traces(fun):
+def capture_python_traces(fun, full_stack=False):
     """Run `fun` and collect all stack traces (in Python mode) in order of occurrence.
     Running the pipeline definition as Python serves as baseline for comparing the correctness
     of traces captured by DALI.
     """
     global extracted_stacks
     global base_frame
-    base_frame = len(traceback.extract_stack())
+    base_frame = len(traceback.extract_stack()) if not full_stack else 0
 
     global op_mode
     op_mode_bkp = op_mode
@@ -216,3 +216,22 @@ def test_trace_auto_aug(test_mode):
 """
     regex = fnmatch.translate(stacktrace_glob)
     assert re.match(regex, dali_cond_tbs[0]), f"{dali_cond_tbs[0]} didn't match expected traceback"
+
+
+@params(*test_modes)
+def test_trace_outside_pipeline(test_mode):
+    global op_mode
+    op_mode = test_mode
+
+    dn = fn.origin_trace_dump()
+
+    python_tbs = capture_python_traces(origin_trace, full_stack=True)
+    # Remove last 4 lines, keep the last endline
+    python_tbs = ["\n".join(tb.split("\n")[:-5]) + "\n" for tb in python_tbs]
+
+    @pipeline_def(batch_size=2, num_threads=1, device_id=0)
+    def pipe():
+        return dn
+
+    dali_tbs = capture_dali_traces(pipe)
+    compare_traces(dali_tbs, python_tbs)
