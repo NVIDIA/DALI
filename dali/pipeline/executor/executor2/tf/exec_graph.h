@@ -31,38 +31,6 @@ namespace dali {
 namespace exec2 {
 
 class SchedNode;
-
-class CUDAEventLease : public CUDAEvent {
- public:
-  CUDAEventLease() = default;
-  explicit CUDAEventLease(CUDAEventPool &pool, int device_id = -1) : owner_(&pool) {
-    *static_cast<CUDAEvent *>(this) = pool.Get(device_id);
-  }
-
-  ~CUDAEventLease() {
-    reset();
-  }
-
-  void reset() {
-    if (*this) {
-      assert(owner_);
-      owner_->Put(std::move(*static_cast<CUDAEvent *>(this)));
-      owner_ = nullptr;
-    }
-  }
-
-  CUDAEventLease &operator=(CUDAEventLease &&other) {
-    reset();
-    CUDAEvent::reset(other.release());
-    owner_ = other.owner_;
-    other.owner_ = nullptr;
-    return *this;
-  }
-
- private:
-  CUDAEventPool *owner_;
-};
-
 class ExecNode;
 
 template <typename NodeType = ExecNode>
@@ -87,6 +55,11 @@ struct DataEdge {
 };
 
 using ExecEdge = DataEdge<ExecNode>;
+
+struct WorkspaceParams {
+  ThreadPool  *tp;
+  AccessOrder  order;
+};
 
 class ExecNode {
  public:
@@ -192,10 +165,12 @@ class SchedNode {
   std::unique_ptr<Workspace> ws;
 
   tf::Task main_task, release_output;
-
+  // TODO(michalz): sync with GPU ops - we only need it when the following op needs to access the
+  // results on host; GPU-side dependencies can be scheduled on the stream without a need to engage
+  // the CPU part of the executor.
+  // tf::Semaphore gpu_dependency;
 
   void schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow);
-  int runs = 0;
 };
 
 

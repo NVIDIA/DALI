@@ -98,8 +98,8 @@ class Graph {
  private:
   friend class GraphBuilder;
   friend class GraphBuilder::GraphBuilderImpl;
-  std::map<std::string, OperatorNode> op_nodes;
-  std::map<std::string, DataNode> data_nodes;
+  std::map<std::string, OperatorNode, std::less<>> op_nodes;
+  std::map<std::string, DataNode, std::less<>> data_nodes;
   std::vector<DataNode *> inputs, outputs;
 
 };

@@ -28,8 +28,6 @@ auto backend_switch(StorageDevice device, Case &&callable)
 
 void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
   main_task = flow.emplace([this]() {
-    runs++;
-
     // Run the operation
     definition->task_fn(*ws);
     // Reset the inputs once we're done
