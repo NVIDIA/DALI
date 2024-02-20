@@ -21,7 +21,6 @@
 #include "dali/pipeline/operator/operator.h"
 
 
-#include "dali/pipeline/operator/error_reporting.h"
 namespace dali {
 
 template <typename Backend>
@@ -33,8 +32,6 @@ class Split : public StatelessOperator<Backend> {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
-    // auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-    // std::cout << "SPLIT>>> " << FormatStack(origin_stack_trace, true) << std::endl;
   }
 
   ~Split() override = default;

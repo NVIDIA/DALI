@@ -23,7 +23,6 @@
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
-#include "dali/pipeline/operator/error_reporting.h"
 namespace dali {
 
 template <typename Backend>
@@ -33,9 +32,6 @@ class Merge : public StatelessOperator<Backend> {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
-
-    // auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-    // std::cout << "Merge>>> " << FormatStack(origin_stack_trace, true) << std::endl;
   }
 
   ~Merge() override = default;

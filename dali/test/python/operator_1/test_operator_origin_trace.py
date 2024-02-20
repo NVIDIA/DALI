@@ -103,6 +103,7 @@ test_modes = ["dali.fn", "dali.ops"]
 def test_trace_almost_trivial(test_mode):
     global op_mode
     op_mode = test_mode
+
     def pipe():
         return origin_trace()
 
@@ -168,40 +169,6 @@ def test_trace_recursive_do_not_convert(test_mode):
     )(pipe)
     dali_cond_tbs = capture_dali_traces(dali_cond_pipe)
     compare_traces(dali_cond_tbs, python_tbs)
-
-
-@params(*test_modes)
-def test_trace_if(test_mode):
-    global op_mode
-    op_mode = test_mode
-
-    # dali_trace.set_tracing(options={"filter_ag_frames": False})
-    # dali_trace.set_tracing(options={"remap_ag_frames": False})
-    # dali_trace.set_tracing(options={"collapse_ag_frames": False})
-
-    @do_not_convert
-    def recursive_helper(n=2):
-        if n:
-            return recursive_helper(n - 1)
-        else:
-            return origin_trace()
-
-    def pipe():
-        x = np.full((1,), 0, dtype=np.int32)
-        if fn.origin_trace_print(fn.random.coin_flip()):
-            if fn.origin_trace_print(fn.random.coin_flip()):
-                x = fn.origin_trace_print(np.array([1]))
-        else:
-            x = fn.origin_trace_print(np.array([2]))
-        return x
-
-    # python_tbs = capture_python_traces(pipe)
-
-    dali_cond_pipe = pipeline_def(
-        batch_size=2, num_threads=1, device_id=0, enable_conditionals=True
-    )(pipe)
-    dali_cond_tbs = capture_dali_traces(dali_cond_pipe)
-    # compare_traces(dali_cond_tbs, python_tbs)
 
 
 @params(*test_modes)
