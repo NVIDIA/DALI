@@ -56,7 +56,15 @@ test_jpeg_scan_limit() {
     fi
 }
 
+test_jpeg2_failure() {
+    ${python_new_invoke_test} -s decoder test_imgcodec.test_image_decode_fused_failing_bs1_t1
+    ${python_new_invoke_test} -s decoder test_imgcodec.test_image_decode_fused_failing_bs10_t1
+    ${python_new_invoke_test} -s decoder test_imgcodec.test_image_decoder_fused:31
+    ${python_new_invoke_test} -s decoder test_imgcodec.test_image_decode_fused_failing_bs10_t4
+}
+
 test_no_fw() {
+    test_jpeg2_failure
     test_py_with_framework
     test_jpeg_scan_limit
 }

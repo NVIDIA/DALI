@@ -319,14 +319,14 @@ if(BUILD_NVIMAGECODEC)
     include(ExternalProject)
     ExternalProject_Add(
       nvImageCodec
-      GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.2.0
+      GIT_REPOSITORY    https://github.com/jantonguirao/nvImageCodec.git
+      GIT_TAG           jantonguirao_test
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
                         "external/dlpack"
                         "external/boost/preprocessor"
-      CMAKE_ARGS        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+      CMAKE_ARGS        "-DCMAKE_BUILD_TYPE=Debug"
                         "-DCMAKE_INSTALL_PREFIX=${NVIMGCODEC_INSTALL_PREFIX}"
                         "-DBUILD_TEST=OFF"
                         "-DBUILD_SAMPLES=OFF"

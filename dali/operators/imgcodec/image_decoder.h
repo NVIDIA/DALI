@@ -125,10 +125,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
  public:
   ~ImageDecoder() override {
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
-<<<<<<< HEAD
     decoder_.reset();  // first stop the decoder
-=======
->>>>>>> Enable build with statically linked nvimgcodec and introduces hard dependency on python package
     for (auto& extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
@@ -225,7 +222,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       dev_alloc_.struct_next = nullptr;
       dev_alloc_.device_malloc = static_dali_device_malloc;
       dev_alloc_.device_free = static_dali_device_free;
-      dev_alloc_.device_ctx = mm::GetDefaultResource<mm::memory_kind::device>();
+      dev_alloc_.device_ctx = mm::GetDefaultDeviceResource(device_id_);
       dev_alloc_.device_mem_padding = spec.GetArgument<int64_t>("device_memory_padding");
       dev_alloc_ptr = &dev_alloc_;
 
@@ -245,6 +242,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     const char *log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
     int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5): 2;
+    log_lvl = 2;
 
     instance_create_info.load_extension_modules = static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
     instance_create_info.load_builtin_modules = static_cast<int>(true);

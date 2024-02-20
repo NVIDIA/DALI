@@ -43,6 +43,10 @@ option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraries dynamically (NPP,
 
 option(WITH_DYNAMIC_NVIMGCODEC "Links nvimgcodec library dynamically during runtime" ON)
 
+if (WITH_DYNAMIC_NVIMGCODEC)
+  set(WITH_DYNAMIC_NVIMGCODEC OFF)
+  message(WARNING "Forcing static linking with nvimagecodec for testing purposes")
+endif()
 
 # Tests use OpenCV...
 cmake_dependent_option(BUILD_TEST "Build googletest test suite" ON
