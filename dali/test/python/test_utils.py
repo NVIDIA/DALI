@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -297,8 +297,8 @@ def check_batch(
                     save_image(right, "err_2.png")
                 except:  # noqa:722
                     print("Batch at {} can't be saved as an image".format(i))
-                    print(left)
-                    print(right)
+                    print("left: \n", left)
+                    print("right: \n", right)
                 np.save("err_1.npy", left)
                 np.save("err_2.npy", right)
                 assert False, error_msg
@@ -389,7 +389,13 @@ class RandomDataIterator(object):
 
 class RandomlyShapedDataIterator(object):
     def __init__(
-        self, batch_size, min_shape=None, max_shape=(10, 600, 800, 3), seed=12345, dtype=None
+        self,
+        batch_size,
+        min_shape=None,
+        max_shape=(10, 600, 800, 3),
+        seed=12345,
+        dtype=None,
+        val_range=None,
     ):
         import_numpy()
         # to avoid any numpy reference in the interface
@@ -403,6 +409,7 @@ class RandomlyShapedDataIterator(object):
         self.seed = seed
         self.np_rng = np.random.default_rng(seed=seed)
         self.rng = random.Random(seed)
+        self.val_range = val_range
 
     def __iter__(self):
         self.i = 0
@@ -424,7 +431,14 @@ class RandomlyShapedDataIterator(object):
                     self.rng.randint(min_s, max_s)
                     for min_s, max_s in zip(self.min_shape, self.max_shape)
                 ]
-            if self.dtype == np.float32:
+            if self.val_range:
+                min_val = self.val_range[0]
+                max_val = self.val_range[1]
+                self.test_data.append(
+                    np.array(self.np_rng.random(shape) * (max_val - min_val), dtype=self.dtype)
+                    + min_val
+                )
+            elif self.dtype == np.float32:
                 self.test_data.append(
                     np.array(self.np_rng.random(shape) * (1.0), dtype=self.dtype) - 0.5
                 )

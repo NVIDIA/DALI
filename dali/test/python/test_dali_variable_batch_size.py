@@ -372,6 +372,8 @@ ops_image_custom_args = [
     (fn.grid_mask, {"angle": 2.6810782, "ratio": 0.38158387, "tile": 51}),
     (fn.multi_paste, {"in_ids": np.zeros([31], dtype=np.int32), "output_size": [300, 300, 3]}),
     (fn.experimental.median_blur, {"devices": ["gpu"]}),
+    (fn.experimental.dilate, {"devices": ["gpu"]}),
+    (fn.experimental.erode, {"devices": ["gpu"]}),
 ]
 
 if check_numba_compatibility_gpu(False):
@@ -1575,6 +1577,8 @@ tested_methods = [
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
     "experimental.decoders.video",
+    "experimental.dilate",
+    "experimental.erode",
     "experimental.filter",
     "experimental.inflate",
     "experimental.median_blur",

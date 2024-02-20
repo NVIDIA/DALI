@@ -1551,6 +1551,8 @@ excluded_methods = [
     "experimental.remap",  # operator is GPU-only
     "experimental.readers.fits",  # lacking test files in DALI_EXTRA
     "experimental.median_blur",  # not supported for CPU
+    "experimental.dilate",  # not supported for CPU
+    "experimental.erode",  # not supported for CPU
 ]
 
 
