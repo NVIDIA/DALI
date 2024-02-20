@@ -54,6 +54,9 @@
   #define IS_HW_DECODER_COMPATIBLE 0
 #endif
 
+// nvjpeg dynlink wrapper, or true if linking statically
+bool nvjpegIsSymbolAvailable(const char *name);
+
 namespace dali {
 
 using ImageInfo = EncodedImageInfo<int>;
