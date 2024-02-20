@@ -209,8 +209,8 @@ def test_trace_auto_aug(test_mode):
     global op_mode
     op_mode = test_mode
 
-    # TODO(klecki): AutoGraph loses mapping for the trace_aug and points to a transformed file
-    # Find out if we can somehow propagate that code mapping back. Do not convert helps with
+    # TODO(klecki): AutoGraph loses mapping for the trace_aug and points to a transformed file.
+    # Find out if we can somehow propagate that code mapping back. @do_not_convert helps with
     # keeping regular code.
     @do_not_convert
     def my_custom_policy() -> Policy:
@@ -236,7 +236,7 @@ def test_trace_auto_aug(test_mode):
 
     dali_cond_tbs = capture_dali_traces(pipe)
 
-    # It's not really feasible to generate the baseline for comparison, so I just record
+    # It's not really feasible to generate the baseline for comparison, so we just record
     # start and end of the expected trace, so not to rely on the callstack of the implementation
     stacktrace_glob = f"""  File "*/test_operator_origin_trace.py", line *, in pipe
     augmented_images = auto_augment.apply_auto_augment(my_custom_policy(), images)
