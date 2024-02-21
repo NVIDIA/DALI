@@ -144,6 +144,5 @@ def check_nvimgcodec():
                 "DALI's experimental image decoder functionality now requires NVIDIA nvImageCodec "
                 "library to run. You need to install it separately. "
                 "See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
-                "`pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION}` where CUDA_MAJOR_VERSION "
-                "is your CUDA major version (e.g. 12)."
+                f"`pip install nvidia-nvimgcodec-cu${__cuda_version__[:2]}`"
             )
