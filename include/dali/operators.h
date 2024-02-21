@@ -49,6 +49,11 @@ int GetNvjpegVersion();
  */
 int GetNvimgcodecVersion();
 
+/**
+ * @brief Enforces that the runtime version of nvImageCodec is at least
+ *        the one we built for.
+ */
+void EnforceMinimumNvimgcodecVersion();
 
 }  // namespace dali
 extern "C" void daliInitOperators();

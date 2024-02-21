@@ -47,7 +47,6 @@ cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
 cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
                        "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
-# TODO(janton): handle OFF option
 option(WITH_DYNAMIC_NVIMGCODEC "Links nvimgcodec library dynamically during runtime" ON)
 
 
@@ -312,6 +311,7 @@ propagate_option(BUILD_FFMPEG)
 propagate_option(BUILD_NVCOMP)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
+propagate_option(BUILD_NVIMAGECODEC)
 propagate_option(LINK_DRIVER)
 propagate_option(WITH_DYNAMIC_NVJPEG)
 propagate_option(WITH_DYNAMIC_CUFFT)

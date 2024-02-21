@@ -272,29 +272,86 @@ endif()
 ##################################################################
 # nvimagecodec
 ##################################################################
+set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  # Silence DOWNLOAD_EXTRACT_TIMESTAMP warning in CMake 3.24:
-  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-    cmake_policy(SET CMP0135 NEW)
-  endif()  
-  
-  # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-  include(FetchContent)
-  FetchContent_Declare(
-    nvimgcodec_headers
-    URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.2.0.6-archive.tar.xz
-    URL_HASH SHA512=6577a8ff5589400cdf5767aa4a507245527a96e48065f23f626dfc6ba13b136960cacfe7f61c345dc158ed0352e1e971834aec6fd98038649b08b250c3306aeb
-  )
-  FetchContent_Populate(nvimgcodec_headers)
-  set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
-  find_path(nvimgcodec_INCLUDE_DIR nvimgcodec.h PATHS "${nvimgcodec_SEARCH_PATH}")
-  if (${nvimgcodec_INCLUDE_DIR} STREQUAL "nvimgcodec_INCLUDE_DIR-NOTFOUND")
-    message(FATAL_ERROR "nvimgcodec not found in ${nvimgcodec_SEARCH_PATH} - something went wrong with the download")
-  endif()
-  message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
-  include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
+  set(NVIMGCODEC_REQ_VERSION "0.2.0")
+  if (WITH_DYNAMIC_NVIMGCODEC)
+    message(STATUS "nvImageCodec - dynamic load")
 
-  # Setting default installation path for dynamic loading
-  message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
-  add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
+    # Silence DOWNLOAD_EXTRACT_TIMESTAMP warning in CMake 3.24:
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+      cmake_policy(SET CMP0135 NEW)
+    endif()
+
+    # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+    include(FetchContent)
+    FetchContent_Declare(
+      nvimgcodec_headers
+      URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.2.0.6-archive.tar.xz
+      URL_HASH SHA512=6577a8ff5589400cdf5767aa4a507245527a96e48065f23f626dfc6ba13b136960cacfe7f61c345dc158ed0352e1e971834aec6fd98038649b08b250c3306aeb
+    )
+    FetchContent_Populate(nvimgcodec_headers)
+    set(nvimgcodec_SEARCH_PATH "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+    find_path(nvimgcodec_INCLUDE_DIR nvimgcodec.h PATHS "${nvimgcodec_SEARCH_PATH}")
+    if (${nvimgcodec_INCLUDE_DIR} STREQUAL "nvimgcodec_INCLUDE_DIR-NOTFOUND")
+      message(FATAL_ERROR "nvimgcodec not found in ${nvimgcodec_SEARCH_PATH} - something went wrong with the download")
+    endif()
+    message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
+    include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
+
+    # Setting default installation path for dynamic loading
+    message(STATUS "NVIMGCODEC_DEFAULT_INSTALL_PATH=${NVIMGCODEC_DEFAULT_INSTALL_PATH}")
+    add_definitions(-DNVIMGCODEC_DEFAULT_INSTALL_PATH=\"${NVIMGCODEC_DEFAULT_INSTALL_PATH}\")
+
+    set(DALI_INSTALL_REQUIRES_NVIMGCODEC "\'nvidia-nvimgcodec-cu${CUDA_VERSION_MAJOR} >= ${NVIMGCODEC_REQ_VERSION}',")
+  else()
+    message(STATUS "nvImageCodec - static link")
+
+    set(NVIMGCODEC_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/nvimgcodec")
+
+    include(ExternalProject)
+    ExternalProject_Add(
+      nvImageCodec
+      GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
+      GIT_TAG           v0.2.0
+      GIT_SUBMODULES    "external/pybind11"
+                        "external/NVTX"
+                        "external/googletest"
+                        "external/dlpack"
+                        "external/boost/preprocessor"
+      CMAKE_ARGS        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+                        "-DCMAKE_INSTALL_PREFIX=${NVIMGCODEC_INSTALL_PREFIX}"
+                        "-DBUILD_TEST=OFF"
+                        "-DBUILD_SAMPLES=OFF"
+                        "-DBUILD_PYTHON=OFF"
+                        "-DBUILD_DOCS=OFF"
+      PREFIX            "${NVIMGCODEC_INSTALL_PREFIX}"
+    )
+    set(nvimgcodec_INCLUDE_DIR "${NVIMGCODEC_INSTALL_PREFIX}/include")
+    set(nvimgcodec_LIBRARY_DIR "${NVIMGCODEC_INSTALL_PREFIX}/lib64")
+    message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
+    message(STATUS "Using nvimgcodec_LIBRARY_DIR=${nvimgcodec_LIBRARY_DIR}")
+    include_directories(SYSTEM ${nvimgcodec_INCLUDE_DIR})
+    link_directories(${nvimgcodec_LIBRARY_DIR})
+
+    set(NVIMGCODEC_LIBS "")
+    list(APPEND NVIMGCODEC_LIBS nvimgcodec_static)
+    list(APPEND NVIMGCODEC_LIBS opencv_ext_static)
+    if (BUILD_LIBJPEG_TURBO)
+      message(STATUS "nvImageCodec - Include libjpeg-turbo extension")
+      list(APPEND NVIMGCODEC_LIBS jpeg_turbo_ext_static)
+    endif()
+    if (BUILD_LIBTIFF)
+      message(STATUS "nvImageCodec - Include libtiff extension")
+      list(APPEND NVIMGCODEC_LIBS tiff_ext_static)
+    endif()
+    if (BUILD_NVJPEG2K)
+      message(STATUS "nvImageCodec - Include nvjpeg2k extension")
+      list(APPEND NVIMGCODEC_LIBS nvjpeg2k_ext_static)
+    endif()
+    if (BUILD_NVJPEG)
+      message(STATUS "nvImageCodec - Include nvjpeg extension")
+      list(APPEND NVIMGCODEC_LIBS nvjpeg_ext_static)
+    endif()
+  endif()
 endif()

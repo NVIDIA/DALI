@@ -50,13 +50,38 @@ DLL_PUBLIC int GetNvjpegVersion() {
 }
 
 DLL_PUBLIC int GetNvimgcodecVersion() {
+#if not(NVIMAGECODEC_ENABLED)
+  return -1;
+#else
   nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
                                     sizeof(nvimgcodecProperties_t), 0};
   if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
     return -1;
   return static_cast<int>(properties.version);
+#endif
 }
 
+DLL_PUBLIC void EnforceMinimumNvimgcodecVersion() {
+#if NVIMAGECODEC_ENABLED
+  auto version = GetNvimgcodecVersion();
+  if (version == -1) {
+    throw std::runtime_error("Failed to check the version of nvimgcodec.");
+  }
+  int major = NVIMGCODEC_MAJOR_FROM_SEMVER(version);
+  int minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
+  int patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
+  if (major < NVIMGCODEC_VER_MAJOR || minor < NVIMGCODEC_VER_MINOR ||
+      patch < NVIMGCODEC_VER_PATCH) {
+    std::stringstream ss;
+    ss << "DALI requires nvImageCodec at minimum version" << NVIMGCODEC_VER_MAJOR << "."
+       << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH << ", but got " << major << "."
+       << minor << "." << patch
+       << ". Please upgrade: See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
+          "`pip install nvidia-nvimgcodec-cu${CUDA_MAJOR_VERSION} --upgrade`.";
+    throw std::runtime_error(ss.str());
+  }
+#endif
+}
 
 }  // namespace dali
 

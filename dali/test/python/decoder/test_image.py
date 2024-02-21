@@ -67,8 +67,8 @@ def decoder_pipe(
 test_data_root = get_dali_extra_path()
 good_path = "db/single"
 misnamed_path = "db/single/missnamed"
-test_good_path = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"}
-test_misnamed_path = {"jpeg", "png", "tiff", "pnm", "bmp"}
+test_good_path = ["jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"]
+test_misnamed_path = ["jpeg", "png", "tiff", "pnm", "bmp"]
 
 
 def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False):
@@ -90,14 +90,14 @@ def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False)
 
 
 def test_image_decoder():
-    for device in {"cpu", "mixed"}:
-        for batch_size in {1, 10}:
+    for device in ["cpu", "mixed"]:
+        for batch_size in [1, 10]:
             for img_type in test_good_path:
-                for threads in {1, random.choice([2, 3, 4])}:
+                for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, good_path, img_type)
                     yield run_decode, img_type, data_path, batch_size, device, threads
             for img_type in test_misnamed_path:
-                for threads in {1, random.choice([2, 3, 4])}:
+                for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, misnamed_path, img_type)
                     yield run_decode, img_type, data_path, batch_size, device, threads
 
@@ -209,7 +209,7 @@ def test_image_decoder_fused():
                 return np.allclose(x, y)
 
             validation_fun = mean_close
-        for device in {"cpu", "mixed"}:
+        for device in ["cpu", "mixed"]:
             for img_type in test_good_path:
                 yield (
                     run_decode_fused,
@@ -316,8 +316,8 @@ def test_image_decoder_memory_stats():
         with check_output_pattern(pattern):
             run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
-    for size in {1, 10}:
-        for threads in {1, random.choice([2, 3, 4])}:
+    for size in [1, 10]:
+        for threads in [1, random.choice([2, 3, 4])]:
             yield check, img_type, size, device, threads
 
 

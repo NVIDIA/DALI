@@ -29,12 +29,6 @@
 #include "dali/kernels/common/copy.h"
 #include "dali/operators/decoder/image/image_factory.h"
 
-#if WITH_DYNAMIC_NVJPEG_ENABLED
-  bool nvjpegIsSymbolAvailable(const char *name);
-#else
-  #define nvjpegIsSymbolAvailable(T) (true)
-#endif
-
 namespace dali {
 
 class NvjpegError : public std::runtime_error {
