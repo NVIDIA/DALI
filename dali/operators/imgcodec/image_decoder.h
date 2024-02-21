@@ -125,6 +125,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
  public:
   ~ImageDecoder() override {
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+    decoder_.reset();  // first stop the decoder
     for (auto& extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
