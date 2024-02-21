@@ -239,12 +239,15 @@ class ImageDecoder : public StatelessOperator<Backend> {
         NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
         nullptr};
 
+    const char *log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
+    int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5): 2;
+
     instance_create_info.load_extension_modules = static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
     instance_create_info.load_builtin_modules = static_cast<int>(true);
     instance_create_info.extension_modules_path = nullptr;
     instance_create_info.create_debug_messenger = static_cast<int>(true);
     instance_create_info.debug_messenger_desc = nullptr;
-    instance_create_info.message_severity = verbosity_to_severity(2);
+    instance_create_info.message_severity = verbosity_to_severity(log_lvl);
     instance_create_info.message_category = NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL;
 
     instance_ = NvImageCodecInstance::Create(&instance_create_info);
