@@ -134,7 +134,7 @@ def test_gpu_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
         "Cannot add a GPU operator ExternalSource, device_id should not be equal CPU_ONLY_DEVICE_ID.",  # noqa: E501
-        "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly.",  # noqa: E501
+        "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
     ]
 
     for device_id, error_msg in zip(device_ids, error_msgs):
@@ -153,7 +153,7 @@ def test_mixed_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
         "Cannot add a mixed operator decoders__Image with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID.",  # noqa: E501
-        "Failed to load libcuda.so. Check your library paths and if the driver is installed correctly.",  # noqa: E501
+        "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
     ]
 
     for device_id, error_msg in zip(device_ids, error_msgs):
