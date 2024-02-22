@@ -309,6 +309,9 @@ if(BUILD_NVIMAGECODEC)
 
     set(NVIMGCODEC_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/nvimgcodec")
 
+    set(EXTRA_CMAKE_OPTIONS $ENV{EXTRA_CMAKE_OPTIONS})
+    string(REPLACE " " ";" EXTRA_CMAKE_OPTIONS_LIST ${EXTRA_CMAKE_OPTIONS})
+
     include(ExternalProject)
     ExternalProject_Add(
       nvImageCodec
@@ -325,7 +328,7 @@ if(BUILD_NVIMAGECODEC)
                         "-DBUILD_SAMPLES=OFF"
                         "-DBUILD_PYTHON=OFF"
                         "-DBUILD_DOCS=OFF"
-                        "$ENV{EXTRA_CMAKE_OPTIONS}"
+                        "${EXTRA_CMAKE_OPTIONS_LIST}"
       PREFIX            "${NVIMGCODEC_INSTALL_PREFIX}"
     )
     set(nvimgcodec_INCLUDE_DIR "${NVIMGCODEC_INSTALL_PREFIX}/include")
