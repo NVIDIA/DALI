@@ -325,6 +325,7 @@ if(BUILD_NVIMAGECODEC)
                         "-DBUILD_SAMPLES=OFF"
                         "-DBUILD_PYTHON=OFF"
                         "-DBUILD_DOCS=OFF"
+                        "$ENV{EXTRA_CMAKE_OPTIONS}"
       PREFIX            "${NVIMGCODEC_INSTALL_PREFIX}"
     )
     set(nvimgcodec_INCLUDE_DIR "${NVIMGCODEC_INSTALL_PREFIX}/include")
