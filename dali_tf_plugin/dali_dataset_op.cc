@@ -438,7 +438,8 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       &pipeline_handle_, cpt_data.data(), cpt_data.size(), &external_context));
 
     // Checkpointing is not supported with separated queues, so we can just prefetch uniformly
-    TF_DALI_CALL(daliPrefetchUniform(&pipeline_handle_, dataset()->pipeline_def_.prefetch_queue_depth));
+    TF_DALI_CALL(daliPrefetchUniform(&pipeline_handle_,
+                                     dataset()->pipeline_def_.prefetch_queue_depth));
 
     return OkStatus();
   }
