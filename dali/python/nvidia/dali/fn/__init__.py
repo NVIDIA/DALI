@@ -17,6 +17,7 @@ import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 _special_case_mapping = {"b_box": "bbox", "mx_net": "mxnet", "tf_record": "tfrecord"}
 
@@ -81,7 +82,8 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def fn_wrapper(*inputs, **kwargs):
         from nvidia.dali._debug_mode import _PipelineDebug
 
-        kwargs = {**kwargs, "_api": "fn"}
+        if _dali_trace.is_tracing_enabled():
+            kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
 
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, "_debug_on", False):

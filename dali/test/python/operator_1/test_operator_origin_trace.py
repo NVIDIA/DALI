@@ -17,7 +17,7 @@ import traceback
 import re
 import fnmatch
 
-from nvidia.dali import pipeline_def, fn, ops
+from nvidia.dali import pipeline_def, fn, ops, Pipeline
 from nvidia.dali.auto_aug import auto_augment, augmentations
 from nvidia.dali.auto_aug.core import augmentation, Policy
 from nvidia.dali._utils import dali_trace
@@ -40,6 +40,13 @@ def capture_python_traces(fun, full_stack=False):
     """Run `fun` and collect all stack traces (in Python mode) in order of occurrence.
     Running the pipeline definition as Python serves as baseline for comparing the correctness
     of traces captured by DALI.
+
+    Parameters
+    ----------
+    fun : callable
+        Function to trace, typically we capture traces starting from the frame of this call
+    full_stack : bool, optional
+        Whether to capture the whole stack, by default False
     """
     global extracted_stacks
     global base_frame
@@ -53,6 +60,13 @@ def capture_python_traces(fun, full_stack=False):
     result = ["".join(traceback.format_list(tb)) for tb in extracted_stacks]
     extracted_stacks.clear()
     return result
+
+
+def get_python_trace_here(full_stack=False):
+    python_tbs = capture_python_traces(origin_trace, full_stack=full_stack)
+    # Remove last 6 lines, keep the last endline
+    python_tbs = ["\n".join(tb.split("\n")[:-7]) + "\n" for tb in python_tbs]
+    return python_tbs
 
 
 def extract_trace_from_tl(out):
@@ -87,13 +101,22 @@ def origin_trace():
     return None
 
 
-def compare_traces(dali_tbs, python_tbs):
+def origin_trace_glob(op_mode):
+    return f"""*File "*/test_operator_origin_trace.py", line *, in origin_trace
+    return {"fn.origin_trace_dump()" if op_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
+"""
+
+
+def compare_traces(dali_tbs, python_tbs, end_glob=origin_trace_glob):
+    global op_mode
     assert len(dali_tbs) == len(python_tbs)
+    regex = fnmatch.translate(end_glob(op_mode))
     for dali_tb, python_tb in zip(dali_tbs, python_tbs):
         err = f"Comparing dali_tb:\n{dali_tb}\nvs python_tb:\n{python_tb}"
         # Check if we skipped just one frame in python_tb (2 lines)
         assert dali_tb.count("\n") == python_tb.count("\n") + 2, err
         assert dali_tb.startswith(python_tb), err
+        assert re.match(regex, dali_tb), f"{dali_tb} didn't match the expected end traceback"
 
 
 test_modes = ["dali.fn", "dali.ops"]
@@ -112,6 +135,49 @@ def test_trace_almost_trivial(test_mode):
     dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(pipe)
     dali_regular_tbs = capture_dali_traces(dali_regular_pipe)
     compare_traces(dali_regular_tbs, python_tbs)
+
+
+@params(*test_modes)
+def test_trace_scope(test_mode):
+    global op_mode
+    op_mode = test_mode
+
+    pipe = Pipeline(batch_size=2, num_threads=1, device_id=0)
+
+    with pipe:
+        pipe.set_outputs(origin_trace())
+
+    dali_tbs = capture_dali_traces(lambda: pipe)
+
+    glob = f"""  File "*/test_operator_origin_trace.py", line *, in test_trace_scope
+    pipe.set_outputs(origin_trace())
+  File "*/test_operator_origin_trace.py", line *, in origin_trace
+    return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
+"""
+    regex = fnmatch.translate(glob)
+    assert re.match(regex, dali_tbs[0]), f"{dali_tbs[0]} didn't match expected traceback"
+
+
+@params(*test_modes)
+def test_trace_push_current(test_mode):
+    global op_mode
+    op_mode = test_mode
+
+    pipe = Pipeline(batch_size=2, num_threads=1, device_id=0)
+    Pipeline.push_current(pipe)
+    dn = origin_trace()
+    pipe.set_outputs(dn)
+    Pipeline.pop_current()
+
+    dali_tbs = capture_dali_traces(lambda: pipe)
+
+    glob = f"""  File "*/test_operator_origin_trace.py", line *, in test_trace_push_current
+    dn = origin_trace()
+  File "*/test_operator_origin_trace.py", line *, in origin_trace
+    return {"fn.origin_trace_dump()" if test_mode == "dali.fn" else "ops.OriginTraceDump()()"}*
+"""
+    regex = fnmatch.translate(glob)
+    assert re.match(regex, dali_tbs[0]), f"{dali_tbs[0]} didn't match expected traceback"
 
 
 @params(*test_modes)
@@ -223,15 +289,21 @@ def test_trace_outside_pipeline(test_mode):
     global op_mode
     op_mode = test_mode
 
-    dn = fn.origin_trace_dump()
+    if test_mode == "dali.fn":
+        dn = fn.origin_trace_dump()
+    else:
+        dn = ops.OriginTraceDump()()
 
-    python_tbs = capture_python_traces(origin_trace, full_stack=True)
-    # Remove last 4 lines, keep the last endline
-    python_tbs = ["\n".join(tb.split("\n")[:-5]) + "\n" for tb in python_tbs]
+    python_tbs = get_python_trace_here(full_stack=True)
 
     @pipeline_def(batch_size=2, num_threads=1, device_id=0)
     def pipe():
         return dn
 
     dali_tbs = capture_dali_traces(pipe)
-    compare_traces(dali_tbs, python_tbs)
+    compare_traces(
+        dali_tbs,
+        python_tbs,
+        end_glob=lambda op_mode: f"""*File "*/test_operator_origin_trace.py", line *, in test_trace_outside_pipeline
+    dn = {"fn.origin_trace_dump()" if op_mode == "dali.fn" else "ops.OriginTraceDump()()"}*""",
+    )

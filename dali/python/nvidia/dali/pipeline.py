@@ -22,6 +22,7 @@ from nvidia.dali import tensors
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
 from nvidia.dali import _conditionals
+from nvidia.dali._utils import dali_trace as _dali_trace
 from nvidia.dali._utils.external_source_impl import SourceKind as _SourceKind
 from threading import local as tls
 from . import data_node as _data_node
@@ -297,7 +298,7 @@ class Pipeline(object):
         self._conditionals_enabled = False
         self._condition_stack = None
         # Tracking the stack frame where pipeline definition starts
-        self._definition_stack_frame = None
+        self._definition_frame_start = 0
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -597,8 +598,43 @@ class Pipeline(object):
 
         prev = Pipeline.current()
         pipeline_tls.current_pipeline = pipeline
-        # TODO(klecki): Handle usage of with/push_current better
-        pipeline._definition_stack_frame = len(traceback.extract_stack()) - 2
+        if _dali_trace.is_tracing_enabled():
+            stack_start = _dali_trace.get_stack_depth()
+
+            call_context = traceback.extract_stack(limit=3)
+            current_filename = call_context[-1].filename
+            # Cases:
+            # * in user code, we keep last user frame for reference:
+            #   user_function():
+            #       with pipe / Pipeline.push_current():
+            #           <pipeline_definition>
+            # * in DALI internals, we need to remove everything below _generate_graph:
+            #   _generate_graph():
+            #       with pipe: -> __enter__()
+            #           push_current()
+            #       pipeline_def()
+            #
+
+            if (
+                len(call_context) > 2
+                and call_context[-2].filename == current_filename
+                and call_context[-2].name == "__enter__"
+                and call_context[-3].filename == current_filename
+                and call_context[-3].name == "_generate_graph"
+            ):
+                # We point below the pipeline_def invocation
+                pipeline._definition_frame_start = stack_start - 2
+            else:
+                # Otherwise we are in user code
+                if (
+                    len(call_context) > 1
+                    and call_context[-2].filename == current_filename
+                    and call_context[-2].name == "__enter__"
+                ):
+                    pipeline._definition_frame_start = stack_start - 2
+                else:
+                    pipeline._definition_frame_start = stack_start - 1
+
         stack = getattr(pipeline_tls, "pipeline_stack", None)
         if stack is None:
             pipeline_tls.pipeline_stack = [prev]
@@ -609,7 +645,7 @@ class Pipeline(object):
     @staticmethod
     def pop_current():
         """Restores previous pipeline as current. Complementary to :meth:`push_current`."""
-        pipeline_tls.current_pipeline._definition_stack_frame = None
+        pipeline_tls.current_pipeline._definition_frame_start = 0
         pipeline_tls.current_pipeline = pipeline_tls.pipeline_stack.pop()
 
     def __enter__(self):

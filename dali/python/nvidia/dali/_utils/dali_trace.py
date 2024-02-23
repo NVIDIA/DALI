@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import traceback
 from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filter
 from nvidia.dali._autograph import is_frame_converted_call, is_frame_call_unconverted
@@ -49,6 +50,19 @@ def set_tracing(*, enabled: bool = None, options={}):
 def is_tracing_enabled():
     global _origin_trace_enabled
     return _origin_trace_enabled
+
+
+def get_stack_depth():
+    """Get the number of stack frames up to the call of this function."""
+    # Walking through frames is at least order of magnitude faster
+    if hasattr(sys, "_getframe"):
+        depth = 0
+        frame = sys._getframe(1)
+        while frame:
+            depth = depth + 1
+            frame = frame.f_back
+        return depth
+    return len(traceback.extract_stack())
 
 
 def _is_matching_function(prev_frame_summary, new_frame_summary):
@@ -93,6 +107,7 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
         # AutoGraph is wrapping a function call - entry point
         if is_frame_converted_call(frame_entry):
             is_ag_function_call_start = True
+            current_function_region = None
         # It quits to a non-AG code, treat it as normal from now-on
         if is_frame_call_unconverted(frame_entry):
             is_ag_function_call_start = False

@@ -418,10 +418,10 @@ class _OperatorInstance(object):
     def _process_trace(self, arguments):
         if _dali_trace.is_tracing_enabled():
             if _Pipeline.current():
-                skip_bottom = _Pipeline.current()._definition_stack_frame
+                skip_bottom = _Pipeline.current()._definition_frame_start
             else:
                 skip_bottom = 0
-            skip_top = 5 if self._op._api == "fn" else 3
+            skip_top = _dali_trace.get_stack_depth() - self._op._definition_frame_end
             stack_summary = _dali_trace.extract_stack(
                 skip_bottom_frames=skip_bottom, skip_top_frames=skip_top
             )
@@ -530,12 +530,6 @@ def python_op_factory(name, schema_name=None):
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
 
-            # It would be more generic to handle this in OperatorInstance, but we need it
-            # for error messages in the constructor of Operator (meta)class.
-            if "_api" not in self._init_args:
-                self._init_args["_api"] = "ops"
-            self._api = self._init_args["_api"]
-
             for k in self._call_args.keys():
                 _check_arg_input(self._schema, type(self).__name__, k)
 
@@ -547,6 +541,9 @@ def python_op_factory(name, schema_name=None):
             # but the error message would be worse or delayed.
             # Name is handled in the op instance, keep it for later.
             self._name = self._init_args.pop("name", None)
+            # Stack frame is also processed by the operator instance and we need to remove it
+            # before it is validated against Schema.
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
 
         @property
@@ -576,6 +573,9 @@ def python_op_factory(name, schema_name=None):
             args = _resolve_double_definitions(args, self._init_args, keep_old=False)
             if self._name is not None:
                 args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
+
+            if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+                self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
             self._preserve = (
                 self._preserve or args.get("preserve", False) or self._schema.IsNoPrune()
