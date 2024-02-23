@@ -24,17 +24,21 @@ from nvidia.dali._utils import dali_trace
 from nvidia.dali.pipeline import do_not_convert
 from nose2.tools import params
 from test_utils import load_test_operator_plugin
+from nvidia.dali.pipeline.experimental import pipeline_def as pipeline_def_experimental
 
 
-dali_trace.set_tracing(enabled=True)
+def setUpModule():
+    load_test_operator_plugin()
+    dali_trace.set_tracing(enabled=True)
 
-load_test_operator_plugin()
+
+def tearDownModule():
+    dali_trace.set_tracing(enabled=False)
 
 
 op_mode = "dali.fn"
 extracted_stacks = []
 base_frame = 0
-
 
 def capture_python_traces(fun, full_stack=False):
     """Run `fun` and collect all stack traces (in Python mode) in order of occurrence.
@@ -135,6 +139,20 @@ def test_trace_almost_trivial(test_mode):
     dali_regular_pipe = pipeline_def(batch_size=2, num_threads=1, device_id=0)(pipe)
     dali_regular_tbs = capture_dali_traces(dali_regular_pipe)
     compare_traces(dali_regular_tbs, python_tbs)
+
+
+def test_trace_almost_trivial_debug():
+    global op_mode
+    op_mode = "dali.fn"
+
+    @pipeline_def_experimental(batch_size=2, num_threads=1, device_id=0, debug=True)
+    def pipe():
+        return origin_trace()
+
+    p = pipe()
+    p.build()
+    (out,) = p.run()
+    assert out.shape() == [(0,), (0,)], "Debug doesn't carry trace information"
 
 
 @params(*test_modes)

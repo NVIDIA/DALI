@@ -416,7 +416,11 @@ class _OperatorInstance(object):
             self._name = "__" + type(self._op).__name__ + "_" + str(self._counter.id)
 
     def _process_trace(self, arguments):
-        if _dali_trace.is_tracing_enabled():
+        from nvidia.dali._debug_mode import _PipelineDebug
+
+        current_pipeline = _PipelineDebug.current()
+        is_debug = getattr(current_pipeline, "_debug_on", False)
+        if _dali_trace.is_tracing_enabled() and not is_debug:
             if _Pipeline.current():
                 skip_bottom = _Pipeline.current()._definition_frame_start
             else:

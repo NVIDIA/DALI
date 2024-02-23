@@ -82,13 +82,12 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def fn_wrapper(*inputs, **kwargs):
         from nvidia.dali._debug_mode import _PipelineDebug
 
-        if _dali_trace.is_tracing_enabled():
-            kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
-
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, "_debug_on", False):
             return current_pipeline._wrap_op_call(op_class, wrapper_name, *inputs, **kwargs)
         else:
+            if _dali_trace.is_tracing_enabled():
+                kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
             return op_wrapper(*inputs, **kwargs)
 
     from nvidia.dali.ops import _signatures

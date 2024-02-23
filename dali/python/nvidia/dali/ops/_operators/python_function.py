@@ -20,6 +20,7 @@ from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import CUDAStream as _CUDAStream
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 cupy = None
@@ -40,9 +41,6 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
         self._name = self._init_args.pop("name", None)
-        if "_api" not in self._init_args:
-            self._init_args["_api"] = "ops"
-        self._api = self._init_args["_api"]
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
@@ -87,6 +85,8 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
         if self._name is not None:
             args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
+        if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+            self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
         op_instance.spec.AddArg("device", self.device)

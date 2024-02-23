@@ -109,9 +109,6 @@ _origin_stack_filename for more information.)code",
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
-
-  AddOptionalArg("_api", "String representing API used to create operator: \"fn\" or \"ops\".",
-                 "fn");
 }
 
 
