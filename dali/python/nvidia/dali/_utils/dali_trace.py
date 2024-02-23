@@ -150,7 +150,9 @@ def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
     # Returns a StackSummary which inherits from list, and contains traceback.FrameSummary
     # objects. Frame summary contains filename, lineno, name and line (string representing context).
     # -1 so we drop extract_stack frame
-    stack_summary = traceback.extract_stack()[skip_bottom_frames : -1 - skip_top_frames]
+    stack_depth = get_stack_depth()
+    limit = stack_depth - skip_bottom_frames
+    stack_summary = traceback.extract_stack(limit=limit)[: -1 - skip_top_frames]
 
     # If those are empty, AutoGraph transformations were not used, we can return as is
     frame_map = get_frame_map()

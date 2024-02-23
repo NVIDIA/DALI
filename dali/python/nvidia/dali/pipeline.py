@@ -631,9 +631,9 @@ class Pipeline(object):
                     and call_context[-2].filename == current_filename
                     and call_context[-2].name == "__enter__"
                 ):
-                    pipeline._definition_frame_start = stack_start - 2
+                    pipeline._definition_frame_start = stack_start - 3
                 else:
-                    pipeline._definition_frame_start = stack_start - 1
+                    pipeline._definition_frame_start = stack_start - 2
 
         stack = getattr(pipeline_tls, "pipeline_stack", None)
         if stack is None:
