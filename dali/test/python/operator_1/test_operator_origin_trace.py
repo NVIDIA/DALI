@@ -40,6 +40,7 @@ op_mode = "dali.fn"
 extracted_stacks = []
 base_frame = 0
 
+
 def capture_python_traces(fun, full_stack=False):
     """Run `fun` and collect all stack traces (in Python mode) in order of occurrence.
     Running the pipeline definition as Python serves as baseline for comparing the correctness
@@ -318,10 +319,13 @@ def test_trace_outside_pipeline(test_mode):
     def pipe():
         return dn
 
+    def glob(op_mode):
+        return f"""*File "*/test_operator_origin_trace.py", line *, in test_trace_outside_pipeline
+    dn = {"fn.origin_trace_dump()" if op_mode == "dali.fn" else "ops.OriginTraceDump()()"}*"""
+
     dali_tbs = capture_dali_traces(pipe)
     compare_traces(
         dali_tbs,
         python_tbs,
-        end_glob=lambda op_mode: f"""*File "*/test_operator_origin_trace.py", line *, in test_trace_outside_pipeline
-    dn = {"fn.origin_trace_dump()" if op_mode == "dali.fn" else "ops.OriginTraceDump()()"}*""",
+        end_glob=glob,
     )
