@@ -40,12 +40,6 @@ check_cxx_compiler_flag(-fopenmp-simd CXX_HAVE_OMP_SIMD)
 option(BUILD_DALI_NODEPS "Disable components that require extra external libraries to be present in the system. Effectively, it builds only the DALI core and kernel libraries")
 option(LINK_DRIVER "Links directly with libcuda.so instead of dlopen it at runtime" OFF)
 option(WITH_DYNAMIC_CUDA_TOOLKIT "Links CUDA toolkit libraries dynamically (NPP, nvJPEG, cuFFT)" OFF)
-cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
-                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
-cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
-                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
-cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
-                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
 option(WITH_DYNAMIC_NVIMGCODEC "Links nvimgcodec library dynamically during runtime" ON)
 
@@ -127,6 +121,13 @@ cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" O
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+
+cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
+                      "WITH_DYNAMIC_CUDA_TOOLKIT;BUILD_NVJPEG" OFF)
+cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
+                      "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
+                      "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
 if((${CUDA_VERSION} VERSION_GREATER_EQUAL "12.2") OR NOT (${ARCH} MATCHES "aarch64"))
   cmake_dependent_option(BUILD_CUFILE "Build with cufile (GPU Direct Storage) support" OFF
