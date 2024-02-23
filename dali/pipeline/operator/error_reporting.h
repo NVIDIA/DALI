@@ -45,9 +45,9 @@ struct DaliFrameSummary {
 
 /**
  * @brief Get the origin stack trace for operator constructed with given spec.
- * The stack trace defines frames between the invocation od pipeline definition and operator call.
- * The returned DaliFrameSummary corresponds to Python traceback.FrameSummary
- * The `line` context may be invalid in autograph transformed code.
+ * The stack trace defines frames between invocation of the pipeline definition and the operator
+ * call. The returned DaliFrameSummary corresponds to Python traceback.FrameSummary, but the `line`
+ * context may be invalid in some autograph transformed code.
  */
 DLL_PUBLIC std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec);
 
