@@ -12,6 +12,7 @@ from nose_utils import assert_raises
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
 
+
 def check_dataset_checkpointing(dali_dataset, *, warmup_iters, test_iters):
     it = iter(dali_dataset)
     mgr = tf.train.Checkpoint(it)
@@ -44,12 +45,14 @@ def check_dataset_checkpointing(dali_dataset, *, warmup_iters, test_iters):
     data_restored = read_data(it, test_iters)
     compare_data(data, data_restored)
 
+
 def check_pipeline_checkpointing(pipeline_factory, output_dtypes, **kwargs):
     p = pipeline_factory()
     p.build()
-    with tf.device('cpu'):
+    with tf.device("cpu"):
         dataset = dali_tf.DALIDataset(pipeline=p, output_dtypes=output_dtypes)
         check_dataset_checkpointing(dataset, **kwargs)
+
 
 def test_random():
     @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
@@ -58,17 +61,17 @@ def test_random():
 
     check_pipeline_checkpointing(pipeline, (tf.float32,), warmup_iters=7, test_iters=10)
 
+
 def test_reader():
     @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
     def pipeline():
         jpeg, label = fn.readers.file(
-            file_root=images_dir,
-            pad_last_batch=False,
-            random_shuffle=True
+            file_root=images_dir, pad_last_batch=False, random_shuffle=True
         )
         return (jpeg, label)
 
     check_pipeline_checkpointing(pipeline, (tf.uint8, tf.int32), warmup_iters=7, test_iters=10)
+
 
 def test_inputs_unsupported():
     @pipeline_def(num_threads=4, device_id=0, batch_size=4, enable_checkpointing=True)
@@ -77,10 +80,16 @@ def test_inputs_unsupported():
 
     p = external_source_pipe()
     p.build()
-    with tf.device('cpu'):
-        dataset = dali_tf.experimental.DALIDatasetWithInputs(pipeline=p, output_dtypes=(tf.int64,), batch_size=5,
+    with tf.device("cpu"):
+        dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            pipeline=p,
+            output_dtypes=(tf.int64,),
+            batch_size=5,
             output_shapes=(5,),
             num_threads=4,
-            device_id=0)
-        with assert_raises(Exception, regex="Checkpointing is not supported for DALI dataset with inputs."):
+            device_id=0,
+        )
+        with assert_raises(
+            Exception, regex="Checkpointing is not supported for DALI dataset with inputs."
+        ):
             check_dataset_checkpointing(dataset, warmup_iters=1, test_iters=1)
