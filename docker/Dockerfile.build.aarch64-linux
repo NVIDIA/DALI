@@ -146,7 +146,8 @@ CMD WERROR=ON           \
                         -DCMAKE_CUDA_COMPILER=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}/bin/nvcc       \
                         -DCUDA_HOST=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}                          \
                         -DCUDA_TARGET=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}/targets/aarch64-linux  \
-                        -DCMAKE_PREFIX_PATH=/usr/aarch64-linux-gnu/ "                                  \
+                        -DCMAKE_PREFIX_PATH=/usr/aarch64-linux-gnu/                                    \
+                        -DPython_EXECUTABLE=$(which python) "                                          \
     /dali/docker/build_helper.sh                    && \
     rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
     cd /dali/dali_tf_plugin                         && \
