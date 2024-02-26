@@ -185,6 +185,9 @@ def get_pipeline(
     out_anchor_range=None,
     use_gpu=False,
     num_out_of_bounds=0,
+    use_shapes_rel=False,
+    use_in_anchors_rel=False,
+    use_out_anchors_rel=False,
 ):
     pipe = Pipeline(
         batch_size=batch_size, num_threads=4, device_id=0, seed=np.random.randint(12345)
@@ -232,13 +235,22 @@ def get_pipeline(
             args = tuple(fn.permute_batch(resized, indices=perm) for perm in perms)
 
         if not full_input:
-            kwargs["shapes"] = shapes
+            if not use_shapes_rel:
+                kwargs["shapes"] = shapes
+            else:
+                kwargs["shapes_rel"] = shapes / in_size
 
         if not in_anchor_top_left:
-            kwargs["in_anchors"] = in_anchors
+            if not use_in_anchors_rel:
+                kwargs["in_anchors"] = in_anchors
+            else:
+                kwargs["in_anchors_rel"] = in_anchors / in_size
 
         if not out_anchor_top_left:
-            kwargs["out_anchors"] = out_anchors
+            if not use_out_anchors_rel:
+                kwargs["out_anchors"] = out_anchors
+            else:
+                kwargs["out_anchors_rel"] = out_anchors / out_size
 
         pasted = fn.multi_paste(*args, **kwargs)
         pipe.set_outputs(pasted, resized_cpu)
@@ -272,7 +284,7 @@ def manual_verify(
         ), f"{output[i].source_info()} == {ref_source_info}"
         out = output.at(i)
         out_size = out_size_l[i]
-        assert out.shape == out_size
+        assert out.shape == out_size, f"{out.shape} vs {out_size}"
         ref = np.zeros(out.shape)
         for j, idx in enumerate(in_idx_l[i]):
             roi_start = in_anchors_l[i][j]
@@ -322,6 +334,9 @@ def check_operator_multipaste(
     out_dtype,
     num_out_of_bounds,
     device,
+    use_shapes_rel,
+    use_in_anchors_rel,
+    use_out_anchors_rel,
 ):
     pipe, in_idx_l, in_anchors_l, shapes_l, out_anchors_l = get_pipeline(
         batch_size=bs,
@@ -339,6 +354,9 @@ def check_operator_multipaste(
         out_anchor_range=out_anchor_range,
         num_out_of_bounds=num_out_of_bounds,
         use_gpu=device == "gpu",
+        use_shapes_rel=use_shapes_rel,
+        use_in_anchors_rel=use_in_anchors_rel,
+        use_out_anchors_rel=use_out_anchors_rel,
     )
     pipe.build()
     try:
@@ -361,7 +379,11 @@ def check_operator_multipaste(
             out_dtype,
         )
     except RuntimeError as e:
-        if "The pasted region must be within" in str(e):
+        use_rel = use_shapes_rel or use_in_anchors_rel or use_out_anchors_rel
+
+        if "The pasted region must be within" in str(e) or (
+            use_rel and "values must be floats in [0, 1] range," in str(e)
+        ):
             assert verify_out_of_bounds(
                 bs, in_idx_l, in_anchors_l, shapes_l, out_anchors_l, in_size, out_size
             )
@@ -371,6 +393,7 @@ def check_operator_multipaste(
 
 def test_operator_multipaste():
     in_anchor = ((10, 10), (20, 20))
+    rng = np.random.default_rng(42)
     tests = [
         # The arguments are:
         # - batch size
@@ -677,8 +700,9 @@ def test_operator_multipaste():
         ],
     ]
     for t in tests:
-        yield (check_operator_multipaste, *t, "cpu")
-        yield (check_operator_multipaste, *t, "gpu")
+        use_rel = tuple(bool(s) for s in rng.choice(2, size=3))
+        yield (check_operator_multipaste, *t, "cpu", *use_rel)
+        yield (check_operator_multipaste, *t, "gpu", *use_rel)
 
 
 @cartesian_params(("cpu", "gpu"), (True, False), (True, False), (None, (501, 501)))
@@ -810,3 +834,132 @@ def test_conflicting_channels(device, use_positional):
         glob="All regions pasted into given output sample must have the same number of channels",
     ):
         p.run()
+
+
+@cartesian_params(("cpu", "gpu"), (True, False))
+def test_var_channels(device, use_positional):
+    num_regions = 9
+    max_num_channels = 4
+    batch_size = num_regions * max_num_channels
+    num_iters = 2
+
+    anchors = np.array(
+        [
+            [0, 0],
+            [0, 0.5],
+            [0.5, 0],
+            [0.5, 0.5],
+            [0.25, 0.25],
+            [0, 0],
+            [0, 0.75],
+            [0.75, 0],
+            [0.75, 0.75],
+        ],
+        dtype=np.float32,
+    )
+    shapes = np.array(
+        [
+            [0.5, 0.5],
+            [0.5, 0.5],
+            [0.5, 0.5],
+            [0.5, 0.5],
+            [0.5, 0.5],
+            [0.25, 0.25],
+            [0.25, 0.25],
+            [0.25, 0.25],
+            [0.25, 0.25],
+        ],
+        dtype=np.float32,
+    )
+
+    def in_ids_cb(sample_info):
+        idx = sample_info.idx_in_batch
+        # group every consecutive num_regions samples
+        group_idx = idx // num_regions
+        offset = idx % num_regions
+        in_ids = [(offset + i) % num_regions + group_idx * num_regions for i in range(num_regions)]
+        return np.array(in_ids, dtype=np.int32)
+
+    def num_channels_cb(sample_info):
+        idx = sample_info.idx_in_batch
+        # group every consecutive num_regions samples
+        group_idx = idx // num_regions
+        return np.int32(group_idx + 1)
+
+    def out_size_cb(sample_info):
+        shapes = [(301, 273), (100, 200), (333, 555), (555, 333)]
+        idx = sample_info.idx_in_batch
+        # group every consecutive num_regions samples
+        group_idx = idx // num_regions
+        return np.array(shapes[group_idx], dtype=np.int32)
+
+    @pipeline_def(
+        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+    )
+    def pipeline():
+        in_out_size = fn.external_source(out_size_cb, batch=False)
+        alpha = fn.random.uniform(
+            range=[0, 255],
+            shape=fn.cat(in_out_size, np.array([1], dtype=np.int32)),
+            dtype=types.DALIDataType.UINT8,
+        )
+        encoded, _ = fn.readers.file(file_root=img_dir)
+        image_base = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
+        image_base = fn.resize(image_base, size=fn.cast(in_out_size, dtype=types.FLOAT))
+        num_channels = fn.external_source(num_channels_cb, batch=False)
+        if num_channels > 3:
+            image_base = fn.cat(image_base, alpha, axis=-1)
+        image_base = image_base[:, :, :num_channels]
+        image = image_base.gpu() if device == "gpu" else image_base
+        in_ids = fn.external_source(in_ids_cb, batch=False)
+        if not use_positional:
+            kwargs = {"in_ids": in_ids}
+            args = (image,)
+        else:
+            kwargs = {}
+            args = tuple(fn.permute_batch(image, indices=in_ids[i]) for i in range(num_regions))
+        output = fn.multi_paste(
+            *args,
+            **kwargs,
+            in_anchors_rel=anchors,
+            out_anchors_rel=anchors,
+            shapes_rel=shapes,
+            output_size=in_out_size,
+        )
+        return output, image_base, in_ids, in_out_size, num_channels
+
+    p = pipeline()
+    p.build()
+    for _ in range(num_iters):
+        out_images, inp_images, idxs, out_sizes, num_channels = p.run()
+        idxs = [np.array(sample) for sample in idxs]
+        out_images = out_images.as_cpu() if device == "gpu" else out_images
+        num_channels = [np.array(num_channel) for num_channel in num_channels]
+        out_sizes = [np.array(size) for size in out_sizes]
+        anchors_abs = [anchors] * batch_size
+        assert len(anchors_abs) == len(out_sizes)
+        anchors_abs = [
+            np.int32(np.floor(anchor * size)) for anchor, size in zip(anchors_abs, out_sizes)
+        ]
+        region_shapes_abs = [shapes] * batch_size
+        assert len(region_shapes_abs) == len(out_sizes)
+        region_shapes_abs = [
+            np.int32(np.ceil(region_shape * size))
+            for region_shape, size in zip(region_shapes_abs, out_sizes)
+        ]
+        assert len(out_sizes) == len(num_channels)
+        out_sizes = [
+            tuple(size) + (num_channel.item(),)
+            for size, num_channel in zip(out_sizes, num_channels)
+        ]
+        manual_verify(
+            batch_size,
+            inp_images,
+            out_images,
+            idxs,
+            anchors_abs,
+            region_shapes_abs,
+            anchors_abs,
+            out_sizes,
+            types.UINT8,
+        )
