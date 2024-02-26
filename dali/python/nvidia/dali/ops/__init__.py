@@ -547,7 +547,8 @@ def python_op_factory(name, schema_name=None):
             self._name = self._init_args.pop("name", None)
             # Stack frame is also processed by the operator instance and we need to remove it
             # before it is validated against Schema.
-            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+            if _dali_trace.is_tracing_enabled():
+                self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
 
         @property

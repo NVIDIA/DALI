@@ -41,6 +41,8 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
 
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
         self._name = self._init_args.pop("name", None)
+        if _dali_trace.is_tracing_enabled():
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
 
         for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
@@ -85,7 +87,7 @@ class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
         args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
         if self._name is not None:
             args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
-        if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
             self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)

@@ -647,7 +647,8 @@ Keyword Args
         self._bytes_per_sample_hint = bytes_per_sample_hint
         self._batch_info = batch_info
         self._repeat_last = repeat_last
-        self._definition_frame_end = kwargs.pop("_definition_frame_end", None)
+        if _dali_trace.is_tracing_enabled():
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)
@@ -865,7 +866,7 @@ Keyword Args
         else:
             self._name = name
 
-        if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
             self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         if name is not None and self._num_outputs is not None:

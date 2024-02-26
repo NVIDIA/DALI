@@ -49,6 +49,8 @@ class _TFRecordReaderImpl:
         self._init_args, self._call_args = ops._separate_kwargs(kwargs)
         self._init_args.update({"path": self._path, "index_path": self._index_path})
         self._name = self._init_args.pop("name", None)
+        if _dali_trace.is_tracing_enabled():
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
         self._preserve = self._init_args.get("preserve", False)
 
         for key, value in self._init_args.items():
@@ -79,7 +81,7 @@ class _TFRecordReaderImpl:
         args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
         if self._name is not None:
             args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
-        if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
             self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         self._preserve = self._preserve or args.get("preserve", False) or self._schema.IsNoPrune()
