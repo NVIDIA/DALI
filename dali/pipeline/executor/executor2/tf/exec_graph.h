@@ -64,7 +64,9 @@ struct WorkspaceParams {
 class ExecNode {
  public:
   ExecNode() = default;
-  explicit ExecNode(std::function<void(Workspace &)> fn) : task_fn(std::move(fn)) {}
+  explicit ExecNode(OperatorBase *op) : op(op) {
+
+  }
 
   std::vector<const ExecEdge *> inputs, outputs;
   std::function<void(Workspace &)> task_fn;
@@ -171,6 +173,14 @@ class SchedNode {
   // tf::Semaphore gpu_dependency;
 
   void schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow);
+
+  /// Runs operator's `Setup` and resizes the outputs
+  void task_setup();
+  /// Runs the operator's `Run` method and
+  void task_run();
+  void task_reset_inputs();
+  void task_propagate_outputs();
+  void task_reset_outputs();
 };
 
 
