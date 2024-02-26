@@ -30,7 +30,7 @@ std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec) {
 
   std::vector<DaliFrameSummary> origin_stack;
   origin_stack.reserve(origin_stack_filename.size());
-  std::string error = "Internal error, mismatch in origin stack trace data.";
+  const char error[] = "Internal error, mismatch in origin stack trace data.";
   DALI_ENFORCE(origin_stack_filename.size() == origin_stack_lineno.size(), error);
   DALI_ENFORCE(origin_stack_filename.size() == origin_stack_name.size(), error);
   DALI_ENFORCE(origin_stack_filename.size() == origin_stack_line.size(), error);
