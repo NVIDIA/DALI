@@ -163,8 +163,10 @@ def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
     return _filter_autograph_frames(stack_summary, frame_map, frame_filter)
 
 
-def separate_stack_summary(stack_summary):
-    """Split the list of FrameSummary into 4 separate list of each components
+def preprocess_stack_summary(stack_summary):
+    """
+    Split the list of FrameSummary into 4 separate list of each components.
+    Preprocess the output of AST (trim the whitespace).
 
     Parameters
     ----------
@@ -178,5 +180,5 @@ def separate_stack_summary(stack_summary):
     filename_stack = [frame_summary.filename for frame_summary in stack_summary]
     lineno_stack = [frame_summary.lineno for frame_summary in stack_summary]
     name_stack = [frame_summary.name for frame_summary in stack_summary]
-    line_stack = [frame_summary.line for frame_summary in stack_summary]
+    line_stack = [frame_summary.line.strip() for frame_summary in stack_summary]
     return filename_stack, lineno_stack, name_stack, line_stack

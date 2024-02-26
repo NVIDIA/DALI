@@ -429,7 +429,7 @@ class _OperatorInstance(object):
             stack_summary = _dali_trace.extract_stack(
                 skip_bottom_frames=skip_bottom, skip_top_frames=skip_top
             )
-            filenames, linenos, names, lines = _dali_trace.separate_stack_summary(stack_summary)
+            filenames, linenos, names, lines = _dali_trace.preprocess_stack_summary(stack_summary)
 
             arguments["_origin_stack_filename"] = filenames
             arguments["_origin_stack_lineno"] = linenos
