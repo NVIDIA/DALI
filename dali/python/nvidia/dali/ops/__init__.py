@@ -579,7 +579,7 @@ def python_op_factory(name, schema_name=None):
             if self._name is not None:
                 args = _resolve_double_definitions(args, {"name": self._name})  # restore the name
 
-            if self._definition_frame_end is None and _dali_trace.is_tracing_enabled():
+            if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
                 self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
             self._preserve = (
