@@ -26,36 +26,70 @@ auto backend_switch(StorageDevice device, Case &&callable)
     return callable(GPUBackend());
 }
 
+void SchedNode::task_setup() {
+  int nout = ws->NumOutput();
+  std::vector<OutputDesc> output_descs;
+  output_descs.resize(nout);
+  if (definition->op->Setup(output_descs, *ws)) {
+    for (int i = 0; i < nout; i++) {
+      if (ws->OutputIsType<CPUBackend>(i))
+        ws->Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+      else if (ws->OutputIsType<GPUBackend>(i))
+        ws->Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+      else
+        assert(!"Unreachable code - uknonw backend.");
+    }
+  }
+}
+
+void SchedNode::task_run() {
+  definition->op->Run(*ws);
+  if (ws->has_event() && ws->has_stream())
+    CUDA_CALL(cudaEventRecord(ws->event(), ws->stream()));
+}
+
+void SchedNode::task_reset_inputs() {
+  for (int i = 0; i < ws->NumInput(); i++) {
+    if (ws->InputIsType<CPUBackend>(i))
+      ws->SetInput<CPUBackend>(i, nullptr);
+    else
+      ws->SetInput<GPUBackend>(i, nullptr);
+  }
+}
+
+void SchedNode::task_propagate_outputs() {
+  for (int i = 0, nout = outputs.size(); i < nout; i++) {
+    const SchedEdge &out_edge = outputs[i];
+    if (out_edge.consumer) {
+      Workspace &consumer_ws = *out_edge.consumer->ws;
+      backend_switch(out_edge.device, [&](auto backend) {
+        consumer_ws.SetInput(
+          out_edge.consumer_input_idx,
+          ws->InputPtr(out_edge.producer_output_idx, backend));
+      });
+    }
+  }
+}
+
+void SchedNode::task_reset_outputs() {
+  for (int i = 0; i < ws->NumOutput(); i++) {
+    if (ws->OutputIsType<CPUBackend>(i))
+      ws->SetOutput<CPUBackend>(i, nullptr);
+    else
+      ws->SetOutput<GPUBackend>(i, nullptr);
+  }
+}
+
 void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
   main_task = flow.emplace([this]() {
-    // Run the operation
-    definition->task_fn(*ws);
+    // Run the operator
+    task_setup();
+    task_run();
     // Reset the inputs once we're done
-    for (int i = 0; i < ws->NumInput(); i++) {
-      if (ws->InputIsType<CPUBackend>(i))
-        ws->SetOutput<CPUBackend>(i, nullptr);
-      else
-        ws->SetOutput<GPUBackend>(i, nullptr);
-    }
+    task_reset_inputs();
+    task_propagate_outputs();
+    task_reset_outputs();
 
-    for (int i = 0, nout = outputs.size(); i < nout; i++) {
-      const SchedEdge &out_edge = outputs[i];
-      if (out_edge.consumer) {
-        Workspace &consumer_ws = *out_edge.consumer->ws;
-        backend_switch(out_edge.device, [&](auto backend) {
-          consumer_ws.SetInput(
-            out_edge.consumer_input_idx,
-            ws->InputPtr(out_edge.producer_output_idx, backend));
-        });
-      }
-    }
-
-    for (int i = 0; i < ws->NumOutput(); i++) {
-      if (ws->OutputIsType<CPUBackend>(i))
-        ws->SetOutput<CPUBackend>(i, nullptr);
-      else
-        ws->SetOutput<GPUBackend>(i, nullptr);
-    }
   });
 
   for (auto &in : inputs) {
