@@ -80,6 +80,7 @@ inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStr
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   try {
     *ptr = mr->allocate_async(size, kDevAlignment, stream);
+    // *ptr = mr->allocate(size, kDevAlignment);
     return cudaSuccess;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
@@ -95,6 +96,8 @@ inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStr
 inline int static_dali_device_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   mr->deallocate_async(ptr, size, kDevAlignment, stream);
+  // CUDA_CALL(cudaStreamSynchronize(stream));
+  // mr->deallocate(ptr, size, kDevAlignment);
   return cudaSuccess;
 }
 
@@ -102,6 +105,7 @@ inline int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStr
   auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
   try {
     *ptr = mr->allocate_async(size, kHostAlignment, stream);
+    // *ptr = mr->allocate(size, kHostAlignment);
     return cudaSuccess;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
@@ -117,6 +121,7 @@ inline int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStr
 inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
   mr->deallocate_async(ptr, size, kHostAlignment, stream);
+  // mr->deallocate(ptr, size, kHostAlignment);
   return cudaSuccess;
 }
 
