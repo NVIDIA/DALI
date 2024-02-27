@@ -517,10 +517,25 @@ def _check_arg_input(schema, op_name, name):
         )
 
 
-def python_op_factory(name, schema_name=None):
+def python_op_factory(name, schema_name, internal_schema_name=None):
+    """Generate the ops API class bindings for operator.
+
+    Parameters
+    ----------
+    name : str
+        The name of the operator (without the module) - this will be the name of the class
+    schema_name : str
+        Name of the schema, used for documentation lookups and schema/spec retrieval unless
+        internal_schema_name  is provided
+    internal_schema_name : str, optional
+        If provided, this will be the schema used to process the arguments, by default None
+    """
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, *, device="cpu", **kwargs):
-            schema_name = _schema_name(type(self))
+            if self._internal_schema_name is None:
+                schema_name = _schema_name(type(self))
+            else:
+                schema_name = self._internal_schema_name
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
 
@@ -611,7 +626,8 @@ def python_op_factory(name, schema_name=None):
             return result
 
     Operator.__name__ = str(name)
-    Operator.schema_name = schema_name or Operator.__name__
+    Operator.schema_name = schema_name
+    Operator._internal_schema_name = internal_schema_name
     Operator._generated = True  # The class was generated using python_op_factory
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
@@ -763,7 +779,6 @@ _internal._adjust_operator_module(ExternalSource, sys.modules[__name__], [])
 
 # Expose the PythonFunction family of classes and generate the fn bindings for them
 from nvidia.dali.ops._operators.python_function import (  # noqa: E402, F401
-    PythonFunctionBase,  # noqa: F401
     PythonFunction,
     DLTensorPythonFunction,
     _dlpack_to_array,  # noqa: F401

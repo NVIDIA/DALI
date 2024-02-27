@@ -30,8 +30,8 @@ def tfrecord_enabled():
     return False
 
 
-def _get_impl(name, schema_name):
-    class _TFRecordReaderImpl(ops.python_op_factory(name, schema_name)):
+def _get_impl(name, schema_name, internal_schema_name):
+    class _TFRecordReaderImpl(ops.python_op_factory(name, schema_name, internal_schema_name)):
         """custom wrappers around ops"""
 
         def __init__(self, path, index_path, features, **kwargs):
@@ -81,9 +81,9 @@ def _get_impl(name, schema_name):
     return _TFRecordReaderImpl
 
 
-class TFRecordReader(_get_impl("_TFRecordReader", "_TFRecordReader")):
+class TFRecordReader(_get_impl("_TFRecordReader", "TFRecordReader", "_TFRecordReader")):
     pass
 
 
-class TFRecord(_get_impl("_TFRecord", "readers___TFRecord")):
+class TFRecord(_get_impl("_TFRecord", "readers__TFRecord", "readers___TFRecord")):
     pass

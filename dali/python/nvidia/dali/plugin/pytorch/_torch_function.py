@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@ import torch.utils.dlpack as torch_dlpack
 
 from nvidia.dali import ops
 from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.ops._operators import python_function
 
 
-class TorchPythonFunction(ops.PythonFunctionBase):
-    schema_name = "TorchPythonFunction"
+class TorchPythonFunction(
+    python_function._get_base_impl("TorchPythonFunction", "DLTensorPythonFunctionImpl")
+):
     ops.register_cpu_op("TorchPythonFunction")
     ops.register_gpu_op("TorchPythonFunction")
 
@@ -64,7 +66,6 @@ class TorchPythonFunction(ops.PythonFunctionBase):
     def __init__(self, function, num_outputs=1, device="cpu", batch_processing=False, **kwargs):
         self.stream = None
         super(TorchPythonFunction, self).__init__(
-            impl_name="DLTensorPythonFunctionImpl",
             function=lambda *ins: self.torch_wrapper(batch_processing, function, device, *ins),
             num_outputs=num_outputs,
             device=device,

@@ -32,67 +32,38 @@ def _setup_cupy():
         import cupy as cupy
 
 
-class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
-    def __init__(self, impl_name, function, num_outputs=1, device="cpu", **kwargs):
-        self._schema = _b.GetSchema(impl_name)
-        self._spec = _b.OpSpec(impl_name)
-        self._device = device
-        self._impl_name = impl_name
+def _get_base_impl(name, impl_name):
 
-        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
-        self._name = self._init_args.pop("name", None)
-        if _dali_trace.is_tracing_enabled():
-            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+    class PythonFunctionBase(ops.python_op_factory(impl_name, name, impl_name)):
 
-        for key, value in self._init_args.items():
-            self._spec.AddArg(key, value)
+        def __init__(self, function, num_outputs=1, **kwargs):
 
-        self.function = function
-        self.num_outputs = num_outputs
-        self._preserve = True
+            super().__init__(**kwargs)
 
-    @property
-    def spec(self):
-        return self._spec
+            self.function = function
+            self.num_outputs = num_outputs
+            self._preserve = True
 
-    @property
-    def schema(self):
-        return self._schema
+        def __call__(self, *inputs, **kwargs):
+            inputs = ops._preprocess_inputs(inputs, impl_name, self._device, None)
+            self.pipeline = _Pipeline.current()
+            if self.pipeline is None:
+                _Pipeline._raise_pipeline_required("PythonFunction operator")
 
-    @property
-    def device(self):
-        return self._device
+            for inp in inputs:
+                if not isinstance(inp, _DataNode):
+                    raise TypeError(
+                        f"Expected inputs of type `DataNode`. "
+                        f"Received input of type '{type(inp).__name__}'. "
+                        f"Python Operators do not support Multiple Input Sets."
+                    )
 
-    @property
-    def preserve(self):
-        return self._preserve
+            kwargs.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
 
-    def __call__(self, *inputs, **kwargs):
-        inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
-        self.pipeline = _Pipeline.current()
-        if self.pipeline is None:
-            _Pipeline._raise_pipeline_required("PythonFunction operator")
+            return super().__call__(*inputs, **kwargs)
 
-        for inp in inputs:
-            if not isinstance(inp, _DataNode):
-                raise TypeError(
-                    f"Expected inputs of type `DataNode`. "
-                    f"Received input of type '{type(inp).__name__}'. "
-                    f"Python Operators do not support Multiple Input Sets."
-                )
-
-        args, arg_inputs = ops._separate_kwargs(kwargs)
-        args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
-
-        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
-        if self._name is not None:
-            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
-        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
-            self._definition_frame_end = _dali_trace.get_stack_depth() - 1
-
-        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
-        op_instance.spec.AddArg("device", self.device)
-        return op_instance.unwrapped_outputs
+    PythonFunctionBase._generated = False
+    return PythonFunctionBase
 
 
 def _dlpack_to_array(dlpack):
@@ -103,8 +74,7 @@ def _dlpack_from_array(array):
     return nvidia.dali.python_function_plugin.ArrayToDLTensor(array)
 
 
-class PythonFunction(PythonFunctionBase):
-    schema_name = "PythonFunction"
+class PythonFunction(_get_base_impl("PythonFunction", "DLTensorPythonFunctionImpl")):
     _registry.register_cpu_op("PythonFunction")
     _registry.register_gpu_op("PythonFunction")
 
@@ -232,7 +202,6 @@ class PythonFunction(PythonFunctionBase):
                 return self._function_wrapper_gpu(batch_processing, function, num_outputs, *ts)
 
         super(PythonFunction, self).__init__(
-            impl_name="DLTensorPythonFunctionImpl",
             function=func,
             num_outputs=num_outputs,
             device=device,
@@ -242,8 +211,9 @@ class PythonFunction(PythonFunctionBase):
         )
 
 
-class DLTensorPythonFunction(PythonFunctionBase):
-    schema_name = "DLTensorPythonFunction"
+class DLTensorPythonFunction(
+    _get_base_impl("DLTensorPythonFunction", "DLTensorPythonFunctionImpl")
+):
     _registry.register_cpu_op("DLTensorPythonFunction")
     _registry.register_gpu_op("DLTensorPythonFunction")
 
@@ -270,7 +240,6 @@ class DLTensorPythonFunction(PythonFunctionBase):
             return self._function_wrapper_dlpack(batch_processing, function, num_outputs, *ts)
 
         super(DLTensorPythonFunction, self).__init__(
-            impl_name="DLTensorPythonFunctionImpl",
             function=func,
             num_outputs=num_outputs,
             device=device,

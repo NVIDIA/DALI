@@ -367,7 +367,7 @@ def test_conditionals():
 
 @raises(
     TypeError,
-    glob="Expected `nvidia.dali.tfrecord.Feature` for the image/encoded, "
+    glob='Expected `nvidia.dali.tfrecord.Feature` for the "image/encoded", '
     "but got <class 'int'>. Use `nvidia.dali.tfrecord.FixedLenFeature` "
     "or `nvidia.dali.tfrecord.VarLenFeature` to define the features to extract.",
 )
