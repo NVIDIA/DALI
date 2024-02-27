@@ -31,7 +31,7 @@ test_body() {
     # DALI TF DATASET run
     ${python_invoke_test} test_dali_tf_dataset.py
     ${python_invoke_test} test_dali_tf_conditionals.py
-    ${python_invoke_test} checkpointing.test_dali_checkpointing_tf_plugin
+    ${python_new_invoke_test} checkpointing.test_dali_checkpointing_tf_plugin
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_invoke_test} test_dali_tf_dataset_shape.py
         ${python_invoke_test} test_dali_tf_dataset_eager.py
