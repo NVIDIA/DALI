@@ -14,7 +14,6 @@
 
 from distutils.version import LooseVersion
 
-from nvidia.dali import backend as _b
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import ops

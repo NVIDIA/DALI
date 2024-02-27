@@ -530,6 +530,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
     internal_schema_name : str, optional
         If provided, this will be the schema used to process the arguments, by default None
     """
+
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, *, device="cpu", **kwargs):
             if self._internal_schema_name is None:
