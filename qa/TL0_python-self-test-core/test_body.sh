@@ -16,7 +16,8 @@ test_py_with_framework() {
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
     ${python_new_invoke_test} -A 'numba' -s type_annotations
-    ${python_new_invoke_test} -A '!slow,numba' -s checkpointing
+    ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_checkpointing
+    ${python_new_invoke_test} -A '!slow,numba' checkpointing.test_dali_stateless_operators
 }
 
 test_py() {
