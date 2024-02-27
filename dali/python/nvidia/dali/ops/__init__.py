@@ -662,10 +662,6 @@ def _load_readers_tfrecord():
     if not tfrecord.tfrecord_enabled():
         return
 
-    tfrecord._TFRecordReaderImpl.__call__.__doc__ = _docs._docstring_generator_call(
-        "readers__TFRecord"
-    )
-
     _registry.register_cpu_op("readers__TFRecord")
     _registry.register_cpu_op("TFRecordReader")
 
@@ -675,7 +671,6 @@ def _load_readers_tfrecord():
         ("readers__TFRecord", tfrecord.TFRecord),
         ("TFRecordReader", tfrecord.TFRecordReader),
     ]:
-        op_class.schema_name = op_reg_name
         _, submodule, op_name = _process_op_name(op_reg_name)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):

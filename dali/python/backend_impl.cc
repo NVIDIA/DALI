@@ -2237,7 +2237,8 @@ PYBIND11_MODULE(backend_impl, m) {
   tfrecord_m.attr("string") = static_cast<int>(TFFeatureType::string);
   tfrecord_m.attr("float32") = static_cast<int>(TFFeatureType::float32);
 
-  py::class_<TFFeature>(tfrecord_m, "Feature");
+  py::class_<TFFeature>(tfrecord_m, "Feature")
+    .def(py::init<const TFFeature&>());
 
   tfrecord_m.def("FixedLenFeature",
       [](vector<Index> converted_shape, int type, py::object default_value) {

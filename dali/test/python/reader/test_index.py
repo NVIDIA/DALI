@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import os.path
 import tempfile
 import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
-from nose_utils import assert_raises
+from nose_utils import assert_raises, raises
 from nose2.tools import cartesian_params
 from nose import SkipTest
 
@@ -363,3 +363,29 @@ def test_conditionals():
     for pipe in [pipe_base, pipe_cond]:
         pipe.build()
     compare_pipelines(pipe_base, pipe_cond, 32, 5)
+
+
+@raises(
+    TypeError,
+    glob="Expected `nvidia.dali.tfrecord.Feature` for the image/encoded, "
+    "but got <class 'int'>. Use `nvidia.dali.tfrecord.FixedLenFeature` "
+    "or `nvidia.dali.tfrecord.VarLenFeature` to define the features to extract.",
+)
+def test_wrong_feature_type():
+
+    @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+    def tfrecord_pipe(tfrecord_op, path, index_path):
+        inputs = tfrecord_op(
+            path=path,
+            index_path=index_path,
+            features={
+                "image/encoded": 10,
+            },
+        )
+        return inputs["image/encoded"]
+
+    tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
+    tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+    pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
+    pipe.build()
+    pipe.run()
