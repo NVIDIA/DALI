@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -403,12 +403,45 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
   }
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
-  Status SaveInternal(SerializationContext *ctx, IteratorStateWriter *writer) override {
-    return errors::Unimplemented("SaveInternal is not supported for DALI dataset.");
+  Status SaveInternal(SerializationContext *ctx,
+                      IteratorStateWriter *writer) override {
+    TF_RETURN_IF_ERROR(checkCheckpointingSupport());
+    tensorflow::mutex_lock l(mu_);
+
+    char *cpt;
+    size_t n;
+    daliExternalContextCheckpoint external_context;
+    TF_DALI_CALL(daliGetSerializedCheckpoint(
+      &pipeline_handle_, &external_context, &cpt, &n));
+
+    tensorflow::Tensor cpt_tensor(DT_UINT8, {n});
+    memcpy(cpt_tensor.data(), cpt, n);
+    free(cpt);
+    TF_RETURN_IF_ERROR(writer->WriteTensor(prefix(), "checkpoint", cpt_tensor));
+
+    return OkStatus();
   }
 
-  Status RestoreInternal(IteratorContext *ctx, IteratorStateReader *reader) override {
-    return errors::Unimplemented("RestoreInternal is not supported for DALI dataset");
+  Status RestoreInternal(IteratorContext *ctx,
+                         IteratorStateReader *reader) override {
+    TF_RETURN_IF_ERROR(checkCheckpointingSupport());
+    tensorflow::mutex_lock l(mu_);
+
+    tensorflow::Tensor cpt_tensor;
+    TF_RETURN_IF_ERROR(reader->ReadTensor(prefix(), "checkpoint", &cpt_tensor));
+    auto cpt_data = cpt_tensor.tensor_data();
+
+    TF_DALI_CALL(daliDeletePipeline(&pipeline_handle_));
+    TF_RETURN_IF_ERROR(dataset()->InitPipeline(&pipeline_handle_));
+    daliExternalContextCheckpoint external_context;
+    TF_DALI_CALL(daliRestoreFromSerializedCheckpoint(
+      &pipeline_handle_, cpt_data.data(), cpt_data.size(), &external_context));
+
+    // Checkpointing is not supported with separated queues, so we can just prefetch uniformly
+    TF_DALI_CALL(daliPrefetchUniform(&pipeline_handle_,
+                                     dataset()->pipeline_def_.prefetch_queue_depth));
+
+    return OkStatus();
   }
 #endif
 
@@ -870,6 +903,20 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       return total;
     }
     return 0;
+  }
+
+  /**
+   * @brief Check checkpointing support and return and error if not
+   */
+  Status checkCheckpointingSupport() {
+    if (dataset()->device_type_ == GPU) {
+      // Current TensorFlow (2.15) will raise an error before even getting here
+      return errors::Unimplemented("Checkpointing is not supported for DALI GPU dataset.");
+    }
+    if (dataset()->HasInputs()) {
+      return errors::Unimplemented("Checkpointing is not supported for DALI dataset with inputs.");
+    }
+    return Status();
   }
 
   enum class InputState {

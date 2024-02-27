@@ -87,3 +87,17 @@ Their state won't be saved in a checkpoint and
 after restoring from a checkpoint, they will start from the beginning.
 If you want to use checkpointing, we recommend you rewrite your source
 to be a supported callable.
+
+Checkpointing in TensorFlow plugin
+----------------------------------
+
+:class:`plugin.tf.DALIDataset` is integrated with TensorFlow's ``tf.train.checkpoint``.
+Please refer to
+`TensorFlow checkpointing documentation page <https://www.tensorflow.org/guide/checkpoint#manual_checkpointing>`_
+for more details.
+
+.. warning::
+    Checkpointing is currently not supported for :class:`plugin.tf.experimental.DALIDatasetWithInputs`.
+
+.. warning::
+    Checkpointing is currently not supported for GPU datasets.
