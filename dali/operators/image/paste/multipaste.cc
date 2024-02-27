@@ -32,8 +32,8 @@ i-th sample of the output batch. All the input batches must have the same
 type and device placement.
 
 If the input shapes are uniform and no explicit `output_size` is provided,
-the operator assumes the same output shape. Otherwise, the `output_size`
-must be specified.
+the operator assumes the same output shape (the output canvas size).
+Otherwise, the `output_size` must be specified.
 
 This operator can also change the type of data.)code")
     .NumInput(1, 64)
@@ -74,26 +74,29 @@ Works like `shape` argument, but the values should be floats in `[0, 1]` range,
 describing the paste region shape relative to the input shape.)code",
                            nullptr, true, true)
     .AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
-of the destination region.
+of the pasted region in the output canvas.
 
 The anchors are represented as 2D tensors where the first dimension corresponds to the
 number of pasted regions and the second one is equal to the number of dimensions of the
 data, excluding channels.
 
-In neither `out_anchors` nor `out_anchors_rel` are provided, all anchors are zero.)code",
+In neither `out_anchors` nor `out_anchors_rel` are provided, all anchors are zero,
+making all the pasted region start at the top-left corner of the output canvas.)code",
                          nullptr, true, true)
     .AddOptionalArg<float>("out_anchors_rel", R"code(Absolute coordinates of LU corner
-of the destination region.
+of the pasted region in the output canvas.
 
 Works like `out_anchors` argument, but the values should be floats in `[0, 1]` range,
-describing the LU corner of the pasted region relative to the output shape.)code",
+describing the LU corner of the pasted region relative to the output canvas size.)code",
                            nullptr, true, true)
-    .AddOptionalArg<std::vector<int>>("output_size",
-                                      R"code(A tuple (HW) describing the output shape.
+    .AddOptionalArg<std::vector<int>>(
+        "output_size",
+        R"code(A tuple (HW) describing the output shape
+(i.e. the size of the canvas for the output pastes).
 
 Can be omitted if the operator is run with inputs of uniform shape. In that case,
-the same shape is used as the output shape.)code",
-                                      {}, true)
+the same shape is used as the canvas size.)code",
+        {}, true)
     .AddOptionalTypeArg("dtype", R"code(Output data type. If not set, the input type is used.)code")
     .NumOutput(1);
 
@@ -104,6 +107,25 @@ void MultiPasteCPU::SetupTyped(const Workspace & /*ws*/,
   kernel_manager_.Initialize<Kernel>();
 }
 
+template <typename OutputType, typename InputType>
+void MultiPasteCPU::CopyPatch(TensorListView<StorageCPU, OutputType, 3> &out_view,
+                              std::vector<TensorListView<StorageCPU, const InputType, 3>> &in_views,
+                              int out_sample_idx, int paste_idx) {
+  using Kernel = kernels::PasteCPU<OutputType, InputType>;
+  kernels::KernelContext ctx;
+
+  bool hasInIdx = in_idx_.HasExplicitValue();
+  int input_idx = hasInIdx ? 0 : paste_idx;
+  int in_sample_idx = hasInIdx ? in_idx_[out_sample_idx].data[paste_idx] : out_sample_idx;
+  auto tvin = in_views[input_idx][in_sample_idx];
+  auto tvout = out_view[out_sample_idx];
+
+  Coords region_shape_view{&region_shapes_data_[out_sample_idx][paste_idx][0], coords_sh_};
+  Coords in_anchor_view{&in_anchors_data_[out_sample_idx][paste_idx][0], coords_sh_};
+  Coords out_anchor_view{&out_anchors_data_[out_sample_idx][paste_idx][0], coords_sh_};
+  kernel_manager_.Run<Kernel>(out_sample_idx, ctx, tvout, tvin, in_anchor_view, region_shape_view,
+                              out_anchor_view);
+}
 
 template <typename OutputType, typename InputType>
 void MultiPasteCPU::RunTyped(Workspace &ws) {
@@ -116,8 +138,6 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
 
   auto batch_size = output.shape().num_samples();
 
-  using Kernel = kernels::PasteCPU<OutputType, InputType>;
-
   int num_inputs = ws.NumInput();
   std::vector<TensorListView<StorageCPU, const InputType, 3>> in_views;
   in_views.reserve(num_inputs);
@@ -126,7 +146,6 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
   }
   auto out_view = view<OutputType, 3>(output);
 
-  bool hasInIdx = in_idx_.HasExplicitValue();
   for (int i = 0; i < batch_size; i++) {
     auto paste_count = GetPasteCount(ws, i);
     memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
@@ -136,19 +155,7 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
       for (int iter = 0; iter < paste_count; iter++) {
         tp.AddWork(
           [&, i, iter, out_sample_shape](int thread_id) {
-            kernels::KernelContext ctx;
-
-            int sample_input = hasInIdx ? 0 : iter;
-            int sample_idx = hasInIdx ? in_idx_[i].data[iter] : i;
-            auto tvin = in_views[sample_input][sample_idx];
-            auto tvout = out_view[i];
-
-            Coords region_shape_view{&region_shapes_data_[i][iter][0], coords_sh_};
-            Coords in_anchor_view{&in_anchors_data_[i][iter][0], coords_sh_};
-            Coords out_anchor_view{&out_anchors_data_[i][iter][0], coords_sh_};
-            kernel_manager_.Run<Kernel>(
-                    i, ctx, tvout, tvin,
-                    in_anchor_view, region_shape_view, out_anchor_view);
+            CopyPatch(out_view, in_views, i, iter);
           },
           out_shape.tensor_size(i));
       }
@@ -156,19 +163,7 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
       tp.AddWork(
         [&, i, paste_count, out_sample_shape](int thread_id) {
           for (int iter = 0; iter < paste_count; iter++) {
-            kernels::KernelContext ctx;
-
-            int sample_input = hasInIdx ? 0 : iter;
-            int sample_idx = hasInIdx ? in_idx_[i].data[iter] : i;
-            auto tvin = in_views[sample_input][sample_idx];
-            auto tvout = out_view[i];
-
-            Coords region_shape_view{&region_shapes_data_[i][iter][0], coords_sh_};
-            Coords in_anchor_view{&in_anchors_data_[i][iter][0], coords_sh_};
-            Coords out_anchor_view{&out_anchors_data_[i][iter][0], coords_sh_};
-            kernel_manager_.Run<Kernel>(
-                    i, ctx, tvout, tvin,
-                    in_anchor_view, region_shape_view, out_anchor_view);
+            CopyPatch(out_view, in_views, i, iter);
           }
         },
         paste_count * out_shape.tensor_size(i));

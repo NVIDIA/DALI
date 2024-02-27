@@ -55,8 +55,8 @@ inline void GetValidateInputTypeAndDim(int& ndim, DALIDataType &type, const Work
                  make_string("All input batches must have the same dimensionality. Got ", ndim,
                              " and ", sample_dim, " at indicies 0 and ", i, "."));
     DALI_ENFORCE(type == sample_type,
-                 make_string("All input batches must have the same data type. Got ", images.type(),
-                             " and ", type, " at indicies 0 and ", i, "."));
+                 make_string("All input batches must have the same data type. Got ", type,
+                             " and ", sample_type, " at indicies 0 and ", i, "."));
   }
 }
 
@@ -126,6 +126,14 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     return true;
   }
 
+  void ValidateFactor(float factor, const std::string &arg_name, int out_sample_idx,
+                      int paste_idx) {
+    DALI_ENFORCE(0.f <= factor && factor <= 1.f,
+                 make_string("The `", arg_name, "` must be float in [0, 1] range, got ", factor,
+                             " for region at index ", paste_idx,
+                             " pasted into output sampe at index ", out_sample_idx, "."));
+  }
+
   void AcquireInIdxs(const Workspace &ws) {
     auto nsamples = ws.GetInputShape(0).num_samples();
     if (in_idx_.HasExplicitValue()) {
@@ -147,32 +155,19 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     }
   }
 
-  // Get the num channels for the output sample from the pasted regions
-  // or if there are none for given sample
-  inline int InferChannelsNum(const Workspace &ws, int sample_num) {
+  // Get, for the given output sample, the number of channels. It's inferred
+  // from the pasted regions, or -1 if there are no pasted regions.
+  inline int InferChannelsNum(const Workspace &ws, int out_sample_idx) {
     int num_channels = -1;
-    if (!in_idx_.HasExplicitValue()) {
-      num_channels = ws.Input<Backend>(0)[sample_num].shape()[spatial_ndim_];
-      for (int i = 1; i < ws.NumInput(); i++) {
-        int input_channels = ws.Input<Backend>(i)[sample_num].shape()[spatial_ndim_];
-        DALI_ENFORCE(num_channels == input_channels,
-                     make_string("All regions pasted into given output sample must have the same "
-                                 "number of channels. Got different number of channels: ",
-                                 num_channels, ", ", input_channels, " for output sample at index ",
-                                 sample_num, "."));
-      }
-    } else {
-      int paste_count = in_idx_[sample_num].shape[0];
-      for (int i = 0; i < paste_count; i++) {
-        int paste_idx = in_idx_[sample_num].data[i];
-        int input_channels = ws.Input<Backend>(0)[paste_idx].shape()[spatial_ndim_];
-        DALI_ENFORCE(i == 0 || num_channels == input_channels,
-                    make_string("All regions pasted into given output sample must have the same "
-                                "number of channels. Got different number of channels: ",
-                                num_channels, ", ", input_channels, " for output sample at index ",
-                                sample_num, "."));
-        num_channels = input_channels;
-      }
+    for (int paste_idx = 0; paste_idx < GetPasteCount(ws, out_sample_idx); paste_idx++) {
+      const auto &sample = GetPasteSample(ws, out_sample_idx, paste_idx);
+      int input_channels = sample.shape()[spatial_ndim_];
+      DALI_ENFORCE(paste_idx == 0 || num_channels == input_channels,
+                   make_string("All regions pasted into given output sample must have the same "
+                               "number of channels. Got different number of channels: ",
+                               num_channels, ", ", input_channels, " for output sample at index ",
+                               out_sample_idx, "."));
+      num_channels = input_channels;
     }
     return num_channels;
   }
@@ -273,12 +268,12 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
                                                                  const TensorShape<> arg_shape) {
       int num_args = arg_shape[0];
       int arg_len = arg_shape[1];
-      DALI_ENFORCE(
-          num_args == paste_count && arg_len == spatial_ndim,
-          make_string("Unexpected shape for argument `", arg_name, "` for output sample at index ",
-                      sample_idx, ". It should be a 2D tensor of shape [number of pasted regions]",
-                      "x2 (i.e. ", paste_count, "x", spatial_ndim,
-                      "). Got tensor of shape: ", num_args, "x", arg_len, "."));
+      DALI_ENFORCE(num_args == paste_count && arg_len == spatial_ndim,
+                   make_string("Unexpected shape for argument `", arg_name,
+                               "` for output sample at index ", sample_idx,
+                               ". It should be a 2D tensor of shape `number of pasted regions` x 2",
+                               ", i.e. ", TensorShape<2>{paste_count, spatial_ndim},
+                               ". Got tensor of shape: ", TensorShape<2>{num_args, arg_len}, "."));
     };
 
     in_anchors_data_.clear();
@@ -318,44 +313,47 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     }
   }
 
-  void SetupShapesAndAnchors(const Workspace &ws, int sample_idx, int paste_idx,
+  void SetupShapesAndAnchors(const Workspace &ws, int out_sample_idx, int paste_idx,
                              const TensorShape<3> &out_shape) {
-    auto region_source_shape = GetInputShape(ws, sample_idx, paste_idx);
-    auto &region_shape = region_shapes_data_[sample_idx][paste_idx];
-    auto &in_anchor = in_anchors_data_[sample_idx][paste_idx];
-    SetupInShapeAnchor(region_shape, in_anchor, sample_idx, paste_idx, region_source_shape);
-    auto &out_anchor = out_anchors_data_[sample_idx][paste_idx];
-    SetupOutAnchor(out_anchor, sample_idx, paste_idx, out_shape.first(spatial_ndim_));
+    auto region_source_shape = GetInputShape(ws, out_sample_idx, paste_idx);
+    auto &region_shape = region_shapes_data_[out_sample_idx][paste_idx];
+    auto &in_anchor = in_anchors_data_[out_sample_idx][paste_idx];
+    SetupInShapeAnchor(region_shape, in_anchor, out_sample_idx, paste_idx, region_source_shape);
+    auto &out_anchor = out_anchors_data_[out_sample_idx][paste_idx];
+    SetupOutAnchor(out_anchor, out_sample_idx, paste_idx, out_shape.first(spatial_ndim_));
+    const auto as_shape = [spatial_ndim = spatial_ndim_](ivec2 extents) {
+      return TensorShape<2>(&extents[0], &extents[0] + spatial_ndim);
+    };
     for (int k = 0; k < spatial_ndim_; k++) {
       DALI_ENFORCE(
           in_anchor[k] >= 0 && in_anchor[k] + region_shape[k] <= region_source_shape[k],
           make_string("The pasted region must be within input sample. Got input anchor: ",
-                      in_anchor[k], ", pasted region shape: ", region_shape[k],
-                      ", input shape: ", region_source_shape[k], ", for the region at index ",
-                      paste_idx, ", pasted into output sample at index ", sample_idx, "."));
+                      as_shape(in_anchor), ", pasted region shape: ", as_shape(region_shape),
+                      ", input shape: ", as_shape(region_source_shape),
+                      ", for the region at index ", paste_idx,
+                      ", pasted into output sample at index ", out_sample_idx, "."));
       DALI_ENFORCE(
           out_anchor[k] >= 0 && out_anchor[k] + region_shape[k] <= out_shape[k],
           make_string("The pasted region must be within output bounds. Got output anchor: ",
-                      out_anchor[k], ", pasted region shape: ", region_shape[k],
-                      ", output shape: ", out_shape[k], ", for the region at index ", paste_idx,
-                      ", pasted into output sample at index ", sample_idx, "."));
+                      as_shape(out_anchor), ", pasted region shape: ", as_shape(region_shape),
+                      ", output shape: ", out_shape, ", for the region at index ",
+                      paste_idx, ", pasted into output sample at index ", out_sample_idx, "."));
     }
   }
 
-  void SetupInShapeAnchor(ivec2 &region_shape, ivec2 &anchor, int sample_idx, int paste_idx,
+  void SetupInShapeAnchor(ivec2 &region_shape, ivec2 &anchor, int out_sample_idx, int paste_idx,
                           ivec2 source_shape) {
     // get the shape of the region to be pasted from the source
     if (shapes_.HasExplicitValue()) {  // absolute shape provided as argument
-      auto sh_view = subtensor(shapes_[sample_idx], paste_idx);
+      auto sh_view = subtensor(shapes_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         region_shape[d] = sh_view.data[d];
       }
     } else if (shapes_rel_.HasExplicitValue()) {  // scale the source_shape
-      auto shape_rel = subtensor(shapes_rel_[sample_idx], paste_idx);
+      auto shape_rel = subtensor(shapes_rel_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         float scale = shape_rel.data[d];
-        DALI_ENFORCE(0.f <= scale && scale <= 1.f,
-                     make_string("The `shapes_rel` must be in [0, 1] range, got ", scale, "."));
+        ValidateFactor(scale, "shapes_rel", out_sample_idx, paste_idx);
         // the shape is rounded up, the anchor rounded down, so that
         // shape = 0.5, anchor = 0.5 fit into the input
         region_shape[d] = std::ceil(source_shape[d] * scale);
@@ -367,17 +365,15 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     // get the in anchors
     anchor = {0, 0};
     if (in_anchors_.HasExplicitValue()) {
-      auto in_anchor_view = subtensor(in_anchors_[sample_idx], paste_idx);
+      auto in_anchor_view = subtensor(in_anchors_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         anchor[d] = in_anchor_view.data[d];
       }
     } else if (in_anchors_rel_.HasExplicitValue()) {
-      auto in_anchor_rel_view = subtensor(in_anchors_rel_[sample_idx], paste_idx);
+      auto in_anchor_rel_view = subtensor(in_anchors_rel_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         float factor = in_anchor_rel_view.data[d];
-        DALI_ENFORCE(0.f <= factor && factor <= 1.f,
-                     make_string("The `in_anchor_rel` values must be floats in [0, 1] range, got: ",
-                                 factor, "."));
+        ValidateFactor(factor, "in_anchor_rel", out_sample_idx, paste_idx);
         // the shape is rounded up, the anchor rounded down, so that
         // shape = 0.5, anchor = 0.5 fit into the input
         anchor[d] = std::floor(source_shape[d] * in_anchor_rel_view.data[d]);
@@ -393,22 +389,19 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     }
   }
 
-  void SetupOutAnchor(ivec2 &anchor, int sample_idx, int paste_idx,
+  void SetupOutAnchor(ivec2 &anchor, int out_sample_idx, int paste_idx,
                       const TensorShape<2> out_shape) {
     anchor = {0, 0};
     if (out_anchors_.HasExplicitValue()) {
-      auto out_anchor_view = subtensor(out_anchors_[sample_idx], paste_idx);
+      auto out_anchor_view = subtensor(out_anchors_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         anchor[d] = out_anchor_view.data[d];
       }
     } else if (out_anchors_rel_.HasExplicitValue()) {
-      auto out_anchor_rel_view = subtensor(out_anchors_rel_[sample_idx], paste_idx);
+      auto out_anchor_rel_view = subtensor(out_anchors_rel_[out_sample_idx], paste_idx);
       for (int d = 0; d < spatial_ndim_; d++) {
         float factor = out_anchor_rel_view.data[d];
-        DALI_ENFORCE(
-            0.f <= factor && factor <= 1.f,
-            make_string("The `out_anchor_rel` values must be floats in [0, 1] range, got: ", factor,
-                        "."));
+        ValidateFactor(factor, "out_anchor_rel", out_sample_idx, paste_idx);
         anchor[d] = std::floor(out_shape[d] * out_anchor_rel_view.data[d]);
       }
     }
@@ -480,29 +473,31 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     }
   }
 
-  inline int64_t GetPasteCount(const Workspace &ws, int sample_idx) const {
+  inline int64_t GetPasteCount(const Workspace &ws, int out_sample_idx) const {
     if (!in_idx_.HasExplicitValue()) {
       return ws.NumInput();
     } else {
-      return in_idx_[sample_idx].shape[0];
+      return in_idx_[out_sample_idx].shape[0];
     }
   }
 
-  inline ivec2 GetInputShape(const Workspace &ws, int sample_idx, int paste_idx) const {
-    ivec2 shape;
+  inline ConstSampleView<Backend> GetPasteSample(const Workspace &ws, int out_sample_idx,
+                                                 int paste_idx) const {
     if (in_idx_.HasExplicitValue()) {
-      int in_sample_idx = in_idx_[sample_idx].data[paste_idx];
-      auto in_shape = ws.Input<Backend>(0)[in_sample_idx].shape();
-      assert(in_shape.size() >= spatial_ndim_);
-      for (int d = 0; d < spatial_ndim_; d++) {
-        shape[d] = in_shape[d];
-      }
+      int in_sample_idx = in_idx_[out_sample_idx].data[paste_idx];
+      return ws.Input<Backend>(0)[in_sample_idx];
     } else {
-      auto in_shape = ws.Input<Backend>(paste_idx)[sample_idx].shape();
-      assert(in_shape.size() >= spatial_ndim_);
-      for (int d = 0; d < spatial_ndim_; d++) {
-        shape[d] = in_shape[d];
-      }
+      return ws.Input<Backend>(paste_idx)[out_sample_idx];
+    }
+  }
+
+  inline ivec2 GetInputShape(const Workspace &ws, int out_sample_idx, int paste_idx) const {
+    ivec2 shape;
+    const auto &sample = GetPasteSample(ws, out_sample_idx, paste_idx);
+    const auto& sample_shape = sample.shape();
+    DALI_ENFORCE(sample_shape.size() >= spatial_ndim_);
+    for (int d = 0; d < spatial_ndim_; d++) {
+        shape[d] = sample_shape[d];
     }
     return shape;
   }
@@ -558,6 +553,11 @@ class MultiPasteCPU : public MultiPasteOp<CPUBackend, MultiPasteCPU> {
   template<typename OutputType, typename InputType>
   void SetupTyped(const Workspace &ws,
                   const TensorListShape<> &out_shape);
+
+  template <typename OutputType, typename InputType>
+  void CopyPatch(TensorListView<StorageCPU, OutputType, 3> &out_view,
+                 std::vector<TensorListView<StorageCPU, const InputType, 3>> &in_views,
+                 int sample_idx, int paste_idx);
 
   friend class MultiPasteOp<CPUBackend, MultiPasteCPU>;
 };

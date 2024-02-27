@@ -174,14 +174,17 @@ void CreateSampleDescriptors(
           patch.patch_end[0] = scaled_y_to_y[y + 1];
           patch.patch_end[1] = scaled_x_to_x[x + 1];
           patch.in = nullptr;  // to be filled later
-          patch.in_sample_idx = max_paste == -1 ? -1 : sample.inputs[max_paste].in_idx;
-          patch.in_batch_idx = max_paste == -1 ? -1 : sample.inputs[max_paste].batch_idx;
           patch.in_pitch[0] = 0;
-          int mp_in_idx = sample.inputs[max_paste].in_idx;
-          int mp_batch_idx = sample.inputs[max_paste].batch_idx;
-          patch.in_pitch[1] = max_paste == -1 ? -1 : in_shapes[mp_batch_idx][mp_in_idx][1];
-
-          if (max_paste != -1) {
+          if (max_paste == -1) {
+            patch.in_sample_idx = -1;
+            patch.in_batch_idx = -1;
+            patch.in_pitch[1] = -1;
+          } else {
+            patch.in_sample_idx = sample.inputs[max_paste].in_idx;
+            patch.in_batch_idx = sample.inputs[max_paste].batch_idx;
+            int mp_in_idx = sample.inputs[max_paste].in_idx;
+            int mp_batch_idx = sample.inputs[max_paste].batch_idx;
+            patch.in_pitch[1] = in_shapes[mp_batch_idx][mp_in_idx][1];
             patch.in_anchor[0] = sample.inputs[max_paste].in_anchor[0] +
                               patch.patch_start[0] - sample.inputs[max_paste].out_anchor[0];
             patch.in_anchor[1] = sample.inputs[max_paste].in_anchor[1] +
