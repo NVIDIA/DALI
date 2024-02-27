@@ -131,7 +131,7 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     DALI_ENFORCE(0.f <= factor && factor <= 1.f,
                  make_string("The `", arg_name, "` must be float in [0, 1] range, got ", factor,
                              " for region at index ", paste_idx,
-                             " pasted into output sampe at index ", out_sample_idx, "."));
+                             " pasted into output sample at index ", out_sample_idx, "."));
   }
 
   void AcquireInIdxs(const Workspace &ws) {
@@ -187,14 +187,19 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
       output_size_.Acquire(spec_, ws, nsamples, ArgValue_EnforceUniform);
       for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
         const auto &sample_out_shape = output_size_[sample_idx];
+        // TODO(ktokarski) It should be equality, really. But we did not enforce that
+        // initially. There are even some test cases in DALI codebase that specify full shape.
         DALI_ENFORCE(sample_out_shape.num_elements() >= spatial_ndim_,
-                     make_string("The `output_size` should be a tuple (HW), got ",
+                     make_string("The `output_size` should be a tuple (H, W), got ",
                                  sample_out_shape.num_elements(),
                                  " elements for a sample at index ", sample_idx, "."));
         for (int d = 0; d < spatial_ndim_; d++) {
           DALI_ENFORCE(
               sample_out_shape.data[d] >= 0,
-              make_string("The `output_size` must be non-negative, got ", sample_out_shape.data[d],
+              make_string("The `output_size` must be non-negative, ",
+                          "got a shape with negative extent: ",
+                          TensorShape<>(sample_out_shape.data,
+                                        sample_out_shape.data + sample_out_shape.num_elements()),
                           " for a sample at index ", sample_idx, "."));
         }
       }
@@ -336,8 +341,9 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
           out_anchor[k] >= 0 && out_anchor[k] + region_shape[k] <= out_shape[k],
           make_string("The pasted region must be within output bounds. Got output anchor: ",
                       as_shape(out_anchor), ", pasted region shape: ", as_shape(region_shape),
-                      ", output shape: ", out_shape, ", for the region at index ",
-                      paste_idx, ", pasted into output sample at index ", out_sample_idx, "."));
+                      ", output shape: ", out_shape.first(spatial_ndim_),
+                      ", for the region at index ", paste_idx,
+                      ", pasted into output sample at index ", out_sample_idx, "."));
     }
   }
 
@@ -495,7 +501,7 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     ivec2 shape;
     const auto &sample = GetPasteSample(ws, out_sample_idx, paste_idx);
     const auto& sample_shape = sample.shape();
-    DALI_ENFORCE(sample_shape.size() >= spatial_ndim_);
+    assert(sample_shape.size() >= spatial_ndim_);
     for (int d = 0; d < spatial_ndim_; d++) {
         shape[d] = sample_shape[d];
     }

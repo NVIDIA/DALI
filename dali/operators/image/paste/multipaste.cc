@@ -43,16 +43,15 @@ This operator can also change the type of data.)code")
 
 If specified, the operator accepts exactly one batch as an input.)code",
                                       {}, true)
-    .AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of LU corner
+    .AddOptionalArg<int>("in_anchors", R"code(Absolute coordinates of the top-left corner
 of the source region.
 
-The anchors are represented as 2D tensors where the first dimension corresponds to the
-number of pasted regions and the second one is equal to the number of dimensions of the
-data, excluding channels.
+The anchors are represented as 2D tensors where the first dimension is equal to the
+number of pasted regions and the second one is 2 (for the H and W extents).
 
 If neither `in_anchors` nor `in_anchors_rel` are provided, all anchors are zero.)code",
                          nullptr, true, true)
-    .AddOptionalArg<float>("in_anchors_rel", R"code(Relative coordinates of LU corner
+    .AddOptionalArg<float>("in_anchors_rel", R"code(Relative coordinates of the top-left corner
 of the source region.
 
 The argument works like `in_anchors`, but the values should be floats in `[0, 1]` range,
@@ -60,38 +59,35 @@ describing the anchor placement relative to the input sample shape.)code",
                            nullptr, true, true)
     .AddOptionalArg<int>("shapes", R"code(Shape of the paste regions.
 
-The shapes are represented as 2D tensors where the first dimension corresponds to the
-number of pasted regions and the second one is equal to the number of dimensions of the
-data, excluding channels.
+The shapes are represented as 2D tensors where the first dimension is equal to the
+number of pasted regions and the second one is 2 (for the H and W extents).
 
 If neither `shapes` nor `shapes_rel` are provided, the shape is calculated so that
-the region goes from the region anchor in the input image until the end
-of the input image.)code",
+the region spans from the input anchor until the end of the input image.)code",
                          nullptr, true, true)
     .AddOptionalArg<float>("shapes_rel", R"code(Relative shape of the paste regions.
 
 Works like `shape` argument, but the values should be floats in `[0, 1]` range,
 describing the paste region shape relative to the input shape.)code",
                            nullptr, true, true)
-    .AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of LU corner
+    .AddOptionalArg<int>("out_anchors", R"code(Absolute coordinates of the top-left corner
 of the pasted region in the output canvas.
 
-The anchors are represented as 2D tensors where the first dimension corresponds to the
-number of pasted regions and the second one is equal to the number of dimensions of the
-data, excluding channels.
+The anchors are represented as 2D tensors where the first dimension is equal to the
+number of pasted regions and the second one is 2 (for the H and W extents).
 
-In neither `out_anchors` nor `out_anchors_rel` are provided, all anchors are zero,
-making all the pasted region start at the top-left corner of the output canvas.)code",
+If neither `out_anchors` nor `out_anchors_rel` are provided, all anchors are zero,
+making all the pasted regions start at the top-left corner of the output canvas.)code",
                          nullptr, true, true)
-    .AddOptionalArg<float>("out_anchors_rel", R"code(Absolute coordinates of LU corner
+    .AddOptionalArg<float>("out_anchors_rel", R"code(Relative coordinates of the top-left corner
 of the pasted region in the output canvas.
 
 Works like `out_anchors` argument, but the values should be floats in `[0, 1]` range,
-describing the LU corner of the pasted region relative to the output canvas size.)code",
+describing the top-left corner of the pasted region relative to the output canvas size.)code",
                            nullptr, true, true)
     .AddOptionalArg<std::vector<int>>(
         "output_size",
-        R"code(A tuple (HW) describing the output shape
+        R"code(A tuple (H, W) describing the output shape
 (i.e. the size of the canvas for the output pastes).
 
 Can be omitted if the operator is run with inputs of uniform shape. In that case,
