@@ -72,3 +72,4 @@ conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.8, 3.9, 3.10, 3.
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
 cp ${CONDA_PREFIX}/conda-bld/*/nvidia-dali*.tar.bz2 artifacts
+cp ${CONDA_PREFIX}/conda-bld/*/nvidia-nvimagecodec*.tar.bz2 artifacts
