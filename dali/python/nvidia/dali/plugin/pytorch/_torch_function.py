@@ -58,7 +58,7 @@ class TorchPythonFunction(
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
         if pipeline is None:
-            Pipeline._raise_no_current_pipeline("TorchPythonFunction")
+            Pipeline._raise_pipeline_required("TorchPythonFunction")
         if self.stream is None:
             self.stream = torch.cuda.Stream(device=pipeline.device_id)
         return super(TorchPythonFunction, self).__call__(*inputs, **kwargs)
