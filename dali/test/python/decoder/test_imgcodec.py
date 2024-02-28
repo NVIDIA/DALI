@@ -27,6 +27,7 @@ from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
 from test_utils import get_arch
+from test_utils import dump_as_core_artifacts
 from nose2.tools import params
 from nose import SkipTest
 
@@ -65,8 +66,8 @@ def decoder_pipe(data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=F
 test_data_root = get_dali_extra_path()
 good_path = "db/single"
 misnamed_path = "db/single/missnamed"
-test_good_path = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"}
-test_misnamed_path = {"jpeg", "png", "tiff", "pnm", "bmp"}
+test_good_path = ["jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"]
+test_misnamed_path = ["jpeg", "png", "tiff", "pnm", "bmp"]
 
 
 def run_decode(data_path, batch, device, threads):
@@ -167,16 +168,17 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         prefetch_queue_depth=1,
     )
     pipe.build()
+    idxs = [i for i in range(batch)]
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
-    for _ in range(iters):
+    for it in range(iters):
         out_1, out_2 = pipe.run()
-        for img_1, img_2 in zip(out_1, out_2):
+        for sample_idx, img_1, img_2 in zip(idxs, out_1, out_2):
             arr_1 = to_array(img_1)
             arr_2 = to_array(img_2)
-            assert validation_fun(
-                arr_1, arr_2
-            ), f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
-
+            is_ok = validation_fun(arr_1, arr_2)
+            if not is_ok:
+                dump_as_core_artifacts(img_1.source_info(), arr_1, arr_2, iter=it, sample_idx=sample_idx)
+            assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
 
 def test_image_decoder_fused():
     threads = 4

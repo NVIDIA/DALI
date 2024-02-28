@@ -310,7 +310,11 @@ if(BUILD_NVIMAGECODEC)
     set(NVIMGCODEC_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/nvimgcodec")
 
     set(EXTRA_CMAKE_OPTIONS $ENV{EXTRA_CMAKE_OPTIONS})
-    string(REPLACE " " ";" EXTRA_CMAKE_OPTIONS_LIST ${EXTRA_CMAKE_OPTIONS})
+    if (NOT "${EXTRA_CMAKE_OPTIONS}" STREQUAL "")
+      string(REPLACE " " ";" EXTRA_CMAKE_OPTIONS_LIST ${EXTRA_CMAKE_OPTIONS})
+    else()
+      set(EXTRA_CMAKE_OPTIONS_LIST "")
+    endif()
 
     include(ExternalProject)
     ExternalProject_Add(
