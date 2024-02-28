@@ -422,13 +422,11 @@ class _OperatorInstance(object):
         is_debug = getattr(current_pipeline, "_debug_on", False)
         if _dali_trace.is_tracing_enabled() and not is_debug:
             if _Pipeline.current():
-                skip_bottom = _Pipeline.current()._definition_frame_start
+                start_frame = _Pipeline.current()._definition_frame_start
             else:
-                skip_bottom = 0
-            skip_top = _dali_trace.get_stack_depth() - self._op._definition_frame_end
-            stack_summary = _dali_trace.extract_stack(
-                skip_bottom_frames=skip_bottom, skip_top_frames=skip_top
-            )
+                start_frame = 0
+            end_frame = self._op._definition_frame_end
+            stack_summary = _dali_trace.extract_stack(start_frame=start_frame, end_frame=end_frame)
             filenames, linenos, names, lines = _dali_trace.preprocess_stack_summary(stack_summary)
 
             arguments["_origin_stack_filename"] = filenames

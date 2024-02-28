@@ -58,10 +58,15 @@ def get_stack_depth():
     if hasattr(sys, "_getframe"):
         depth = 0
         frame = sys._getframe(1)
-        while frame:
-            depth = depth + 1
-            frame = frame.f_back
-        return depth
+        # To be safe against unwanted reference cycles according to inspect module docs,
+        # we force remove the reference to the frame.
+        try:
+            while frame:
+                depth = depth + 1
+                frame = frame.f_back
+            return depth
+        finally:
+            del frame
     return len(traceback.extract_stack())
 
 
@@ -138,10 +143,10 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
     return origin_stack_summary
 
 
-def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
-    """Extract list of FrameSummary object, optionally skipping the bottom and top ones from
-    the place of the call. If AutoGraph was used, the FrameSummary entries are filtered and remapped
-    back to the user code.
+def extract_stack(start_frame=0, end_frame=None):
+    """Extract list of FrameSummary object from current stack, in the range [start_frame:end_frame],
+    where 0 is the first frame. If AutoGraph was used, the FrameSummary entries are filtered
+    and remapped back to the user code.
 
     Returns
     -------
@@ -151,8 +156,9 @@ def extract_stack(skip_bottom_frames=0, skip_top_frames=0):
     # objects. Frame summary contains filename, lineno, name and line (string representing context).
     # -1 so we drop extract_stack frame
     stack_depth = get_stack_depth()
-    limit = stack_depth - skip_bottom_frames
-    stack_summary = traceback.extract_stack(limit=limit)[: -1 - skip_top_frames]
+    limit = stack_depth - start_frame
+    end_frame = end_frame - start_frame if end_frame is not None else -1
+    stack_summary = traceback.extract_stack(limit=limit)[:end_frame]
 
     # If those are empty, AutoGraph transformations were not used, we can return as is
     frame_map = get_frame_map()

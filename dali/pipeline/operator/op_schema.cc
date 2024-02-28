@@ -84,7 +84,7 @@ graph even if its outputs are not used.)code",
   // with support for special FrameSummary type.
   // List of FrameSummaries can be reconstructed using utility functions.
   AddOptionalArg("_origin_stack_filename", R"code(Every operator defined in Python captures and
-processes the StackSummary (a List[FrameSummary], defined in Python traceback module) that describe
+processes the StackSummary (a List[FrameSummary], defined in Python traceback module) that describes
 the callstack between the start of pipeline definition tracing and the "call" to the operator
 (or full trace if the operator is defined outside the pipeline).
 This information is propagated to the backend, so it can be later used to produce meaningful error
