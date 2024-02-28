@@ -177,8 +177,11 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
             arr_2 = to_array(img_2)
             is_ok = validation_fun(arr_1, arr_2)
             if not is_ok:
-                dump_as_core_artifacts(img_1.source_info(), arr_1, arr_2, iter=it, sample_idx=sample_idx)
+                dump_as_core_artifacts(
+                    img_1.source_info(), arr_1, arr_2, iter=it, sample_idx=sample_idx
+                )
             assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
+
 
 def test_image_decoder_fused():
     threads = 4

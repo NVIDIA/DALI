@@ -186,12 +186,18 @@ def get_absdiff(left, right):
         _check_absdiff()
     return _get_absdiff(left, right)
 
+
 def dump_as_core_artifacts(image_info, lhs, rhs, iter=None, sample_idx=None):
     import_numpy()
     import_pil()
 
     from pathlib import Path
-    path = "/opt/dali" if os.path.exists("/opt/dali") and os.access("/opt/dali", os.W_OK) else os.getcwd()
+
+    path = (
+        "/opt/dali"
+        if os.path.exists("/opt/dali") and os.access("/opt/dali", os.W_OK)
+        else os.getcwd()
+    )
     Path(f"{path}/core_artifacts").mkdir(parents=True, exist_ok=True)
 
     image_info = image_info.replace("/", "_")
@@ -210,10 +216,12 @@ def dump_as_core_artifacts(image_info, lhs, rhs, iter=None, sample_idx=None):
     try:
         # save arrays on artifact folder
         import numpy as np
+
         np.save(f"{path}/core_artifacts/{image_info}.lhs.npy", lhs)
         np.save(f"{path}/core_artifacts/{image_info}.rhs.npy", rhs)
     except Exception as e:
         print(f"Tried to save arrays but got an error: {e}")
+
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
 def check_batch(
