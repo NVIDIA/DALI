@@ -189,8 +189,9 @@ def get_absdiff(left, right):
 def dump_as_core_artifacts(image_info, lhs, rhs, iter=None, sample_idx=None):
     import_numpy()
     import_pil()
+
     from pathlib import Path
-    path = "/opt/dali" if os.path.exists("/opt/dali") else os.getcwd()
+    path = "/opt/dali" if os.path.exists("/opt/dali") and os.access("/opt/dali", os.W_OK) else os.getcwd()
     Path(f"{path}/core_artifacts").mkdir(parents=True, exist_ok=True)
 
     image_info = image_info.replace("/", "_")
