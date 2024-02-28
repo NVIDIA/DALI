@@ -633,7 +633,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
     Operator._internal_schema_name = internal_schema_name
     # The class was generated using python_op_factory, and we don't expect custom wrapper.
     # If needed, allow this tag to be overridden by an argument to this function
-    Operator._generated = internal_schema_name is not None
+    Operator._generated = internal_schema_name is None
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 
