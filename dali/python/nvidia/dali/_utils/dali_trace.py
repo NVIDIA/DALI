@@ -110,6 +110,7 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
 
         # Detect repeated appearance of function transformed by AG
         # AutoGraph is wrapping a function call - entry point
+        # We always start with a converted call to a pipeline_def.
         if is_frame_converted_call(frame_entry):
             is_ag_function_call_start = True
             current_function_region = None
@@ -117,28 +118,25 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
         if is_frame_call_unconverted(frame_entry):
             is_ag_function_call_start = False
             current_function_region = None
-        # We are in the first part of the converted_func call that is not skipped
-        # (as we are in user code, remember the function)
-        if is_ag_function_call_start and not skip:
-            is_ag_function_call_start = False
-            current_function_region = origin_frame_entry
-            skip = True
-            origin_stack_summary.append(origin_frame_entry)
-
         # User code - not filtered out
         if not skip:
-            # If we are in the same function region, we replace previous entry so we keep only the
-            # last one
-            assert origin_stack_summary
-            if _is_matching_function(origin_stack_summary[-1], current_function_region):
-                if _collapse_ag_frames:
-                    origin_stack_summary.pop()
+            # We are in the first part of the converted_func call that is not skipped
+            # (as we are in user code, remember the function)
+            if is_ag_function_call_start:
+                is_ag_function_call_start = False
+                current_function_region = origin_frame_entry
+                origin_stack_summary.append(origin_frame_entry)
             else:
-                current_function_region = None
-            origin_stack_summary.append(origin_frame_entry)
-        elif not _filter_ag_frames and (
-            len(origin_stack_summary) == 0 or origin_stack_summary[-1] != origin_frame_entry
-        ):
+                # If we are in the same function region, we replace previous entry so we keep only
+                # the last one
+                assert origin_stack_summary
+                if _is_matching_function(origin_stack_summary[-1], current_function_region):
+                    if _collapse_ag_frames:
+                        origin_stack_summary.pop()
+                else:
+                    current_function_region = None
+                origin_stack_summary.append(origin_frame_entry)
+        elif not _filter_ag_frames:
             origin_stack_summary.append(origin_frame_entry)
     return origin_stack_summary
 
