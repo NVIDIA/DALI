@@ -88,7 +88,7 @@ class _DaliBaseIterator(object):
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and
                   reset() needs to be called. Calling ``iter()`` on the iterator would reset
                   it as well.
-                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
+                * ``"yes"`` or ``True``- at the end of epoch StopIteration is raised but reset()
                   is called internally automatically
 
     fill_last_batch : bool, optional, default = None
@@ -162,9 +162,9 @@ class _DaliBaseIterator(object):
         ), "All pipelines should have the same batch size set"
 
         self._size = int(size)
-        if not auto_reset or auto_reset is None or auto_reset == "no":
+        if auto_reset is False or auto_reset is None or auto_reset == "no":
             self._auto_reset = "no"
-        elif auto_reset or auto_reset == "yes":
+        elif auto_reset is True or auto_reset == "yes":
             self._auto_reset = "yes"
         else:
             raise ValueError(f"Unsupported value for `auto_reset` {auto_reset}")
