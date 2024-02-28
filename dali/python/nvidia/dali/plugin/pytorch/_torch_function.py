@@ -61,11 +61,11 @@ class TorchPythonFunction(
             Pipeline._raise_pipeline_required("TorchPythonFunction")
         if self.stream is None:
             self.stream = torch.cuda.Stream(device=pipeline.device_id)
-        return super(TorchPythonFunction, self).__call__(*inputs, **kwargs)
+        return super().__call__(*inputs, **kwargs)
 
     def __init__(self, function, num_outputs=1, device="cpu", batch_processing=False, **kwargs):
         self.stream = None
-        super(TorchPythonFunction, self).__init__(
+        super().__init__(
             function=lambda *ins: self.torch_wrapper(batch_processing, function, device, *ins),
             num_outputs=num_outputs,
             device=device,

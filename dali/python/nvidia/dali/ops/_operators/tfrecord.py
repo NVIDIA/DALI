@@ -76,8 +76,6 @@ def _get_impl(name, schema_name, internal_schema_name):
 
             return outputs
 
-    # We provide manual type hints for this class
-    _TFRecordReaderImpl._generated = False
     return _TFRecordReaderImpl
 
 

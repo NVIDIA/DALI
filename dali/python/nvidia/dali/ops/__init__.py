@@ -529,6 +529,8 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
         internal_schema_name  is provided
     internal_schema_name : str, optional
         If provided, this will be the schema used to process the arguments, by default None
+        If it is not provided, the class is assumed to be `_generated=True`, otherwise, we mark
+        it as False - the user will provide a custom wrapper.
     """
 
     class Operator(metaclass=_DaliOperatorMeta):
@@ -629,7 +631,9 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name
     Operator._internal_schema_name = internal_schema_name
-    Operator._generated = True  # The class was generated using python_op_factory
+    # The class was generated using python_op_factory, and we don't expect custom wrapper.
+    # If needed, allow this tag to be overridden by an argument to this function
+    Operator._generated = internal_schema_name is not None
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 

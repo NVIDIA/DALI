@@ -37,7 +37,14 @@ def _get_base_impl(name, impl_name):
 
         def __init__(self, function, num_outputs=1, **kwargs):
 
+            # The layout need to be handled manually due to implementation detail
+            # By calling spec.AddArg manually, we skip the promotion from a single string argument
+            # to a 1-element list of strings that is done by the automation in the base class.
+            # This way, the operator is able to differentiate between those cases.
+            self._output_layouts = kwargs.pop("output_layouts", None)
             super().__init__(**kwargs)
+            if self._output_layouts is not None:
+                self._spec.AddArg("output_layouts", self._output_layouts)
 
             self.function = function
             self.num_outputs = num_outputs
@@ -57,11 +64,19 @@ def _get_base_impl(name, impl_name):
                         f"Python Operators do not support Multiple Input Sets."
                     )
 
+            call_layouts = kwargs.pop("output_layouts", None)
+            if self._output_layouts is not None:
+                # For the purpose of erroring on double definition
+                ops._resolve_double_definitions(
+                    {"output_layouts": call_layouts}, {"output_layouts": self._output_layouts}
+                )
+            elif call_layouts is not None:
+                self._spec.AddArg("output_layouts", call_layouts)
+
             kwargs.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
 
             return super().__call__(*inputs, **kwargs)
 
-    PythonFunctionBase._generated = False
     return PythonFunctionBase
 
 
@@ -200,7 +215,7 @@ class PythonFunction(_get_base_impl("PythonFunction", "DLTensorPythonFunctionImp
             def func(*ts):
                 return self._function_wrapper_gpu(batch_processing, function, num_outputs, *ts)
 
-        super(PythonFunction, self).__init__(
+        super().__init__(
             function=func,
             num_outputs=num_outputs,
             device=device,
@@ -238,7 +253,7 @@ class DLTensorPythonFunction(
         def func(*ts):
             return self._function_wrapper_dlpack(batch_processing, function, num_outputs, *ts)
 
-        super(DLTensorPythonFunction, self).__init__(
+        super().__init__(
             function=func,
             num_outputs=num_outputs,
             device=device,
