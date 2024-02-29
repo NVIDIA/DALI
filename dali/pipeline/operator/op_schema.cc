@@ -83,7 +83,6 @@ to accommodate a batch of samples of this size.)code",
 graph even if its outputs are not used.)code",
                  false);
 
-
   // For simplicity we pass StackSummary as 4 separate arguments so we don't need to extend DALI
   // with support for special FrameSummary type.
   // List of FrameSummaries can be reconstructed using utility functions.
@@ -113,6 +112,15 @@ _origin_stack_filename for more information.)code",
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
+  AddOptionalArg("_api",
+                 "String identifying the Python API used to instantiate operator: "
+                 "\"ops\" or \"fn\".",
+                 "ops");
+
+  AddOptionalArg("_display_name",
+                 "Operator name as presented in the API it was instantiated in (without the module "
+                 "path), for example: cast_like or CastLike.",
+                 OperatorName());
 }
 
 
