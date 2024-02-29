@@ -80,8 +80,10 @@ inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStr
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   try {
     std::cout << "device_malloc this_thread[" << std::hex << std::this_thread::get_id()
-              << "] stream=" << stream << "\n";
+              << "] stream=" << stream << " size=" << size << "\n";
     *ptr = mr->allocate_async(size, kDevAlignment, stream);
+    std::cout << "device_malloc this_thread[" << std::hex << std::this_thread::get_id()
+              << "] stream=" << stream << " ptr=" << *ptr << " size=" << size << "\n";
     // *ptr = mr->allocate(size, kDevAlignment);
     return cudaSuccess;
   } catch (const std::bad_alloc &) {

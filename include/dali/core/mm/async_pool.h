@@ -76,25 +76,29 @@ class async_pool_resource : public async_memory_resource<Kind>,
       if (!e.is_unloading())
         std::terminate();
     }
-    for (auto &kv : stream_free_) {
-      PerStreamFreeBlocks &free_blocks = kv.second;
-      std::lock_guard<std::mutex> guard(lock_);
+    try {
+      for (auto &kv : stream_free_) {
+        PerStreamFreeBlocks &free_blocks = kv.second;
+        std::lock_guard<std::mutex> guard(lock_);
 
-      // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
-      DALI_ENFORCE(find_first_ready(free_blocks) == free_blocks.free_list.head);
+        // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
+        DALI_ENFORCE(find_first_ready(free_blocks) == free_blocks.free_list.head);
 
-      for (auto *f = free_blocks.free_list.head; f; ) {
-        try {
-          global_pool_.deallocate(f->addr, f->bytes, f->alignment);
-        } catch (const CUDAError &e) {
-          if (!e.is_unloading())
-            std::terminate();
+        for (auto *f = free_blocks.free_list.head; f;) {
+          try {
+            global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+          } catch (const CUDAError &e) {
+            if (!e.is_unloading())
+              std::terminate();
+          }
+          f = remove_pending_free(free_blocks, f, false);
         }
-        f = remove_pending_free(free_blocks, f, false);
+        DALI_ENFORCE(free_blocks.free_list.head == nullptr);
+        DALI_ENFORCE(free_blocks.free_list.tail == nullptr);
+        free_blocks.by_size.clear();
       }
-      DALI_ENFORCE(free_blocks.free_list.head == nullptr);
-      DALI_ENFORCE(free_blocks.free_list.tail == nullptr);
-      free_blocks.by_size.clear();
+    } catch (...) {
+      std::terminate();
     }
   }
 
@@ -437,8 +441,8 @@ class async_pool_resource : public async_memory_resource<Kind>,
       return nullptr;
     }
     f = *it;
-    if (!(f->ready())) throw std::logic_error("DALI_ENFORCE(f->ready()) failed");
-    if (!(!f->prev || !f->prev->is_ready)) throw std::logic_error("DALI_ENFORCE(!f->prev || !f->prev->is_ready) failed");
+    DALI_ENFORCE(f->ready());
+    DALI_ENFORCE(!f->prev || !f->prev->is_ready);
     return f;
   }
 
