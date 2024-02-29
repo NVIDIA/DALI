@@ -108,7 +108,9 @@ def create_decoder_slice_pipeline(data_path, device):
         jpegs, anchor, shape, axes=(0, 1), device=device, hw_decoder_load=0.7
     )
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+    images = fn.experimental.decoders.image(jpegs, device="cpu", hw_decoder_load=0.7)
+    if device == "cpu":
+        images = images.gpu()
     images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
 
     return images_sliced_1, images_sliced_2
@@ -132,8 +134,9 @@ def create_decoder_crop_pipeline(data_path, device):
         hw_decoder_load=0.7,
     )
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
-
+    images = fn.experimental.decoders.image(jpegs, device="cpu", hw_decoder_load=0.7)
+    if device == "cpu":
+        images = images.gpu()
     images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
     return images_crop_1, images_crop_2
@@ -151,7 +154,9 @@ def create_decoder_random_crop_pipeline(data_path, device):
     )
     images_random_crop_1 = fn.resize(images_random_crop_1, size=(w, h))
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+    images = fn.experimental.decoders.image(jpegs, device="cpu", hw_decoder_load=0.7)
+    if device == "cpu":
+        images = images.gpu()
     images_random_crop_2 = fn.random_resized_crop(images, size=(w, h), seed=seed)
 
     return images_random_crop_1, images_random_crop_2
