@@ -132,9 +132,7 @@ def create_decoder_crop_pipeline(data_path, device):
         hw_decoder_load=0.7,
     )
 
-    images = fn.experimental.decoders.image(jpegs, device="cpu", hw_decoder_load=0.7)
-    if device == "mixed":
-        images = images.gpu()
+    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
 
     images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
@@ -185,72 +183,6 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
             assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
 
 
-def test_image_decode_fused_failing_bs1_t1():
-    threads = 1
-    batch_size = 1
-    test_fun = create_decoder_crop_pipeline
-    img_type = "jpeg2k"
-    device = "mixed"
-
-    def mean_close(x, y):
-        return np.mean(np.abs(x - y) < 0.5)
-
-    validation_fun = mean_close
-    run_decode_fused(
-        test_fun,
-        good_path,
-        img_type,
-        batch_size,
-        device,
-        threads,
-        validation_fun,
-    )
-
-
-def test_image_decode_fused_failing_bs10_t1():
-    threads = 1
-    batch_size = 10
-    test_fun = create_decoder_crop_pipeline
-    img_type = "jpeg2k"
-    device = "mixed"
-
-    def mean_close(x, y):
-        return np.mean(np.abs(x - y) < 0.5)
-
-    validation_fun = mean_close
-    run_decode_fused(
-        test_fun,
-        good_path,
-        img_type,
-        batch_size,
-        device,
-        threads,
-        validation_fun,
-    )
-
-
-def test_image_decode_fused_failing_bs10_t4():
-    threads = 4
-    batch_size = 10
-    test_fun = create_decoder_crop_pipeline
-    img_type = "jpeg2k"
-    device = "mixed"
-
-    def mean_close(x, y):
-        return np.mean(np.abs(x - y) < 0.5)
-
-    validation_fun = mean_close
-    run_decode_fused(
-        test_fun,
-        good_path,
-        img_type,
-        batch_size,
-        device,
-        threads,
-        validation_fun,
-    )
-
-
 def test_image_decoder_fused():
     threads = 4
     batch_size = 10
@@ -275,7 +207,7 @@ def test_image_decoder_fused():
         else:
 
             def mean_close(x, y):
-                return np.mean(np.abs(x - y) < 0.5)
+                return np.allclose(x, y)
 
             validation_fun = mean_close
         for device in ["cpu", "mixed"]:
