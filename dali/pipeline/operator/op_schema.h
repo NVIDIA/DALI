@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,9 +82,19 @@ class DLL_PUBLIC OpSchema {
   DLL_PUBLIC inline ~OpSchema() = default;
 
   /**
-   * @brief Returns the name of this operator.
+   * @brief Returns the schema name of this operator.
    */
   DLL_PUBLIC const std::string &name() const;
+
+  /**
+   * @brief Returns the module path of this operator.
+   */
+   DLL_PUBLIC const std::vector<std::string> &ModulePath() const;
+
+  /**
+   * @brief Returns the camel case name of the operator (without the module path)
+   */
+   DLL_PUBLIC const std::string &OperatorName() const;
 
   /**
    * @brief Sets the doc string for this operator.
@@ -738,8 +748,16 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
   std::map<std::string, DeprecatedArgDef> GetDeprecatedArguments() const;
 
-  string dox_;
-  string name_;
+
+  void InitNames();
+
+  std::string dox_;
+  /** @brief The name of the schema */
+  std::string name_;
+  /** @brief The module path for the operator */
+  std::vector<std::string> module_path_;
+  /** @brief The camel case name of the operator (without the module path) */
+  std::string operator_name_;
 
   bool disable_auto_input_dox_ = false;
 

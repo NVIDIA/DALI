@@ -2157,6 +2157,8 @@ PYBIND11_MODULE(backend_impl, m) {
   m.def("TryGetSchema", &TryGetSchema, py::return_value_policy::reference);
 
   py::class_<OpSchema>(m, "OpSchema")
+    .def("OperatorName", &OpSchema::OperatorName)
+    .def("ModulePath", &OpSchema::ModulePath)
     .def("Dox", &OpSchema::Dox)
     .def("CanUseAutoInputDox", &OpSchema::CanUseAutoInputDox)
     .def("AppendKwargsSection", &OpSchema::AppendKwargsSection)

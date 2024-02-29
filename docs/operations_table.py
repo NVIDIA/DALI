@@ -28,12 +28,6 @@ all_ops = cpu_ops.union(gpu_ops).union(mix_ops)
 link_formatter = ":meth:`{op} <{module}.{op}>`"
 
 
-def to_fn_name(full_op_name):
-    tokens = full_op_name.split(".")
-    tokens[-1] = fn._to_snake_case(tokens[-1])
-    return ".".join(tokens)
-
-
 def to_fn_module(module_name):
     if module_name in module_mapping:
         return module_mapping[module_name]
@@ -50,7 +44,8 @@ def longest_fn_string():
     longest_str = ""
     for op in sorted(all_ops, key=name_sort):
         fn_string = ""
-        op_full_name, submodule, op_name = ops._process_op_name(op)
+        _, submodule, op_name = ops._process_op_name(op, api="ops")
+        fn_full_name = ops._op_name(op, api="fn")
         for module_name, module in ops_modules.items():
             m = module
             for part in submodule:
@@ -58,9 +53,7 @@ def longest_fn_string():
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                fn_string = link_formatter.format(
-                    op=to_fn_name(op_full_name), module=to_fn_module(module_name)
-                )
+                fn_string = link_formatter.format(op=fn_full_name, module=to_fn_module(module_name))
                 if len(fn_string) > len(longest_str):
                     longest_str = fn_string
     return longest_str
@@ -79,7 +72,8 @@ def fn_to_op_table(out_filename):
     )
     doc_table += formater.format("", "", op_name_max_len=op_name_max_len, c="=")
     for op in sorted(all_ops, key=name_sort):
-        op_full_name, submodule, op_name = ops._process_op_name(op)
+        op_full_name, submodule, op_name = ops._process_op_name(op, api="ops")
+        fn_full_name = ops._op_name(op, api="fn")
         schema = b.TryGetSchema(op)
         if schema:
             if schema.IsDocHidden():
@@ -92,9 +86,7 @@ def fn_to_op_table(out_filename):
                     break
             if m is not None and hasattr(m, op_name):
                 op_string = link_formatter.format(op=op_full_name, module=module_name)
-                fn_string = link_formatter.format(
-                    op=to_fn_name(op_full_name), module=to_fn_module(module_name)
-                )
+                fn_string = link_formatter.format(op=fn_full_name, module=to_fn_module(module_name))
         if op_name in removed_ops:
             fn_string = "N/A"
         op_doc = formater.format(fn_string, op_string, op_name_max_len=op_name_max_len, c=" ")
@@ -114,7 +106,8 @@ def operations_table_str(ops_to_process):
     )
     doc_table += formater.format("", "", "", op_name_max_len=op_name_max_len, c="=")
     for op in sorted(ops_to_process, key=name_sort):
-        op_full_name, submodule, op_name = ops._process_op_name(op)
+        _, submodule, op_name = ops._process_op_name(op, api="ops")
+        fn_full_name = ops._op_name(op, api="fn")
         if op_name in removed_ops:
             continue
         schema = b.TryGetSchema(op)
@@ -141,9 +134,7 @@ def operations_table_str(ops_to_process):
                 if m is None:
                     break
             if m is not None and hasattr(m, op_name):
-                fn_string = link_formatter.format(
-                    op=to_fn_name(op_full_name), module=to_fn_module(module_name)
-                )
+                fn_string = link_formatter.format(op=fn_full_name, module=to_fn_module(module_name))
         op_doc = formater.format(
             fn_string, devices_str, short_descr, op_name_max_len=op_name_max_len, c=" "
         )

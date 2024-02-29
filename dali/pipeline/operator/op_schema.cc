@@ -20,6 +20,8 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 
+#include <dbg.h>
+
 namespace dali {
 
 std::map<string, OpSchema> &SchemaRegistry::registry() {
@@ -56,6 +58,8 @@ const OpSchema *SchemaRegistry::TryGetSchema(const std::string &name) {
 
 
 OpSchema::OpSchema(const std::string &name) : name_(name) {
+  // Process the module path and operator name
+  InitNames();
   // Fill internal arguments
   AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
   AddInternalArg("max_batch_size", "Max batch size", -1);
@@ -116,6 +120,25 @@ const std::string &OpSchema::name() const {
   return name_;
 }
 
+const std::vector<std::string> &OpSchema::ModulePath() const {
+  return module_path_;
+}
+
+const std::string &OpSchema::OperatorName() const {
+  return operator_name_;
+}
+
+void OpSchema::InitNames() {
+  static std::string kDelim = "__";
+  std::string::size_type start_pos = 0;
+  auto end_pos = name_.find(kDelim);
+  while (end_pos != std::string::npos) {
+    module_path_.push_back(name_.substr(start_pos, end_pos - start_pos));
+    start_pos = end_pos + kDelim.size();
+    end_pos = name_.find(kDelim, start_pos);
+  }
+  operator_name_ = name_.substr(start_pos);
+}
 
 OpSchema &OpSchema::DocStr(const string &dox) {
   dox_ = dox;
