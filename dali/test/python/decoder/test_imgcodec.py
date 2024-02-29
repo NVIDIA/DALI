@@ -132,7 +132,9 @@ def create_decoder_crop_pipeline(data_path, device):
         hw_decoder_load=0.7,
     )
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+    images = fn.experimental.decoders.image(jpegs, device="cpu", hw_decoder_load=0.7)
+    if device == "mixed":
+        images = images.gpu()
 
     images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
