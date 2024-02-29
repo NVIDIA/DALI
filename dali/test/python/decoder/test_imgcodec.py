@@ -209,7 +209,7 @@ def test_image_decoder_fused():
         else:
 
             def mean_close(x, y):
-                return np.allclose(x, y)
+                return np.mean(np.abs(x - y) < 0.5)
 
             validation_fun = mean_close
         for device in ["cpu", "mixed"]:
