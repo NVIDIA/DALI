@@ -185,6 +185,72 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
             assert is_ok, f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
 
 
+def test_image_decode_fused_failing_bs1_t1():
+    threads = 1
+    batch_size = 1
+    test_fun = create_decoder_crop_pipeline
+    img_type = "jpeg2k"
+    device = "mixed"
+
+    def mean_close(x, y):
+        return np.mean(np.abs(x - y) < 0.5)
+
+    validation_fun = mean_close
+    run_decode_fused(
+        test_fun,
+        good_path,
+        img_type,
+        batch_size,
+        device,
+        threads,
+        validation_fun,
+    )
+
+
+def test_image_decode_fused_failing_bs10_t1():
+    threads = 1
+    batch_size = 10
+    test_fun = create_decoder_crop_pipeline
+    img_type = "jpeg2k"
+    device = "mixed"
+
+    def mean_close(x, y):
+        return np.mean(np.abs(x - y) < 0.5)
+
+    validation_fun = mean_close
+    run_decode_fused(
+        test_fun,
+        good_path,
+        img_type,
+        batch_size,
+        device,
+        threads,
+        validation_fun,
+    )
+
+
+def test_image_decode_fused_failing_bs10_t4():
+    threads = 4
+    batch_size = 10
+    test_fun = create_decoder_crop_pipeline
+    img_type = "jpeg2k"
+    device = "mixed"
+
+    def mean_close(x, y):
+        return np.mean(np.abs(x - y) < 0.5)
+
+    validation_fun = mean_close
+    run_decode_fused(
+        test_fun,
+        good_path,
+        img_type,
+        batch_size,
+        device,
+        threads,
+        validation_fun,
+    )
+
+
 def test_image_decoder_fused():
     threads = 4
     batch_size = 10
