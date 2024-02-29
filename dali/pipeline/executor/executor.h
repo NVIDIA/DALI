@@ -246,26 +246,27 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
   }
 
-  void HandleError(const std::string &stage, const OpNode &op_node, const std::string &message) {
-    // handle internal Operator names that start with underscore
-    const auto &op_name =
-        op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
+  void HandleError(const std::string &stage, const OpNode &op_node,
+                   const std::string &message = "") {
+      // handle internal Operator names that start with underscore
+      const auto &op_name =
+          op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
 
-    bool need_instance_name = false;
-    for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-      if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
-        need_instance_name = true;
-        break;
+      bool need_instance_name = false;
+      for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
+        if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
+          need_instance_name = true;
+          break;
+        }
       }
-    }
-    if (need_instance_name) {
-      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              ", instance name: \"", op_node.instance_name, "\", encountered:\n",
-                              message));
-    } else {
-      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              " encountered:\n", message));
-    }
+      if (need_instance_name) {
+        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                                ", instance name: \"", op_node.instance_name, "\", encountered:\n",
+                                message));
+      } else {
+        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                                " encountered:\n", message));
+      }
   }
 
   void HandleError(const std::string& context = "") {

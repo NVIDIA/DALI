@@ -18,6 +18,7 @@
 #include <google/protobuf/io/coded_stream.h>
 
 #include <algorithm>
+#include <exception>
 #include <functional>
 #include <memory>
 
@@ -624,44 +625,39 @@ bool Pipeline::ValidateOutputs(const Workspace &ws) const {
 
 void Pipeline::Outputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
+  std::exception_ptr eptr;
   try {
     executor_->Outputs(ws);
-  } catch (std::exception &e) {
-    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
-                                         "\nCurrent pipeline object is no longer valid."));
   } catch (...) {
-    throw std::runtime_error("Unknown critical error in pipeline.");
+    eptr = std::current_exception();
   }
+  ProcessException(eptr);
 
   ValidateOutputs(*ws);
 }
 
 void Pipeline::ShareOutputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
+  std::exception_ptr eptr;
   try {
     executor_->ShareOutputs(ws);
-  } catch (std::exception &e) {
-    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
-                                         "\nCurrent pipeline object is no longer valid."));
   } catch (...) {
-    throw std::runtime_error("Unknown critical error in pipeline.");
+    eptr = std::current_exception();
   }
+  ProcessException(eptr);
 
   ValidateOutputs(*ws);
 }
 
 void Pipeline::ReleaseOutputs() {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to executing the pipeline.");
-    try {
-      executor_->ReleaseOutputs();
-    } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline:\n"
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
-    } catch (...) {
-      throw std::runtime_error("Unknown critical error in pipeline.");
-    }
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
+  std::exception_ptr eptr;
+  try {
+    executor_->ReleaseOutputs();
+  } catch (...) {
+    eptr = std::current_exception();
+  }
+  ProcessException(eptr);
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec) {
@@ -1095,6 +1091,21 @@ void Pipeline::DiscoverInputOperators() {
   }
 }
 
+void Pipeline::ProcessException(std::exception_ptr eptr) {
+  try {
+    if (eptr) {
+      std::rethrow_exception(eptr);
+    }
+  } catch (DaliError &e) {
+    throw;  // TODO(klecki): Add all the boring messages
+  } catch (std::exception &e) {
+    // Do we want to match all possible types or just get rid of most of this?
+    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
+                                         "\nCurrent pipeline object is no longer valid."));
+  } catch (...) {
+    throw std::runtime_error("Unknown critical error in pipeline.");
+  }
+}
 
 void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
   for (const auto &node : graph.GetOpNodes()) {

@@ -190,7 +190,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
       RunHelper(op_node, ws, iteration_id);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (std::exception &e) {
-      HandleError("CPU", op_node, e.what());
+      HandleError("CPU", op_node);
     } catch (...) {
       HandleError();
     }
@@ -241,7 +241,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
         CUDA_CALL(cudaGetLastError());
       }
     } catch (std::exception &e) {
-      HandleError("Mixed", op_node, e.what());
+      HandleError("Mixed", op_node);
     } catch (...) {
       HandleError();
     }
@@ -310,7 +310,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
       }
       CUDA_CALL(cudaGetLastError());
     } catch (std::exception &e) {
-      HandleError("GPU", op_node, e.what());
+      HandleError("GPU", op_node);
     } catch (...) {
       HandleError();
     }
@@ -365,6 +365,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   try {
     RunCPUImpl(cpu_iteration_id_++);
   } catch (std::exception &e) {
+    // TODO: something to do with this, introduce another error kind?
     HandleError(make_string("Exception in CPU stage: ", e.what()));
   } catch (...) {
     HandleError("Unknown error in CPU stage.");
