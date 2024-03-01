@@ -39,8 +39,8 @@ class ThrowExceptionOp : public Operator<Backend> {
   }
 
   void RunImpl(Workspace &ws) override {
-    auto message = spec_.GetArgument<std::string>("message");
-    auto exception_type = spec_.GetArgument<std::string>("exception_type");
+    auto message = spec_.template GetArgument<std::string>("message");
+    auto exception_type = spec_.template GetArgument<std::string>("exception_type");
 
     if (exception_type == "RuntimeError") {
       throw DaliRuntimeError(message);
