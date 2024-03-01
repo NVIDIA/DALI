@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include "dali/core/device_guard.h"
 
 #ifndef DEBUG_ASYNC_POOL_CHECK_CONSISTENCY
-#define DEBUG_ASYNC_POOL_CHECK_CONSISTENCY 0
+#define DEBUG_ASYNC_POOL_CHECK_CONSISTENCY 1
 #endif
 
 namespace dali {
@@ -76,25 +76,29 @@ class async_pool_resource : public async_memory_resource<Kind>,
       if (!e.is_unloading())
         std::terminate();
     }
-    for (auto &kv : stream_free_) {
-      PerStreamFreeBlocks &free_blocks = kv.second;
-      std::lock_guard<std::mutex> guard(lock_);
+    try {
+      for (auto &kv : stream_free_) {
+        PerStreamFreeBlocks &free_blocks = kv.second;
+        std::lock_guard<std::mutex> guard(lock_);
 
-      // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
-      assert(find_first_ready(free_blocks) == free_blocks.free_list.head);
+        // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
+        DALI_ENFORCE(find_first_ready(free_blocks) == free_blocks.free_list.head);
 
-      for (auto *f = free_blocks.free_list.head; f; ) {
-        try {
-          global_pool_.deallocate(f->addr, f->bytes, f->alignment);
-        } catch (const CUDAError &e) {
-          if (!e.is_unloading())
-            std::terminate();
+        for (auto *f = free_blocks.free_list.head; f;) {
+          try {
+            global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+          } catch (const CUDAError &e) {
+            if (!e.is_unloading())
+              std::terminate();
+          }
+          f = remove_pending_free(free_blocks, f, false);
         }
-        f = remove_pending_free(free_blocks, f, false);
+        DALI_ENFORCE(free_blocks.free_list.head == nullptr);
+        DALI_ENFORCE(free_blocks.free_list.tail == nullptr);
+        free_blocks.by_size.clear();
       }
-      assert(free_blocks.free_list.head == nullptr);
-      assert(free_blocks.free_list.tail == nullptr);
-      free_blocks.by_size.clear();
+    } catch (...) {
+      std::terminate();
     }
   }
 
@@ -367,7 +371,7 @@ class async_pool_resource : public async_memory_resource<Kind>,
       char *base = f->addr;
       char *aligned = detail::align_ptr(base, alignment);
       size_t front_padding = aligned - base;
-      assert(static_cast<ptrdiff_t>(front_padding) >= 0);
+      DALI_ENFORCE(static_cast<ptrdiff_t>(front_padding) >= 0);
       // NOTE: block_size - front_padding >= size  can overflow and fail - meh, unsigned size_t
       if (block_size >= bytes + front_padding) {
         if (!supports_splitting && block_size - bytes - front_padding > max_padding)
@@ -424,8 +428,8 @@ class async_pool_resource : public async_memory_resource<Kind>,
     }
     if (pending.empty()) {
       if (f) {
-        assert(f->is_ready);
-        assert(!f->prev || !f->is_ready);
+        DALI_ENFORCE(f->is_ready);
+        DALI_ENFORCE(!f->prev || !f->is_ready);
       }
       return f;
     }
@@ -433,12 +437,12 @@ class async_pool_resource : public async_memory_resource<Kind>,
       return !f->ready();
     });
     if (it == pending.end()) {
-      assert(!free.free_list.tail || !free.free_list.tail->is_ready);
+      DALI_ENFORCE(!free.free_list.tail || !free.free_list.tail->is_ready);
       return nullptr;
     }
     f = *it;
-    assert(f->ready());
-    assert(!f->prev || !f->prev->is_ready);
+    DALI_ENFORCE(f->ready());
+    DALI_ENFORCE(!f->prev || !f->prev->is_ready);
     return f;
   }
 
@@ -474,7 +478,7 @@ class async_pool_resource : public async_memory_resource<Kind>,
   void pop_block_padding(char *&p, size_t &bytes, size_t &alignment) {
     auto it = padded_.find(p);
     if (it != padded_.end()) {
-      assert(it->second.front_padding + bytes <= it->second.bytes &&
+      DALI_ENFORCE(it->second.front_padding + bytes <= it->second.bytes &&
         "The deallocated memory points to a block that's smaller than "
         "the size being freed. Check the size of the memory region being freed.");
       p -= it->second.front_padding;
@@ -525,13 +529,13 @@ class async_pool_resource : public async_memory_resource<Kind>,
     if (next) next->prev = prev;
     *f = {};
 #if DEBUG_ASYNC_POOL_CHECK_CONSISTENCY
-    assert(!free.head || !free.head->prev);
-    assert(!free.tail || !free.tail->next);
+    DALI_ENFORCE(!free.head || !free.head->prev);
+    DALI_ENFORCE(!free.tail || !free.tail->next);
     for (auto *x = free.head; x; x = x->next) {
-      assert(!x->next || x->next->prev == x);
-      assert(!x->prev || x->prev->next == x);
-      assert(x != f);
-      assert(x->next || x == free.tail);
+      DALI_ENFORCE(!x->next || x->next->prev == x);
+      DALI_ENFORCE(!x->prev || x->prev->next == x);
+      DALI_ENFORCE(x != f);
+      DALI_ENFORCE(x->next || x == free.tail);
     }
 #endif
     f->~pending_free();
@@ -561,7 +565,7 @@ class async_pool_resource : public async_memory_resource<Kind>,
       CUDA_CALL(cudaGetDeviceCount(&ndev));
       sync_streams_.resize(ndev);
     }
-    assert(device_id >= 0 && device_id < ndev);
+    DALI_ENFORCE(device_id >= 0 && device_id < ndev);
     if (!sync_streams_[device_id])
       sync_streams_[device_id] = CUDAStream::Create(true, device_id);
     return sync_streams_[device_id];
