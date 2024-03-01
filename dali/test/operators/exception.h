@@ -52,12 +52,22 @@ class ThrowExceptionOp : public Operator<Backend> {
       throw DaliValueError(message);
     } else if (exception_type == "StopIteration") {
       throw DaliStopIteration(message);
+    } else if (exception_type == "std::invalid_argument") {
+      throw std::invalid_argument(message);
+    } else if (exception_type == "std::domain_error") {
+      throw std::domain_error(message);
+    } else if (exception_type == "std::length_error") {
+      throw std::length_error(message);
+    } else if (exception_type == "std::out_of_range") {
+      throw std::out_of_range(message);
+    } else if (exception_type == "std::range_error") {
+      throw std::range_error(message);
+    } else if (exception_type == "std::runtime_error") {
+      throw std::runtime_error(message);
     } else if (exception_type == "std::string") {
       throw message;
     }
-    throw DaliError(
-        "Unknown error kind, expected one of: RuntimeError, IndexError, TypeError, "
-        "ValueError, StopIteration.");
+    throw DaliError("Unknown error kind.");
   }
 };
 

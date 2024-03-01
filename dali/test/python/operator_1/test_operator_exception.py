@@ -22,17 +22,47 @@ def setUpModule():
     load_test_operator_plugin()
 
 
-errors = [RuntimeError, IndexError, TypeError, ValueError, StopIteration]
+python_errors = [RuntimeError, IndexError, TypeError, ValueError, StopIteration]
 
 
-@params(*errors)
-def test_error_propagation(error):
+@params(*python_errors)
+def test_python_error_propagation(error):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def pipe():
         return fn.throw_exception(exception_type=error.__name__)
 
     with assert_raises(
         error,
+        glob=(
+            "Critical error in pipeline:\n"
+            "Error when executing CPU operator ThrowException encountered:\n"
+            "Test message\n"
+            "Current pipeline object is no longer valid."
+        ),
+    ):
+        p = pipe()
+        p.build()
+        p.run()
+
+
+pybind_mapped_errors = [
+    ("std::runtime_error", RuntimeError),
+    ("std::domain_error", ValueError),
+    ("std::invalid_argument", ValueError),
+    ("std::length_error", ValueError),
+    ("std::out_of_range", IndexError),
+    ("std::range_error", ValueError),
+]
+
+
+@params(*pybind_mapped_errors)
+def test_cpp_error_propagation(error_name, error_type):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.throw_exception(exception_type=error_name)
+
+    with assert_raises(
+        error_type,
         glob=(
             "Critical error in pipeline:\n"
             "Error when executing CPU operator ThrowException encountered:\n"
