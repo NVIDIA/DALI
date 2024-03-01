@@ -24,7 +24,7 @@ from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 from nose import SkipTest
 from nose.plugins.attrib import attr
-import nvidia.dali_video
+import nvidia.dali.fn.plugin.video
 
 import subprocess as sp
 
