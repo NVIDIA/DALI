@@ -386,8 +386,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
         bool split = supports_splitting && remainder + min_split_remainder < block_end;
         size_t orig_alignment = f->alignment;
         size_t split_size = block_size;
-        if (!stream_id_hint::is_unambiguous())
-          CUDA_CALL(cudaStreamWaitEvent(stream.get(), f->event));
+        if (!stream_id_hint::is_unambiguous()) {
+          if (!f->ready())
+            CUDA_CALL(cudaStreamWaitEvent(stream.get(), f->event));
+        }
         if (split) {
           // Adjust the pending free `f` so that it contains only what remains after
           // the block was split.
