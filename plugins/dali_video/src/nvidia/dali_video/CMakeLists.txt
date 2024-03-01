@@ -78,6 +78,7 @@ set(VIDEO_PLUGIN_SOURCES
     input/video_input_mixed.cc
     decoder/video_decoder_cpu.cc
     decoder/video_decoder_mixed.cc
+    decoder/new_video_decoder_mixed.cc
 )
 
 add_library(dali_video SHARED ${VIDEO_PLUGIN_SOURCES})
