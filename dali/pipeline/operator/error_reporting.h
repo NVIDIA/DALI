@@ -106,8 +106,7 @@ class DaliError : public std::exception {
 /*
  Out of Python Error types: https://docs.python.org/3/library/exceptions.html#concrete-exceptions
  we skip (not applicable to DALI C++):
- * AttributeError - DALI doesn't implement dynamic object.attribute lookups that may error in the
-                    backend
+ * AttributeError - DALI doesn't implement dynamic obj.attr lookups that may error in the backend
  * EOFError - end of input() and raw_input()
  * FloatingPointError - not used in Python
  * GeneratorExit - not an error, a generator/coroutine.close() signal

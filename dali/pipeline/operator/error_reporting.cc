@@ -56,7 +56,9 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
 
 void PropagateError(ErrorInfo error) {
   try {
-    std::rethrow_exception(error.exception);
+    if (error.exception) {
+      std::rethrow_exception(error.exception);
+    }
   }
   // DALI <-> Python mapped type errors:
   catch (DaliError &e) {
