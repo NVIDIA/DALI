@@ -7,6 +7,8 @@
    "not_found_error":"CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND",
    "functions": {
       "cuInit": {},
+      "cuGetProcAddress": {},
+      "cuGetProcAddress_v2": {},
       "cuGetErrorName": {},
       "cuGetErrorString": {},
       "cuDriverGetVersion": {},
