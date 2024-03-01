@@ -21,12 +21,14 @@ namespace exec2 {
 namespace test {
 
 inline OpSchema &CreateTestSchema(const std::string &name) {
-  OpSchema &s = SchemaRegistry::RegisterSchema(name);
+  const OpSchema *psc = SchemaRegistry::TryGetSchema(name);
+  OpSchema &s = psc ? const_cast<OpSchema &>(*psc) : SchemaRegistry::RegisterSchema(name);
   s = OpSchema(name);  // reset
   return s;
 }
 
 class DummyOp : public Operator<CPUBackend> {
+ public:
   DummyOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
   }
 
@@ -51,13 +53,23 @@ class DummyOp : public Operator<CPUBackend> {
 
   bool CanInferOutputs() const override { return true; }
   ArgValue<int> addend_{"addend", spec_};
+
+  static OpSchema &CreateSchema() {
+    return CreateTestSchema("DummyOp")
+      .NumInput(1, 99)
+      .NumOutput(1)
+      .AddArg("addend", "a value added to the sum of inputs", DALI_INT32);
+  }
 };
 
 TEST(Exec2Test, SimpleGraph) {
-  CreateTestSchema("DummyOp")
-    .NumInput(1, 99)
-    .NumOutput(1)
-    .AddArg("addend", "a value added to the sum of inputs", DALI_INT32);
+  DummyOp::CreateSchema();
+  OpSpec spec("DummyOp");
+  spec.AddArg("addent", 42)
+      .AddArg("num_threads", 1)
+      .AddArg("device", "cpu")
+      .AddArg("max_batch_size", 32);
+  DummyOp op(spec);
 }
 
 }  // namespace test
