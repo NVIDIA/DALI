@@ -331,7 +331,8 @@ class MultiPasteOp : public SequenceOperator<Backend, StatelessOperator> {
     };
     for (int k = 0; k < spatial_ndim_; k++) {
       DALI_ENFORCE(
-          in_anchor[k] >= 0 && in_anchor[k] + region_shape[k] <= region_source_shape[k],
+          in_anchor[k] >= 0 && region_shape[k] >= 0 &&
+              in_anchor[k] + region_shape[k] <= region_source_shape[k],
           make_string("The pasted region must be within input sample. Got input anchor: ",
                       as_shape(in_anchor), ", pasted region shape: ", as_shape(region_shape),
                       ", input shape: ", as_shape(region_source_shape),

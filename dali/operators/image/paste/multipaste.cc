@@ -145,19 +145,18 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
   for (int i = 0; i < batch_size; i++) {
     auto paste_count = GetPasteCount(ws, i);
     memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
-    auto out_sample_shape = out_shape[i];
 
     if (!HasIntersections(ws, i)) {
       for (int iter = 0; iter < paste_count; iter++) {
         tp.AddWork(
-          [&, i, iter, out_sample_shape](int thread_id) {
+          [&, i, iter](int thread_id) {
             CopyPatch(out_view, in_views, i, iter);
           },
           out_shape.tensor_size(i));
       }
     } else {
       tp.AddWork(
-        [&, i, paste_count, out_sample_shape](int thread_id) {
+        [&, i, paste_count](int thread_id) {
           for (int iter = 0; iter < paste_count; iter++) {
             CopyPatch(out_view, in_views, i, iter);
           }
