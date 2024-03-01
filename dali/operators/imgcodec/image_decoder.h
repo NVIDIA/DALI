@@ -101,7 +101,12 @@ inline int static_dali_device_free(void *ctx, void *ptr, size_t size, cudaStream
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   std::cout << "device_free this_thread[" << std::hex << std::this_thread::get_id()
             << "] stream=" << stream << "\n";
-  mr->deallocate_async(ptr, size, kDevAlignment, stream);
+  if (stream == 0) {
+    CUDA_CALL(cudaDeviceSynchronize());  // just a test
+    mr->deallocate(ptr, size, kDevAlignment);
+  } else {
+    mr->deallocate_async(ptr, size, kDevAlignment, stream);
+  }
   // CUDA_CALL(cudaStreamSynchronize(stream));
   // mr->deallocate(ptr, size, kDevAlignment);
   return cudaSuccess;
