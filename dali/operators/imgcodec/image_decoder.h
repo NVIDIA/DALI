@@ -79,7 +79,12 @@ static constexpr size_t kHostAlignment = 64;  // cache alignment
 inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   try {
+    std::cout << "device_malloc this_thread[" << std::hex << std::this_thread::get_id()
+              << "] stream=" << stream << " size=" << size << "\n";
     *ptr = mr->allocate_async(size, kDevAlignment, stream);
+    std::cout << "device_malloc this_thread[" << std::hex << std::this_thread::get_id()
+              << "] stream=" << stream << " ptr=" << *ptr << " size=" << size << "\n";
+    // *ptr = mr->allocate(size, kDevAlignment);
     return cudaSuccess;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
@@ -94,14 +99,21 @@ inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStr
 
 inline int static_dali_device_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
+  std::cout << "device_free this_thread[" << std::hex << std::this_thread::get_id()
+            << "] stream=" << stream << "\n";
   mr->deallocate_async(ptr, size, kDevAlignment, stream);
+  // CUDA_CALL(cudaStreamSynchronize(stream));
+  // mr->deallocate(ptr, size, kDevAlignment);
   return cudaSuccess;
 }
 
 inline int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
   try {
+    std::cout << "pinned_malloc this_thread[" << std::hex << std::this_thread::get_id()
+              << "] stream=" << stream << "\n";
     *ptr = mr->allocate_async(size, kHostAlignment, stream);
+    // *ptr = mr->allocate(size, kHostAlignment);
     return cudaSuccess;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
@@ -116,7 +128,10 @@ inline int static_dali_pinned_malloc(void *ctx, void **ptr, size_t size, cudaStr
 
 inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::pinned_async_resource *>(ctx);
+  std::cout << "pinned_free this_thread[" << std::hex << std::this_thread::get_id()
+            << "] stream=" << stream << "\n";
   mr->deallocate_async(ptr, size, kHostAlignment, stream);
+  // mr->deallocate(ptr, size, kHostAlignment);
   return cudaSuccess;
 }
 
@@ -222,7 +237,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       dev_alloc_.struct_next = nullptr;
       dev_alloc_.device_malloc = static_dali_device_malloc;
       dev_alloc_.device_free = static_dali_device_free;
-      dev_alloc_.device_ctx = mm::GetDefaultResource<mm::memory_kind::device>();
+      dev_alloc_.device_ctx = mm::GetDefaultDeviceResource(device_id_);
       dev_alloc_.device_mem_padding = spec.GetArgument<int64_t>("device_memory_padding");
       dev_alloc_ptr = &dev_alloc_;
 
@@ -242,6 +257,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     const char *log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
     int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5): 2;
+    log_lvl = 2;
 
     instance_create_info.load_extension_modules = static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
     instance_create_info.load_builtin_modules = static_cast<int>(true);
