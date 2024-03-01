@@ -32,7 +32,32 @@ def test_error_propagation(error):
         return fn.throw_exception(exception_type=error.__name__)
 
     with assert_raises(
-        error, glob="Error when executing CPU operator ThrowException encountered:\nTest message"
+        error,
+        glob=(
+            "Critical error in pipeline:\n"
+            "Error when executing CPU operator ThrowException encountered:\n"
+            "Test message\n"
+            "Current pipeline object is no longer valid."
+        ),
+    ):
+        p = pipe()
+        p.build()
+        p.run()
+
+
+def test_error_propagation_ellipsis():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.throw_exception(exception_type="std::string")
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            "Critical error in pipeline:\n"
+            "Error when executing CPU operator ThrowException encountered:\n"
+            "Unknown critical error.\n"
+            "Current pipeline object is no longer valid."
+        ),
     ):
         p = pipe()
         p.build()

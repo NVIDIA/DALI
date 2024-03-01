@@ -1092,19 +1092,8 @@ void Pipeline::DiscoverInputOperators() {
 }
 
 void Pipeline::ProcessException(std::exception_ptr eptr) {
-  try {
-    if (eptr) {
-      std::rethrow_exception(eptr);
-    }
-  } catch (DaliError &e) {
-    throw;  // TODO(klecki): Add all the boring messages
-  } catch (std::exception &e) {
-    // Do we want to match all possible types or just get rid of most of this?
-    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
-                                         "\nCurrent pipeline object is no longer valid."));
-  } catch (...) {
-    throw std::runtime_error("Unknown critical error in pipeline.");
-  }
+  PropagateError(
+      {eptr, "Critical error in pipeline:\n", "\nCurrent pipeline object is no longer valid."});
 }
 
 void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {

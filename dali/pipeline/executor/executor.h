@@ -246,8 +246,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
   }
 
-  void HandleError(const std::string &stage, const OpNode &op_node,
-                   const std::string &message = "") {
+  void HandleError(const std::string &stage, const OpNode &op_node) {
       // handle internal Operator names that start with underscore
       const auto &op_name =
           op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
@@ -261,18 +260,18 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
       if (need_instance_name) {
         HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                                ", instance name: \"", op_node.instance_name, "\", encountered:\n",
-                                message));
+                                ", instance name: \"", op_node.instance_name,
+                                "\", encountered:\n"));
       } else {
         HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                                " encountered:\n", message));
+                                " encountered:\n"));
       }
   }
 
-  void HandleError(const std::string& context = "") {
+  void HandleError(const std::string& context = "", const std::string& additional_message = "") {
     {
       std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back({std::current_exception(), context});
+      errors_.push_back({std::current_exception(), context, additional_message});
     }
     exec_error_ = true;
     ShutdownQueue();
@@ -363,10 +362,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   OpGraph *graph_ = nullptr;
   EventPool event_pool_;
   ThreadPool thread_pool_;
-  struct ErrorInfo {
-    std::exception_ptr exception;
-    std::string context_info;
-  };
   std::vector<ErrorInfo> errors_;
   mutable std::mutex errors_mutex_;
   bool exec_error_;
@@ -398,7 +393,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
-  void RethrowError() const {
+  void RethrowError() {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
     if (errors_.empty()) {
       if (QueuePolicy::IsStopSignaled() && !exec_error_) {
@@ -408,15 +403,9 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
 
     // TODO(klecki): collect all errors
-    auto &error = errors_.front();
-    try {
-      std::rethrow_exception(error.exception);
-    } catch (DaliError &e) {
-      if (error.context_info.size()) {
-        e.AddOriginInfo(error.context_info);
-      }
-      throw;
-    }
+    auto error = errors_.front();
+    errors_.erase(errors_.begin());
+    PropagateError(error);
   }
 
   void DiscoverBatchSizeProviders() {

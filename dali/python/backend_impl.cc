@@ -21,7 +21,7 @@
 #include "dali/core/device_guard.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/pytypes.h"
-#include "pyerrors.h"
+#include "pyerrors.h"  // NOLINT(build/include)
 #if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
 #endif

@@ -15,8 +15,14 @@
 #ifndef DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 #define DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 
+<<<<<<< HEAD
 #include <string>
 #include <utility>
+=======
+#include <exception>
+#include <stdexcept>
+#include <string>
+>>>>>>> ffa6178c2 (Make everything a tad more generic)
 #include <vector>
 
 #include "dali/core/api_helper.h"
@@ -58,6 +64,119 @@ DLL_PUBLIC std::vector<PythonStackFrame> GetOperatorOriginInfo(const OpSpec &spe
 
 DLL_PUBLIC std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary,
                                    bool include_context);
+
+/**
+ * @brief Simple structure capturing the exception to be propagated to the user with additional
+ * context information (location of the error) and message.
+ */
+struct ErrorInfo {
+  std::exception_ptr exception;
+  std::string context_info;
+  std::string additional_message;
+};
+
+void PropagateError(ErrorInfo error);
+
+
+/**
+ * @brief Base error class for exceptions produced in the DALI pipeline. Subtypes should be used
+ * for specific errors that will be mapped into appropriate Python error types of matching names.
+ *
+ * DALI executor automatically extends those kind of errors when they are thrown from operators
+ * and the origin information is present.
+ */
+class DaliError : public std::exception {
+ public:
+  // TODO(klecki): Do we want to mark when we have the origin info or introduce placeholders
+  // for op name, etc?
+  explicit DaliError(const std::string &msg) : std::exception(), msg_(msg) {}
+
+  void UpdateMessage(const std::string &msg) {
+    msg_ = msg;
+  }
+
+  const char *what() const noexcept override {
+    return msg_.c_str();
+  }
+
+ private:
+  std::string msg_;
+};
+
+/*
+ Out of Python Error types: https://docs.python.org/3/library/exceptions.html#concrete-exceptions
+ we skip (not applicable to DALI C++):
+ * AttributeError - DALI doesn't implement dynamic object.attribute lookups that may error in the
+                    backend
+ * EOFError - end of input() and raw_input()
+ * FloatingPointError - not used in Python
+ * GeneratorExit - not an error, a generator/coroutine.close() signal
+ * ImportError, ModuleNotFoundError - Python module import related error
+ * KeyError - error in dictionary lookups
+ * KeyboardInterrupt - user triggered interrupt
+ * MemoryError - recoverable memory errors
+ * NameError, UnboundLocalError - lookup of unqualified names, Python code-level error
+ * NotImplementedError - used for abstract base
+ * OverflowError - we assume the code is safe :)
+ * RecursionError
+ * ReferenceError - Python weakref related errors
+ * StopAsyncIteration - async iteration not supported in DALI
+ * SyntaxError, IndentationError, TabError, SystemError - code and interpreter errors
+ * ZeroDivisionError
+
+ Errors considered for support (TODO(klecki)):
+ * AssertionError - do we want to support actual Python-compatible asserts?
+ * OSError -  consider mapping file system errors to Python vocabulary
+ * SystemExit - may be useful for cleanup purposes
+ * UnicodeError - if we ever do string processing?
+
+ Errors currently supported:
+ * RuntimeError
+ * IndexError
+ * ValueError
+ * TypeError
+ * StopIteration
+ */
+
+/**
+ * @brief Error class that will be mapped to Python RuntimeError
+ */
+class DaliRuntimeError : public DaliError {
+ public:
+  explicit DaliRuntimeError(const std::string &msg) : DaliError(msg) {}
+};
+
+/**
+ * @brief Error class that will be mapped to Python IndexError
+ */
+class DaliIndexError : public DaliError {
+ public:
+  explicit DaliIndexError(const std::string &msg) : DaliError(msg) {}
+};
+
+/**
+ * @brief Error class that will be mapped to Python ValueError
+ */
+class DaliValueError : public DaliError {
+ public:
+  explicit DaliValueError(const std::string &msg) : DaliError(msg) {}
+};
+
+/**
+ * @brief Error class that will be mapped to Python TypeError
+ */
+class DaliTypeError : public DaliError {
+ public:
+  explicit DaliTypeError(const std::string &msg) : DaliError(msg) {}
+};
+
+/**
+ * @brief Error class that will be mapped to Python StopIteration
+ */
+class DaliStopIteration : public DaliError {
+ public:
+  explicit DaliStopIteration(const std::string &msg) : DaliError(msg) {}
+};
 
 }  // namespace dali
 

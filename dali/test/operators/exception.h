@@ -52,6 +52,8 @@ class ThrowExceptionOp : public Operator<Backend> {
       throw DaliValueError(message);
     } else if (exception_type == "StopIteration") {
       throw DaliStopIteration(message);
+    } else if (exception_type == "std::string") {
+      throw message;
     }
     throw DaliError(
         "Unknown error kind, expected one of: RuntimeError, IndexError, TypeError, "
