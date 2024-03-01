@@ -99,74 +99,78 @@ def test_image_decoder():
 
 
 @pipeline_def
-def create_decoder_slice_pipeline(data_path, device):
+def create_decoder_slice_pipeline(data_path, device, is_roi_dec):
     jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+    seed0 = 1234
+    seed1 = 2345
+    anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,), seed=seed0)
+    shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,), seed=seed1)
+    if is_roi_dec:
+        images_sliced = fn.experimental.decoders.image_slice(
+            jpegs, anchor, shape, axes=(0, 1), device=device, hw_decoder_load=0.7
+        )
+    else:
+        images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+        images_sliced = fn.slice(images, anchor, shape, axes=(0, 1))
 
-    anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
-    shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    images_sliced_1 = fn.experimental.decoders.image_slice(
-        jpegs, anchor, shape, axes=(0, 1), device=device, hw_decoder_load=0.7
-    )
-
-    ref_device = "cpu"
-    images = fn.experimental.decoders.image(jpegs, device=ref_device, hw_decoder_load=0.7)
-    if device == "gpu" and ref_device == "cpu":
-        images = images.gpu()
-    images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
-
-    return images_sliced_1, images_sliced_2
+    return images_sliced
 
 
 @pipeline_def
-def create_decoder_crop_pipeline(data_path, device):
+def create_decoder_crop_pipeline(data_path, device, is_roi_dec):
     jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
 
-    crop_pos_x = fn.random.uniform(range=[0.1, 0.9])
-    crop_pos_y = fn.random.uniform(range=[0.1, 0.9])
+    crop_pos_x = fn.random.uniform(range=[0.1, 0.9], seed=1234)
+    crop_pos_y = fn.random.uniform(range=[0.1, 0.9], seed=2345)
     w = 242
     h = 230
 
-    images_crop_1 = fn.experimental.decoders.image_crop(
-        jpegs,
-        crop=(w, h),
-        crop_pos_x=crop_pos_x,
-        crop_pos_y=crop_pos_y,
-        device=device,
-        hw_decoder_load=0.7,
-    )
+    if is_roi_dec:
+        images_crop = fn.experimental.decoders.image_crop(
+            jpegs,
+            crop=(w, h),
+            crop_pos_x=crop_pos_x,
+            crop_pos_y=crop_pos_y,
+            device=device,
+            hw_decoder_load=0.7,
+        )
+    else:
+        images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+        images_crop = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
-    ref_device = "cpu"
-    images = fn.experimental.decoders.image(jpegs, device=ref_device, hw_decoder_load=0.7)
-    if device == "gpu" and ref_device == "cpu":
-        images = images.gpu()
-    images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
-
-    return images_crop_1, images_crop_2
+    return images_crop
 
 
 @pipeline_def
-def create_decoder_random_crop_pipeline(data_path, device):
+def create_decoder_random_crop_pipeline(data_path, device, is_roi_dec):
     seed = 1234
     jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
 
     w = 242
     h = 230
-    images_random_crop_1 = fn.experimental.decoders.image_random_crop(
-        jpegs, device=device, output_type=types.RGB, hw_decoder_load=0.7, seed=seed
-    )
-    images_random_crop_1 = fn.resize(images_random_crop_1, size=(w, h))
+    if is_roi_dec:
+        images_random_crop = fn.experimental.decoders.image_random_crop(
+            jpegs, device=device, output_type=types.RGB, hw_decoder_load=0.7, seed=seed
+        )
+        images_random_crop = fn.resize(images_random_crop, size=(w, h))
+    else:
+        images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
+        images_random_crop = fn.random_resized_crop(images, size=(w, h), seed=seed)
 
-    ref_device = "cpu"
-    images = fn.experimental.decoders.image(jpegs, device=ref_device, hw_decoder_load=0.7)
-    if device == "gpu" and ref_device == "cpu":
-        images = images.gpu()
-    images_random_crop_2 = fn.random_resized_crop(images, size=(w, h), seed=seed)
-
-    return images_random_crop_1, images_random_crop_2
+    return images_random_crop
 
 
 def run_decode_fused(test_fun, path, img_type, batch, device, threads, validation_fun):
     data_path = os.path.join(test_data_root, path, img_type)
+    pipe_roi = test_fun(
+        data_path=data_path,
+        batch_size=batch,
+        num_threads=threads,
+        device_id=0,
+        device=device,
+        prefetch_queue_depth=1,
+        is_roi_dec=True,
+    )
     pipe = test_fun(
         data_path=data_path,
         batch_size=batch,
@@ -174,12 +178,15 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         device_id=0,
         device=device,
         prefetch_queue_depth=1,
+        is_roi_dec=False,
     )
+    pipe_roi.build()
     pipe.build()
     idxs = [i for i in range(batch)]
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for it in range(iters):
-        out_1, out_2 = pipe.run()
+        (out_1,) = pipe_roi.run()
+        (out_2,) = pipe.run()
         for sample_idx, img_1, img_2 in zip(idxs, out_1, out_2):
             arr_1 = to_array(img_1)
             arr_2 = to_array(img_2)
