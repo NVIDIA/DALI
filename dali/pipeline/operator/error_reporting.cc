@@ -22,13 +22,13 @@
 
 namespace dali {
 
-std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec) {
+std::vector<PythonStackFrame> GetOperatorOriginInfo(const OpSpec &spec) {
   auto origin_stack_filename = spec.GetRepeatedArgument<std::string>("_origin_stack_filename");
   auto origin_stack_lineno = spec.GetRepeatedArgument<int>("_origin_stack_lineno");
   auto origin_stack_name = spec.GetRepeatedArgument<std::string>("_origin_stack_name");
   auto origin_stack_line = spec.GetRepeatedArgument<std::string>("_origin_stack_line");
 
-  std::vector<DaliFrameSummary> origin_stack;
+  std::vector<PythonStackFrame> origin_stack;
   origin_stack.reserve(origin_stack_filename.size());
   const char error[] = "Internal error, mismatch in origin stack trace data.";
   DALI_ENFORCE(origin_stack_filename.size() == origin_stack_lineno.size(), error);
@@ -42,7 +42,7 @@ std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec) {
 }
 
 
-std::string FormatStack(const std::vector<DaliFrameSummary> &stack_summary, bool include_context) {
+std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool include_context) {
   std::stringstream s;
   for (auto &frame_summary : stack_summary) {
     s << "  File \"" << frame_summary.filename << "\", line " << frame_summary.lineno << ", in "

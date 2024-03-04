@@ -29,29 +29,34 @@ namespace dali {
 /**
  * @brief Direct equivalent of Python's traceback.FrameSummary:
  * https://docs.python.org/3/library/traceback.html#traceback.FrameSummary
- *
+ * Describes a stack frame in the Python stack trace.
  */
-struct DaliFrameSummary {
-  DaliFrameSummary(std::string &&filename, int lineno, std::string &&name, std::string &&line)
+struct PythonStackFrame {
+  PythonStackFrame(std::string filename, int lineno, std::string name, std::string line)
       : filename(std::move(filename)),
         lineno(lineno),
         name(std::move(name)),
         line(std::move(line)) {}
+  /** @brief File name of the source code executed for this frame. */
   std::string filename;
+  /** @brief The line number of the source code for this frame. */
   int lineno;
+  /** @brief Name of the function being executed in this frame. */
   std::string name;
+  /** @brief A string representing the source code for this frame, with leading and trailing
+   * whitespace stripped. */
   std::string line;
 };
 
 /**
  * @brief Get the origin stack trace for operator constructed with given spec.
  * The stack trace defines frames between invocation of the pipeline definition and the operator
- * call. The returned DaliFrameSummary corresponds to Python traceback.FrameSummary, but the `line`
+ * call. The returned PythonStackFrame corresponds to Python traceback.FrameSummary, but the `line`
  * context may be invalid in some autograph transformed code.
  */
-DLL_PUBLIC std::vector<DaliFrameSummary> GetOperatorOriginInfo(const OpSpec &spec);
+DLL_PUBLIC std::vector<PythonStackFrame> GetOperatorOriginInfo(const OpSpec &spec);
 
-DLL_PUBLIC std::string FormatStack(const std::vector<DaliFrameSummary> &stack_summary,
+DLL_PUBLIC std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary,
                                    bool include_context);
 
 }  // namespace dali

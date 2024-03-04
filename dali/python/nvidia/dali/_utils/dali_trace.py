@@ -15,7 +15,7 @@
 import sys
 import traceback
 from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filter
-from nvidia.dali._autograph import is_frame_converted_call, is_frame_call_unconverted
+from nvidia.dali._autograph import is_frame_ag_call_entrypoint, is_frame_ag_call_unconverted
 
 
 _origin_trace_enabled = False
@@ -111,11 +111,11 @@ def _filter_autograph_frames(stack_summary, frame_map, frame_filter):
         # Detect repeated appearance of function transformed by AG
         # AutoGraph is wrapping a function call - entry point
         # We always start with a converted call to a pipeline_def.
-        if is_frame_converted_call(frame_entry):
+        if is_frame_ag_call_entrypoint(frame_entry):
             is_ag_function_call_start = True
             current_function_region = None
         # It quits to a non-AG code, treat it as normal from now-on
-        if is_frame_call_unconverted(frame_entry):
+        if is_frame_ag_call_unconverted(frame_entry):
             is_ag_function_call_start = False
             current_function_region = None
         # User code - not filtered out

@@ -289,14 +289,18 @@ def is_autograph_artifact(entity):
     return hasattr(entity, "autograph_info__")
 
 
-def is_frame_converted_call(frame_info):
+def is_frame_ag_call_entrypoint(frame_info):
+    """
+    True if the given frame is start of a function call wrapped by AutoGraph (ag__.converted_call)
+    """
     return (
         frame_info.filename.endswith("nvidia/dali/_autograph/impl/api.py")
         and frame_info.name == "converted_call"
     )
 
 
-def is_frame_call_unconverted(frame_info):
+def is_frame_ag_call_unconverted(frame_info):
+    """True if the given frame exits autograph to call unconverted user code."""
     return (
         frame_info.filename.endswith("nvidia/dali/_autograph/impl/api.py")
         and frame_info.name == "_call_unconverted"
