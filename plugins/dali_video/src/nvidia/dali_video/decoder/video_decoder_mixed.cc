@@ -13,8 +13,33 @@
 // limitations under the License.
 
 #include "dali_video/decoder/video_decoder_mixed.h"
+#include "dali/core/tensor_shape.h"
 
 namespace dali_video {
+
+class MemoryVideoFile : public FFmpegDemuxer::DataProvider {
+ public:
+  MemoryVideoFile(const void *data, int64_t size)
+    : data_(static_cast<const uint8_t*>(data)), size_(size), position_(0) {}
+
+
+  int GetData(uint8_t *buffer, int buffer_size) override {
+    int left_in_file = size_ - position_;
+    if (left_in_file == 0) {
+      return AVERROR_EOF;
+    }
+
+    int to_read = std::min(left_in_file, buffer_size);
+    std::copy(data_ + position_, data_ + position_ + to_read, buffer);
+    position_ += to_read;
+    return to_read;
+  }
+
+ private:
+  const uint8_t *data_;
+  const int64_t size_;
+  int64_t position_;
+};
 
 bool VideoDecoderMixed::SetupImpl(
   std::vector<dali::OutputDesc> &output_desc, const dali::Workspace &ws) {
@@ -22,18 +47,19 @@ bool VideoDecoderMixed::SetupImpl(
   const auto &input = ws.Input<dali::CPUBackend>(0);
   int batch_size = input.num_samples();
   auto stream = ws.stream();
-  frames_decoders_.resize(batch_size);
-  for (int i = 0; i < batch_size; ++i) {
-    thread_pool_.AddWork([this, i, &input, stream](int) {
-      auto sample = input[i];
-      auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
-      size_t size = sample.shape().num_elements();
-      frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream, false);
-    });
+
+  samples_.resize(batch_size);
+  dali::TensorListShape<> sh(batch_size, 4);
+  for (int i = 0; i < batch_size; i++) {
+    auto& sample = samples_[i];
+    sample.data_provider_ = std::make_unique<MemoryVideoFile>(input.raw_tensor(i), input[i].shape().num_elements());
+    sample.demuxer_ = std::make_unique<FFmpegDemuxer>(sample.data_provider_.get());
+    sample.current_packet_ = std::make_unique<PacketData>();
+    std::cout << "Sample #" << i << " {10x" << sample.demuxer_->GetHeight() << "x" << sample.demuxer_->GetWidth() << "x" << 3 << "}\n";
+    sh.set_tensor_shape(i, dali::TensorShape<>(10, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
   }
-  thread_pool_.RunAll();
   output_desc.resize(1);
-  output_desc[0].shape = ReadOutputShape();
+  output_desc[0].shape = sh;
   output_desc[0].type = dali::DALI_UINT8;
   return true;
 }
@@ -42,17 +68,71 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
   auto &output = ws.Output<dali::GPUBackend>(0);
   const auto &input = ws.Input<dali::CPUBackend>(0);
   int batch_size = input.num_samples();
-  for (int s = 0; s < batch_size; ++s) {
-    thread_pool_.AddWork([this, s, &output](int) {
-      DecodeSample(output[s], s);
-      // when the decoding is done release the decoder,
-      // so it can be reused by the next sample in the batch
-      frames_decoders_[s].reset();
-    }, input[s].shape().num_elements());
+  int s = 0;
+
+  cuInit(0);
+  int nGpu = 0;
+  cuDeviceGetCount(&nGpu);
+
+  bool m_bDestroyContext = false;
+  CUcontext cuContext = nullptr;
+  CUstream cuStream = nullptr;
+
+  for (int i = 0; i < batch_size; i++) {
+    cuCtxGetCurrent(&cuContext);
+    if(!cuContext) {
+      createCudaContext(&cuContext, device_id_, 0);
+      m_bDestroyContext = true;
+    }
+    cuCtxPopCurrent(&cuContext);
   }
-  thread_pool_.RunAll();
+
+  if(!cuContext)
+    throw std::runtime_error("Failed to create a cuda context");
+
+  cuCtxPushCurrent(cuContext);
+  cuStreamCreate(&cuStream, 0);
+  cuCtxPopCurrent(nullptr);
+
+  cuCtxPushCurrent(cuContext);
+  
+  for (int i = 0; i < batch_size; i++) {
+    auto& sample = samples_[i];
+    sample.decoder_ = std::make_unique<NvDecoder>(
+        cuStream, cuContext, true, FFmpeg2NvCodecId(sample.demuxer_->GetVideoCodec()), false,
+        false /*_enableasyncallocations*/, false);
+
+
+    uint8_t* pVideo = NULL;
+    int nVideoBytes = 0;
+    while (sample.demuxer_->Demux(&pVideo, &nVideoBytes)) {
+      if (nVideoBytes) {
+        auto vecTupFrame = sample.decoder_->Decode(pVideo, nVideoBytes);
+      }
+    }
+
+  cuCtxPopCurrent(&cuContext);
+
+  // uint8_t* data = nullptr;
+  // int data_size = 0;
+
+  // data_provider_ = std::make_unique<HostMemDataProvider>(data, data_size);
+  // demuxer_ = std::make_unique<FFmpegDemuxer>(data_provider_.get());
+  // current_packet_ = std::make_unique<PacketData>();
+
+  // int nVideoBytes = 0, nFrameReturned = 0, nFrame = 0;
+  // uint8_t* pVideo = NULL, * pFrame;
+  // memset(current_packet_.get(), 0, sizeof(PacketData));
+
+  // while (demuxer_->Demux(&pVideo, &nVideoBytes)) {
+  //   if (nVideoBytes) {
+  //     current_packet_->bsl_data = (uintptr_t)pVideo;
+  //     current_packet_->bsl = nVideoBytes;
+  //   }
+  // }
+  }
 }
 
-// DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderMixed, dali::Mixed);
+DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderMixed, dali::Mixed);
 
 }  // namespace dali_video

@@ -16,31 +16,38 @@
 
 #include <vector>
 #include <memory>
-#include "dali_video/decoder/video_decoder_base.h"
-#include "dali_video/loader/frames_decoder_gpu.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/thread_pool.h"
+#include "VideoCodecSDKUtils/helper_classes/Utils/FFmpegDemuxer.h"
+#include "VideoCodecSDKUtils/helper_classes/NvCodec/NvDecoder/NvDecoder.h"
+#include "VideoCodecSDKUtils/helper_classes/Utils/NvCodecUtils.h"
+
 
 namespace dali_video {
 
 class VideoDecoderMixed
-        : public dali::Operator<dali::MixedBackend>, public VideoDecoderBase<dali::MixedBackend, FramesDecoderGpu> {
-  using Operator<dali::MixedBackend>::num_threads_;
-  using VideoDecoderBase::DecodeSample;
+        : public dali::Operator<dali::MixedBackend> {
 
  public:
-  explicit VideoDecoderMixed(const dali::OpSpec &spec):
-    Operator<dali::MixedBackend>(spec),
-    thread_pool_(num_threads_,
-                 spec.GetArgument<int>("device_id"),
-                 spec.GetArgument<bool>("affine"),
-                 "mixed video decoder") {}
-
+  explicit VideoDecoderMixed(const dali::OpSpec &spec)
+    : Operator<dali::MixedBackend>(spec)
+    , device_id_(spec.GetArgument<int>("device_id")) {}
 
   bool CanInferOutputs() const override {
     return true;
   }
 
+  void ValidateInput(const dali::Workspace &ws) {
+    const auto &input = ws.Input<dali::CPUBackend>(0);
+    DALI_ENFORCE(input.type() == dali::DALI_UINT8,
+                 "Type of the input buffer must be uint8.");
+    DALI_ENFORCE(input.sample_dim() == 1,
+                 "Input buffer must be 1-dimensional.");
+    for (int64_t i = 0; i < input.num_samples(); ++i) {
+      DALI_ENFORCE(input[i].shape().num_elements() > 0,
+                   dali::make_string("Incorrect sample at position: ", i, ". ",
+                                     "Video decoder does not support empty input samples."));
+    }
+  }
 
   void Run(dali::Workspace &ws) override;
 
@@ -48,7 +55,16 @@ class VideoDecoderMixed
                  const dali::Workspace &ws) override;
 
  private:
-  dali::ThreadPool thread_pool_;
+  int device_id_;
+
+  struct SampleCtx {
+    std::unique_ptr<FFmpegDemuxer::DataProvider> data_provider_;
+    std::unique_ptr<FFmpegDemuxer> demuxer_;
+    std::unique_ptr<NvDecoder> decoder_;
+    std::shared_ptr<PacketData> current_packet_;
+  };
+  std::vector<SampleCtx> samples_;
+
 };
 
 }  // namespace dali_video
