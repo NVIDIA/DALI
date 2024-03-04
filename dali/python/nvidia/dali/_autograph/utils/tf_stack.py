@@ -188,7 +188,7 @@ class CustomModuleFilter(StackTraceFilter):
         for module in module_filter:
             try:
                 module_file = inspect.getfile(module)
-                init_py = "/__init__.py"
+                init_py = "__init__.py"
                 if module_file.endswith(init_py):
                     module_file = module_file[: -len(init_py)]
                 self._filtered_filenames.add(module_file)
