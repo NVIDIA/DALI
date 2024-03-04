@@ -19,7 +19,6 @@ from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import CUDAStream as _CUDAStream
-from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 cupy = None

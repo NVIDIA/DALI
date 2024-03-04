@@ -14,7 +14,6 @@
 
 from nvidia.dali import backend as _b
 from nvidia.dali import ops
-from nvidia.dali._utils import dali_trace as _dali_trace
 
 _internal_schemas = ["_TFRecordReader", "readers___TFRecord"]
 
