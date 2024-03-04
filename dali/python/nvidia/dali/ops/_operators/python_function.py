@@ -33,11 +33,11 @@ def _setup_cupy():
 
 def _get_base_impl(name, impl_name):
 
-    class PythonFunctionBase(ops.python_op_factory(impl_name, name, impl_name)):
+    class PythonFunctionBase(ops.python_op_factory(impl_name, name, impl_name, generated=False)):
 
         def __init__(self, function, num_outputs=1, **kwargs):
 
-            # The layout need to be handled manually due to implementation detail
+            # The layouts need to be handled manually due to an implementation detail
             # By calling spec.AddArg manually, we skip the promotion from a single string argument
             # to a 1-element list of strings that is done by the automation in the base class.
             # This way, the operator is able to differentiate between those cases.

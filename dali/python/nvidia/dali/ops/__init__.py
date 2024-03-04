@@ -517,7 +517,7 @@ def _check_arg_input(schema, op_name, name):
         )
 
 
-def python_op_factory(name, schema_name, internal_schema_name=None):
+def python_op_factory(name, schema_name, internal_schema_name=None, generated=True):
     """Generate the ops API class bindings for operator.
 
     Parameters
@@ -529,8 +529,9 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
         internal_schema_name  is provided
     internal_schema_name : str, optional
         If provided, this will be the schema used to process the arguments, by default None
-        If it is not provided, the class is assumed to be `_generated=True`, otherwise, we mark
-        it as False - the user will provide a custom wrapper.
+    generated : bool, optional
+        Mark this class as fully generated API binding (True), or as a (base) class used for
+        manually extending the binding code (False), by default True.
     """
 
     class Operator(metaclass=_DaliOperatorMeta):
@@ -631,9 +632,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None):
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name
     Operator._internal_schema_name = internal_schema_name
-    # The class was generated using python_op_factory, and we don't expect custom wrapper.
-    # If needed, allow this tag to be overridden by an argument to this function
-    Operator._generated = internal_schema_name is None
+    Operator._generated = generated
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
     return Operator
 

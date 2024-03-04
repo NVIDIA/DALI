@@ -85,7 +85,9 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
     return ret
 
 
-class NumbaFunction(ops.python_op_factory("NumbaFunctionBase", "NumbaFunction", "NumbaFuncImpl")):
+class NumbaFunction(
+    ops.python_op_factory("NumbaFunctionBase", "NumbaFunction", "NumbaFuncImpl", generated=False)
+):
     _impl_module = "nvidia.dali.plugin.numba"
     ops.register_cpu_op("NumbaFunction")
     ops.register_gpu_op("NumbaFunction")

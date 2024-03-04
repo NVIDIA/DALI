@@ -31,7 +31,10 @@ def tfrecord_enabled():
 
 
 def _get_impl(name, schema_name, internal_schema_name):
-    class _TFRecordReaderImpl(ops.python_op_factory(name, schema_name, internal_schema_name)):
+
+    class _TFRecordReaderImpl(
+        ops.python_op_factory(name, schema_name, internal_schema_name, generated=False)
+    ):
         """custom wrappers around ops"""
 
         def __init__(self, path, index_path, features, **kwargs):
