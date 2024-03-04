@@ -18,6 +18,7 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dali/core/api_helper.h"
