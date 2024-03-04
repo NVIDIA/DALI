@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -294,7 +294,7 @@ def test_reduce_invalid_axes():
     dali_reduce_fn, numpy_reduce_fn = reduce_fns["sum"]
 
     for axes in batch_fn.valid_axes():
-        with assert_raises(RuntimeError, glob="Axis index out of range"):
+        with assert_raises(IndexError, glob="Axis index out of range"):
             dali_res_cpu, dali_res_gpu = run_dali(
                 dali_reduce_fn, batch_fn, keep_dims=False, axes=axes, output_type=np.uint8
             )
