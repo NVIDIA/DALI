@@ -77,61 +77,6 @@ target_include_directories(dali_video PUBLIC ${dali_video_SRC_DIR})
 target_link_directories(dali_video PUBLIC ${DALI_LIB_DIR})
 target_link_libraries(dali_video PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
 
-find_package(PkgConfig REQUIRED)
-if(PKG_CONFIG_FOUND)
-    pkg_check_modules(
-        LIBAV
-        REQUIRED
-        IMPORTED_TARGET
-        # Ubuntu 20.04 system packages
-        libavfilter>=7.57.100
-        libavformat>=58.29.100
-        libavcodec>=58.54.100
-        libswresample>=3.5.100
-        libavutil>=56.31.100
-    )
-    target_link_libraries(dali_video PUBLIC PkgConfig::LIBAV)
-else()
-    set(NV_FFMPEG_INCLUDE_DIR "" CACHE PATH "Where to find ffmpeg includes")
-    set(NV_FFMPEG_LIBRARY_DIR "" CACHE PATH "Where to find ffmpeg libraries")
-    message(STATUS "NV_FFMPEG_INCLUDE_DIR=\"${FFMPEG_DIR}/include\"")
-    message(STATUS "FFMPEG_DIR=\"${FFMPEG_DIR}\"")
-    message(STATUS "NV_FFMPEG_LIBRARY_DIR=\"${FFMPEG_DIR}/lib\"")
-
-    macro(link_av_component target lib_name)
-        find_path(
-            ${lib_name}_INCLUDE_DIR
-            NAMES "${lib_name}/${lib_name}.h" "lib${lib_name}/${lib_name}.h"
-            HINTS ${NV_FFMPEG_INCLUDE_DIR} "${FFMPEG_DIR}/include"
-        )
-        find_library(
-            ${lib_name}_LIBRARY
-            NAMES "${lib_name}"
-            HINTS ${NV_FFMPEG_LIBRARY_DIR} "${FFMPEG_DIR}/lib"
-        )
-        message(STATUS "${lib_name}: library=${${lib_name}_LIBRARY}, include dir=${${lib_name}_INCLUDE_DIR}")
-        if(NOT ${lib_name}_LIBRARY)
-            message(
-                FATAL_ERROR
-                "Could not find ${lib_name}_LIBRARY! Please set FFMPEG_DIR to indicate its location!"
-            )
-        endif()
-        if(NOT ${lib_name}_INCLUDE_DIR)
-            message(
-                FATAL_ERROR
-                "Could not find ${lib_name}_INCLUDE_DIR! Please set FFMPEG_DIR to indicate its location!"
-            )
-        endif()
-        target_link_libraries(dali_video PUBLIC ${${lib_name}_LIBRARY})
-        target_include_directories(dali_video PUBLIC ${${lib_name}_INCLUDE_DIR})
-    endmacro()
-    link_av_component(dali_video avfilter)
-    link_av_component(dali_video avformat)
-    link_av_component(dali_video avcodec)
-    link_av_component(dali_video swresample)
-    link_av_component(dali_video avutil)
-endif()
-
 include(GNUInstallDirs)
 
 install(TARGETS dali_video

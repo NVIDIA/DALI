@@ -12,15 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# option(FFMPEG_DIR "setting FFMPEG dir" FALSE)
-# set(FFMPEG_DIR $ENV{FFMPEG_DIR})
-
-# find_package(CUDAToolkit 11.2 REQUIRED)
-
-# find_path(
-#     FFMPEG_DIR
-#     NAMES "include/libavcodec/avcodec.h" 
-# )
-
 set(dali_video_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(dali_video)
