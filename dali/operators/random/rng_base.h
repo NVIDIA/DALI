@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,19 +118,21 @@ class RNGBase : public OperatorWithRng<Backend> {
       dtype_ = This().DefaultDataType();
 
     bool has_shape = spec_.ArgumentDefined("shape");
-    bool has_shape_like = spec_.NumRegularInput() == 1;
+    // The first optional input is the shape like
+    bool has_shape_like = spec_.NumRegularInput() == spec_.GetSchema().MinNumInput() + 1;
+    int shape_like_idx = spec_.GetSchema().MinNumInput();
     int nsamples = GetBatchSize(ws);
     DALI_ENFORCE(!(has_shape && has_shape_like),
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (IsNoiseGen) {
-      shape_ = ws.Input<Backend>(0).shape();
+      shape_ = ws.Input<Backend>(shape_like_idx).shape();
     } else if (has_shape_like) {
-      if (ws.InputIsType<Backend>(0)) {
-        shape_ = ws.Input<Backend>(0).shape();
+      if (ws.InputIsType<Backend>(shape_like_idx)) {
+        shape_ = ws.Input<Backend>(shape_like_idx).shape();
       } else if (std::is_same<GPUBackend, Backend>::value &&
-                 ws.InputIsType<CPUBackend>(0)) {
-        shape_ = ws.Input<CPUBackend>(0).shape();
+                 ws.InputIsType<CPUBackend>(shape_like_idx)) {
+        shape_ = ws.Input<CPUBackend>(shape_like_idx).shape();
       } else {
         DALI_FAIL(
             "Shape-like input can be either CPUBackend or GPUBackend for case of GPU operators.");
