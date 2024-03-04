@@ -68,6 +68,8 @@ endif()
 message(STATUS "DALI_LIB_DIR=${DALI_LIB_DIR}")
 
 set(VIDEO_PLUGIN_SOURCES
+    dynlink_nvcuvid/dynlink_nvcuvid_gen.cc  # TODO(janton): remove
+    dynlink_nvcuvid/dynlink_nvcuvid.cc      # TODO(janton): remove
     loader/frames_decoder.cc
     loader/frames_decoder_gpu.cc
     loader/video_loader_decoder_cpu.cc
