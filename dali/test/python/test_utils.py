@@ -15,6 +15,7 @@
 import nvidia.dali as dali
 import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
+from nvidia.dali import plugin_manager
 
 import functools
 import inspect
@@ -972,3 +973,13 @@ def create_sign_off_decorator():
             return set(_tested_ops)
 
     return SignOff()
+
+
+def load_test_operator_plugin():
+    """Load plugin containing the test operators from: `dali/test/operators`."""
+    test_bin_dir = os.path.dirname(dali.__file__) + "/test"
+    try:
+        plugin_manager.load_library(test_bin_dir + "/libtestoperatorplugin.so")
+    except RuntimeError:
+        # in conda "libtestoperatorplugin" lands inside lib/ dir
+        plugin_manager.load_library("libtestoperatorplugin.so")

@@ -19,6 +19,7 @@ from nvidia.dali import types as _types
 from nvidia.dali import _autograph
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
+from nvidia.dali._utils import dali_trace as _dali_trace
 from nvidia.dali._utils.external_source_impl import (
     get_callback_from_source as _get_callback_from_source,
     accepted_arg_count as _accepted_arg_count,
@@ -646,6 +647,8 @@ Keyword Args
         self._bytes_per_sample_hint = bytes_per_sample_hint
         self._batch_info = batch_info
         self._repeat_last = repeat_last
+        if _dali_trace.is_tracing_enabled():
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)
@@ -863,6 +866,9 @@ Keyword Args
         else:
             self._name = name
 
+        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
+            self._definition_frame_end = _dali_trace.get_stack_depth() - 1
+
         if name is not None and self._num_outputs is not None:
             raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
 
@@ -1055,6 +1061,8 @@ def external_source(
             **kwargs,
         )
     else:
+        if _dali_trace.is_tracing_enabled():
+            kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
         result = _external_source(
             source,
             num_outputs,

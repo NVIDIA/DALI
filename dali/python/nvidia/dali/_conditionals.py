@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,6 +48,14 @@ import tree
 
 def _data_node_repr(data_node):
     return f"DataNode(name={data_node.name}, device={data_node.device}, source={data_node.source})"
+
+
+def _map_structure(func, *structures, **kwargs):
+    """Custom wrapper over tree.map_structure that filters it out from the user-visible stack trace
+    for error reporting purposes.
+    """
+    with _autograph.CustomModuleFilter(tree):
+        return tree.map_structure(func, *structures, **kwargs)
 
 
 class _Branch(Enum):
@@ -309,7 +317,7 @@ class _ConditionStack:
             return
         logging.log(8, (f"{self._indent()}[IF/Register] {data_nodes} at {self.stack_depth() -1}"))
         scope = self._stack[0] if global_scope else self.top()
-        tree.map_structure(lambda node: scope.add_produced(node), data_nodes)
+        _map_structure(lambda node: scope.add_produced(node), data_nodes)
 
     def track_true_branch(self):
         """Mark `if` (true) branch as current scope."""
@@ -501,7 +509,7 @@ def apply_conditional_split_to_branch_outputs(branch_outputs, promote_constants=
             return apply_conditional_split(constant_node)
         return atom
 
-    return tree.map_structure(apply_split, branch_outputs)
+    return _map_structure(apply_split, branch_outputs)
 
 
 def apply_conditional_split_to_args(inputs, kwargs):
@@ -612,7 +620,7 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                         new_body_val, new_orelse_val, predicate=split_predicate
                     )
 
-                output_values = tree.map_structure(merge_branches, body_outputs, orelse_outputs)
+                output_values = _map_structure(merge_branches, body_outputs, orelse_outputs)
 
         # Register the new nodes outside of the conditional scope, they will be used in subsequent
         # calls.

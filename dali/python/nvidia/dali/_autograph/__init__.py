@@ -43,6 +43,8 @@ from nvidia.dali._autograph.impl.api import converted_call
 from nvidia.dali._autograph.impl.api import do_not_convert
 from nvidia.dali._autograph.impl.api import autograph_artifact
 from nvidia.dali._autograph.impl.api import is_autograph_artifact
+from nvidia.dali._autograph.impl.api import is_frame_ag_call_entrypoint
+from nvidia.dali._autograph.impl.api import is_frame_ag_call_unconverted
 
 # from nvidia.dali._autograph.impl.api import StackTraceMapper
 from nvidia.dali._autograph.impl.api import to_code
@@ -52,6 +54,7 @@ from nvidia.dali._autograph.lang.directives import set_loop_options
 from nvidia.dali._autograph.utils import ag_logging
 from nvidia.dali._autograph.utils.all_utils import _remove_undocumented
 from nvidia.dali._autograph.utils.hooks import OperatorBase
+from nvidia.dali._autograph.utils.tf_stack import CustomModuleFilter
 
 # TODO(mdan): Revisit this list once we finalize the generated code mechanism.
 _allowed_symbols = [
