@@ -14,7 +14,6 @@
 #include <nvimgcodec.h>
 #include "dali/core/common.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/operators/imgcodec/util/output_shape.h"
 
 #ifndef DALI_OPERATORS_IMGCODEC_IMGCODEC_H_
 #define DALI_OPERATORS_IMGCODEC_IMGCODEC_H_
