@@ -133,6 +133,26 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
   }
 }
 
+
+
+DALI_SCHEMA(plugin__video__decoders__Video)
+    .DocStr(
+        R"code(Decodes a video file from a memory buffer (e.g. provided by external source).
+
+The video streams can be in most of the container file formats. FFmpeg is used to parse video
+ containers and returns a batch of sequences of frames with shape (F, H, W, C) where F is the
+ number of frames in a sequence and can differ for each sample.)code")
+    .NumInput(1)
+    .NumOutput(1)
+    .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.")
+    .AddOptionalArg("affine",
+    R"code(Applies only to the mixed backend type.
+
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true);
+
+
+
 DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderMixed, dali::Mixed);
 
 }  // namespace dali_video
