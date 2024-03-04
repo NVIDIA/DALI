@@ -15,14 +15,9 @@
 #ifndef DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 #define DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 
-<<<<<<< HEAD
-#include <string>
-#include <utility>
-=======
 #include <exception>
 #include <stdexcept>
 #include <string>
->>>>>>> ffa6178c2 (Make everything a tad more generic)
 #include <vector>
 
 #include "dali/core/api_helper.h"
