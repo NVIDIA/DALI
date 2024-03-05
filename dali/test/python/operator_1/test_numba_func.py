@@ -28,6 +28,7 @@ from test_utils import (
 )
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from numba import cuda
+from nose.plugins.attrib import attr
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -200,6 +201,7 @@ def _testimpl_numba_func(
             assert np.array_equal(out_arr, expected_out[i])
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func():
     # shape, dtype, run_fn, out_types,
@@ -309,6 +311,7 @@ def test_numba_func():
         )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_with_cond():
     # When the function is not converted, the numba still works with no issues.
@@ -330,6 +333,7 @@ def test_numba_func_with_cond():
     )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_with_cond_do_not_convert():
     # Test if do_not_convert decorated functions still work.
@@ -349,6 +353,7 @@ def test_numba_func_with_cond_do_not_convert():
     )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_gpu():
     # shape, dtype, run_fn, out_types,
@@ -560,6 +565,7 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_image():
     args = [
@@ -629,6 +635,7 @@ def test_numba_func_image():
         )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_image_gpu():
     args = [
@@ -746,6 +753,7 @@ def numba_func_split_image_pipe(
     return images_in, out0, out1, out2
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_split_images_col():
     pipe = numba_func_split_image_pipe(
@@ -823,6 +831,7 @@ def multiple_ins_run_gpu(out0, in0, in1, in2):
             out0[y][x][2] = in2[y][x]
 
 
+@attr("sanitizer_skip")
 @pipeline_def
 def numba_multiple_ins_pipe(
     shapes,
@@ -969,6 +978,7 @@ def nonuniform_types_pipe(
     return images_in, out_img, out_shape
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_nonuniform_types_cpu():
     pipe = nonuniform_types_pipe(
@@ -990,6 +1000,7 @@ def test_nonuniform_types_cpu():
             assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_nonuniform_types_gpu():
     blocks = [16, 16, 1]
