@@ -89,12 +89,12 @@ class DLL_PUBLIC OpSchema {
   /**
    * @brief Returns the module path of this operator.
    */
-   DLL_PUBLIC const std::vector<std::string> &ModulePath() const;
+  DLL_PUBLIC const std::vector<std::string> &ModulePath() const;
 
   /**
    * @brief Returns the camel case name of the operator (without the module path)
    */
-   DLL_PUBLIC const std::string &OperatorName() const;
+  DLL_PUBLIC const std::string &OperatorName() const;
 
   /**
    * @brief Sets the doc string for this operator.
