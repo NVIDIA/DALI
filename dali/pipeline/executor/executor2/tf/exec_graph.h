@@ -69,7 +69,6 @@ class ExecNode {
   }
 
   std::vector<const ExecEdge *> inputs, outputs;
-  std::function<void(Workspace &)> task_fn;
 
   tf::Semaphore concurrency{1};
   std::optional<tf::Semaphore> output_queue;
@@ -118,6 +117,11 @@ struct ExecGraph {
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
 
+  template <typename... Args>
+  ExecNode *add_node(Args &&...args) {
+    return &nodes.emplace_back(std::forward<Args>(args)...);
+  }
+
   void link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
     auto &edge = edges.emplace_back();
     edge.producer = producer;
@@ -159,7 +163,7 @@ using SchedEdge = DataEdge<SchedNode>;
 
 struct SchedGraph;
 
-class SchedNode {
+class DLL_PUBLIC SchedNode {
  public:
   ExecNode *definition;
   span<const SchedEdge> inputs, outputs;
@@ -184,7 +188,7 @@ class SchedNode {
 };
 
 
-struct SchedGraph : public std::enable_shared_from_this<SchedGraph> {
+struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
   SchedGraph() = default;
   SchedGraph(SchedGraph &&other) = default;
   SchedGraph(const SchedGraph &other) {
