@@ -14,13 +14,11 @@
 
 
 import nvidia.dali.python_function_plugin
-from nvidia.dali import backend as _b
 from nvidia.dali import ops
 from nvidia.dali.ops import _registry
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import CUDAStream as _CUDAStream
-from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 cupy = None
@@ -32,67 +30,53 @@ def _setup_cupy():
         import cupy as cupy
 
 
-class PythonFunctionBase(metaclass=ops._DaliOperatorMeta):
-    def __init__(self, impl_name, function, num_outputs=1, device="cpu", **kwargs):
-        self._schema = _b.GetSchema(impl_name)
-        self._spec = _b.OpSpec(impl_name)
-        self._device = device
-        self._impl_name = impl_name
+def _get_base_impl(name, impl_name):
 
-        self._init_args, self._call_args = ops._separate_kwargs(kwargs)
-        self._name = self._init_args.pop("name", None)
-        if _dali_trace.is_tracing_enabled():
-            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+    class PythonFunctionBase(ops.python_op_factory(impl_name, name, impl_name, generated=False)):
 
-        for key, value in self._init_args.items():
-            self._spec.AddArg(key, value)
+        def __init__(self, function, num_outputs=1, **kwargs):
 
-        self.function = function
-        self.num_outputs = num_outputs
-        self._preserve = True
+            # The layouts need to be handled manually due to an implementation detail
+            # By calling spec.AddArg manually, we skip the promotion from a single string argument
+            # to a 1-element list of strings that is done by the automation in the base class.
+            # This way, the operator is able to differentiate between those cases.
+            self._output_layouts = kwargs.pop("output_layouts", None)
+            super().__init__(**kwargs)
+            if self._output_layouts is not None:
+                self._spec.AddArg("output_layouts", self._output_layouts)
 
-    @property
-    def spec(self):
-        return self._spec
+            self.function = function
+            self.num_outputs = num_outputs
+            self._preserve = True
 
-    @property
-    def schema(self):
-        return self._schema
+        def __call__(self, *inputs, **kwargs):
+            inputs = ops._preprocess_inputs(inputs, impl_name, self._device, None)
+            self.pipeline = _Pipeline.current()
+            if self.pipeline is None:
+                _Pipeline._raise_pipeline_required("PythonFunction operator")
 
-    @property
-    def device(self):
-        return self._device
+            for inp in inputs:
+                if not isinstance(inp, _DataNode):
+                    raise TypeError(
+                        f"Expected inputs of type `DataNode`. "
+                        f"Received input of type '{type(inp).__name__}'. "
+                        f"Python Operators do not support Multiple Input Sets."
+                    )
 
-    @property
-    def preserve(self):
-        return self._preserve
-
-    def __call__(self, *inputs, **kwargs):
-        inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
-        self.pipeline = _Pipeline.current()
-        if self.pipeline is None:
-            _Pipeline._raise_pipeline_required("PythonFunction operator")
-
-        for inp in inputs:
-            if not isinstance(inp, _DataNode):
-                raise TypeError(
-                    f"Expected inputs of type `DataNode`. "
-                    f"Received input of type '{type(inp).__name__}'. "
-                    f"Python Operators do not support Multiple Input Sets."
+            call_layouts = kwargs.pop("output_layouts", None)
+            if self._output_layouts is not None:
+                # For the purpose of erroring on double definition
+                ops._resolve_double_definitions(
+                    {"output_layouts": call_layouts}, {"output_layouts": self._output_layouts}
                 )
+            elif call_layouts is not None:
+                self._spec.AddArg("output_layouts", call_layouts)
 
-        args, arg_inputs = ops._separate_kwargs(kwargs)
-        args.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
+            kwargs.update({"function_id": id(self.function), "num_outputs": self.num_outputs})
 
-        args = ops._resolve_double_definitions(args, self._init_args, keep_old=False)
-        if self._name is not None:
-            args = ops._resolve_double_definitions(args, {"name": self._name})  # restore the name
-        if _dali_trace.is_tracing_enabled() and self._definition_frame_end is None:
-            self._definition_frame_end = _dali_trace.get_stack_depth() - 1
+            return super().__call__(*inputs, **kwargs)
 
-        op_instance = ops._OperatorInstance(inputs, arg_inputs, args, self._init_args, self)
-        op_instance.spec.AddArg("device", self.device)
-        return op_instance.unwrapped_outputs
+    return PythonFunctionBase
 
 
 def _dlpack_to_array(dlpack):
@@ -103,8 +87,7 @@ def _dlpack_from_array(array):
     return nvidia.dali.python_function_plugin.ArrayToDLTensor(array)
 
 
-class PythonFunction(PythonFunctionBase):
-    schema_name = "PythonFunction"
+class PythonFunction(_get_base_impl("PythonFunction", "DLTensorPythonFunctionImpl")):
     _registry.register_cpu_op("PythonFunction")
     _registry.register_gpu_op("PythonFunction")
 
@@ -231,8 +214,7 @@ class PythonFunction(PythonFunctionBase):
             def func(*ts):
                 return self._function_wrapper_gpu(batch_processing, function, num_outputs, *ts)
 
-        super(PythonFunction, self).__init__(
-            impl_name="DLTensorPythonFunctionImpl",
+        super().__init__(
             function=func,
             num_outputs=num_outputs,
             device=device,
@@ -242,8 +224,9 @@ class PythonFunction(PythonFunctionBase):
         )
 
 
-class DLTensorPythonFunction(PythonFunctionBase):
-    schema_name = "DLTensorPythonFunction"
+class DLTensorPythonFunction(
+    _get_base_impl("DLTensorPythonFunction", "DLTensorPythonFunctionImpl")
+):
     _registry.register_cpu_op("DLTensorPythonFunction")
     _registry.register_gpu_op("DLTensorPythonFunction")
 
@@ -269,8 +252,7 @@ class DLTensorPythonFunction(PythonFunctionBase):
         def func(*ts):
             return self._function_wrapper_dlpack(batch_processing, function, num_outputs, *ts)
 
-        super(DLTensorPythonFunction, self).__init__(
-            impl_name="DLTensorPythonFunctionImpl",
+        super().__init__(
             function=func,
             num_outputs=num_outputs,
             device=device,
