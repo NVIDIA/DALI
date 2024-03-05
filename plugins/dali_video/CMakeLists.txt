@@ -17,14 +17,7 @@ cmake_minimum_required(VERSION 3.18)
 project(dali_video)
 
 set(DALI_ROOT "${PROJECT_SOURCE_DIR}/../..")
-SET(CUDA_VERSION "" CACHE STRING "CUDA version")
-if("${CUDA_VERSION}" STREQUAL "")
-  message(FATAL_ERROR "CUDA version not provided. Pass CUDA version to cmake (e.g -DCUDA_VERSION:STRING=\"10.1\")")
-endif()
-
 include(${DALI_ROOT}/cmake/Utils.cmake)
-parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
-
 get_dali_version(${DALI_ROOT}/VERSION DALI_VERSION)
 
 if(DALI_BUILD_FLAVOR)
