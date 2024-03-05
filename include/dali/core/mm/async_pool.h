@@ -386,7 +386,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
         bool split = supports_splitting && remainder + min_split_remainder < block_end;
         size_t orig_alignment = f->alignment;
         size_t split_size = block_size;
+        // If stream_id is ambiguous, we might have blocks from other streams mixed in
         if (!stream_id_hint::is_unambiguous()) {
+          // This check is not necessary for correctness but skipping it resulted in a big
+          // performance hit in allocator performance tests.
           if (!f->ready())
             CUDA_CALL(cudaStreamWaitEvent(stream.get(), f->event));
         }

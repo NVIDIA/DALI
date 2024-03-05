@@ -63,7 +63,7 @@ cuStreamGetId_t *getRealStreamIdFunc() {
   return fn;
 }
 
-bool _hasPreciseHint() {
+inline bool hasPreciseHint() {
   static bool ret = getRealStreamIdFunc() != nullptr;
   return ret;
 }
@@ -87,7 +87,7 @@ CUresult cuStreamGetIdBootstrap(CUstream stream, unsigned long long *id) {  // N
 namespace dali {
 
 DLL_PUBLIC bool stream_id_hint::is_unambiguous() {
-  return _hasPreciseHint();
+  return hasPreciseHint();
 }
 
 DLL_PUBLIC uint64_t stream_id_hint::from_handle(CUstream stream) {
