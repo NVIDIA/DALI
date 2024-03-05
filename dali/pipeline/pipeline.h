@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_PIPELINE_H_
 
 #include <chrono>
+#include <exception>
 #include <limits>
 #include <map>
 #include <memory>
@@ -679,6 +680,11 @@ class DLL_PUBLIC Pipeline {
    * Traverses the Operator graph and collects all operators that are Input Operators.
    */
   void DiscoverInputOperators();
+
+  /**
+   * @brief Process exception that was thrown when executing DALI.
+   */
+  void ProcessException(std::exception_ptr eptr);
 
   const int MAX_SEEDS = 1024;
 

@@ -54,4 +54,40 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
   return s.str();
 }
 
+void PropagateError(ErrorInfo error) {
+  try {
+    if (error.exception) {
+      std::rethrow_exception(error.exception);
+    }
+  }
+  // DALI <-> Python mapped type errors:
+  catch (DaliError &e) {
+    if (error.context_info.size()) {
+      e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
+    }
+    throw;
+  }
+  // Exceptions that are mapped by pybind from C++ into a sensible C++ one:
+  catch (std::invalid_argument &e) {
+    throw std::invalid_argument(
+        make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::domain_error &e) {
+    throw std::domain_error(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::length_error &e) {
+    throw std::length_error(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::out_of_range &e) {
+    throw std::out_of_range(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::range_error &e) {
+    throw std::range_error(make_string(error.context_info, e.what(), error.additional_message));
+  }
+  // Map the rest into runtime error (it would happen this way regardless)
+  catch (std::exception &e) {
+    throw std::runtime_error(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (...) {
+    throw std::runtime_error(
+        make_string(error.context_info, "Unknown critical error.", error.additional_message));
+  }
+}
+
+
 }  // namespace dali

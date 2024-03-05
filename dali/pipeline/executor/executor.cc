@@ -189,10 +189,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
     try {
       RunHelper(op_node, ws, iteration_id);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
-    } catch (std::exception &e) {
-      HandleError("CPU", op_node, e.what());
     } catch (...) {
-      HandleError();
+      HandleError("CPU", op_node);
     }
   }
 
@@ -240,10 +238,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
         }
         CUDA_CALL(cudaGetLastError());
       }
-    } catch (std::exception &e) {
-      HandleError("Mixed", op_node, e.what());
     } catch (...) {
-      HandleError();
+      HandleError("Mixed", op_node);
     }
   }
 
@@ -309,10 +305,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
       CUDA_CALL(cudaGetLastError());
-    } catch (std::exception &e) {
-      HandleError("GPU", op_node, e.what());
     } catch (...) {
-      HandleError();
+      HandleError("GPU", op_node);
     }
   }
 
@@ -364,10 +358,8 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   try {
     RunCPUImpl(cpu_iteration_id_++);
-  } catch (std::exception &e) {
-    HandleError(make_string("Exception in CPU stage: ", e.what()));
   } catch (...) {
-    HandleError("Unknown error in CPU stage.");
+    HandleError("Exception in CPU stage: ");
   }
 }
 
@@ -375,10 +367,8 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   try {
     RunMixedImpl(mixed_iteration_id_++);
-  } catch (std::exception &e) {
-    HandleError(make_string("Exception in mixed stage: ", e.what()));
   } catch (...) {
-    HandleError("Unknown error in mixed stage.");
+    HandleError("Exception in mixed stage: ");
   }
 }
 
@@ -386,10 +376,8 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   try {
     RunGPUImpl(gpu_iteration_id_++);
-  } catch (std::exception &e) {
-    HandleError(make_string("Exception in GPU stage: ", e.what()));
   } catch (...) {
-    HandleError("Unknown error in GPU stage.");
+    HandleError("Exception in GPU stage: ");
   }
 }
 

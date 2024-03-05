@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,11 @@
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 
 #include <atomic>
+#include <exception>
 #include <map>
 #include <memory>
 #include <queue>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,8 +40,9 @@
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
-#include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -243,32 +246,32 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
   }
 
-  void HandleError(const std::string &stage, const OpNode &op_node, const std::string &message) {
-    // handle internal Operator names that start with underscore
-    const auto &op_name =
-        op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
+  void HandleError(const std::string &stage, const OpNode &op_node) {
+      // handle internal Operator names that start with underscore
+      const auto &op_name =
+          op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
 
-    bool need_instance_name = false;
-    for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-      if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
-        need_instance_name = true;
-        break;
+      bool need_instance_name = false;
+      for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
+        if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
+          need_instance_name = true;
+          break;
+        }
       }
-    }
-    if (need_instance_name) {
-      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              ", instance name: \"", op_node.instance_name, "\", encountered:\n",
-                              message));
-    } else {
-      HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                              " encountered:\n", message));
-    }
+      if (need_instance_name) {
+        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                                ", instance name: \"", op_node.instance_name,
+                                "\", encountered:\n"));
+      } else {
+        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
+                                " encountered:\n"));
+      }
   }
 
-  void HandleError(const std::string& message = "Unknown exception") {
+  void HandleError(const std::string& context = "", const std::string& additional_message = "") {
     {
       std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back(message);
+      errors_.push_back({std::current_exception(), context, additional_message});
     }
     exec_error_ = true;
     ShutdownQueue();
@@ -359,7 +362,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   OpGraph *graph_ = nullptr;
   EventPool event_pool_;
   ThreadPool thread_pool_;
-  std::vector<std::string> errors_;
+  std::vector<ErrorInfo> errors_;
   mutable std::mutex errors_mutex_;
   bool exec_error_;
   QueueSizes queue_sizes_;
@@ -390,18 +393,19 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  private:
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
-  void RethrowError() const {
+  void RethrowError() {
     std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-    // TODO(klecki): collect all errors
-    std::string message = errors_.empty()
-                          ? QueuePolicy::IsStopSignaled() && !exec_error_
-                            ? "Stop signaled"
-                            : "Unknown error"
-                          : errors_.front();
+    if (errors_.empty()) {
+      if (QueuePolicy::IsStopSignaled() && !exec_error_) {
+        throw std::runtime_error("Stop signaled");
+      }
+      throw std::runtime_error("Unknown error");
+    }
 
-    // TODO(michalz): rethrow actual error through std::exception_ptr instead of
-    //                converting everything to runtime_error
-    throw std::runtime_error(message);
+    // TODO(klecki): collect all errors
+    auto error = errors_.front();
+    errors_.erase(errors_.begin());
+    PropagateError(error);
   }
 
   void DiscoverBatchSizeProviders() {

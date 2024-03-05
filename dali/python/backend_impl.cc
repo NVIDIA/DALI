@@ -19,7 +19,9 @@
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
+#include "pybind11/pybind11.h"
 #include "pybind11/pytypes.h"
+#include "pyerrors.h"  // NOLINT(build/include)
 #if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
 #endif
@@ -34,6 +36,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/eager_operator.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
@@ -2228,6 +2231,25 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.attr("NFHWC") = "FHWC";
   types_m.attr("NFCHW") = "FCHW";
   types_m.attr("SAME") = "";
+
+  // We can register exception translator and translate directly into Python error, without
+  // tying DALI internals into using the py::type_error
+  py::register_exception_translator([](std::exception_ptr p) {
+    try {
+      if (p)
+        std::rethrow_exception(p);
+    } catch (const DaliRuntimeError &e) {
+      PyErr_SetString(PyExc_RuntimeError, e.what());
+    } catch (const DaliIndexError &e) {
+      PyErr_SetString(PyExc_IndexError, e.what());
+    } catch (const DaliTypeError &e) {
+      PyErr_SetString(PyExc_TypeError, e.what());
+    } catch (const DaliValueError &e) {
+      PyErr_SetString(PyExc_ValueError, e.what());
+    } catch (const DaliStopIteration &e) {
+      PyErr_SetString(PyExc_StopIteration, e.what());
+    }
+  });
 
 #ifdef DALI_BUILD_PROTO3
   // TFRecord
