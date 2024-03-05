@@ -56,7 +56,7 @@ class DummyOp : public Operator<CPUBackend> {
 
   static OpSchema &CreateSchema() {
     return CreateTestSchema("DummyOp")
-      .NumInput(1, 99)
+      .NumInput(0, 99)
       .NumOutput(1)
       .AddArg("addend", "a value added to the sum of inputs", DALI_INT32);
   }
@@ -64,13 +64,48 @@ class DummyOp : public Operator<CPUBackend> {
 
 TEST(Exec2Test, SimpleGraph) {
   DummyOp::CreateSchema();
-  OpSpec spec("DummyOp");
-  spec.AddArg("addent", 42)
-      .AddArg("num_threads", 1)
-      .AddArg("device", "cpu")
-      .AddArg("max_batch_size", 32);
-  DummyOp op(spec);
+  OpSpec spec0("DummyOp");
+  spec0.AddArg("addend", 100)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", 32)
+       .AddOutput("op0o0", "cpu")
+       .AddArg("name", "op0");
+  DummyOp op0(spec0);
+
+  OpSpec spec1("DummyOp");
+  spec1.AddArg("addend", 200)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", 32)
+       .AddOutput("op1o0", "cpu")
+       .AddArg("name", "op1");
+  DummyOp op1(spec1);
+
+  OpSpec spec2("DummyOp");
+  spec2.AddArg("addend", 1000)
+       .AddArg("num_threads", 1)
+       .AddArg("device", "cpu")
+       .AddArg("max_batch_size", 32)
+       .AddInput("op1o0", "cpu")
+       .AddInput("op2o0", "cpu")
+       .AddOutput("op2e0", "cpu")
+       .AddArg("name", "op2");
+  DummyOp op2(spec2);
+  ExecGraph def;
+  ExecNode *n0 = def.add_node(&op0);
+  ExecNode *n1 = def.add_node(&op1);
+  ExecNode *n2 = def.add_node(&op2);
+  def.link(n0, 0, n2, 0);
+  def.link(n1, 0, n2, 1);
+  auto sched = SchedGraph::from_def(def);
+  tf::Taskflow tf;
+  sched->schedule(tf);
+  tf::Executor ex;
+  ex.run(tf);
+  ex.wait_for_all();
 }
+
 
 }  // namespace test
 }  // namespace exec2

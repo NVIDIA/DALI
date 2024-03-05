@@ -133,6 +133,7 @@ void assert_valid(ExecGraph &eg) {
           }
         }
         assert(found);
+        (void)found;
       }
     }
   }
@@ -173,6 +174,7 @@ void assert_valid(SchedGraph &eg) {
           }
         }
         assert(found);
+        (void)found;
       }
     }
   }
