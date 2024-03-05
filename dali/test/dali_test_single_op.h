@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -235,7 +235,7 @@ class DALISingleOpTest : public DALITest {
     for (int i = 0; i < spec.NumOutput(); ++i)
       outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
 
-    pipeline_->AddOperator(spec, spec.name());
+    pipeline_->AddOperator(spec, spec.SchemaName());
   }
 
   virtual void AddDefaultArgs(OpSpec& spec) {

@@ -1830,7 +1830,7 @@ PYBIND11_MODULE(backend_impl, m) {
         })
     .def("name",
         [](OpNode* node) {
-          return node->spec.name();
+          return node->spec.SchemaName();
         });
 
   py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")

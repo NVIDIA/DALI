@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ class DLL_PUBLIC EagerOperator {
   using WSOutputType = typename Backend2Types<Backend>::WSOutputType;
 
  public:
-  DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.name()) {}
+  DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.SchemaName()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name)
       : EagerOperator(spec, std::move(name), GetSharedThreadPool()->NumThreads()) {}
@@ -160,7 +160,7 @@ class DLL_PUBLIC EagerOperator {
       int batch_size = -1);
 
   inline std::string ExtendErrorMsg(const std::string &backend, const char *what) {
-    return make_string("Error when executing ", backend, " operator ", op_spec_.name(),
+    return make_string("Error when executing ", backend, " operator ", op_spec_.SchemaName(),
                        ", instance name: \"", name_, "\", encountered:\n", what);
   }
 

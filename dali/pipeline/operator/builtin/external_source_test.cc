@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -660,7 +660,7 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   auto *op = pipe.GetOperatorNode(name);
   ASSERT_EQ(op->parents.size(), 0);
   ASSERT_EQ(op->id, 0);
-  ASSERT_EQ(op->spec.name(), "ExternalSource");
+  ASSERT_EQ(op->spec.SchemaName(), "ExternalSource");
   ASSERT_EQ(pipe.num_outputs(), 1);
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);

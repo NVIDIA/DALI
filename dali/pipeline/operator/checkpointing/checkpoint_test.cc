@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -182,7 +182,7 @@ class CheckpointTest : public DALITest {
     OpGraph new_graph = make_graph_instance(ZERO_STATE);
 
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      ASSERT_EQ(original_graph.Node(i).spec.name(),
+      ASSERT_EQ(original_graph.Node(i).spec.SchemaName(),
                 checkpoint.GetOpCheckpoint(i).OperatorName());
       original_graph.Node(i).op->SaveState(checkpoint.GetOpCheckpoint(i),
                                            AccessOrder(this->stream_.get()));
@@ -190,7 +190,7 @@ class CheckpointTest : public DALITest {
 
     ASSERT_EQ(new_graph.NumOp(), nodes_cnt);
     for (OpNodeId i = 0; i < nodes_cnt; i++) {
-      ASSERT_EQ(new_graph.Node(i).spec.name(),
+      ASSERT_EQ(new_graph.Node(i).spec.SchemaName(),
                 checkpoint.GetOpCheckpoint(i).OperatorName());
       checkpoint.GetOpCheckpoint(i).SetOrder(AccessOrder::host());
       new_graph.Node(i).op->RestoreState(checkpoint.GetOpCheckpoint(i));
