@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "dali/core/api_helper.h"
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
@@ -38,7 +39,7 @@ enum class ModuleSpecKind {
 /**
  * @brief Get the name of the API this operator was instantiated for.
  */
-std::string GetOpApi(const OpSpec &spec);
+DLL_PUBLIC std::string GetOpApi(const OpSpec &spec);
 
 // /**
 //  * @brief Get the module path of the operator
@@ -52,7 +53,8 @@ std::string GetOpApi(const OpSpec &spec);
  * @param spec OpSpec definition of the operator
  * @param kind Controls which portion of module path should be returned.
  */
-std::string GetOpModule(const OpSpec &spec, ModuleSpecKind kind = ModuleSpecKind::Module);
+DLL_PUBLIC std::string GetOpModule(const OpSpec &spec,
+                                   ModuleSpecKind kind = ModuleSpecKind::Module);
 
 
 /**
@@ -62,7 +64,8 @@ std::string GetOpModule(const OpSpec &spec, ModuleSpecKind kind = ModuleSpecKind
  * @param spec OpSpec definition of the operator
  * @param kind Controls which portion of module path should be returned.
  */
-std::string GetOpDisplayName(const OpSpec &spec, ModuleSpecKind kind = ModuleSpecKind::OpOnly);
+DLL_PUBLIC std::string GetOpDisplayName(const OpSpec &spec,
+                                        ModuleSpecKind kind = ModuleSpecKind::OpOnly);
 
 }  // namespace dali
 

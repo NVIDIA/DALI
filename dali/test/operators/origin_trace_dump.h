@@ -22,16 +22,14 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/test/operators/name_dump.h"
+#include "dali/test/operators/string_msg_helper.h"
 
 namespace dali {
 
-template <typename Backend>
-class OriginTraceDump : public Operator<Backend> {
+class OriginTraceDump : public StringMsgHelper {
  public:
-  inline explicit OriginTraceDump(const OpSpec &spec) : Operator<Backend>(spec) {
-    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-    formatted_stack_ = FormatStack(origin_stack_trace, true);
-  }
+  inline explicit OriginTraceDump(const OpSpec &spec) : StringMsgHelper(spec) {}
 
   inline ~OriginTraceDump() override = default;
 
@@ -39,26 +37,10 @@ class OriginTraceDump : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
+  std::string GetMessage(const OpSpec &spec, const Workspace &ws) override {
+    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
+    return FormatStack(origin_stack_trace, true);
   }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    output_desc.resize(1);
-    int bs = ws.GetRequestedBatchSize(0);
-    TensorListShape<1> shape(bs);
-    shape.set_tensor_shape(0, {static_cast<int64_t>(formatted_stack_.size())});
-    output_desc[0].type = DALI_UINT8;
-    output_desc[0].shape = shape;
-    return true;
-  }
-
-  void RunImpl(Workspace &ws) override {
-    auto &out = ws.Output<Backend>(0);
-    auto *dst = out.template mutable_tensor<uint8_t>(0);
-    memcpy(dst, formatted_stack_.data(), formatted_stack_.size());
-  }
-  std::string formatted_stack_;
 };
 
 }  // namespace dali

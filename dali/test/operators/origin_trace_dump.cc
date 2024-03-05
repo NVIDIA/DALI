@@ -19,7 +19,7 @@
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(OriginTraceDump, OriginTraceDump<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(OriginTraceDump, OriginTraceDump, CPU);
 
 DALI_SCHEMA(OriginTraceDump)
     .DocStr("Operator for testing origin stack trace from Python.")
