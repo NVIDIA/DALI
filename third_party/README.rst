@@ -49,8 +49,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 3.4.0
-.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.4.0
+.. |cutlassver| replace:: 3.4.1
+.. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.4.1
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
@@ -84,14 +84,14 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Dec 6, 2023)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/6089180ecb704cb2b136777798fa1be303618975
+.. |rapidjsonver| replace:: Top-of-tree (Feb 9, 2024)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/3f73edae00aba5b0112a80b4d41e6f1ff7d92a3d
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
 
 .. |black| replace:: black
 .. _black: https://github.com/psf/black
-.. |blackver| replace:: 24.1.1
-.. _blackver: https://pypi.org/project/black/24.1.1/
+.. |blackver| replace:: 24.2.0
+.. _blackver: https://pypi.org/project/black/24.2.0/
 .. |blacklic| replace:: MIT License
 .. _blacklic: https://github.com/psf/black/blob/main/LICENSE
