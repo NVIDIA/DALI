@@ -15,6 +15,7 @@
 from nvidia.dali import fn as _functional
 from nvidia.dali import backend as _b
 
+
 def _schema_name(cls):
     """Extract the name of the schema from Operator class."""
     return getattr(cls, "schema_name", cls.__name__)
