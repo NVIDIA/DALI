@@ -98,6 +98,7 @@ TEST(Exec2Test, SimpleGraph) {
   ExecNode *n2 = def.add_node(&op2);
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
+  def.link(n2, 0, nullptr, 0);
   auto sched = SchedGraph::from_def(def);
   tf::Taskflow tf;
   sched->schedule(tf);
