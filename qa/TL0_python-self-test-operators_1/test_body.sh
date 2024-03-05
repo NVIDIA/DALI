@@ -1,7 +1,11 @@
 #!/bin/bash -e
 
 test_py_with_framework() {
-    ${python_new_invoke_test} -A '!slow' -s operator_1
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        ${python_new_invoke_test} -A '!slow' -s operator_1
+    else
+        ${python_new_invoke_test} -A '!slow,!sanitizer_skip' -s operator_1
+    fi
 }
 
 test_no_fw() {

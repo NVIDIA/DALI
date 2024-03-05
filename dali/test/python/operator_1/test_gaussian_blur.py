@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -367,6 +367,7 @@ def check_per_sample_gaussian_blur(
 
 
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
+@attr("sanitizer_skip")
 def test_per_sample_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for shape, layout, axes in shape_layout_axes_cases:
@@ -524,6 +525,7 @@ def test_fail_gaussian_blur():
     )
 
 
+@attr("sanitizer_skip")
 def test_per_frame():
     def window_size(sample_desc):
         return np.array(2 * sample_desc.rng.randint(1, 15) + 1, dtype=np.int32)
