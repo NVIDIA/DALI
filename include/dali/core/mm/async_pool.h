@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/mm/pool_resource.h"
 #include "dali/core/mm/with_upstream.h"
 #include "dali/core/mm/detail/free_list.h"
+#include "dali/core/mm/detail/stream_id_hint.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_stream.h"
@@ -81,9 +82,11 @@ class async_pool_resource : public async_memory_resource<Kind>,
       std::lock_guard<std::mutex> guard(lock_);
 
       // find_first_ready doesn't throw on shutdown - and we want to terminate on other errors
-      assert(find_first_ready(free_blocks) == free_blocks.free_list.head);
+      assert(!stream_id_hint::is_unambiguous() ||
+             find_first_ready(free_blocks) == free_blocks.free_list.head);
 
       for (auto *f = free_blocks.free_list.head; f; ) {
+        assert(f->ready());
         try {
           global_pool_.deallocate(f->addr, f->bytes, f->alignment);
         } catch (const CUDAError &e) {
@@ -183,10 +186,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
       return nullptr;
     adjust_size_and_alignment(bytes, alignment, true);
     std::lock_guard<LockType> guard(lock_);
-    auto it = stream_free_.find(stream.get());
+    auto it = stream_free_.find(stream_id_hint::from_handle(stream.get()));
     void *ptr;
     if (it != stream_free_.end()) {
-      ptr = try_allocate(it->second, bytes, alignment);
+      ptr = try_allocate(it->second, bytes, alignment, stream);
       if (ptr)
         return ptr;
     }
@@ -241,7 +244,8 @@ class async_pool_resource : public async_memory_resource<Kind>,
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, ctx, std::move(event));
+    auto stream_id = stream_id_hint::from_handle(stream.get());
+    deallocate_async_impl(stream_free_[stream_id], ptr, bytes, alignment, ctx, std::move(event));
   }
 
   /**
@@ -327,7 +331,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
    *
    * If the allocation fails, the function returns nullptr.
    */
-  void *try_allocate(PerStreamFreeBlocks &from, size_t bytes, size_t alignment) {
+  void *try_allocate(PerStreamFreeBlocks &from,
+                     size_t bytes,
+                     size_t alignment,
+                     stream_view stream) {
     // This value is only used when not splitting - it limits how much memory
     // can be wasted for padding - the allowed padding is 1/16 of the allocated size,
     // clamped to between 16 bytes and 1 MiB.
@@ -379,6 +386,13 @@ class async_pool_resource : public async_memory_resource<Kind>,
         bool split = supports_splitting && remainder + min_split_remainder < block_end;
         size_t orig_alignment = f->alignment;
         size_t split_size = block_size;
+        // If stream_id is ambiguous, we might have blocks from other streams mixed in
+        if (!stream_id_hint::is_unambiguous()) {
+          // This check is not necessary for correctness but skipping it resulted in a big
+          // performance hit in allocator performance tests.
+          if (!f->ready())
+            CUDA_CALL(cudaStreamWaitEvent(stream.get(), f->event));
+        }
         if (split) {
           // Adjust the pending free `f` so that it contains only what remains after
           // the block was split.
@@ -407,6 +421,10 @@ class async_pool_resource : public async_memory_resource<Kind>,
    * @brief Searches per-stream free blocks to find the most recently freed one.
    */
   pending_free *find_first_ready(PerStreamFreeBlocks &free) {
+    // Without a reliable stream id we might have
+    // blocks from different streams mixed up - there's no
+    // strict ordering and find_first makes no sense.
+    assert(stream_id_hint::is_unambiguous());
     SmallVector<pending_free *, 128> pending;
     int step = 1;
     pending_free *f = free.free_list.head;
@@ -446,10 +464,23 @@ class async_pool_resource : public async_memory_resource<Kind>,
    * @brief Returns the memory from completed deallocations to the global pool.
    */
   void free_ready(PerStreamFreeBlocks &free) {
-    auto *f = find_first_ready(free);
-    while (f) {
-      global_pool_.deallocate(f->addr, f->bytes, f->alignment);
-      f = remove_pending_free(free, f);
+    if (stream_id_hint::is_unambiguous()) {
+      // strict order available - find the newest ready, all older entries must be ready too
+      auto *f = find_first_ready(free);
+      while (f) {
+        global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+        f = remove_pending_free(free, f);
+      }
+    } else {
+      // no strict order - go over elements and remove ones that are ready
+      for (auto *f = free.free_list.head; f; ) {
+        if (f->ready()) {
+          global_pool_.deallocate(f->addr, f->bytes, f->alignment);
+          f = remove_pending_free(free, f);
+        } else {
+          f = f->next;
+        }
+      }
     }
   }
 
@@ -549,7 +580,7 @@ class async_pool_resource : public async_memory_resource<Kind>,
 
   detail::pooled_map<char *, padded_block, true> padded_;
 
-  std::unordered_map<cudaStream_t, PerStreamFreeBlocks> stream_free_;
+  std::unordered_map<uint64_t, PerStreamFreeBlocks> stream_free_;
 
   using FreeDescAlloc = detail::object_pool_allocator<pending_free>;
 
