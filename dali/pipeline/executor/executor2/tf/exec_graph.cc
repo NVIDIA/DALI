@@ -27,7 +27,7 @@ auto backend_switch(StorageDevice device, Case &&callable)
 }
 
 void SchedNode::task_setup() {
-  int nout = ws->NumOutput();
+  int nout = definition->op->GetSpec().NumOutput();
   std::vector<OutputDesc> output_descs;
   output_descs.resize(nout);
   if (definition->op->Setup(output_descs, *ws)) {

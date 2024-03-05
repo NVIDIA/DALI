@@ -102,6 +102,15 @@ class ExecNode {
         ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
       }
     }
+    for (int i = 0; i < spec.NumOutput(); i++) {
+      bool gpu = spec.OutputDevice(i) == "gpu";
+      assert((outputs[i]->device == StorageDevice::GPU) == gpu);
+      if (gpu) {
+        ws->AddOutput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
+      } else {
+        ws->AddOutput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
+      }
+    }
     return ws;
   }
 
@@ -129,11 +138,13 @@ struct ExecGraph {
     edge.consumer = consumer;
     edge.consumer_input_idx = in_idx;
 
-    producer->outputs.push_back(&edge);
-    consumer->inputs.push_back(&edge);
+    if (producer)
+      producer->outputs.push_back(&edge);
+    if (consumer)
+      consumer->inputs.push_back(&edge);
   }
 
-  void sort(std::vector<ExecNode *> sorted) {
+  void sort(std::vector<ExecNode *> &sorted) {
     for (auto &n : nodes)
       n.visited = false;
 
@@ -148,6 +159,7 @@ struct ExecGraph {
   void sort_subgraph(NodePtrs &sorted, ExecNode *node) {
     if (node->visited)
       return;
+    node->visited = true;
     for (auto e : node->inputs)
       sort_subgraph(sorted, e->producer);
 
