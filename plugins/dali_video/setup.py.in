@@ -15,43 +15,43 @@
 import sys
 import os
 
-from pkg_resources import require
+import skbuild
 
 if __name__ == "__main__":
-    import skbuild
+    if sys.argv[1] != 'sdist':
+        from pkg_resources import require
 
-    try:
-        import nvidia.dali as dali
-    except:
-        # TODO(janton): link to installation documentation
-        installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
-        print("Error: NVIDIA DALI is not available. Please install it and try again: f{installation_url}")
-        sys.exit(1)
+        try:
+            import nvidia.dali as dali
+        except:
+            installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+            print("Error: NVIDIA DALI is not available. Please install it and try again: f{installation_url}")
+            sys.exit(1)
 
-    requirements = [
-        "setuptools>=42",
-        "scikit-build",
-        "cmake>=3.21",
-        "ninja"
-    ]
-    for req in requirements:
-        require(req)
+        requirements = [
+            "setuptools>=42",
+            "scikit-build",
+            "cmake>=3.21",
+            "ninja"
+        ]
+        for req in requirements:
+            require(req)
 
-    os.environ["DALI_COMPILE_FLAGS"] = " ".join(dali.sysconfig.get_compile_flags())
-    os.environ["DALI_LIB_DIR"] = dali.sysconfig.get_lib_dir()
-    print("DALI include dir:", os.environ["DALI_COMPILE_FLAGS"])
-    print("DALI lib dir:", os.environ["DALI_LIB_DIR"])
+        os.environ["DALI_COMPILE_FLAGS"] = " ".join(dali.sysconfig.get_compile_flags())
+        os.environ["DALI_LIB_DIR"] = dali.sysconfig.get_lib_dir()
+        print("DALI include dir:", os.environ["DALI_COMPILE_FLAGS"])
+        print("DALI lib dir:", os.environ["DALI_LIB_DIR"])
 
-    os.environ["PYTHON_EXECUTABLE"] = sys.executable
+        os.environ["PYTHON_EXECUTABLE"] = sys.executable
 
     skbuild.setup(
-        name="nvidia-dali-video-plugin@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@",
-        description="Video Processing plugin for NVIDIA DALI, @DALI_FLAVOR@ CUDA @CUDA_VERSION_SHORT@, with full NVENC/NVDEC hardware acceleration. Git SHA: @GIT_SHA@",
+        name="nvidia-dali-video-plugin@DALI_FLAVOR_MINUS@",
+        description="Video Processing plugin for NVIDIA DALI, @DALI_FLAVOR@, with full NVENC/NVDEC hardware acceleration. Git SHA: @GIT_SHA@",
         url='https://github.com/NVIDIA/DALI',
         version='@DALI_VERSION@',
         author='NVIDIA Corporation',
         license='Apache License 2.0',
-        #license_files = ('LICENSE', 'COPYRIGHT', 'Acknowledgements.txt'),
+        license_files = ('LICENSE', 'COPYRIGHT', 'Acknowledgements.txt'),
         classifiers=[
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
@@ -60,13 +60,9 @@ if __name__ == "__main__":
             'Programming Language :: Python :: 3.12',
             'Programming Language :: Python :: 3.13',
             ],
-        # install_requires = [
-        #   'nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@==@DALI_VERSION@'
-        # ],
         include_package_data=True,
         extras_require={},
         packages=["nvidia/dali_video"],
-        #package_data={"nvidia/dali_video": ["__init__.pyi"]},
         package_dir={"": "src"},
         cmake_install_dir="src/nvidia",
     )
