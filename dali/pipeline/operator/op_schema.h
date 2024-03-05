@@ -748,7 +748,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::map<std::string, DefaultedArgumentDef> GetOptionalArguments() const;
   std::map<std::string, DeprecatedArgDef> GetDeprecatedArguments() const;
 
-
+  /**
+   * @brief Initialize the module_path_ and operator_name_ fields based on the schema name.
+   */
   void InitNames();
 
   std::string dox_;

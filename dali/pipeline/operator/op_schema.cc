@@ -20,8 +20,6 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 
-#include <dbg.h>
-
 namespace dali {
 
 std::map<string, OpSchema> &SchemaRegistry::registry() {
