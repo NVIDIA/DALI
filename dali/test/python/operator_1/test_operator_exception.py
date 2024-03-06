@@ -18,6 +18,7 @@ from nose_utils import assert_raises
 from nose2.tools import params
 from nvidia.dali import math
 
+
 def setUpModule():
     load_test_operator_plugin()
 
@@ -185,7 +186,7 @@ def test_conditional_split():
         if stacked:
             output = types.Constant([1])
         else:
-            output = types.Constant([1])
+            output = types.Constant([0])
         return output
 
     with assert_raises(
@@ -201,6 +202,36 @@ which was used in the pipeline definition with the following traceback:
 encountered:
 
 *Assert on "dim == 0" failed: Conditions inside `if` statements are restricted to scalar*"""
+        ),
+    ):
+        pipe = non_scalar_condition()
+        pipe.build()
+        pipe.run()
+
+
+def test_conditional_merge():
+    @pipeline_def(enable_conditionals=True, batch_size=10, num_threads=4, device_id=0)
+    def non_scalar_condition():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        if pred:
+            output = types.Constant([1])
+        else:
+            output = types.Constant([1.0])
+        return output
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Critical error in pipeline:
+Error when executing CPU operator `fn._conditional.merge`,
+which was used in the pipeline definition with the following traceback:
+
+  File "*test_operator_exception.py", line *, in non_scalar_condition
+    if pred:
+
+encountered:
+
+*Assert on "base_input.type() == input.type()" failed: Divergent data found*"""
         ),
     ):
         pipe = non_scalar_condition()
