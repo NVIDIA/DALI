@@ -772,7 +772,8 @@ DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(
  *
  * @param external_context External context to destroy.
 */
-DLL_PUBLIC void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context);
+DLL_PUBLIC void daliDestroyExternalContextCheckpoint(
+  daliExternalContextCheckpoint *external_context);
 
 /** @brief Allocate memory.
  *
