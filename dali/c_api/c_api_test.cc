@@ -1103,8 +1103,12 @@ TEST(CApiTest, CheckpointingTest) {
 
   // Save the checkpoint
   daliExternalContextCheckpoint mock_external_context{};
-  mock_external_context.epoch_idx = 123;
-  mock_external_context.iter = 456;
+  const std::string data = "Hello world";
+
+  mock_external_context.pipeline_data.data = static_cast<char *>(daliAlloc(data.size()));
+  memcpy(mock_external_context.pipeline_data.data, data.c_str(), data.size());
+  mock_external_context.pipeline_data.size = data.size();
+
   char *cpt;
   size_t n;
   daliGetSerializedCheckpoint(&handle1, &mock_external_context, &cpt, &n);
@@ -1120,8 +1124,15 @@ TEST(CApiTest, CheckpointingTest) {
   daliExternalContextCheckpoint restored_external_context{};
   daliRestoreFromSerializedCheckpoint(&handle2, cpt, n, &restored_external_context);
   free(cpt);
-  EXPECT_EQ(restored_external_context.epoch_idx, mock_external_context.epoch_idx);
-  EXPECT_EQ(restored_external_context.iter, mock_external_context.iter);
+
+  EXPECT_EQ(restored_external_context.pipeline_data.size,
+            mock_external_context.pipeline_data.size);
+  EXPECT_EQ(strncmp(
+    restored_external_context.pipeline_data.data,
+    mock_external_context.pipeline_data.data,
+    restored_external_context.pipeline_data.size
+  ), 0);
+  daliDestroyExternalContextCheckpoint(&restored_external_context);
 
   // Check the result of the new pipeline
   double result2;

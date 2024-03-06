@@ -1832,8 +1832,7 @@ PYBIND11_MODULE(backend_impl, m) {
 
   py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")
     .def(py::init<>())
-    .def_readwrite("epoch_idx", &ExternalContextCheckpoint::epoch_idx)
-    .def_readwrite("iter", &ExternalContextCheckpoint::iter);
+    .def_readwrite("pipeline_data", &ExternalContextCheckpoint::pipeline_data);
 
   // Pipeline class
   py::class_<Pipeline, PyPipeline>(m, "Pipeline")

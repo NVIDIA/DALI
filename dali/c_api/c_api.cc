@@ -815,6 +815,14 @@ int daliPreallocatePinnedMemory(size_t bytes) {
   }
 }
 
+void *daliAlloc(size_t n) {
+  return malloc(n);
+}
+
+void daliFree(void *ptr) {
+  free(ptr);
+}
+
 void daliGetSerializedCheckpoint(
     daliPipelineHandle_t pipe_handle,
     const daliExternalContextCheckpoint *external_context,
@@ -822,13 +830,24 @@ void daliGetSerializedCheckpoint(
   DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
   auto &pipeline = (*pipe_handle)->pipeline;
   dali::ExternalContextCheckpoint ctx;
-  ctx.epoch_idx = external_context->epoch_idx;
-  ctx.iter = external_context->iter;
+  ctx.pipeline_data = {
+    external_context->pipeline_data.data,
+    external_context->pipeline_data.size
+  };
   std::string cpt = pipeline->SerializedCheckpoint(ctx);
   *n = cpt.size();
-  *checkpoint = reinterpret_cast<char *>(malloc(cpt.size()));
+  *checkpoint = reinterpret_cast<char *>(daliAlloc(cpt.size()));
   DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
   memcpy(*checkpoint, cpt.c_str(), *n);
+}
+
+daliExternalContextField daliExternalContextFieldFromString(const std::string &string) {
+  daliExternalContextField field;
+  auto n = string.size();
+  field.data = static_cast<char *>(daliAlloc(n));
+  memcpy(field.data, string.c_str(), n);
+  field.size = n;
+  return field;
 }
 
 void daliRestoreFromSerializedCheckpoint(
@@ -840,7 +859,14 @@ void daliRestoreFromSerializedCheckpoint(
   auto &pipeline = (*pipe_handle)->pipeline;
   auto ctx = pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
   if (external_context) {
-    external_context->epoch_idx = ctx.epoch_idx;
-    external_context->iter = ctx.iter;
+    *external_context = {};
+    if (!ctx.pipeline_data.empty()) {
+      external_context->pipeline_data = daliExternalContextFieldFromString(ctx.pipeline_data);
+    }
   }
 }
+
+void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context) {
+  if (external_context->pipeline_data.data) daliFree(external_context->pipeline_data.data);
+}
+

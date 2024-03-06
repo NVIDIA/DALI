@@ -84,8 +84,7 @@ message Checkpoint {
   }
 
   message ExternalContextCheckpoint {
-    optional int64 epoch_idx = 1;
-    optional int64 iteration = 2;
+    optional bytes pipeline_data = 1;
   }
 
   repeated OpCheckpoint cpts = 1;

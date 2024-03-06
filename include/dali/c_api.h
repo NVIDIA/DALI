@@ -89,9 +89,13 @@ typedef struct {
 /*
  * Need to keep that in sync with ExternalContextCheckpoint from checkpoint.h
  */
+typedef struct daliExternalContextField {
+  char *data;
+  size_t size;
+} daliExternalContextField;
+
 typedef struct {
-  int epoch_idx;
-  int iter;
+  daliExternalContextField pipeline_data;
 } daliExternalContextCheckpoint;
 
 
@@ -756,12 +760,20 @@ DLL_PUBLIC void daliGetSerializedCheckpoint(
  * @param n Size of the checkpoint, in bytes.
  *
  * @param external_context Output buffer to which checkpoint's external context will be saved.
- *                         Ignored if null.
+ *                         Populated fields of the external context can be later freed with
+ *                         daliDestroyExternalContextCheckpoint. Ignored if null.
 */
 DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(
   daliPipelineHandle *pipe_handle,
   const char *checkpoint, size_t n,
   daliExternalContextCheckpoint *external_context);
+
+/** @brief Frees all allocated fields of daliExternalContextCheckpoint */
+DLL_PUBLIC void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context);
+
+DLL_PUBLIC void *daliAlloc(size_t n);
+
+DLL_PUBLIC void daliFree(void *ptr);
 
 #ifdef __cplusplus
 }

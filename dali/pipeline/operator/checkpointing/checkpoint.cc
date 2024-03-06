@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,8 +60,7 @@ std::string Checkpoint::SerializeToProtobuf(const OpGraph &graph) const {
     op_cpt->set_operator_name(cpts_[i].OperatorName());
     op_cpt->set_operator_state(nodes[i].op->SerializeCheckpoint(cpts_[i]));
   }
-  checkpoint.mutable_external_ctx_cpt()->set_epoch_idx(external_ctx_cpt_.epoch_idx);
-  checkpoint.mutable_external_ctx_cpt()->set_iteration(external_ctx_cpt_.iter);
+  checkpoint.mutable_external_ctx_cpt()->set_pipeline_data(external_ctx_cpt_.pipeline_data);
   return checkpoint.SerializeAsString();
 }
 
@@ -84,8 +83,7 @@ void Checkpoint::DeserializeFromProtobuf(const OpGraph &graph,
                  "The checkpoint might come from another pipeline. ");
     nodes[i].op->DeserializeCheckpoint(op_cpt, data);
   }
-  external_ctx_cpt_.epoch_idx = checkpoint.external_ctx_cpt().epoch_idx();
-  external_ctx_cpt_.iter = checkpoint.external_ctx_cpt().iteration();
+  external_ctx_cpt_.pipeline_data = checkpoint.external_ctx_cpt().pipeline_data();
 }
 
 }  // namespace dali
