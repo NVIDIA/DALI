@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,7 +67,15 @@ DLL_PUBLIC void DALIAppendToLastError(const string &error_str);
 
 class DALIException : public std::runtime_error {
  public:
-  explicit DALIException(const std::string &message) : std::runtime_error(message) {}
+  explicit DALIException(const std::string &message, const std::string &cpp_backtrace = "")
+      : std::runtime_error(message), cpp_backtrace_(cpp_backtrace) {}
+
+  const std::string &GetCppBacktrace() {
+    return cpp_backtrace_;
+  }
+
+ private:
+  std::string cpp_backtrace_;
 };
 
 struct unsupported_exception : std::runtime_error {
@@ -234,7 +242,7 @@ inline dali::string GetStacktrace() {
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
 #define DALI_MESSAGE_WITH_STACKTRACE(str)\
-  (std::string("[" FILE_AND_LINE "] ") + str + dali::GetStacktrace())
+  (std::string("[" FILE_AND_LINE "] ") + str), dali::GetStacktrace()
 
 #define DALI_MESSAGE(str)\
   (std::string("[" FILE_AND_LINE "] ") + str)
@@ -242,9 +250,9 @@ inline dali::string GetStacktrace() {
 #define DALI_FAIL(str)                            \
     throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
 
-#define DALI_ERROR(str)                                          \
-  do {                                                           \
-    std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
+#define DALI_ERROR(str)                                                             \
+  do {                                                                              \
+    std::cerr << dali::make_string(DALI_MESSAGE_WITH_STACKTRACE(str)) << std::endl; \
   } while (0)
 
 #define DALI_WARN(...)                                                      \

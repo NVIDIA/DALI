@@ -2250,6 +2250,9 @@ PYBIND11_MODULE(backend_impl, m) {
       PyErr_SetString(PyExc_ValueError, e.what());
     } catch (const DaliStopIteration &e) {
       PyErr_SetString(PyExc_StopIteration, e.what());
+    } catch (const DaliError &e) {
+      // Translate top-level errors to RuntimeError.
+      PyErr_SetString(PyExc_RuntimeError, e.what());
     }
   });
 

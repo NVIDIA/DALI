@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_spec.h"
 
@@ -63,10 +64,12 @@ void PropagateError(ErrorInfo error) {
   }
   // DALI <-> Python mapped type errors:
   catch (DaliError &e) {
-    if (error.context_info.size()) {
-      e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
-    }
+    e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
     throw;
+  }
+  catch (DALIException &e) {
+    // We drop the C++ stack trace at this point
+    throw DaliError(make_string(error.context_info, e.what(), error.additional_message));
   }
   // Exceptions that are mapped by pybind from C++ into a sensible C++ one:
   catch (std::invalid_argument &e) {

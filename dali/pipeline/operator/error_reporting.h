@@ -24,6 +24,7 @@
 #include "dali/core/api_helper.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
+
 namespace dali {
 
 // TODO(klecki): Throw this one into a namespace?
