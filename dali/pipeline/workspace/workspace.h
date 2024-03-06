@@ -465,7 +465,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @brief Sets a CPU input
    */
   void SetInput(int idx, DataObjectPtr<CPUBackend> input) {
-    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     inputs_[idx] = IOBuffers{ StorageDevice::CPU, std::move(input), nullptr };
   }
 
