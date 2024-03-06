@@ -1832,7 +1832,14 @@ PYBIND11_MODULE(backend_impl, m) {
 
   py::class_<ExternalContextCheckpoint>(m, "ExternalContextCheckpoint")
     .def(py::init<>())
-    .def_readwrite("pipeline_data", &ExternalContextCheckpoint::pipeline_data);
+    .def_property("pipeline_data",
+        [](const ExternalContextCheckpoint &self) {
+          return py::bytes(self.pipeline_data);
+        },
+        [](ExternalContextCheckpoint &self, const std::string &new_data) {
+          self.pipeline_data = new_data;
+        }
+    );
 
   // Pipeline class
   py::class_<Pipeline, PyPipeline>(m, "Pipeline")
