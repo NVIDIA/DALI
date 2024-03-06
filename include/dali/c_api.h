@@ -86,14 +86,14 @@ typedef struct {
 } daliExecutorMetadata;
 
 
-/*
- * Need to keep that in sync with ExternalContextCheckpoint from checkpoint.h
- */
 typedef struct daliExternalContextField {
   char *data;
   size_t size;
 } daliExternalContextField;
 
+/*
+ * Need to keep that in sync with ExternalContextCheckpoint from checkpoint.h
+ */
 typedef struct {
   daliExternalContextField pipeline_data;
 } daliExternalContextCheckpoint;
@@ -739,7 +739,7 @@ DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
  * @param external_context External context to include in the checkpoint.
  *
  * @param checkpoint Output pointer to which checkpoint data should be saved.
- *                   The buffer is allocated with `malloc`, freeing it is caller's responsibility.
+ *                   The buffer is allocated with daliAlloc, freeing it is caller's responsibility.
  *
  * @param n Output argument for checkpoint size in bytes.
 */
@@ -768,11 +768,24 @@ DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(
   const char *checkpoint, size_t n,
   daliExternalContextCheckpoint *external_context);
 
-/** @brief Frees all allocated fields of daliExternalContextCheckpoint */
+/** @brief Frees all allocated fields of daliExternalContextCheckpoint
+ *
+ * @param external_context External context to destroy.
+*/
 DLL_PUBLIC void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context);
 
+/** @brief Allocate memory.
+ *
+ * @param n Size, in bytes.
+ *
+ * @return Pointer to allocated memory or NULL on failure.
+*/
 DLL_PUBLIC void *daliAlloc(size_t n);
 
+/** @brief Free memory allocated with daliAlloc.
+ *
+ * @param ptr Pointer to the memory buffer.
+*/
 DLL_PUBLIC void daliFree(void *ptr);
 
 #ifdef __cplusplus
