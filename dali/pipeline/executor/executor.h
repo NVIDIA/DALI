@@ -247,45 +247,26 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
   }
 
-  void HandleError(const std::string &stage, const OpNode &op_node) {
-    // TODO(klecki): update to proper schema in the TFRecord (ops API binding, so we don't show
-    // the underscore.
-    // We present operators as fn.module.op_name or ops.module.OpName.
-    auto op_name = GetOpDisplayName(op_node.spec, ModuleSpecKind::ApiModule);
+ /**
+  * @brief Capture an exception produced by an executed operator and propagate it with
+  * additional context.
+  *
+  * Executor adds following information:
+  * * the name of the offending operator in the api variant it was instantiated from.
+  * * the origin stack trace of the operator within pipeline definition.
+  * * instance name if there were multiple instances of the same operator.
+  *
+  * @param stage The name of the pipeline stage where the error occurred.
+  * @param op_node The operator node that caused the error.
+  */
+  void HandleError(const std::string &stage, const OpNode &op_node);
 
-    auto origin_stack_trace = GetOperatorOriginInfo(op_node.spec);
-    auto formatted_origin_stack = FormatStack(origin_stack_trace, true);
-
-    bool need_instance_name = false;
-    for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-      if (op_id != op_node.id &&
-          graph_->Node(op_id).spec.SchemaName() == op_node.spec.SchemaName()) {
-        need_instance_name = true;
-        break;
-      }
-    }
-    if (need_instance_name) {
-      HandleError(
-          make_string("Error when executing ", stage, " operator `", op_name, "`, instance name: \"",
-                      op_node.instance_name,
-                      "\", which was used in pipeline definition with following traceback:\n",
-                      formatted_origin_stack, "encountered:\n"));
-    } else {
-      HandleError(
-          make_string("Error when executing ", stage, " operator `", op_name,
-                      "`, which was used in pipeline definition with following traceback:\n",
-                      formatted_origin_stack, "encountered:\n"));
-    }
-  }
-
-  void HandleError(const std::string& context = "", const std::string& additional_message = "") {
-    {
-      std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back({std::current_exception(), context, additional_message});
-    }
-    exec_error_ = true;
-    ShutdownQueue();
-  }
+  /**
+   * @brief Capture the current exception that is processed and propagate it with the specified
+   * context (prepended to the exception message) and additional_message (appended to the exception
+   * message)
+   */
+  void HandleError(const std::string& context = "", const std::string& additional_message = "");
 
   void PruneUnusedGraphNodes() override;
 

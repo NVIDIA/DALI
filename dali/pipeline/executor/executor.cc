@@ -106,6 +106,50 @@ inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &stage,
+                                                         const OpNode &op_node) {
+  // We present operators as fn.module.op_name or ops.module.OpName.
+  auto op_name = GetOpDisplayName(op_node.spec, ModuleSpecKind::ApiModule);
+
+  auto origin_stack_trace = GetOperatorOriginInfo(op_node.spec);
+  auto formatted_origin_stack = FormatStack(origin_stack_trace, true);
+
+  bool need_instance_name = false;
+  for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
+    if (op_id != op_node.id && graph_->Node(op_id).spec.SchemaName() == op_node.spec.SchemaName()) {
+      need_instance_name = true;
+      break;
+    }
+  }
+
+  auto optional_stack_mention =
+      formatted_origin_stack.size() ?
+          (",\nwhich was used in the pipeline definition with the following traceback:\n" +
+           formatted_origin_stack) :
+          " ";  // we need space before "encountered"
+
+  if (need_instance_name) {
+    HandleError(make_string("Error when executing ", stage, " operator `", op_name,
+                            "`, instance name: \"", op_node.instance_name, "\"",
+                            optional_stack_mention, "encountered:\n"));
+  } else {
+    HandleError(make_string("Error when executing ", stage, " operator `", op_name, "`",
+                            optional_stack_mention, "encountered:\n"));
+  }
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &context,
+                                                         const std::string &additional_message) {
+  {
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back({std::current_exception(), context, additional_message});
+  }
+  exec_error_ = true;
+  ShutdownQueue();
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
   batch_sizes_cpu_.push(batch_size);
