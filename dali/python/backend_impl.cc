@@ -1838,8 +1838,7 @@ PYBIND11_MODULE(backend_impl, m) {
         },
         [](ExternalContextCheckpoint &self, const std::string &new_data) {
           self.pipeline_data = new_data;
-        }
-    );
+        });
 
   // Pipeline class
   py::class_<Pipeline, PyPipeline>(m, "Pipeline")

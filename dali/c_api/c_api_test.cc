@@ -1130,8 +1130,7 @@ TEST(CApiTest, CheckpointingTest) {
   EXPECT_EQ(strncmp(
     restored_external_context.pipeline_data.data,
     mock_external_context.pipeline_data.data,
-    restored_external_context.pipeline_data.size
-  ), 0);
+    restored_external_context.pipeline_data.size), 0);
   daliDestroyExternalContextCheckpoint(&restored_external_context);
 
   // Check the result of the new pipeline
