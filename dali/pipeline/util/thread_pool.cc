@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,9 +129,9 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
         if ((size_t)thread_id < vec.size()) {
           core = std::stoi(vec[thread_id]);
         } else {
-          DALI_WARN("DALI_AFFINITY_MASK environment variable is set, "
+          DALI_WARN(make_string("DALI_AFFINITY_MASK environment variable is set, "
                     "but does not have enough entries: thread_id (", thread_id,
-                    ") vs #entries (", vec.size(), "). Ignoring...");
+                    ") vs #entries (", vec.size(), "). Ignoring..."));
         }
       }
       nvml::SetCPUAffinity(core);

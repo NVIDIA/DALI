@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -287,10 +287,12 @@ void HandleFitsError(int status) {
 
 FitsLock::FitsLock() : lock_(mutex(), std::defer_lock) {
   if (!fits_is_reentrant()) {
-    DALI_WARN_ONCE("Loaded instance of CFITSIO library does not support multithreading. "
-                  "Please recompile CFITSIO in reentrant mode (--enable-reentrant) "
-                  "or use CFITSIO delivered in DALI_deps. Using non-reentrant version "
-                  "of CFITSIO may degrade the performance.");
+    static const char msg[] =
+        "Loaded instance of CFITSIO library does not support multithreading. "
+        "Please recompile CFITSIO in reentrant mode (--enable-reentrant) "
+        "or use CFITSIO delivered in DALI_deps. Using non-reentrant version "
+        "of CFITSIO may degrade the performance.";
+    DALI_WARN_ONCE(msg);
     lock_.lock();
   }
 }

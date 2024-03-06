@@ -67,14 +67,20 @@ DLL_PUBLIC void DALIAppendToLastError(const string &error_str);
 
 class DALIException : public std::runtime_error {
  public:
-  explicit DALIException(const std::string &message, const std::string &cpp_backtrace = "")
-      : std::runtime_error(message), cpp_backtrace_(cpp_backtrace) {}
+  explicit DALIException(const std::string file_and_line, const std::string &message,
+                         const std::string &cpp_backtrace = "")
+      : std::runtime_error(message), file_and_line_(file_and_line), cpp_backtrace_(cpp_backtrace) {}
 
-  const std::string &GetCppBacktrace() {
+  const std::string &GetFileAndLine() const {
+    return file_and_line_;
+  }
+
+  const std::string &GetCppBacktrace() const {
     return cpp_backtrace_;
   }
 
  private:
+  std::string file_and_line_;
   std::string cpp_backtrace_;
 };
 
@@ -242,10 +248,10 @@ inline dali::string GetStacktrace() {
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
 #define DALI_MESSAGE_WITH_STACKTRACE(str)\
-  (std::string("[" FILE_AND_LINE "] ") + str), dali::GetStacktrace()
+  (std::string("[" FILE_AND_LINE "] ")), (std::string(str)), dali::GetStacktrace()
 
 #define DALI_MESSAGE(str)\
-  (std::string("[" FILE_AND_LINE "] ") + str)
+  (std::string("[" FILE_AND_LINE "] ")), (std::string(str))
 
 #define DALI_FAIL(str)                            \
     throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
@@ -255,15 +261,15 @@ inline dali::string GetStacktrace() {
     std::cerr << dali::make_string(DALI_MESSAGE_WITH_STACKTRACE(str)) << std::endl; \
   } while (0)
 
-#define DALI_WARN(...)                                                      \
-  do {                                                                      \
-    std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl; \
+#define DALI_WARN(str)                                              \
+  do {                                                              \
+    std::cerr << dali::make_string(DALI_MESSAGE(str)) << std::endl; \
   } while (0)
 
-#define DALI_WARN_ONCE(...)                                                          \
-  do {                                                                               \
-    static int dummy =                                                               \
-        (std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl, 0); \
+#define DALI_WARN_ONCE(str)                                                   \
+  do {                                                                        \
+    static int dummy =                                                        \
+        (std::cerr << dali::make_string(DALI_MESSAGE(str))) << std::endl, 0); \
   } while (0)
 
 DLL_PUBLIC void DALIReportFatalProblem(const char *file, int line, const char *pComment);
