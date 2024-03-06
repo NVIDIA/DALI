@@ -41,11 +41,6 @@ enum class ModuleSpecKind {
  */
 DLL_PUBLIC std::string GetOpApi(const OpSpec &spec);
 
-// /**
-//  * @brief Get the module path of the operator
-//  */
-// std::vector<std::string> GetOpModulePath(const OpSpec &spec, );
-
 /**
  * @brief Get the module path of the operator as a dot separated string.
  *
