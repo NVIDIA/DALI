@@ -32,12 +32,21 @@ void SchedNode::task_setup() {
   output_descs.resize(nout);
   if (definition->op->Setup(output_descs, *ws)) {
     for (int i = 0; i < nout; i++) {
-      if (ws->OutputIsType<CPUBackend>(i))
+      if (ws->OutputIsType<CPUBackend>(i)) {
+        if (!ws->OutputPtr<CPUBackend>(i)) {
+          auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
+          ws->SetOutput(i, tl);
+        }
         ws->Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      else if (ws->OutputIsType<GPUBackend>(i))
+      } else if (ws->OutputIsType<GPUBackend>(i)) {
+        if (!ws->OutputPtr<GPUBackend>(i)) {
+          auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
+          ws->SetOutput(i, tl);
+        }
         ws->Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      else
+      } else {
         assert(!"Unreachable code - uknonw backend.");
+      }
     }
   }
 }
@@ -65,7 +74,7 @@ void SchedNode::task_propagate_outputs() {
       backend_switch(out_edge.device, [&](auto backend) {
         consumer_ws.SetInput(
           out_edge.consumer_input_idx,
-          ws->InputPtr(out_edge.producer_output_idx, backend));
+          ws->OutputPtr(out_edge.producer_output_idx, backend));
       });
     }
   }
@@ -89,7 +98,6 @@ void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
     task_reset_inputs();
     task_propagate_outputs();
     task_reset_outputs();
-
   });
 
   for (auto &in : inputs) {

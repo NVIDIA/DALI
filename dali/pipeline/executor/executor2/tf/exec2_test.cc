@@ -30,9 +30,11 @@ inline OpSchema &CreateTestSchema(const std::string &name) {
 class DummyOp : public Operator<CPUBackend> {
  public:
   DummyOp(const OpSpec &spec) : Operator<CPUBackend>(spec) {
+    instance_name_ = spec_.GetArgument<string>("instance_name");
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outs, const Workspace &ws) override {
+    std::cerr << instance_name_ << " SetupImpl" << std::endl;
     int N = ws.GetRequestedBatchSize(0);
     outs[0].shape = uniform_list_shape(N, TensorShape<>{});
     outs[0].type = DALI_INT32;
@@ -40,6 +42,7 @@ class DummyOp : public Operator<CPUBackend> {
   }
 
   void RunImpl(Workspace &ws) override {
+    std::cerr << instance_name_ << " RunImpl" << std::endl;
     int N = ws.GetRequestedBatchSize(0);
     addend_.Acquire(spec_, ws, N);
     for (int s = 0; s < N; s++) {
@@ -60,6 +63,8 @@ class DummyOp : public Operator<CPUBackend> {
       .NumOutput(1)
       .AddArg("addend", "a value added to the sum of inputs", DALI_INT32);
   }
+
+  std::string instance_name_;
 };
 
 TEST(Exec2Test, SimpleGraph) {
@@ -70,7 +75,7 @@ TEST(Exec2Test, SimpleGraph) {
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
        .AddOutput("op0o0", "cpu")
-       .AddArg("name", "op0");
+       .AddArg("instance_name", "op0");
   DummyOp op0(spec0);
 
   OpSpec spec1("DummyOp");
@@ -79,7 +84,7 @@ TEST(Exec2Test, SimpleGraph) {
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
        .AddOutput("op1o0", "cpu")
-       .AddArg("name", "op1");
+       .AddArg("instance_name", "op1");
   DummyOp op1(spec1);
 
   OpSpec spec2("DummyOp");
@@ -90,7 +95,7 @@ TEST(Exec2Test, SimpleGraph) {
        .AddInput("op1o0", "cpu")
        .AddInput("op2o0", "cpu")
        .AddOutput("op2e0", "cpu")
-       .AddArg("name", "op2");
+       .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
   ExecGraph def;
   ExecNode *n0 = def.add_node(&op0);
@@ -99,12 +104,15 @@ TEST(Exec2Test, SimpleGraph) {
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
   def.link(n2, 0, nullptr, 0);
-  auto sched = SchedGraph::from_def(def);
+  ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
+  WorkspaceParams params;
+  params.thread_pool = &tp;
+  auto sched = SchedGraph::from_def(def, params);
   tf::Taskflow tf;
   sched->schedule(tf);
-  tf::Executor ex;
-  ex.run(tf);
-  ex.wait_for_all();
+  tf::Executor ex(1);
+  ex.run(tf).get();
+
 }
 
 
