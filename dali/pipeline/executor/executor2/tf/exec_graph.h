@@ -57,9 +57,21 @@ struct DataEdge {
 using ExecEdge = DataEdge<ExecNode>;
 
 struct WorkspaceParams {
-  ThreadPool  *tp;
-  AccessOrder  order;
+  ThreadPool  *thread_pool = nullptr;
+  AccessOrder  order = AccessOrder::host();
 };
+
+inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
+  ws.SetThreadPool(params.thread_pool);
+  ws.set_output_order(params.order);
+}
+
+inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
+  WorkspaceParams params;
+  params.thread_pool = ws.HasThreadPool() ? &ws.GetThreadPool() : nullptr;
+  params.order = ws.output_order();
+  return params;
+}
 
 class ExecNode {
  public:
@@ -77,14 +89,16 @@ class ExecNode {
 
   std::queue<std::unique_ptr<Workspace>> workspaces;
 
-  std::unique_ptr<Workspace> GetWorkspace() {
+  std::unique_ptr<Workspace> GetWorkspace(const WorkspaceParams &params) {
+    std::unique_ptr<Workspace> ret;
     if (!workspaces.empty()) {
-      auto ret = std::move(workspaces.front());
+      ret = std::move(workspaces.front());
       workspaces.pop();
-      return ret;
     } else {
-      return CreateWorkspace();
+      ret = CreateWorkspace();
     }
+    ApplyWorkspaceParams(*ret, params);
+    return ret;
   }
 
   std::unique_ptr<Workspace> CreateWorkspace() const {
@@ -118,8 +132,17 @@ class ExecNode {
     workspaces.push(std::move(ws));
   }
 
-  mutable bool visited = false;
+  bool IsEssential() const {
+    for (auto *edge : outputs) {
+      if (edge->consumer == nullptr)  // pipeline output
+        return true;
+    }
+    if (op->GetSpec().GetSchema().IsNoPrune())
+      return true;
+    return false;
+  }
 
+  mutable bool visited = false;
 };
 
 struct ExecGraph {
@@ -144,15 +167,17 @@ struct ExecGraph {
       consumer->inputs.push_back(&edge);
   }
 
-  void sort(std::vector<ExecNode *> &sorted) {
+  void sort_and_prune(std::vector<ExecNode *> &sorted) {
     for (auto &n : nodes)
       n.visited = false;
 
     sorted.clear();
     sorted.reserve(nodes.size());
 
-    for (auto &node : nodes)
-      sort_subgraph(sorted, &node);
+    for (auto &node : nodes) {
+      if (node.IsEssential())
+        sort_subgraph(sorted, &node);
+    }
   }
 
   template <typename NodePtrs>
@@ -207,8 +232,8 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     *this = other;
   }
 
-  explicit SchedGraph(ExecGraph &def) {
-    init(def);
+  explicit SchedGraph(ExecGraph &def, const WorkspaceParams &params) {
+    init(def, params);
   }
 
   std::vector<SchedNode> nodes;
@@ -238,7 +263,7 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     for (int i = 0; i < V; i++) {
       nodes[i].definition = g.nodes[i].definition;
       nodes[i].inputs = nodes[i].outputs = {};
-      nodes[i].ws = nodes[i].definition->GetWorkspace();
+      nodes[i].ws = nodes[i].definition->GetWorkspace(GetWorkspaceParams(*g.nodes[i].ws));
 
       if (!g.nodes[i].inputs.empty())
         nodes[i].inputs =
@@ -259,13 +284,13 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     return *this;
   }
 
-  void init(ExecGraph &def) {
+  void init(ExecGraph &def, const WorkspaceParams &params) {
     std::map<ExecNode *, int> node_indices;
     nodes.clear();
     edges.clear();
 
     std::vector<ExecNode *> sorted;
-    def.sort(sorted);
+    def.sort_and_prune(sorted);
 
     int num_edges = 0;
     for (auto &node : def.nodes) {
@@ -274,22 +299,24 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     }
 
     edges.resize(num_edges);
-    nodes.resize(def.nodes.size());
+    nodes.resize(sorted.size());
 
     int i = 0;
     int e = 0;
     for (auto &exec_node : sorted) {
       auto &sched_node = nodes[i++];
       sched_node.definition = exec_node;
-      sched_node.ws = sched_node.definition->GetWorkspace();
+      sched_node.ws = sched_node.definition->GetWorkspace(params);
       SchedEdge *inp = &edges[e];
       for (auto *exec_edge : exec_node->inputs) {
         assert(e < (int)edges.size());
         auto &sched_edge = edges[e++];
         sched_edge.producer_output_idx = exec_edge->producer_output_idx;
         sched_edge.consumer_input_idx = exec_edge->consumer_input_idx;
-        sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
-        sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
+        if (exec_edge->producer)
+          sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
+        if (exec_edge->consumer)
+          sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
       }
       SchedEdge *out = &edges[e];
       for (auto *exec_edge : exec_node->outputs) {
@@ -297,8 +324,10 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
         auto &sched_edge = edges[e++];
         sched_edge.producer_output_idx = exec_edge->producer_output_idx;
         sched_edge.consumer_input_idx = exec_edge->consumer_input_idx;
-        sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
-        sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
+        if (exec_edge->producer)
+          sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
+        if (exec_edge->consumer)
+          sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
       }
       SchedEdge *end = &edges[e];
       sched_node.inputs = span(inp, out);
@@ -307,8 +336,8 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     assert(static_cast<size_t>(e) == edges.size());
   }
 
-  static auto from_def(ExecGraph &def) {
-    return std::make_shared<SchedGraph>(def);
+  static auto from_def(ExecGraph &def, const WorkspaceParams &params) {
+    return std::make_shared<SchedGraph>(def, params);
   }
 
 
