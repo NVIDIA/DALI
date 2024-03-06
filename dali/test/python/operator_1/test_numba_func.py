@@ -129,6 +129,7 @@ def get_data_zeros(shapes, dtype):
     return [np.zeros(shape, dtype=dtype) for shape in shapes]
 
 
+@attr("sanitizer_skip")
 def _testimpl_numba_func(
     device,
     shapes,
@@ -201,7 +202,6 @@ def _testimpl_numba_func(
             assert np.array_equal(out_arr, expected_out[i])
 
 
-@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func():
     # shape, dtype, run_fn, out_types,
@@ -353,7 +353,6 @@ def test_numba_func_with_cond_do_not_convert():
     )
 
 
-@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_gpu():
     # shape, dtype, run_fn, out_types,
@@ -478,6 +477,7 @@ def numba_func_image_pipe(
     return images_in, images_out
 
 
+@attr("sanitizer_skip")
 def _testimpl_numba_func_image(
     device,
     run_fn,
@@ -565,7 +565,6 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
-@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_image():
     args = [
@@ -635,7 +634,6 @@ def test_numba_func_image():
         )
 
 
-@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_numba_func_image_gpu():
     args = [
