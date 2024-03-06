@@ -47,7 +47,8 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
   for (auto &frame_summary : stack_summary) {
     s << "  File \"" << frame_summary.filename << "\", line " << frame_summary.lineno << ", in "
       << frame_summary.name << "\n";
-    if (include_context) {
+    // Python doesn't report empty lines
+    if (include_context && frame_summary.line.size()) {
       s << "    " << frame_summary.line << "\n";
     }
   }
