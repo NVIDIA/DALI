@@ -20,6 +20,7 @@ from test_utils import load_test_operator_plugin
 
 load_test_operator_plugin()
 
+
 def extract_str_from_tl(out):
     """Extract string from the test operator that returns it as u8 tensor."""
     # Extract data from first sample
@@ -68,6 +69,7 @@ def baseline_module_path(api, module, kind):
     elif kind == "LibApiModule":
         dot = "." if module else ""
         return f"nvidia.dali.{api}{dot}{module}"
+    raise ValueError(f"Wrong kind: {kind}")
 
 
 def baseline_display_name(api, module, kind):
