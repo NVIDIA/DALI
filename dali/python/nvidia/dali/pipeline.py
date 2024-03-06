@@ -1523,10 +1523,9 @@ class Pipeline(object):
                 The file that the serialized pipeline will be written to.
         """
         external_ctx_cpt = b.ExternalContextCheckpoint()
-        external_ctx_cpt.pipeline_data = pickle.dumps({
-            "iter": self._consumer_iter,
-            "epoch_idx": self._epoch_idx
-        })
+        external_ctx_cpt.pipeline_data = pickle.dumps(
+            {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
+        )
         ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
