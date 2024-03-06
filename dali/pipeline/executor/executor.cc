@@ -124,17 +124,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &stag
 
   auto optional_stack_mention =
       formatted_origin_stack.size() ?
-          (",\nwhich was used in the pipeline definition with the following traceback:\n" +
-           formatted_origin_stack) :
+          (",\nwhich was used in the pipeline definition with the following traceback:\n\n" +
+           formatted_origin_stack + "\n") :
           " ";  // we need space before "encountered"
 
   if (need_instance_name) {
     HandleError(make_string("Error when executing ", stage, " operator `", op_name,
                             "`, instance name: \"", op_node.instance_name, "\"",
-                            optional_stack_mention, "encountered:\n"));
+                            optional_stack_mention, "encountered:\n\n"));
   } else {
     HandleError(make_string("Error when executing ", stage, " operator `", op_name, "`",
-                            optional_stack_mention, "encountered:\n"));
+                            optional_stack_mention, "encountered:\n\n"));
   }
 }
 

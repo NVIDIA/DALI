@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import pipeline_def, fn
+from nvidia.dali import pipeline_def, fn, types
 from test_utils import load_test_operator_plugin
 from nose_utils import assert_raises
 from nose2.tools import params
-
+from nvidia.dali import math
 
 def setUpModule():
     load_test_operator_plugin()
@@ -37,9 +37,12 @@ def test_python_error_propagation(error):
             """Critical error in pipeline:
 Error when executing CPU operator `fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
+
   File "*test_operator_exception.py", line *, in pipe
     return fn.throw_exception(exception_type=error.__name__)
+
 encountered:
+
 Test message
 Current pipeline object is no longer valid."""
         ),
@@ -71,9 +74,12 @@ def test_cpp_error_propagation(error_name, error_type):
             """Critical error in pipeline:
 Error when executing CPU operator `fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
+
   File "*test_operator_exception.py", line *, in pipe
     return fn.throw_exception(exception_type=error_name)
+
 encountered:
+
 Test message
 Current pipeline object is no longer valid."""
         ),
@@ -94,9 +100,12 @@ def test_error_propagation_ellipsis():
             """Critical error in pipeline:
 Error when executing CPU operator `fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
+
   File "*test_operator_exception.py", line *, in pipe
     return fn.throw_exception(exception_type="std::string")
+
 encountered:
+
 Unknown critical error.
 Current pipeline object is no longer valid."""
         ),
@@ -104,3 +113,96 @@ Current pipeline object is no longer valid."""
         p = pipe()
         p.build()
         p.run()
+
+
+def test_arithm_ops():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        a = fn.random.uniform(range=[-1, 1], shape=(2, 3))
+        b = fn.random.uniform(range=[-1, 1], shape=(3, 2))
+        return a + b
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Critical error in pipeline:
+Error when executing CPU operator `math.add`,
+which was used in the pipeline definition with the following traceback:
+
+  File "*test_operator_exception.py", line *, in pipe
+    return a + b
+
+encountered:
+
+*broadcasting* Can't broadcast shapes*
+2 x 3 (d=1, belonging to sample_idx=0)
+3 x 2 (d=1, belonging to sample_idx=0)
+
+Current pipeline object is no longer valid."""
+        ),
+    ):
+        p = pipe()
+        p.build()
+        (o,) = p.run()
+
+
+def test_math_ops():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        a = fn.random.uniform(range=[-1, 1], shape=(2, 3))
+        b = fn.random.uniform(range=[-1, 1], shape=(3, 2))
+        return math.atan2(a, b)
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Critical error in pipeline:
+Error when executing CPU operator `math.atan2`,
+which was used in the pipeline definition with the following traceback:
+
+  File "*test_operator_exception.py", line *, in pipe
+    return math.atan2(a, b)
+
+encountered:
+
+*broadcasting* Can't broadcast shapes*
+2 x 3 (d=1, belonging to sample_idx=0)
+3 x 2 (d=1, belonging to sample_idx=0)
+
+Current pipeline object is no longer valid."""
+        ),
+    ):
+        p = pipe()
+        p.build()
+        (o,) = p.run()
+
+
+def test_conditional_split():
+    @pipeline_def(enable_conditionals=True, batch_size=10, num_threads=4, device_id=0)
+    def non_scalar_condition():
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        stacked = fn.stack(pred, pred)
+        if stacked:
+            output = types.Constant([1])
+        else:
+            output = types.Constant([1])
+        return output
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Critical error in pipeline:
+Error when executing CPU operator `fn._conditional.split`, instance name: "__Split_*",
+which was used in the pipeline definition with the following traceback:
+
+  File "*test_operator_exception.py", line *, in non_scalar_condition
+    if stacked:
+
+encountered:
+
+*Assert on "dim == 0" failed: Conditions inside `if` statements are restricted to scalar*"""
+        ),
+    ):
+        pipe = non_scalar_condition()
+        pipe.build()
+        pipe.run()

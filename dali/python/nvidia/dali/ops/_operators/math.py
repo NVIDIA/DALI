@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from nvidia.dali.types import (
     _int_like_types,
     _float_types,
 )
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 def _is_boolean_like(input):
@@ -200,12 +201,20 @@ def _arithm_op(name, *inputs):
     input_desc = _generate_input_desc(categories_idxs, integers, reals)
     expression_desc = "{}({})".format(name, input_desc)
     dev = nvidia.dali.ops._choose_device(edges)
+
+    if _dali_trace.is_tracing_enabled():
+        definition_frame_end = _dali_trace.get_stack_depth() - 3
+    else:
+        definition_frame_end = None
     # Create "instance" of operator
     op = nvidia.dali.ops.ArithmeticGenericOp(
         device=dev,
         expression_desc=expression_desc,
         integer_constants=integers,
         real_constants=reals,
+        _api="math",
+        _display_name=name,
+        _definition_frame_end=definition_frame_end,
     )
     # If we are on gpu, we must mark all inputs as gpu
     if dev == "gpu":
