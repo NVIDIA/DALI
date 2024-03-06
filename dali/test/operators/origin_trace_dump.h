@@ -22,7 +22,6 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/test/operators/name_dump.h"
 #include "dali/test/operators/string_msg_helper.h"
 
 namespace dali {

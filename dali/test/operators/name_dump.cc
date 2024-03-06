@@ -13,10 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/data/types.h"
-#include "dali/test/operators/origin_trace_dump.h"
-
-#include <cstdlib>
-#include <string>
+#include "dali/test/operators/name_dump.h"
 
 namespace dali {
 
