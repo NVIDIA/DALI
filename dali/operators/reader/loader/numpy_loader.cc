@@ -86,7 +86,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
       header_cache_.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
-    DALI_FAIL(make_string(e.what(), ". File: ", filename));
+    DALI_FAIL(e.what(), ". File: ", filename);
   }
   current_file->SeekRead(header.data_offset);
 

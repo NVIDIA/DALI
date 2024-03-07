@@ -39,7 +39,7 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
     img->SetUseFastIdct(use_fast_idct_);
     img->Decode();
   } catch (std::exception &e) {
-    DALI_FAIL(make_string(e.what(), ". File: ", file_name));
+    DALI_FAIL(e.what(), ". File: ", file_name);
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();

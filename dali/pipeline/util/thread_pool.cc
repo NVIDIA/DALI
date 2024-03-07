@@ -129,9 +129,9 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
         if ((size_t)thread_id < vec.size()) {
           core = std::stoi(vec[thread_id]);
         } else {
-          DALI_WARN(make_string("DALI_AFFINITY_MASK environment variable is set, "
+          DALI_WARN("DALI_AFFINITY_MASK environment variable is set, "
                     "but does not have enough entries: thread_id (", thread_id,
-                    ") vs #entries (", vec.size(), "). Ignoring..."));
+                    ") vs #entries (", vec.size(), "). Ignoring...");
         }
       }
       nvml::SetCPUAffinity(core);

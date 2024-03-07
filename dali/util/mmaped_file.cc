@@ -102,7 +102,7 @@ static void *file_map(const char *path, size_t *length, bool read_ahead) {
 
 fail:
   if (p == nullptr) {
-    DALI_FAIL(dali::make_string("File mapping failed: ", path));
+    DALI_FAIL("File mapping failed: ", path);
   }
   if (fd > -1) {
     close(fd);

@@ -66,7 +66,7 @@ nvmlReturn_t nvmlInitChecked() {
 
   nvmlReturn_t ret = nvmlInit();
   if (ret != NVML_SUCCESS) {
-    DALI_WARN(dali::make_string("nvmlInitChecked failed: ", nvmlErrorString(ret)));
+    DALI_WARN("nvmlInitChecked failed: ", nvmlErrorString(ret));
   }
   initialized = true;
   return ret;
