@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
       cache.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
-    DALI_FAIL(e.what() + ". File: " + filename);
+    DALI_FAIL(e.what(), ". File: ", filename);
   }
   file_stream_->SeekRead(header.data_offset);
 
