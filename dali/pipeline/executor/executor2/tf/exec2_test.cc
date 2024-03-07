@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/pipeline/operator/arg_helper.h"
 #include "exec_graph.h"
+#include "dali/test/timing.h"
 
 namespace dali {
 namespace exec2 {
@@ -68,6 +69,8 @@ class DummyOp : public Operator<CPUBackend> {
 };
 
 TEST(Exec2Test, SimpleGraph) {
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
+  auto start = dali::test::perf_timer::now();
   DummyOp::CreateSchema();
   OpSpec spec0("DummyOp");
   spec0.AddArg("addend", 100)
@@ -98,21 +101,34 @@ TEST(Exec2Test, SimpleGraph) {
        .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
   ExecGraph def;
-  ExecNode *n0 = def.add_node(&op0);
-  ExecNode *n1 = def.add_node(&op1);
   ExecNode *n2 = def.add_node(&op2);
+  ExecNode *n1 = def.add_node(&op1);
+  ExecNode *n0 = def.add_node(&op0);
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
   def.link(n2, 0, nullptr, 0);
-  ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
+  auto end = dali::test::perf_timer::now();
+  std::cerr << "Test setup took " << dali::test::format_time(end-start) << std::endl;
+  start = dali::test::perf_timer::now();
+  auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, true, "test");
+  end = dali::test::perf_timer::now();
+  std::cerr << "Thread pool construction took " << dali::test::format_time(end-start) << std::endl;
   WorkspaceParams params;
-  params.thread_pool = &tp;
-  auto sched = SchedGraph::from_def(def, params);
-  tf::Taskflow tf;
-  sched->schedule(tf);
-  tf::Executor ex(1);
-  ex.run(tf).get();
-
+  params.thread_pool = tp.get();
+  start = dali::test::perf_timer::now();
+  {
+    auto sched = SchedGraph::from_def(def, params);
+    tf::Taskflow tf;
+    sched->schedule(tf);
+    tf::Executor ex(1);
+    ex.run(tf).get();
+  }
+  end = dali::test::perf_timer::now();
+  std::cerr << "Graph lowering, execution and cleanup took " << dali::test::format_time(end-start) << std::endl;
+  start = dali::test::perf_timer::now();
+  tp.reset();
+  end = dali::test::perf_timer::now();
+  std::cerr << "Thread pool disposal took " << dali::test::format_time(end-start) << std::endl;
 }
 
 

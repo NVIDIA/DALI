@@ -167,6 +167,9 @@ struct ExecGraph {
       consumer->inputs.push_back(&edge);
   }
 
+  /**
+   * @brief Runs a depth-first search to topologiclaly sort and prune the graph
+   */
   void sort_and_prune(std::vector<ExecNode *> &sorted) {
     for (auto &n : nodes)
       n.visited = false;
@@ -285,7 +288,7 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
   }
 
   void init(ExecGraph &def, const WorkspaceParams &params) {
-    std::map<ExecNode *, int> node_indices;
+    std::unordered_map<ExecNode *, int> node_indices(def.nodes.size());
     nodes.clear();
     edges.clear();
 
@@ -293,9 +296,9 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
     def.sort_and_prune(sorted);
 
     int num_edges = 0;
-    for (auto &node : def.nodes) {
-      node_indices.insert({&node, node_indices.size()});
-      num_edges += node.inputs.size() + node.outputs.size();
+    for (auto *node : sorted) {
+      node_indices.insert({node, node_indices.size()});
+      num_edges += node->inputs.size() + node->outputs.size();
     }
 
     edges.resize(num_edges);
@@ -350,9 +353,9 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
   void schedule_node(tf::Taskflow &flow, SchedNode &node) {
     if (!node.main_task.empty())
       return;  // already scheduled
-    for (auto &in : node.inputs)
-      schedule_node(flow, *in.producer);
-    assert(node.main_task.empty() && "Cycle detected");
+    for (auto &in : node.inputs) {
+      assert(!in.producer->main_task.empty() && "Graph not sorted");
+    }
     node.schedule(shared_from_this(), flow);
   }
 
