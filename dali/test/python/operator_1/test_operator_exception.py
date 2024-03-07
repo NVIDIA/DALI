@@ -145,7 +145,7 @@ Current pipeline object is no longer valid."""
     ):
         p = pipe()
         p.build()
-        (o,) = p.run()
+        p.run()
 
 
 def test_math_ops():
@@ -177,7 +177,7 @@ Current pipeline object is no longer valid."""
     ):
         p = pipe()
         p.build()
-        (o,) = p.run()
+        p.run()
 
 
 def test_conditional_split():
