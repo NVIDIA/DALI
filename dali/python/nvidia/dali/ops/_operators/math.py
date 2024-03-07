@@ -212,7 +212,7 @@ def _arithm_op(name, *inputs):
         expression_desc=expression_desc,
         integer_constants=integers,
         real_constants=reals,
-        _api="math",
+        _module="nvidia.dali.math",
         _display_name=name,
         _definition_frame_end=definition_frame_end,
     )
