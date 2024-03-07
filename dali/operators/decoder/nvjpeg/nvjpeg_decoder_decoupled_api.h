@@ -616,7 +616,7 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
             auto image = ImageFactory::CreateImage(input_data, in_size, output_image_type_);
             data.shape = image->PeekShape();
           } catch (const std::runtime_error &e) {
-            DALI_FAIL(e.what() + ". File: " + data.file_name);
+            DALI_FAIL(make_string(e.what(), ". File: ", data.file_name));
           }
         }
         data.req_nchannels = NumberOfChannels(output_image_type_, data.shape[2]);

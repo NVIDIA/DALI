@@ -266,10 +266,10 @@ inline dali::string GetStacktrace() {
     std::cerr << dali::make_string(DALI_MESSAGE(str)) << std::endl; \
   } while (0)
 
-#define DALI_WARN_ONCE(str)                                                   \
-  do {                                                                        \
-    static int dummy =                                                        \
-        (std::cerr << dali::make_string(DALI_MESSAGE(str))) << std::endl, 0); \
+#define DALI_WARN_ONCE(str)                                                  \
+  do {                                                                       \
+    static int dummy =                                                       \
+        (std::cerr << dali::make_string(DALI_MESSAGE(str)) << std::endl, 0); \
   } while (0)
 
 DLL_PUBLIC void DALIReportFatalProblem(const char *file, int line, const char *pComment);

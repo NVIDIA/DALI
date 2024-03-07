@@ -224,7 +224,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
     img->SetUseFastIdct(use_fast_idct);
     img->Decode();
   } catch (std::exception &e) {
-    DALI_FAIL(e.what() + ". File: " + file_name);
+    DALI_FAIL(make_string(e.what(), ". File: " , file_name));
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
