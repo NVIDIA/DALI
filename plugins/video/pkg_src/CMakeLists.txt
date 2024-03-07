@@ -13,7 +13,9 @@
 # limitations under the License.
 
 cmake_minimum_required(VERSION 3.21)
-project(dali_video)
+project(dali_plugin_video LANGUAGES CUDA CXX C)
+
+include(common.cmake)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -27,4 +29,22 @@ message(STATUS "pynvvideocodec_SOURCE_DIR=${pynvvideocodec_SOURCE_DIR}")
 include_directories(SYSTEM "${pynvvideocodec_SOURCE_DIR}/src/")
 add_subdirectory("${pynvvideocodec_SOURCE_DIR}/src/VideoCodecSDKUtils/")
 
-add_subdirectory(src/nvidia)
+set(VIDEO_PLUGIN_SOURCES
+    src/decoder/video_decoder_mixed.cc
+)
+
+set(PLUGIN_NAME "video")
+
+add_library(dali_${PLUGIN_NAME} SHARED ${VIDEO_PLUGIN_SOURCES})
+set_target_properties(dali_${PLUGIN_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(dali_${PLUGIN_NAME} PROPERTIES CUDA_ARCHITECTURES OFF)
+target_include_directories(dali_${PLUGIN_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_directories(dali_${PLUGIN_NAME} PUBLIC ${DALI_LIB_DIR})
+target_link_libraries(dali_${PLUGIN_NAME} PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
+
+include(GNUInstallDirs)
+
+install(TARGETS dali_${PLUGIN_NAME}
+    RUNTIME DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}
+    LIBRARY DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}
+)

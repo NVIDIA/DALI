@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.21)
-project(dali_video LANGUAGES CUDA CXX C)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -65,21 +62,3 @@ if (NOT DALI_LIB_DIR)
     endif()
 endif()
 message(STATUS "DALI_LIB_DIR=${DALI_LIB_DIR}")
-
-set(VIDEO_PLUGIN_SOURCES
-    decoder/video_decoder_mixed.cc
-)
-
-add_library(dali_video SHARED ${VIDEO_PLUGIN_SOURCES})
-set_target_properties(dali_video PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(dali_video PROPERTIES CUDA_ARCHITECTURES OFF)
-target_include_directories(dali_video PUBLIC ${dali_video_SRC_DIR})
-target_link_directories(dali_video PUBLIC ${DALI_LIB_DIR})
-target_link_libraries(dali_video PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
-
-include(GNUInstallDirs)
-
-install(TARGETS dali_video
-    RUNTIME DESTINATION dali_video
-    LIBRARY DESTINATION dali_video
-)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali_video/decoder/video_decoder_mixed.h"
+#include "decoder/video_decoder_mixed.h"
 #include "dali/core/tensor_shape.h"
 
 namespace dali_video {

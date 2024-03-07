@@ -12,18 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Variables are used by configured files (*.in)
+set(DALI_PLUGIN_NAME "video")
+set(DALI_PLUGIN_DESCRIPTION "Video Processing plugin with full NVENC/NVDEC hardware acceleration")
+set(DALI_PLUGIN_EXTRA_LIBS )
+
 # This project creates the project to pack as a source distribution
 file(COPY "pkg_src" DESTINATION ".") # copy to build folder
-file(COPY "src" DESTINATION "pkg_src") # copy to build folder
 file(COPY "${DALI_ROOT}/Acknowledgements.txt" DESTINATION "pkg_src")
 file(COPY "${DALI_ROOT}/COPYRIGHT" DESTINATION "pkg_src")
 file(COPY "${DALI_ROOT}/LICENSE" DESTINATION "pkg_src")
-configure_file("setup.py.in" "pkg_src/setup.py")
-configure_file("src/nvidia/dali_video/__init__.py.in" "pkg_src/src/nvidia/dali_video/__init__.py")
+file(COPY "${DALI_ROOT}/plugins/common.cmake" DESTINATION "pkg_src")
+file(COPY "${DALI_ROOT}/plugins/MANIFEST.in" DESTINATION "pkg_src")
+configure_file("${DALI_ROOT}/plugins/setup.py.in" "pkg_src/setup.py")
+configure_file("${DALI_ROOT}/plugins/__init__.py.in" "pkg_src/src/nvidia/dali/plugin/video/__init__.py")
 
-add_custom_target(dali_video ALL)
+add_custom_target(dali-plugin-video ALL)
 add_custom_command(
-    TARGET dali_video
+    TARGET dali-plugin-video
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pkg_src
     COMMAND ${PYTHON_EXECUTABLE} setup.py sdist)
 
