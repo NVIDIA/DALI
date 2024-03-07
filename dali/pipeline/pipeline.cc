@@ -62,7 +62,7 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
     name = "ExternalSource";
   }
 
-  spec->SetName(name);
+  spec->SetSchema(name);
 
   // Extract all the arguments with correct types
   for (auto &arg : def.args()) {

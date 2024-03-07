@@ -66,7 +66,7 @@ class DLL_PUBLIC OpSpec {
    * @brief Constructs a specification for an op with the given schema name.
    */
   DLL_PUBLIC explicit inline OpSpec(const string &schema_name) {
-    SetName(schema_name);
+    SetSchema(schema_name);
   }
 
   /**
@@ -75,9 +75,9 @@ class DLL_PUBLIC OpSpec {
   DLL_PUBLIC inline const string& SchemaName() const { return schema_name_; }
 
   /**
-   * @brief Sets the schema name of the Operator.
+   * @brief Sets the schema of the Operator.
    */
-  DLL_PUBLIC inline void SetName(const string &schema_name) {
+  DLL_PUBLIC inline void SetSchema(const string &schema_name) {
     schema_name_ = schema_name;
     schema_ = schema_name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(schema_name_);
   }
