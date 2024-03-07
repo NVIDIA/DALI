@@ -41,7 +41,7 @@ void DALIAppendToLastError(const string &error_str) {
 void DALIReportFatalProblem(const char *file, int lineNumb, const char *pComment) {
   dali::string line = std::to_string(lineNumb);
   dali::string file_and_line = "[" + dali::string(file) + ":" + line + "]";
-  throw DALIException(file_and_line, pComment);
+  throw DALIException(pComment, file_and_line);
 }
 
 
