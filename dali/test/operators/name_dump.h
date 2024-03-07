@@ -38,24 +38,12 @@ class NameDump : public StringMsgHelper {
  protected:
   std::string GetMessage(const OpSpec &spec, const Workspace &ws) override {
     auto target_function = spec.GetArgument<std::string>("target");
-    auto kind = spec.GetArgument<std::string>("kind");
+    auto include_module = spec.GetArgument<bool>("include_module");
 
-    ModuleSpecKind kind_enum = ModuleSpecKind::OpOnly;
-    if (kind == "OpOnly") {
-      kind_enum = ModuleSpecKind::OpOnly;
-    } else if (kind == "Module") {
-      kind_enum = ModuleSpecKind::Module;
-    } else if (kind == "ApiModule") {
-      kind_enum = ModuleSpecKind::ApiModule;
-    } else if (kind == "LibApiModule") {
-      kind_enum = ModuleSpecKind::LibApiModule;
-    }
-    if (target_function == "api") {
-      return GetOpApi(spec);
-    } else if (target_function == "module") {
-      return GetOpModule(spec, kind_enum);
+    if (target_function == "module") {
+      return GetOpModule(spec);
     } else if (target_function == "op_name") {
-      return GetOpDisplayName(spec, kind_enum);
+      return GetOpDisplayName(spec, include_module);
     }
     DALI_FAIL("Should not get here");
   }

@@ -31,84 +31,49 @@ def extract_str_from_tl(out):
     return arr.view(f"S{arr.shape[0]}")[0].decode("utf-8")
 
 
-api_variants = [
-    ("fn", "", fn.name_dump),
-    ("fn", "sub", fn.sub.name_dump),
-    ("fn", "sub.sub", fn.sub.sub.name_dump),
-    ("ops", "", ops.NameDump()),
-    ("ops", "sub", ops.sub.NameDump()),
-    ("ops", "sub.sub", ops.sub.sub.NameDump()),
+module_variants = [
+    ("nvidia.dali.fn", fn.name_dump),
+    ("nvidia.dali.fn.sub", fn.sub.name_dump),
+    ("nvidia.dali.fn.sub.sub", fn.sub.sub.name_dump),
+    ("nvidia.dali.ops", ops.NameDump()),
+    ("nvidia.dali.ops.sub", ops.sub.NameDump()),
+    ("nvidia.dali.ops.sub.sub", ops.sub.sub.NameDump()),
 ]
 
 
-@params(*api_variants)
-def test_api_name(api, module, op):
-    del module
+@params(*module_variants)
+def test_api_name(module, op):
 
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def pipe():
-        return op(target="api")
+        return op(target="module")
 
     p = pipe()
     p.build()
     (out,) = p.run()
     out_str = extract_str_from_tl(out)
-    assert out_str == api, f"Expected {api}, got {out_str}"
+    assert out_str == module, f"Expected {module}, got {out_str}"
 
 
-module_kinds = ["Module", "ApiModule", "LibApiModule"]
-op_name_kinds = ["OpOnly"] + module_kinds
-
-
-def baseline_module_path(api, module, kind):
-    if kind == "Module":
-        return module
-    elif kind == "ApiModule":
-        dot = "." if module else ""
-        return f"{api}{dot}{module}"
-    elif kind == "LibApiModule":
-        dot = "." if module else ""
-        return f"nvidia.dali.{api}{dot}{module}"
-    raise ValueError(f"Wrong kind: {kind}")
-
-
-def baseline_display_name(api, module, kind):
-    op_name = "name_dump" if api == "fn" else "NameDump"
-    if kind == "OpOnly":
+def baseline_display_name(module, include_module):
+    op_name = "name_dump" if "fn" in module else "NameDump"
+    if not include_module:
         return op_name
     else:
-        module_str = baseline_module_path(api, module, kind)
-        dot = "." if module_str else ""
-        return f"{module_str}{dot}{op_name}"
+        return f"{module}.{op_name}"
 
 
-@cartesian_params(api_variants, module_kinds)
-def test_module(api_module_op, kind):
-    api, module, op = api_module_op
+@cartesian_params(module_variants, [True, False])
+def test_op_name(module_op, include_module):
+    module, op = module_op
 
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def pipe():
-        return op(target="module", kind=kind)
+        return op(target="op_name", include_module=include_module)
 
     p = pipe()
     p.build()
     (out,) = p.run()
     out_str = extract_str_from_tl(out)
-    expected = baseline_module_path(api, module, kind)
-    assert out_str == expected, f"Expected {expected}, got {out_str}"
-
-
-@cartesian_params(api_variants, module_kinds)
-def test_op_name(api_module_op, kind):
-    api, module, op = api_module_op
-
-    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-    def pipe():
-        return op(target="op_name", kind=kind)
-
-    p = pipe()
-    p.build()
-    (out,) = p.run()
-    out_str = extract_str_from_tl(out)
-    expected = baseline_display_name(api, module, kind)
+    expected = baseline_display_name(module, include_module)
     assert out_str == expected, f"Expected {expected}, got {out_str}"

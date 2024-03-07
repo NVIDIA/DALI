@@ -21,8 +21,8 @@ DALI_REGISTER_OPERATOR(NameDump, NameDump, CPU);
 
 DALI_SCHEMA(NameDump)
     .DocStr("Operator for testing naming utilities and propagation of API information to backend.")
-    .AddOptionalArg("target", "\"api\", \"module\" or \"op_name\"", "op_name")
-    .AddOptionalArg("kind", "Kind parameter to relevant function as a string", "OpOnly")
+    .AddOptionalArg("target", "\"module\" or \"op_name\"", "op_name")
+    .AddOptionalArg("include_module", "If module should be included in the \"op_name\"", false)
     .NumInput(0)
     .NumOutput(1);
 

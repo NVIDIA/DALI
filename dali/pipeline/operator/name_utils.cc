@@ -22,38 +22,16 @@
 
 namespace dali {
 
-std::string GetOpApi(const OpSpec &spec) {
-  return spec.GetArgument<std::string>("_api");
+std::string GetOpModule(const OpSpec &spec) {
+  return spec.GetArgument<std::string>("_module");;
 }
 
-std::string GetOpModule(const OpSpec &spec, ModuleSpecKind kind) {
-  DALI_ENFORCE(kind != ModuleSpecKind::OpOnly, "This function can be only queried about module");
-  std::string result;
-  if (kind == ModuleSpecKind::LibApiModule) {
-    result += "nvidia.dali.";
-    result += GetOpApi(spec);
-  } else if (kind == ModuleSpecKind::ApiModule) {
-    result += GetOpApi(spec);
-  }
-  auto path = spec.GetSchema().ModulePath();
-  if (result.size() && path.size()) {
-    result += ".";
-  }
-  for (size_t i = 0; i < path.size(); i++) {
-    result += path[i];
-    if (i + 1 < path.size()) {
-      result += ".";
-    }
-  }
-  return result;
-}
-
-std::string GetOpDisplayName(const OpSpec &spec, ModuleSpecKind kind) {
+std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path) {
   auto display_name = spec.GetArgument<std::string>("_display_name");
-  if (kind == ModuleSpecKind::OpOnly) {
+  if (!include_module_path) {
     return display_name;
   }
-  auto module = GetOpModule(spec, kind);
+  auto module = GetOpModule(spec);
   if (module.size()) {
     return module + "." + display_name;
   } else {

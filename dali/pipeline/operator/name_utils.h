@@ -24,32 +24,13 @@
 
 namespace dali {
 
-/** @brief Enum representing how module path can be formatted for given operator */
-enum class ModuleSpecKind {
-  /** @brief Only show operator display name */
-  OpOnly,
-  /** @brief Include the module path specified in schema, for example `experimental.random` */
-  Module,
-  /** Include the API distinction and module path, for example: `fn.experimental.random` */
-  ApiModule,
-  /** Include library, api and module path, for example: `nvidia.dali.fn.experimental.random` */
-  LibApiModule,
-};
-
-/**
- * @brief Get the name of the API this operator was instantiated for.
- */
-DLL_PUBLIC std::string GetOpApi(const OpSpec &spec);
-
 /**
  * @brief Get the module path of the operator as a dot separated string.
  *
- * Doesn't include the operator name, ModuleSpecKind::OpOnly is invalid.
+ * Doesn't include the operator name, fully qualified name is used, like `nvidia.dali.fn.uniform`.
  * @param spec OpSpec definition of the operator
- * @param kind Controls which portion of module path should be returned.
  */
-DLL_PUBLIC std::string GetOpModule(const OpSpec &spec,
-                                   ModuleSpecKind kind = ModuleSpecKind::Module);
+DLL_PUBLIC std::string GetOpModule(const OpSpec &spec);
 
 
 /**
@@ -57,10 +38,9 @@ DLL_PUBLIC std::string GetOpModule(const OpSpec &spec,
  * separated string.
  *
  * @param spec OpSpec definition of the operator
- * @param kind Controls which portion of module path should be returned.
+ * @param include_module_path if true, the module path is included in the display name
  */
-DLL_PUBLIC std::string GetOpDisplayName(const OpSpec &spec,
-                                        ModuleSpecKind kind = ModuleSpecKind::OpOnly);
+DLL_PUBLIC std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path = false);
 
 }  // namespace dali
 

@@ -110,10 +110,16 @@ _origin_stack_filename for more information.)code",
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
-  AddOptionalArg("_api",
-                 "String identifying the Python API used to instantiate operator: "
-                 "\"ops\" or \"fn\".",
-                 "ops");
+
+  std::string default_module = "nvidia.dali.ops";
+  for (const auto &submodule : ModulePath()) {
+    default_module += "." + submodule;
+  }
+
+  AddOptionalArg("_module",
+                 "String identifying the module in which the operator is defined. "
+                 "Most of the time it is `__module__` of the API function/class.",
+                 default_module);
 
   AddOptionalArg("_display_name",
                  "Operator name as presented in the API it was instantiated in (without the module "
