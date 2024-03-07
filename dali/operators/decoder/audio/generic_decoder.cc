@@ -205,7 +205,7 @@ AudioMetadata GenericAudioDecoder::OpenImpl(span<const char> encoded) {
   sndfile_handle_.reset(
     sf_open_virtual(&sf_virtual_io, SFM_READ, &sf_info_, &mem_stream_));
   if (!sndfile_handle_) {
-    DALI_FAIL(make_string("Failed to open encoded data: ", sf_strerror(sndfile_handle_)));
+    DALI_FAIL("Failed to open encoded data: ", sf_strerror(sndfile_handle_));
   }
   return GetAudioMetadata(sf_info_);
 }
@@ -214,8 +214,8 @@ AudioMetadata GenericAudioDecoder::OpenFromFileImpl(const std::string &filepath)
   DALI_ENFORCE(!filepath.empty(), "filepath is empty");
   sndfile_handle_.reset(sf_open(filepath.c_str(), SFM_READ, &sf_info_));
   if (!sndfile_handle_) {
-    DALI_FAIL(make_string("Failed to open encoded data: ", sf_strerror(sndfile_handle_),
-                          ", filepath: ", filepath));
+    DALI_FAIL("Failed to open encoded data: ", sf_strerror(sndfile_handle_),
+              ", filepath: ", filepath);
   }
   return GetAudioMetadata(sf_info_);
 }
