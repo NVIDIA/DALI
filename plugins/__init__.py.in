@@ -15,14 +15,19 @@
 import os
 
 import nvidia.dali as dali
-dali_lib_dir = os.path.dirname(os.path.abspath(dali.__file__))
+
+dali_lib_dir = os.path.dirname(os.path.realpath(dali.__file__))
+curr_dir_path = os.path.dirname(os.path.realpath(__file__))
+
+print(f"Adding {dali_lib_dir} to the LD_LIBRARY_PATH")
 os.environ['LD_LIBRARY_PATH'] += os.pathsep + dali_lib_dir
 
-path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'libdali_video.so')
 try:
-    dali.plugin_manager.load_library(path)
-except:
-    print(f"Failed to load {path}")
+    plugin_path = os.path.join(curr_dir_path, 'libdali_@DALI_PLUGIN_NAME@.so')
+    print(f"Loading @DALI_PLUGIN_NAME@ plugin from {plugin_path}")
+    dali.plugin_manager.load_library(plugin_path)
+except Exception as e:
+    print(f"Failed to load {plugin_path}: {e}")
 
 __author__ = "NVIDIA Corporation"
 __copyright__ = "Copyright 2024, NVIDIA"

@@ -6,4 +6,5 @@ recursive-include . *.cu
 recursive-include . *.h
 recursive-include . *.hpp
 recursive-include . *.py
+recursive-include . *.cmake
 recursive-include . CMakeLists.txt

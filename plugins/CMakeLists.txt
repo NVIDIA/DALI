@@ -37,4 +37,4 @@ if(DALI_BUILD_FLAVOR)
   set(DALI_VERSION "${DALI_VERSION}")
 endif()
 
-add_subdirectory(dali_video)
+add_subdirectory(video)
