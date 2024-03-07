@@ -19,7 +19,6 @@ import nvidia.dali as dali
 dali_lib_dir = os.path.dirname(os.path.realpath(dali.__file__))
 curr_dir_path = os.path.dirname(os.path.realpath(__file__))
 
-print(f"Adding {dali_lib_dir} to the LD_LIBRARY_PATH")
 os.environ['LD_LIBRARY_PATH'] += os.pathsep + dali_lib_dir
 
 try:
