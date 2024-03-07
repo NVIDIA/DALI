@@ -64,7 +64,8 @@ if tfrecord_enabled():
                             "Expected `nvidia.dali.tfrecord.Feature` for the "
                             f'"{feature_name}", but got {type(feature)}. '
                             "Use `nvidia.dali.tfrecord.FixedLenFeature` or "
-                            "`nvidia.dali.tfrecord.VarLenFeature` to define the features to extract."
+                            "`nvidia.dali.tfrecord.VarLenFeature` "
+                            "to define the features to extract."
                         )
 
                 kwargs.update({"feature_names": feature_names, "features": features})
