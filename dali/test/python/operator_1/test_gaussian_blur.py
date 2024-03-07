@@ -320,6 +320,7 @@ def slow_test_generic_gaussian_blur():
                 yield from generate_generic_cases(dev, t_in, t_out)
 
 
+@attr("sanitizer_skip")
 def check_per_sample_gaussian_blur(
     batch_size, sigma_dim, window_size_dim, shape, layout, axes, op_type="cpu"
 ):
@@ -367,7 +368,6 @@ def check_per_sample_gaussian_blur(
 
 
 # TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
-@attr("sanitizer_skip")
 def test_per_sample_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for shape, layout, axes in shape_layout_axes_cases:
