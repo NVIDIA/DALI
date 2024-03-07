@@ -108,8 +108,8 @@ inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &stage,
                                                          const OpNode &op_node) {
-  // We present operators as fn.module.op_name or ops.module.OpName.
-  auto op_name = GetOpDisplayName(op_node.spec, ModuleSpecKind::ApiModule);
+  // We present operators with full qualified names.
+  auto op_name = GetOpDisplayName(op_node.spec, true);
 
   auto origin_stack_trace = GetOperatorOriginInfo(op_node.spec);
   auto formatted_origin_stack = FormatStack(origin_stack_trace, true);

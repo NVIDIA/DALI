@@ -568,7 +568,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
                 self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
             # Capture the ops API display name if it didn't arrive from fn API.
             if "_module" not in self._init_args:
-                self._init_args.update({"_module": Operator.__module__})
+                self._init_args.update({"_module": Operator.__module__.replace(".hidden", "")})
             if "_display_name" not in self._init_args:
                 self._init_args.update({"_display_name": type(self).__name__})
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)

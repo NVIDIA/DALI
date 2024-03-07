@@ -36,7 +36,7 @@ def test_python_error_propagation(error):
         error,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `fn.throw_exception`,
+Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -73,7 +73,7 @@ def test_cpp_error_propagation(error_name, error_type):
         error_type,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `fn.throw_exception`,
+Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -99,7 +99,7 @@ def test_error_propagation_ellipsis():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `fn.throw_exception`,
+Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -127,7 +127,7 @@ def test_arithm_ops():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `math.add`,
+Error when executing CPU operator `nvidia.dali.math.add`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -135,10 +135,11 @@ which was used in the pipeline definition with the following traceback:
 
 encountered:
 
-*broadcasting* Can't broadcast shapes*
+Can't broadcast shapes*
 2 x 3 (d=1, belonging to sample_idx=0)
 3 x 2 (d=1, belonging to sample_idx=0)
 
+*C++ context: *broadcasting*
 Current pipeline object is no longer valid."""
         ),
     ):
@@ -158,7 +159,7 @@ def test_math_ops():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `math.atan2`,
+Error when executing CPU operator `nvidia.dali.math.atan2`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -166,10 +167,11 @@ which was used in the pipeline definition with the following traceback:
 
 encountered:
 
-*broadcasting* Can't broadcast shapes*
+Can't broadcast shapes*
 2 x 3 (d=1, belonging to sample_idx=0)
 3 x 2 (d=1, belonging to sample_idx=0)
 
+*C++ context: *broadcasting*
 Current pipeline object is no longer valid."""
         ),
     ):
@@ -193,7 +195,7 @@ def test_conditional_split():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `fn._conditional.split`, instance name: "__Split_*",
+Error when executing CPU operator `nvidia.dali.fn._conditional.split`, instance name: "__Split_*",
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in non_scalar_condition
@@ -223,7 +225,7 @@ def test_conditional_merge():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `fn._conditional.merge`,
+Error when executing CPU operator `nvidia.dali.fn._conditional.merge`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in non_scalar_condition

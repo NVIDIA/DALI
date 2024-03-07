@@ -69,7 +69,8 @@ void PropagateError(ErrorInfo error) {
   }
   catch (DALIException &e) {
     // We drop the C++ stack trace at this point
-    throw DaliError(make_string(error.context_info, e.what(), error.additional_message));
+    throw DaliError(make_string(error.context_info, e.what(),
+                                "\nC++ context: " + e.GetFileAndLine() + error.additional_message));
   }
   // Exceptions that are mapped by pybind from C++ into a sensible C++ one:
   catch (std::invalid_argument &e) {
