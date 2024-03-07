@@ -566,6 +566,11 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             # before it is validated against Schema.
             if _dali_trace.is_tracing_enabled():
                 self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+            # Capture the ops API display name if it didn't arrive from fn API.
+            if "_module" not in self._init_args:
+                self._init_args.update({"_module": Operator.__module__})
+            if "_display_name" not in self._init_args:
+                self._init_args.update({"_display_name": type(self).__name__})
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
 
         @property
@@ -796,12 +801,10 @@ _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
 # Compose is only exposed for ops API, no fn bindings are generated
-from nvidia.dali.ops._operators.compose import Compose  # noqa: E402, F401
+from nvidia.dali.ops._operators.compose import Compose as Compose  # noqa: E402, F401
 
 _internal._adjust_operator_module(Compose, sys.modules[__name__], [])
 
-_registry.register_cpu_op("Compose")
-_registry.register_gpu_op("Compose")
 
 from nvidia.dali.ops._operators.math import (  # noqa: F401, E402
     _arithm_op,

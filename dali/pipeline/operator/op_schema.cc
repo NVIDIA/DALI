@@ -56,6 +56,8 @@ const OpSchema *SchemaRegistry::TryGetSchema(const std::string &name) {
 
 
 OpSchema::OpSchema(const std::string &name) : name_(name) {
+  // Process the module path and operator name
+  InitNames();
   // Fill internal arguments
   AddInternalArg("num_threads", "Number of CPU threads in a thread pool", -1);
   AddInternalArg("max_batch_size", "Max batch size", -1);
@@ -78,7 +80,6 @@ to accommodate a batch of samples of this size.)code",
   AddOptionalArg("preserve", R"code(Prevents the operator from being removed from the
 graph even if its outputs are not used.)code",
                  false);
-
 
   // For simplicity we pass StackSummary as 4 separate arguments so we don't need to extend DALI
   // with support for special FrameSummary type.
@@ -109,6 +110,21 @@ _origin_stack_filename for more information.)code",
   AddOptionalArg("_pipeline_internal", R"code(Boolean specifying if this operator was defined within
 a pipeline scope. False if it was defined without pipeline being set as current.)code",
                  true);
+
+  std::string default_module = "nvidia.dali.ops";
+  for (const auto &submodule : ModulePath()) {
+    default_module += "." + submodule;
+  }
+
+  AddOptionalArg("_module",
+                 "String identifying the module in which the operator is defined. "
+                 "Most of the time it is `__module__` of the API function/class.",
+                 default_module);
+
+  AddOptionalArg("_display_name",
+                 "Operator name as presented in the API it was instantiated in (without the module "
+                 "path), for example: cast_like or CastLike.",
+                 OperatorName());
 }
 
 
@@ -116,6 +132,25 @@ const std::string &OpSchema::name() const {
   return name_;
 }
 
+const std::vector<std::string> &OpSchema::ModulePath() const {
+  return module_path_;
+}
+
+const std::string &OpSchema::OperatorName() const {
+  return operator_name_;
+}
+
+void OpSchema::InitNames() {
+  static std::string kDelim = "__";
+  std::string::size_type start_pos = 0;
+  auto end_pos = name_.find(kDelim);
+  while (end_pos != std::string::npos) {
+    module_path_.push_back(name_.substr(start_pos, end_pos - start_pos));
+    start_pos = end_pos + kDelim.size();
+    end_pos = name_.find(kDelim, start_pos);
+  }
+  operator_name_ = name_.substr(start_pos);
+}
 
 OpSchema &OpSchema::DocStr(const string &dox) {
   dox_ = dox;

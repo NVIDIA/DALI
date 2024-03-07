@@ -56,35 +56,34 @@ class DLL_PUBLIC OpSpec {
   DLL_PUBLIC inline OpSpec() = default;
 
   /**
-   * @brief Returns a full tensor name
-   * given its name and device
+   * @brief Returns a full tensor name given its name and device
    */
   DLL_PUBLIC static std::string TensorName(const std::string &name, const std::string &device) {
     return name + "_" + device;
   }
 
   /**
-   * @brief Constructs a specification for an op with the given name.
+   * @brief Constructs a specification for an op with the given schema name.
    */
-  DLL_PUBLIC explicit inline OpSpec(const string &name) {
-    set_name(name);
+  DLL_PUBLIC explicit inline OpSpec(const string &schema_name) {
+    SetSchema(schema_name);
   }
 
   /**
-   * @brief Getter for the name of the Operator.
+   * @brief Getter for the schema name of the Operator.
    */
-  DLL_PUBLIC inline const string& name() const { return name_; }
+  DLL_PUBLIC inline const string& SchemaName() const { return schema_name_; }
 
   /**
-   * @brief Sets the name of the Operator.
+   * @brief Sets the schema of the Operator.
    */
-  DLL_PUBLIC inline void set_name(const string &name) {
-    name_ = name;
-    schema_ = name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(name_);
+  DLL_PUBLIC inline void SetSchema(const string &schema_name) {
+    schema_name_ = schema_name;
+    schema_ = schema_name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(schema_name_);
   }
 
   DLL_PUBLIC inline const OpSchema &GetSchema() const {
-    DALI_ENFORCE(schema_ != nullptr, "No schema found for operator \"" + name() + "\"");
+    DALI_ENFORCE(schema_ != nullptr, "No schema found for operator \"" + SchemaName() + "\"");
     return *schema_;
   }
 
@@ -159,7 +158,7 @@ class DLL_PUBLIC OpSpec {
         const auto& new_arg_name = deprecation_meta.renamed_to;
         DALI_ENFORCE(
             argument_idxs_.find(new_arg_name) == argument_idxs_.end(),
-            make_string("Operator ", name(), " got an unexpected '", arg_name,
+            make_string("Operator ", SchemaName(), " got an unexpected '", arg_name,
                         "' deprecated argument when '", new_arg_name, "' was already provided."));
 
         set_through_deprecated_arguments_[new_arg_name] = arg_name;
@@ -189,9 +188,10 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void EnforceNoAliasWithDeprecated(const string& arg_name) {
     auto set_through = set_through_deprecated_arguments_.find(arg_name);
-    DALI_ENFORCE(set_through == set_through_deprecated_arguments_.end(),
-                 make_string("Operator ", name(), " got an unexpected '", set_through->second,
-                             "' deprecated argument when '", arg_name, "' was already provided."));
+    DALI_ENFORCE(
+        set_through == set_through_deprecated_arguments_.end(),
+        make_string("Operator ", SchemaName(), " got an unexpected '", set_through->second,
+                    "' deprecated argument when '", arg_name, "' was already provided."));
   }
 
   // Forward to string implementation
@@ -403,7 +403,7 @@ class DLL_PUBLIC OpSpec {
 
   DLL_PUBLIC string ToString() const {
     string ret;
-    ret += "OpSpec for " + name() + ":\n  Inputs:\n";
+    ret += "OpSpec for " + SchemaName() + ":\n  Inputs:\n";
     for (size_t i = 0; i < inputs_.size(); ++i) {
       ret += "    " + Input(i) + "\n";
     }
@@ -465,7 +465,7 @@ class DLL_PUBLIC OpSpec {
   template <typename S, typename C>
   inline bool TryGetRepeatedArgumentImpl(C &result, const string &name) const;
 
-  string name_;
+  string schema_name_;
   const OpSchema *schema_ = nullptr;
 
   // the list of arguments, in addition order

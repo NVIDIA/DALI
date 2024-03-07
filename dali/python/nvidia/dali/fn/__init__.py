@@ -82,6 +82,9 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def fn_wrapper(*inputs, **kwargs):
         from nvidia.dali._debug_mode import _PipelineDebug
 
+        # This is executed after the APIs are populated and the module is updated
+        kwargs.update({"_module": fn_wrapper.__module__, "_display_name": wrapper_name})
+
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, "_debug_on", False):
             return current_pipeline._wrap_op_call(op_class, wrapper_name, *inputs, **kwargs)

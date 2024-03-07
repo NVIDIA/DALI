@@ -248,12 +248,14 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void HandleError(const std::string &stage, const OpNode &op_node) {
       // handle internal Operator names that start with underscore
-      const auto &op_name =
-          op_node.spec.name()[0] == '_' ? op_node.spec.name().substr(1) : op_node.spec.name();
+      const auto &op_name = op_node.spec.SchemaName()[0] == '_' ?
+                                op_node.spec.SchemaName().substr(1) :
+                                op_node.spec.SchemaName();
 
       bool need_instance_name = false;
       for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-        if (op_id != op_node.id && graph_->Node(op_id).spec.name() == op_node.spec.name()) {
+        if (op_id != op_node.id &&
+            graph_->Node(op_id).spec.SchemaName() == op_node.spec.SchemaName()) {
           need_instance_name = true;
           break;
         }

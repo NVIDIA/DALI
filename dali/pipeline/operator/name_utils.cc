@@ -12,18 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/test/operators/origin_trace_dump.h"
 
-#include <cstdlib>
 #include <string>
+#include <vector>
+
+#include "dali/core/error_handling.h"
+#include "dali/pipeline/operator/name_utils.h"
+#include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
 
-DALI_REGISTER_OPERATOR(OriginTraceDump, OriginTraceDump, CPU);
+std::string GetOpModule(const OpSpec &spec) {
+  return spec.GetArgument<std::string>("_module");;
+}
 
-DALI_SCHEMA(OriginTraceDump)
-    .DocStr("Operator for testing origin stack trace from Python.")
-    .NumInput(0, 10)
-    .NumOutput(1);
+std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path) {
+  auto display_name = spec.GetArgument<std::string>("_display_name");
+  if (!include_module_path) {
+    return display_name;
+  }
+  auto module = GetOpModule(spec);
+  if (module.size()) {
+    return module + "." + display_name;
+  } else {
+    return display_name;
+  }
+}
 
 }  // namespace dali

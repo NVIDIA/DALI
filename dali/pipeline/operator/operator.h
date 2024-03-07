@@ -103,7 +103,7 @@ class DLL_PUBLIC OperatorBase {
    * from.
    */
   DLL_PUBLIC virtual string name() const {
-    return spec_.name();
+    return spec_.SchemaName();
   }
 
   /**
@@ -211,7 +211,8 @@ class DLL_PUBLIC OperatorBase {
   }
 
   [[noreturn]] void CheckpointingUnsupportedError() const {
-    DALI_FAIL(make_string("Checkpointing is not implemented for this operator: ", spec_.name()));
+    DALI_FAIL(
+        make_string("Checkpointing is not implemented for this operator: ", spec_.SchemaName()));
   }
 
   // TODO(mszolucha): remove these two to allow i2i variable batch size, when all ops are ready

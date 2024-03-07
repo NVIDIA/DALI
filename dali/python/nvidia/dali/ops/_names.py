@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali import fn as _functional
+from nvidia.dali import backend as _b
 
 
 def _schema_name(cls):
@@ -42,16 +43,15 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
             ("Resize", [], "Resize") or
             ("experimental.readers.Video", ["experimental", "readers"], "Video")
     """
-    # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
-    namespace_delim = "__"
-    op_full_name = op_schema_name.replace(namespace_delim, ".")
-    *submodule, op_name = op_full_name.split(".")
+    schema = _b.GetSchema(op_schema_name)
+    submodule_path = schema.ModulePath()
+    op_name = schema.OperatorName()
     if make_hidden:
-        submodule = [*submodule, "hidden"]
-    if api == "ops":
-        return op_full_name, submodule, op_name
-    else:
-        return op_full_name, submodule, _functional._to_snake_case(op_name)
+        submodule_path = [*submodule_path, "hidden"]
+    if api == "fn":
+        op_name = _functional._to_snake_case(op_name)
+    op_full_name = ".".join(submodule_path + [op_name])
+    return op_full_name, submodule_path, op_name
 
 
 def _op_name(op_schema_name, api="fn"):
@@ -72,13 +72,8 @@ def _op_name(op_schema_name, api="fn"):
     str
         The fully qualified name in given API
     """
-    full_name, submodule, op_name = _process_op_name(op_schema_name)
-    if api == "fn":
-        return ".".join([*submodule, _functional._to_snake_case(op_name)])
-    elif api == "ops":
-        return full_name
-    else:
-        raise ValueError(f'{api} is not a valid DALI api name, try one of {"fn", "ops"}')
+    full_name, _, _ = _process_op_name(op_schema_name, api=api)
+    return full_name
 
 
 def _get_input_name(schema, input_idx):

@@ -84,3 +84,8 @@ nvidia.dali.plugin.pytorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
    :members:
+
+Compose
+^^^^^^^
+.. autoclass:: nvidia.dali.ops.Compose
+   :members:

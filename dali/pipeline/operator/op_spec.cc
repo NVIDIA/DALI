@@ -26,7 +26,7 @@ OpSpec& OpSpec::AddInput(const string &name, const string &device, bool regular_
     // We rely on the fact that regular inputs are first in inputs_ vector
     DALI_ENFORCE(NumArgumentInput() == 0,
         "All regular inputs (particularly, `" + name + "`) need to be added to the op `" +
-        this->name() + "` before argument inputs.");
+        this->SchemaName() + "` before argument inputs.");
   }
 
   inputs_.push_back({name, device});

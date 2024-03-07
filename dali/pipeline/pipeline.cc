@@ -62,7 +62,7 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
     name = "ExternalSource";
   }
 
-  spec->set_name(name);
+  spec->SetSchema(name);
 
   // Extract all the arguments with correct types
   for (auto &arg : def.args()) {
@@ -239,7 +239,7 @@ int Pipeline::AddOperator(const OpSpec &spec, const std::string& inst_name) {
 }
 
 int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
-  return AddOperator(spec, make_string("__", spec.name(), "_", logical_id), logical_id);
+  return AddOperator(spec, make_string("__", spec.SchemaName(), "_", logical_id), logical_id);
 }
 
 int Pipeline::AddOperator(const OpSpec &spec) {
@@ -259,7 +259,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // we modify spec so copy it
   OpSpec spec = const_spec;
-  auto operator_name = spec.name();
+  auto operator_name = spec.SchemaName();
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
@@ -292,7 +292,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     auto it = edge_names_.find(input_name);
 
     DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
-        "' to op '" + spec.name() + "' is not known to the pipeline.");
+        "' to op '" + spec.SchemaName() + "' is not known to the pipeline.");
 
     // Table of possible scenarios:
     // Op location / requested input type / data location
@@ -308,7 +308,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     // mixed / cpu / gpu -> error, data does not exist on cpu
     // mixed / gpu / cpu -> error, mixed op not allowed to have gpu inputs
     // mixed / gpu / gpu -> both of above errors
-    string error_str = "(op: '" + spec.name() + "', input: '" +
+    string error_str = "(op: '" + spec.SchemaName() + "', input: '" +
       input_name + "')";
 
     if (device == "cpu" || device == "mixed") {
@@ -335,15 +335,15 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     auto it = edge_names_.find(input_name);
 
     DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
-        "' to op '" + spec.name() + "' is not known to the pipeline.");
+        "' to op '" + spec.SchemaName() + "' is not known to the pipeline.");
 
-    string error_str = "(op: '" + spec.name() + "', input: '" +
+    string error_str = "(op: '" + spec.SchemaName() + "', input: '" +
       input_name + "')";
 
     if (!it->second.has_cpu) {
       DALI_FAIL(make_string(
           "Named arguments inputs to operators must be CPU data nodes. However, a GPU ",
-          "data node was provided (op: '", spec.name(), "', input: '", input_name, "')"));
+          "data node was provided (op: '", spec.SchemaName(), "', input: '", input_name, "')"));
     }
 
     if (device == "gpu" && separated_execution_)
@@ -354,7 +354,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
     string output_device = spec.OutputDevice(i);
-    string error_str = "(op: '" + spec.name() + "', output: '" +
+    string error_str = "(op: '" + spec.SchemaName() + "', output: '" +
       output_name + "')";
 
     auto it = edge_names_.find(output_name);
@@ -402,16 +402,17 @@ bool Pipeline::IsLogicalIdUsed(int logical_id) const {
 void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, int logical_id) {
   auto& logical_group = logical_ids_[logical_id];
   if (logical_group.size() > 0) {
-    const auto &group_name = op_specs_[logical_group.front()].spec.name();
+    const auto &group_name = op_specs_[logical_group.front()].spec.SchemaName();
     DALI_ENFORCE(
-        group_name == spec.name(),
+        group_name == spec.SchemaName(),
         "Different Operator types cannot be groupped with the same logical id. Tried to group " +
-            spec.name() + " using logical_id=" + std::to_string(logical_id) +
+            spec.SchemaName() + " using logical_id=" + std::to_string(logical_id) +
             " which is already assigned to " + group_name + ".");
-    const OpSchema &schema = SchemaRegistry::GetSchema(spec.name());
+    const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
     DALI_ENFORCE(schema.AllowsInstanceGrouping(),
-                 "Operator " + spec.name() + " does not support synced random execution required "
-                      "for multiple input sets processing.");
+                 "Operator " + spec.SchemaName() +
+                     " does not support synced random execution required "
+                     "for multiple input sets processing.");
   }
   op_specs_.push_back({inst_name, spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);
@@ -490,7 +491,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     } catch (std::exception &e) {
       int same_op_count = 0;
       for (const auto& elem : op_specs_) {
-        if (elem.spec.name() == op_spec.name()) {
+        if (elem.spec.SchemaName() == op_spec.SchemaName()) {
           same_op_count++;
         }
         if (same_op_count > 1) {
@@ -499,14 +500,14 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       }
       if (same_op_count > 1) {
         throw std::runtime_error(make_string(
-            "Critical error when building pipeline:\nError when adding operator: ", op_spec.name(),
-            ", instance name: \"", inst_name, "\", encountered:\n", e.what(),
+            "Critical error when building pipeline:\nError when adding operator: ",
+            op_spec.SchemaName(), ", instance name: \"", inst_name, "\", encountered:\n", e.what(),
             "\nCurrent pipeline object is no longer valid."));
       } else {
-        throw std::runtime_error(make_string(
-            "Critical error when building pipeline:\nError when adding operator: ", op_spec.name(),
-            "\" encountered:\n", e.what(),
-            "\nCurrent pipeline object is no longer valid."));
+        throw std::runtime_error(
+            make_string("Critical error when building pipeline:\nError when adding operator: ",
+                        op_spec.SchemaName(), "\" encountered:\n", e.what(),
+                        "\nCurrent pipeline object is no longer valid."));
       }
     } catch (...) {
       throw std::runtime_error("Unknown critical error when building pipeline.");
@@ -559,7 +560,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   for (int i = 0; i < graph_.NumOp(OpType::MIXED); i++) {
     OpNode &node = graph_.Node(OpType::MIXED, i);
-    if (node.spec.name() == "MakeContiguous") {
+    if (node.spec.SchemaName() == "MakeContiguous") {
       PropagateMemoryHint(node);
     }
   }
@@ -713,7 +714,7 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
  */
 void SerializeToProtobuf(dali_proto::OpDef *op, const string &inst_name, const OpSpec &spec,
                          int logical_id) {
-  op->set_name(spec.name());
+  op->set_name(spec.SchemaName());
   op->set_inst_name(inst_name);
   op->set_logical_id(logical_id);
 
@@ -767,7 +768,7 @@ string Pipeline::SerializeToProtobuf() const {
     const OpSpec& spec = p.spec;
 
     DALI_ENFORCE(spec.GetSchema().IsSerializable(), "Could not serialize the operator: "
-                                                    + spec.name());
+                                                    + spec.SchemaName());
 
     dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);
   }
@@ -1098,7 +1099,7 @@ void Pipeline::ProcessException(std::exception_ptr eptr) {
 
 void Pipeline::RepeatLastInputs::FindNodes(const OpGraph &graph) {
   for (const auto &node : graph.GetOpNodes()) {
-    if (node.spec.name() != "ExternalSource")
+    if (node.spec.SchemaName() != "ExternalSource")
       continue;
 
     bool repeat_last = false;

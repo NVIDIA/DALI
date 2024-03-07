@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,13 +32,13 @@ class Cast : public StatelessOperator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec)
       : StatelessOperator<Backend>(spec) {
-    if (spec.name() == "Cast") {
+    if (spec.SchemaName() == "Cast") {
       dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
       if (dtype_arg_ == DALI_NO_TYPE) {
         DALI_FAIL(make_string("Unexpected data type argument", dtype_arg_));
       }
     } else {
-      assert(spec.name() == "CastLike");
+      assert(spec.SchemaName() == "CastLike");
       is_cast_like_ = true;
     }
   }

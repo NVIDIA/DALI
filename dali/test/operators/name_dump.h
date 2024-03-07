@@ -12,36 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_OPERATORS_ORIGIN_TRACE_DUMP_H_
-#define DALI_TEST_OPERATORS_ORIGIN_TRACE_DUMP_H_
+#ifndef DALI_TEST_OPERATORS_NAME_DUMP_H_
+#define DALI_TEST_OPERATORS_NAME_DUMP_H_
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/test/operators/string_msg_helper.h"
 
 namespace dali {
 
-class OriginTraceDump : public StringMsgHelper {
+class NameDump : public StringMsgHelper {
  public:
-  inline explicit OriginTraceDump(const OpSpec &spec) : StringMsgHelper(spec) {}
+  inline explicit NameDump(const OpSpec &spec) : StringMsgHelper(spec) {}
 
-  inline ~OriginTraceDump() override = default;
+  inline ~NameDump() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(OriginTraceDump);
+  DISABLE_COPY_MOVE_ASSIGN(NameDump);
   USE_OPERATOR_MEMBERS();
 
  protected:
   std::string GetMessage(const OpSpec &spec, const Workspace &ws) override {
-    auto origin_stack_trace = GetOperatorOriginInfo(spec_);
-    return FormatStack(origin_stack_trace, true);
+    auto target_function = spec.GetArgument<std::string>("target");
+    auto include_module = spec.GetArgument<bool>("include_module");
+
+    if (target_function == "module") {
+      return GetOpModule(spec);
+    } else if (target_function == "op_name") {
+      return GetOpDisplayName(spec, include_module);
+    }
+    DALI_FAIL("Should not get here");
   }
 };
 
+
 }  // namespace dali
 
-#endif  // DALI_TEST_OPERATORS_ORIGIN_TRACE_DUMP_H_
+#endif  // DALI_TEST_OPERATORS_NAME_DUMP_H_
