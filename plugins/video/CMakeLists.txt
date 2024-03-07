@@ -24,6 +24,7 @@ file(COPY "${DALI_ROOT}/COPYRIGHT" DESTINATION "pkg_src")
 file(COPY "${DALI_ROOT}/LICENSE" DESTINATION "pkg_src")
 file(COPY "${DALI_ROOT}/plugins/common.cmake" DESTINATION "pkg_src")
 file(COPY "${DALI_ROOT}/plugins/MANIFEST.in" DESTINATION "pkg_src")
+file(COPY "${DALI_ROOT}/plugins/generate_plugin_stubs.py" DESTINATION "pkg_src")
 configure_file("${DALI_ROOT}/plugins/setup.py.in" "pkg_src/setup.py")
 configure_file("${DALI_ROOT}/plugins/__init__.py.in" "pkg_src/src/nvidia/dali/plugin/video/__init__.py")
 

@@ -42,9 +42,31 @@ target_include_directories(dali_${PLUGIN_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR
 target_link_directories(dali_${PLUGIN_NAME} PUBLIC ${DALI_LIB_DIR})
 target_link_libraries(dali_${PLUGIN_NAME} PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
 
+set(PYTHON_EXECUTABLE $ENV{PYTHON_EXECUTABLE})
+if(NOT EXISTS ${PYTHON_EXECUTABLE})
+  message(FATAL_ERROR "Python executable not set\n")
+endif()
+
+# Generates .pyi stubs
+add_custom_target(dali_${PLUGIN_NAME}_generate_stubs ALL
+  DEPENDS dali_${PLUGIN_NAME}
+  BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/fn/plugin/video/
+  COMMAND ${PYTHON_EXECUTABLE}
+    ${PROJECT_SOURCE_DIR}/generate_plugin_stubs.py
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ${PROJECT_BINARY_DIR}/libdali_${PLUGIN_NAME}.so
+      )
+
 include(GNUInstallDirs)
 
 install(TARGETS dali_${PLUGIN_NAME}
     RUNTIME DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}
     LIBRARY DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fn/plugin/${PLUGIN_NAME}/
+    DESTINATION nvidia/dali/fn/plugin/${PLUGIN_NAME}
+)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ops/plugin/${PLUGIN_NAME}/
+    DESTINATION nvidia/dali/ops/plugin/${PLUGIN_NAME}
 )
