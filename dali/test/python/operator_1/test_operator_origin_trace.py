@@ -20,20 +20,13 @@ import fnmatch
 from nvidia.dali import pipeline_def, fn, ops, Pipeline
 from nvidia.dali.auto_aug import auto_augment, augmentations
 from nvidia.dali.auto_aug.core import augmentation, Policy
-from nvidia.dali._utils import dali_trace
 from nvidia.dali.pipeline import do_not_convert
 from nose2.tools import params
 from test_utils import load_test_operator_plugin
 from nvidia.dali.pipeline.experimental import pipeline_def as pipeline_def_experimental
 
 
-def setUpModule():
-    load_test_operator_plugin()
-    dali_trace.set_tracing(enabled=True)
-
-
-def tearDownModule():
-    dali_trace.set_tracing(enabled=False)
+load_test_operator_plugin()
 
 
 op_mode = "dali.fn"
