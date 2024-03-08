@@ -29,61 +29,62 @@ def tfrecord_enabled():
     return False
 
 
-def _get_impl(name, schema_name, internal_schema_name):
+if tfrecord_enabled():
 
-    class _TFRecordReaderImpl(
-        ops.python_op_factory(name, schema_name, internal_schema_name, generated=False)
-    ):
-        """custom wrappers around ops"""
+    def _get_impl(name, schema_name, internal_schema_name):
 
-        def __init__(self, path, index_path, features, **kwargs):
-            if isinstance(path, list):
-                self._path = path
-            else:
-                self._path = [path]
-            if isinstance(index_path, list):
-                self._index_path = index_path
-            else:
-                self._index_path = [index_path]
+        class _TFRecordReaderImpl(
+            ops.python_op_factory(name, schema_name, internal_schema_name, generated=False)
+        ):
+            """custom wrappers around ops"""
 
-            kwargs.update({"path": self._path, "index_path": self._index_path})
-            self._features = features
+            def __init__(self, path, index_path, features, **kwargs):
+                if isinstance(path, list):
+                    self._path = path
+                else:
+                    self._path = [path]
+                if isinstance(index_path, list):
+                    self._index_path = index_path
+                else:
+                    self._index_path = [index_path]
 
-            super().__init__(**kwargs)
+                kwargs.update({"path": self._path, "index_path": self._index_path})
+                self._features = features
 
-        def __call__(self, *inputs, **kwargs):
-            feature_names = []
-            features = []
-            for feature_name, feature in self._features.items():
-                feature_names.append(feature_name)
-                features.append(feature)
-                if not isinstance(feature, _b.tfrecord.Feature):
-                    raise TypeError(
-                        "Expected `nvidia.dali.tfrecord.Feature` for the "
-                        f'"{feature_name}", but got {type(feature)}. '
-                        "Use `nvidia.dali.tfrecord.FixedLenFeature` or "
-                        "`nvidia.dali.tfrecord.VarLenFeature` to define the features to extract."
-                    )
+                super().__init__(**kwargs)
 
-            kwargs.update({"feature_names": feature_names, "features": features})
+            def __call__(self, *inputs, **kwargs):
+                feature_names = []
+                features = []
+                for feature_name, feature in self._features.items():
+                    feature_names.append(feature_name)
+                    features.append(feature)
+                    if not isinstance(feature, _b.tfrecord.Feature):
+                        raise TypeError(
+                            "Expected `nvidia.dali.tfrecord.Feature` for the "
+                            f'"{feature_name}", but got {type(feature)}. '
+                            "Use `nvidia.dali.tfrecord.FixedLenFeature` or "
+                            "`nvidia.dali.tfrecord.VarLenFeature` "
+                            "to define the features to extract."
+                        )
 
-            # We won't have MIS as this op doesn't have any inputs (Reader)
-            linear_outputs = super().__call__(*inputs, **kwargs)
-            # We may have single, flattened output
-            if not isinstance(linear_outputs, list):
-                linear_outputs = [linear_outputs]
-            outputs = {}
-            for feature_name, output in zip(feature_names, linear_outputs):
-                outputs[feature_name] = output
+                kwargs.update({"feature_names": feature_names, "features": features})
 
-            return outputs
+                # We won't have MIS as this op doesn't have any inputs (Reader)
+                linear_outputs = super().__call__(*inputs, **kwargs)
+                # We may have single, flattened output
+                if not isinstance(linear_outputs, list):
+                    linear_outputs = [linear_outputs]
+                outputs = {}
+                for feature_name, output in zip(feature_names, linear_outputs):
+                    outputs[feature_name] = output
 
-    return _TFRecordReaderImpl
+                return outputs
 
+        return _TFRecordReaderImpl
 
-class TFRecordReader(_get_impl("_TFRecordReader", "TFRecordReader", "_TFRecordReader")):
-    pass
+    class TFRecordReader(_get_impl("_TFRecordReader", "TFRecordReader", "_TFRecordReader")):
+        pass
 
-
-class TFRecord(_get_impl("_TFRecord", "readers__TFRecord", "readers___TFRecord")):
-    pass
+    class TFRecord(_get_impl("_TFRecord", "readers__TFRecord", "readers___TFRecord")):
+        pass
