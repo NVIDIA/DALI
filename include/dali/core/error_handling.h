@@ -247,7 +247,7 @@ inline dali::string GetStacktrace() {
 #define DALI_STR(x) DALI_STR2(x)
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
-#define DALI_MESSAGE_WITH_STACKTRACE(...)\
+#define DALI_MESSAGE_AND_STACKTRACE(...)\
   (std::string("[" FILE_AND_LINE "] ")), ##__VA_ARGS__, dali::GetStacktrace()
 
 #define DALI_MESSAGE(...)\
@@ -259,9 +259,9 @@ inline dali::string GetStacktrace() {
       std::string("[" FILE_AND_LINE "] "), \
       dali::GetStacktrace());
 
-#define DALI_ERROR(...)                                                                     \
-  do {                                                                                      \
-    std::cerr << dali::make_string(DALI_MESSAGE_WITH_STACKTRACE(__VA_ARGS__)) << std::endl; \
+#define DALI_ERROR(...)                                                                    \
+  do {                                                                                     \
+    std::cerr << dali::make_string(DALI_MESSAGE_AND_STACKTRACE(__VA_ARGS__)) << std::endl; \
   } while (0)
 
 #define DALI_WARN(...)                                                      \

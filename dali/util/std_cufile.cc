@@ -71,8 +71,7 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
 
   CUfileError_t status = cuFileHandleRegister(&(fh.cufh), &descr);
   if (status.err != CU_FILE_SUCCESS) {
-    DALI_FAIL("CUFile import failed: ", path, ". ",
-              std::string(cufileop_status_error(status.err)), ".");
+    DALI_FAIL("CUFile import failed: ", path, ". ", cufileop_status_error(status.err), ".");
   }
 }
 

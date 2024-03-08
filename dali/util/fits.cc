@@ -287,12 +287,10 @@ void HandleFitsError(int status) {
 
 FitsLock::FitsLock() : lock_(mutex(), std::defer_lock) {
   if (!fits_is_reentrant()) {
-    static const char msg[] =
-        "Loaded instance of CFITSIO library does not support multithreading. "
-        "Please recompile CFITSIO in reentrant mode (--enable-reentrant) "
-        "or use CFITSIO delivered in DALI_deps. Using non-reentrant version "
-        "of CFITSIO may degrade the performance.";
-    DALI_WARN_ONCE(msg);
+    DALI_WARN_ONCE("Loaded instance of CFITSIO library does not support multithreading. "
+                  "Please recompile CFITSIO in reentrant mode (--enable-reentrant) "
+                  "or use CFITSIO delivered in DALI_deps. Using non-reentrant version "
+                  "of CFITSIO may degrade the performance.");
     lock_.lock();
   }
 }
