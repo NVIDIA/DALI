@@ -26,6 +26,32 @@ def setUpModule():
 python_errors = [RuntimeError, IndexError, TypeError, ValueError, StopIteration]
 
 
+def test_python_error_constructor():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.throw_exception(constructor=True)
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Critical error when building pipeline:
+Error in CPU operator `nvidia.dali.fn.throw_exception`,
+which was used in the pipeline definition with the following traceback:
+
+  File "*test_operator_exception.py", line *, in pipe
+    return fn.throw_exception(constructor=True)
+
+encountered:
+
+Error in constructor
+Current pipeline object is no longer valid."""
+        ),
+    ):
+        p = pipe()
+        p.build()
+        p.run()
+
+
 @params(*python_errors)
 def test_python_error_propagation(error):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
@@ -36,7 +62,7 @@ def test_python_error_propagation(error):
         error,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
+Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -73,7 +99,7 @@ def test_cpp_error_propagation(error_name, error_type):
         error_type,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
+Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -99,7 +125,7 @@ def test_error_propagation_ellipsis():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.fn.throw_exception`,
+Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -127,7 +153,7 @@ def test_arithm_ops():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.math.add`,
+Error in CPU operator `nvidia.dali.math.add`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -159,7 +185,7 @@ def test_math_ops():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.math.atan2`,
+Error in CPU operator `nvidia.dali.math.atan2`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
@@ -195,7 +221,7 @@ def test_conditional_split():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.fn._conditional.split`, instance name: "__Split_*",
+Error in CPU operator `nvidia.dali.fn._conditional.split`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in non_scalar_condition
@@ -225,7 +251,7 @@ def test_conditional_merge():
         RuntimeError,
         glob=(
             """Critical error in pipeline:
-Error when executing CPU operator `nvidia.dali.fn._conditional.merge`,
+Error in CPU operator `nvidia.dali.fn._conditional.merge`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in non_scalar_condition
