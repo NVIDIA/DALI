@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/core/api_helper.h"
 #include "dali/operators.h"
-#include "dali/npp/npp.h"
+#include "dali/core/api_helper.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/npp/npp.h"
 
 #if DALI_USE_NVJPEG
-  #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #endif
 
+#include <dlfcn.h>
 #include <nvimgcodec.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
@@ -35,6 +39,44 @@ namespace dali {
 
 DLL_PUBLIC void InitOperatorsLib() {
   (void)CUDAStreamPool::instance();
+  const char *dali_autodiscover_plugins = std::getenv("DALI_AUTODISCOVER_PLUGINS");
+  int autodiscover_plugins = dali_autodiscover_plugins ? atoi(dali_autodiscover_plugins) : 0;
+  if (autodiscover_plugins)
+    AutodiscoverPluginsLibs();
+}
+
+std::string GetDefaultPluginPath()
+{
+    Dl_info info;
+    if (dladdr((const void*)GetDefaultPluginPath, &info)) {
+      fs::path path(info.dli_fname);
+      // use the directory of the current shared-object file as starting point to autodiscover the plugins
+      // ~/.local/lib/python3.8/site-packages/nvidia/dali/libdali_operators.so ->
+      //     ~/.local/lib/python3.8/site-packages/nvidia/dali/plugins/{plugin_name}/libdali_{plugin_name}.so
+      path = path.parent_path();
+      path /= "plugin";
+      return path.string();
+    }
+    DALI_FAIL("Can't find the default plugin path");
+    return "";
+}
+
+DLL_PUBLIC void AutodiscoverPluginsLibs() {
+  std::cout << "Auto discovering DALI plugins\n";
+  auto path = GetDefaultPluginPath();
+  std::vector<std::string> extensions = {".so"};
+  std::vector<std::string> plugin_paths;
+  if (!fs::is_directory(path)) {
+    LOG_LINE << path << " is not a directory. Nothing to load\n";
+    return;
+  }
+
+  for (const auto& fpath : fs::recursive_directory_iterator(path)) {
+    if (fpath.path().extension() == ".so") {
+      std::cout << "Loading " << fpath.path().string() << std::endl;
+      plugin_paths.push_back(fpath.path().string());
+    }
+  }
 }
 
 DLL_PUBLIC int GetNppVersion() {
