@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,13 +85,15 @@ def feed_ndarray(
     ), "Shapes do not match: DALI tensor has size {0}, but PyTorch Tensor has size {1}".format(
         dali_tensor.shape(), list(arr.size())
     )
+
+    non_blocking = cuda_stream is not None
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=True)
+        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=non_blocking)
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return arr
