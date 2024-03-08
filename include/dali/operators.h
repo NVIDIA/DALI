@@ -29,6 +29,12 @@ namespace dali {
 void InitOperatorsLib();
 
 /**
+ * @brief Autodiscover and load plugins following the pattern
+ *        {dali_dir}/plugins/{plugin_name}/libdali_{plugin_name}.so pattern
+ */
+void AutodiscoverPluginsLibs();
+
+/**
  * @brief  Returns version of available NPP library
  *
  * @returns MAJOR*1000 + MINOR*10 + PATH or -1 if not available
