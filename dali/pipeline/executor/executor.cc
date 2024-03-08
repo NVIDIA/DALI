@@ -106,36 +106,8 @@ inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &stage,
-                                                         const OpNode &op_node) {
-  // We present operators with full qualified names.
-  auto op_name = GetOpDisplayName(op_node.spec, true);
-
-  auto origin_stack_trace = GetOperatorOriginInfo(op_node.spec);
-  auto formatted_origin_stack = FormatStack(origin_stack_trace, true);
-
-  bool need_instance_name = false;
-  for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-    if (op_id != op_node.id && graph_->Node(op_id).spec.SchemaName() == op_node.spec.SchemaName()) {
-      need_instance_name = true;
-      break;
-    }
-  }
-
-  auto optional_stack_mention =
-      formatted_origin_stack.size() ?
-          (",\nwhich was used in the pipeline definition with the following traceback:\n\n" +
-           formatted_origin_stack + "\n") :
-          " ";  // we need space before "encountered"
-
-  if (need_instance_name) {
-    HandleError(make_string("Error when executing ", stage, " operator `", op_name,
-                            "`, instance name: \"", op_node.instance_name, "\"",
-                            optional_stack_mention, "encountered:\n\n"));
-  } else {
-    HandleError(make_string("Error when executing ", stage, " operator `", op_name, "`",
-                            optional_stack_mention, "encountered:\n\n"));
-  }
+void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const OpNode &op_node) {
+  HandleError(GetErrorContextMessage(op_node.spec));
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
@@ -234,7 +206,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
       RunHelper(op_node, ws, iteration_id);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (...) {
-      HandleError("CPU", op_node);
+      HandleError(op_node);
     }
   }
 
@@ -283,7 +255,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
         CUDA_CALL(cudaGetLastError());
       }
     } catch (...) {
-      HandleError("Mixed", op_node);
+      HandleError(op_node);
     }
   }
 
@@ -350,7 +322,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
       }
       CUDA_CALL(cudaGetLastError());
     } catch (...) {
-      HandleError("GPU", op_node);
+      HandleError(op_node);
     }
   }
 

@@ -249,17 +249,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
  /**
   * @brief Capture an exception produced by an executed operator and propagate it with
-  * additional context.
+  * additional context containing the operator name and the origin stack trace.
   *
-  * Executor adds following information:
-  * * the name of the offending operator in the api variant it was instantiated from.
-  * * the origin stack trace of the operator within pipeline definition.
-  * * instance name if there were multiple instances of the same operator.
-  *
-  * @param stage The name of the pipeline stage where the error occurred.
   * @param op_node The operator node that caused the error.
   */
-  void HandleError(const std::string &stage, const OpNode &op_node);
+  void HandleError(const OpNode &op_node);
 
   /**
    * @brief Capture the current exception that is processed and propagate it with the specified

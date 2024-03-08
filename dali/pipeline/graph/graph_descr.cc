@@ -18,6 +18,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/graph/op_graph.h"
 
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_schema.h"
 
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
@@ -206,32 +207,17 @@ void OpGraph::InstantiateOperators() {
 
   for (auto op_type : order) {
     for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
+      std::exception_ptr eptr;
       try {
         op_nodes_[op_id].InstantiateOperator();
-      } catch (std::exception &e) {
-        bool use_instance_name = false;
-        for (const auto &other_node : op_nodes_) {
-          if (op_id != other_node.id &&
-              op_nodes_[op_id].spec.SchemaName() == other_node.spec.SchemaName()) {
-            use_instance_name = true;
-            break;
-          }
-        }
-        if (use_instance_name) {
-          throw std::runtime_error(make_string(
-              "Critical error when building pipeline:\nError when constructing operator: ",
-              op_nodes_[op_id].spec.SchemaName(), ", instance name: \"",
-              op_nodes_[op_id].instance_name, "\", encountered:\n", e.what(),
-              "\nCurrent pipeline object is no longer valid."));
-        } else {
-          throw std::runtime_error(make_string(
-              "Critical error when building pipeline:\nError when constructing operator: ",
-              op_nodes_[op_id].spec.SchemaName(), " encountered:\n", e.what(),
-              "\nCurrent pipeline object is no longer valid."));
-        }
       } catch (...) {
-        throw std::runtime_error("Unknown critical error when building pipeline.");
+        eptr = std::current_exception();
       }
+
+      PropagateError({eptr,
+                      "Critical error when building pipeline:\n" +
+                          GetErrorContextMessage(op_nodes_[op_id].spec),
+                      "\nCurrent pipeline object is no longer valid."});
     }
   }
 }

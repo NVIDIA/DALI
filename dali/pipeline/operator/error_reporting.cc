@@ -94,5 +94,22 @@ void PropagateError(ErrorInfo error) {
   }
 }
 
+std::string GetErrorContextMessage(const OpSpec &spec) {
+  auto stage = spec.GetArgument<std::string>("device");
+  auto op_name = GetOpDisplayName(spec, true);
+  std::transform(stage.begin(), stage.end(), stage.begin(), ::toupper);
+
+  auto origin_stack_trace = GetOperatorOriginInfo(spec);
+  auto formatted_origin_stack = FormatStack(origin_stack_trace, true);
+  auto optional_stack_mention =
+      formatted_origin_stack.size() ?
+          (",\nwhich was used in the pipeline definition with the following traceback:\n\n" +
+           formatted_origin_stack + "\n") :
+          " ";  // we need space before "encountered"
+
+  return make_string("Error in ", stage, " operator `", op_name, "`",
+                     optional_stack_mention, "encountered:\n\n");
+}
+
 
 }  // namespace dali
