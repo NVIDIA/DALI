@@ -73,12 +73,13 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
                     (if not provided, an internal user stream will be selected)
     """
 
+    non_blocking = cuda_stream is not None
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
         stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=True)
+        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=non_blocking)
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return ptr
