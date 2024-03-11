@@ -212,7 +212,9 @@ def _slice_tensorlist(data, size):
 
     return type(data)(list(data)[:size], layout=data.layout())
 
+
 # TODO(klecki): Expose `nvidia.dali.math` in eager mode
+
 
 def _arithm_op(name, *inputs):
     """Arithmetic operator function wrapper around ``eager.arithmetic_generic_op``. It is used
