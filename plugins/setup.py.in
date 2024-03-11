@@ -25,9 +25,11 @@ if __name__ == "__main__":
             import nvidia.dali as dali
         except:
             installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
-            print("Error: NVIDIA DALI is not available. Please install it and try again: f{installation_url}")
+            print(f"Error: NVIDIA DALI is not available. Please install it and try again: {installation_url}")
             sys.exit(1)
 
+        # We don't want to put those in pyproject.toml because it results in an isolated build 
+        # (won't look for DALI in the python path, for example)
         requirements = [
             "setuptools>=42",
             "scikit-build",
