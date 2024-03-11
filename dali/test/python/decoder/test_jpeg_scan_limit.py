@@ -159,10 +159,10 @@ class ProgressiveJpeg(unittest.TestCase):
             data, _ = fn.readers.file(files=self.files[(decoding_method, decoding_step)].name)
             return fn.decoders.image(data, device=decoding_device)
 
-        pretty_decoding_dev = "CPU" if decoding_device == "cpu" else "Mixed"
+        pretty_decoding_dev = "CPU" if decoding_device == "cpu" else "MIXED"
         with assert_raises(
             RuntimeError,
-            glob=f"Error when executing {pretty_decoding_dev} * "
+            glob=f"Error in {pretty_decoding_dev} * "
             f"The number of scans ({max_scans + 1}) during progressive decoding *",
         ):
             p = pipeline()
