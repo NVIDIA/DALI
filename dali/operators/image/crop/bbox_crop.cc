@@ -354,7 +354,19 @@ The values are:
         R"code(If set to True, an extra output will be returned, containing
 the original indices of the bounding boxes that passed the centroid filter and are present in
 the output bounding boxes.)code",
-        false);
+        false)
+    .AddOptionalArg<float>("bbox_prune",
+        R"code(Controls how bboxes are pruned from the ROI. Valid values of `bbox_prune` are `-1.f`
+(to flag centroid pruning) or in the range `[0,1]` for the threshold algorithm.
+
+- `bbox_prune=-1.0` prune boxes if their centroid is outside of the ROI.
+
+- `bbox_prune=(0.0,1.0]` this is a threshold where boxes are removed if the fraction of their
+original area within the ROI is less than this value. For example when `bbox_prune=0.2` bboxes that
+have more than 20% of their area within the ROI are kept, bboxes under this threshold are pruned.
+
+- `bbox_prune=0.0` all boxes that have some presence in the ROI are kept.)code",
+        -1.f);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -382,6 +394,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
+        bbox_prune_threshold_(spec_.GetArgument<float>("bbox_prune")),
         rngs_(rng) {
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
@@ -393,6 +406,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         scale_range_.min >= 0 && scale_range_.min <= scale_range_.max,
         make_string("`scaling` range must be positive and min <= max. Got: ", scale_range_.min,
                     ", ", scale_range_.max));
+
+    if (bbox_prune_threshold_ != -1.f) {
+      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1,
+        make_string("`bbox_prune` must be `-1` or in range `[0,1]`. Got: ", bbox_prune_threshold_));
+    }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
     DALI_ENFORCE(aspect_ratio_arg.size() == 2 || aspect_ratio_arg.size() == 6,
@@ -781,7 +799,17 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         crop.crop = out_crop;
         crop.boxes.assign(bounding_boxes.begin(), bounding_boxes.end());
         crop.bbox_indices.clear();  // indices will be populated by FilterByCentroid
-        FilterByCentroid(rel_crop, crop.boxes, crop.bbox_indices);
+        if (bbox_prune_threshold_ == -1.f) {
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox_) { return rel_crop.contains(bbox_.centroid()); });
+        } else {
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox_) {
+              const float intersec_ = volume(intersection(rel_crop, bbox_));
+              return intersec_ / volume(bbox_) > bbox_prune_threshold_;
+            });
+        }
+
         for (auto &box : crop.boxes) {
           box = RemapBox(box, rel_crop);
         }
@@ -847,13 +875,14 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
   }
 
-  void FilterByCentroid(const Box<ndim, float> &crop,
-                        std::vector<Box<ndim, float>> &bboxes,
-                        std::vector<int> &indices) {
+  template <class UnaryPredicate>
+  void FilterBboxes(std::vector<Box<ndim, float>>& bboxes, std::vector<int>& indices, UnaryPredicate pred)
+  {
     std::vector<Box<ndim, float>> new_bboxes;
+    new_bboxes.reserve(bboxes.size());
     indices.clear();
     for (size_t i = 0; i < bboxes.size(); i++) {
-      if (crop.contains(bboxes[i].centroid())) {
+      if (pred(bboxes[i])) {
         new_bboxes.push_back(bboxes[i]);
         indices.push_back(static_cast<int>(i));
       }
@@ -875,6 +904,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   OverlapMetric overlap_metric_ = OverlapMetric::IoU;
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
+  float bbox_prune_threshold_ = -1.f;
 
   BatchRNG<std::mt19937_64> &rngs_;
 
