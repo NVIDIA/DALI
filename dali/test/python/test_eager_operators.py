@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -130,7 +130,9 @@ def test_identical_rng_states_interleaved():
 def test_objective_eager_resize():
     from nvidia.dali._utils import eager_utils
 
-    resize_class = eager_utils._eager_op_object_factory(ops.python_op_factory("Resize"), "Resize")
+    resize_class = eager_utils._eager_op_object_factory(
+        ops.python_op_factory("Resize", "Resize"), "Resize"
+    )
     tl = tensors.TensorListCPU(
         np.random.default_rng().integers(256, size=(8, 200, 200, 3), dtype=np.uint8)
     )

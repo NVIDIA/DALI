@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
@@ -131,6 +131,15 @@ class GetData:
     """
 
     def __init__(self, data) -> None:
+        """
+        Construct the dataset
+
+        Parameters
+        ----------
+        data : list of batches
+            List of batches that will be returned as is or as TensorListCPU (depending on
+            the fn or eager context).
+        """
         self.data = data
 
     def fn_source(self, i):
@@ -346,9 +355,61 @@ def reader_op_pipeline(op, kwargs, source=None, layout=None):
     return out
 
 
-def test_image_decoder():
+def test_decoders_image():
     check_single_input(
         "decoders.image",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+        output_type=types.RGB,
+    )
+
+
+def test_experimental_decoders_image():
+    check_single_input(
+        "experimental.decoders.image",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+        output_type=types.RGB,
+    )
+
+
+def test_decoders_image_crop():
+    check_single_input(
+        "decoders.image_crop",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+        output_type=types.RGB,
+        crop=(10, 10),
+    )
+
+
+def test_experimental_decoders_image_crop():
+    check_single_input(
+        "experimental.decoders.image_crop",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+        output_type=types.RGB,
+        crop=(10, 10),
+    )
+
+
+def test_decoders_image_random_crop():
+    check_single_input_stateful(
+        "decoders.image_random_crop",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+        output_type=types.RGB,
+    )
+
+
+def test_experimental_decoders_image_random_crop():
+    check_single_input_stateful(
+        "experimental.decoders.image_random_crop",
         pipe_fun=reader_op_pipeline,
         fn_source=images_dir,
         eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
@@ -404,8 +465,28 @@ def test_cast():
     check_single_input("cast", dtype=types.INT32)
 
 
+def test_cast_like():
+    source = np.array([1, 2, 3], dtype=np.int32)
+    target = np.array([1.0], dtype=np.float32)
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+    def cast_like_pipe():
+        return fn.cast_like(source, target)
+
+    compare_eager_with_pipeline(
+        cast_like_pipe(),
+        lambda x: eager.cast_like(x, get_tl([target] * batch_size, None)),
+        eager_source=lambda _i, _layout: get_tl([source] * batch_size, None),
+        layout=None,
+    )
+
+
 def test_resize():
     check_single_input("resize", resize_x=50, resize_y=50)
+
+
+def test_tensor_resize_cpu():
+    check_single_input("experimental.tensor_resize", sizes=[50, 50], axes=[0, 1])
 
 
 def test_per_frame():
@@ -430,17 +511,6 @@ def test_flip():
 
 def test_jpeg_compression_distortion():
     check_single_input("jpeg_compression_distortion", quality=10)
-
-
-def test_image_decoder_crop_device():
-    check_single_input(
-        "decoders.image_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-        crop=(10, 10),
-    )
 
 
 def test_reshape():
@@ -860,9 +930,7 @@ def test_nemo_asr_reader():
 
 
 def test_video_reader():
-    check_reader(
-        "experimental.readers.video", filenames=video_files, labels=[0, 1], sequence_length=10
-    )
+    check_reader("experimental.readers.video", filenames=video_files, sequence_length=3)
 
 
 def test_copy():
@@ -1163,6 +1231,15 @@ def test_peek_image_shape():
     )
 
 
+def test_experimental_peek_image_shape():
+    check_single_input(
+        "experimental.peek_image_shape",
+        pipe_fun=reader_op_pipeline,
+        fn_source=images_dir,
+        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+    )
+
+
 def test_subscript_dim_check():
     check_single_input("subscript_dim_check", num_subscripts=3)
 
@@ -1254,16 +1331,6 @@ def test_arithm_ops():
         compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)
 
 
-def test_image_decoder_random_crop():
-    check_single_input_stateful(
-        "decoders.image_random_crop",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-        output_type=types.RGB,
-    )
-
-
 def test_noise_gaussian():
     check_single_input_stateful("noise.gaussian")
 
@@ -1294,11 +1361,14 @@ def test_random_object_bbox():
         ]
     )
 
-    def source(*_):
+    def eager_source(_i, _layout):
+        return data
+
+    def fn_source(_):
         return data
 
     check_single_input_stateful(
-        "segmentation.random_object_bbox", fn_source=source, eager_source=source, layout=""
+        "segmentation.random_object_bbox", fn_source=fn_source, eager_source=eager_source, layout=""
     )
 
 
@@ -1380,8 +1450,47 @@ def test_batch_permutation():
     check_no_input_stateful("batch_permutation")
 
 
+def test_random_crop_generator_cpu():
+    shape_batch_list = [
+        [np.random.randint(100, 800, size=(2,), dtype=np.int64) for _ in range(batch_size)]
+        for _ in range(data_size)
+    ]
+
+    data = GetData(shape_batch_list)
+
+    check_single_input_stateful(
+        "random_crop_generator",
+        fn_source=data.fn_source,
+        eager_source=data.eager_source,
+        layout=None,
+    )
+
+
+def test_video_decoder():
+    filename = os.path.join(get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+    data = [
+        [np.fromfile(filename, dtype=np.uint8) for _ in range(batch_size)] for _ in range(data_size)
+    ]
+
+    data = GetData(data)
+
+    check_single_input(
+        "experimental.decoders.video",
+        fn_source=data.fn_source,
+        eager_source=data.eager_source,
+        layout=None,
+    )
+
+
 tested_methods = [
     "decoders.image",
+    "decoders.image_crop",
+    "decoders.image_slice",
+    "decoders.image_random_crop",
+    "experimental.decoders.image",
+    "experimental.decoders.image_crop",
+    "experimental.decoders.image_slice",
+    "experimental.decoders.image_random_crop",
     "rotate",
     "brightness_contrast",
     "hue",
@@ -1394,14 +1503,15 @@ tested_methods = [
     "crop",
     "color_space_conversion",
     "cast",
+    "cast_like",
     "resize",
+    "experimental.tensor_resize",
     "per_frame",
     "gaussian_blur",
     "laplacian",
     "crop_mirror_normalize",
     "flip",
     "jpeg_compression_distortion",
-    "decoders.image_crop",
     "reshape",
     "reinterpret",
     "water",
@@ -1428,7 +1538,6 @@ tested_methods = [
     "normalize",
     "lookup_table",
     "slice",
-    "decoders.image_slice",
     "pad",
     "readers.file",
     "readers.mxnet",
@@ -1467,11 +1576,11 @@ tested_methods = [
     "permute_batch",
     "squeeze",
     "peek_image_shape",
+    "experimental.peek_image_shape",
     "subscript_dim_check",
     "get_property",
     "tensor_subscript",
     "arithmetic_generic_op",
-    "decoders.image_random_crop",
     "noise.gaussian",
     "noise.salt_and_pepper",
     "noise.shot",
@@ -1485,6 +1594,8 @@ tested_methods = [
     "random.normal",
     "random.uniform",
     "batch_permutation",
+    "random_crop_generator",
+    "experimental.decoders.video",
 ]
 
 excluded_methods = [
@@ -1496,7 +1607,15 @@ excluded_methods = [
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
+    "experimental.debayer",  # not supported for CPU
+    "experimental.equalize",  # not supported for CPU
+    "experimental.filter",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
+    "experimental.remap",  # operator is GPU-only
+    "experimental.readers.fits",  # lacking test files in DALI_EXTRA
+    "experimental.median_blur",  # not supported for CPU
+    "experimental.dilate",  # not supported for CPU
+    "experimental.erode",  # not supported for CPU
 ]
 
 

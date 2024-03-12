@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ from nvidia.dali.external_source import _prep_data_for_feed_input
 # Stateful operators - rely on the internal state (return different outputs across iterations).
 _stateful_operators = {
     "decoders__ImageRandomCrop",
+    "experimental__decoders__ImageRandomCrop",
     "noise__Gaussian",
     "noise__SaltAndPepper",
     "noise__Shot",
@@ -38,6 +39,7 @@ _stateful_operators = {
     "ROIRandomCrop",
     "RandomBBoxCrop",
     "RandomResizedCrop",
+    "RandomCropGenerator",
     "random__CoinFlip",
     "random__Normal",
     "random__Uniform",
@@ -48,6 +50,7 @@ _stateful_operators = {
 # Iterator operators - Python iterators of readers.
 _iterator_operators = {
     "experimental__readers__Video",
+    "experimental__readers__Fits",
     "readers__COCO",
     "readers__Caffe",
     "readers__Caffe2",
@@ -71,6 +74,7 @@ _excluded_operators = {
     "DLTensorPythonFunction",
     "TorchPythonFunction",
     "NumbaFunction",
+    "experimental__inputs__Video",  # internal queue not supported in eager mode
 }
 
 
@@ -207,6 +211,9 @@ def _slice_tensorlist(data, size):
     """Constructs TensorList consisting of ``size`` first elements of ``data``."""
 
     return type(data)(list(data)[:size], layout=data.layout())
+
+
+# TODO(klecki): Expose `nvidia.dali.math` in eager mode
 
 
 def _arithm_op(name, *inputs):
@@ -602,7 +609,7 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         raise ValueError(f"Incorrect device type '{device}'.")
 
     if input_device == "cpu" and device == "gpu":
-        if op_name in _ops._mixed_ops:
+        if op_name in _ops.mixed_ops():
             device = "mixed"
         else:
             raise ValueError(f"Operator '{wrapper_name}' not registered for mixed.")
