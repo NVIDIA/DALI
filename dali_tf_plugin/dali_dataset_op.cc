@@ -410,13 +410,14 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     char *cpt;
     size_t n;
-    daliExternalContextCheckpoint external_context;
+    daliExternalContextCheckpoint external_context{};
     TF_DALI_CALL(daliGetSerializedCheckpoint(
       &pipeline_handle_, &external_context, &cpt, &n));
 
     tensorflow::Tensor cpt_tensor(DT_UINT8, {n});
     memcpy(cpt_tensor.data(), cpt, n);
-    free(cpt);
+    TF_DALI_CALL(daliDestroyExternalContextCheckpoint(&external_context));
+    TF_DALI_CALL(daliFree(cpt));
     TF_RETURN_IF_ERROR(writer->WriteTensor(prefix(), "checkpoint", cpt_tensor));
 
     return OkStatus();
@@ -433,7 +434,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
 
     TF_DALI_CALL(daliDeletePipeline(&pipeline_handle_));
     TF_RETURN_IF_ERROR(dataset()->InitPipeline(&pipeline_handle_));
-    daliExternalContextCheckpoint external_context;
+    daliExternalContextCheckpoint external_context{};
     TF_DALI_CALL(daliRestoreFromSerializedCheckpoint(
       &pipeline_handle_, cpt_data.data(), cpt_data.size(), &external_context));
 
