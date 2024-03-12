@@ -356,14 +356,14 @@ the original indices of the bounding boxes that passed the centroid filter and a
 the output bounding boxes.)code",
         false)
     .AddOptionalArg<float>("bbox_prune",
-        R"code(Controls how bboxes are pruned from the ROI. Valid values of `bbox_prune` are `-1.f`
-(to flag centroid pruning) or in the range `[0,1]` for the threshold algorithm.
+        R"code(Controls how bboxes are pruned from the ROI. Valid values of `bbox_prune` are `-1.f` 
+(to flag centroid pruning) or in the range `[0.0,1.0)` for the threshold algorithm.
 
 - `bbox_prune=-1.0` prune boxes if their centroid is outside of the ROI.
 
-- `bbox_prune=(0.0,1.0]` this is a threshold where boxes are removed if the fraction of their
-original area within the ROI is less than this value. For example when `bbox_prune=0.2` bboxes that
-have more than 20% of their area within the ROI are kept, bboxes under this threshold are pruned.
+- `bbox_prune=(0.0,1.0)` this is a threshold where boxes are only kept if the fraction of their 
+area within the ROI is greater than this value. For example when `bbox_prune=0.2` bboxes that have 
+more than 20% of their original area within the ROI are kept, bboxes less than or equal to are pruned.
 
 - `bbox_prune=0.0` all boxes that have some presence in the ROI are kept.)code",
         -1.f);
@@ -408,8 +408,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
                     ", ", scale_range_.max));
 
     if (bbox_prune_threshold_ != -1.f) {
-      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1,
-        make_string("`bbox_prune` must be `-1` or in range `[0,1]`. Got: ", bbox_prune_threshold_));
+      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ < 1.f,
+        make_string("`bbox_prune` must be `-1` or in range `[0,1)`. Got: ", bbox_prune_threshold_));
     }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
