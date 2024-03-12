@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -68,9 +69,10 @@ void PropagateError(ErrorInfo error) {
     throw;
   }
   catch (DALIException &e) {
-    // We drop the C++ stack trace at this point
-    throw DaliError(make_string(error.context_info, e.what(),
-                                "\nC++ context: " + e.GetFileAndLine() + error.additional_message));
+    // We drop the C++ stack trace at this point and go back to runtime_error.
+    throw std::runtime_error(
+        make_string(error.context_info, e.what(),
+                    "\nC++ context: " + e.GetFileAndLine() + error.additional_message));
   }
   // Exceptions that are mapped by pybind from C++ into a sensible C++ one:
   catch (std::invalid_argument &e) {
