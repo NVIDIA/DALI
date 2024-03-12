@@ -20,6 +20,7 @@ from nvidia.dali._utils import dali_trace as _dali_trace
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
+
     if _dali_trace.is_tracing_enabled():
         definition_frame_end = _dali_trace.get_stack_depth() - 2
     else:
