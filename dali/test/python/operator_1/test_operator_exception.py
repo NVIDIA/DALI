@@ -179,7 +179,7 @@ def test_math_ops():
     def pipe():
         a = fn.random.uniform(range=[-1, 1], shape=(2, 3))
         b = fn.random.uniform(range=[-1, 1], shape=(3, 2))
-        return math.atan2(a, b)
+        return math.atan2(a, b) + 1
 
     with assert_raises(
         RuntimeError,
@@ -189,7 +189,7 @@ Error in CPU operator `nvidia.dali.math.atan2`,
 which was used in the pipeline definition with the following traceback:
 
   File "*test_operator_exception.py", line *, in pipe
-    return math.atan2(a, b)
+    return math.atan2(a, b) + 1
 
 encountered:
 

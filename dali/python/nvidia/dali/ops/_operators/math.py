@@ -190,10 +190,17 @@ def _generate_input_desc(categories_idx, integers, reals):
     return input_desc
 
 
-def _arithm_op(name, *inputs):
+def _arithm_op(name, *inputs, definition_frame_end=None):
     """
     Create arguments for ArithmeticGenericOp and call it with supplied inputs.
     Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
+
+    definition_frame_end : int, optional, by default None
+        Optional marker indicating the depth where the user code ends in the stack-trace.
+        As this function is imported an invoked by trampoline in data_node.py and math.py
+        at first use we need to count back from the trampoline (so this number will be overwritten)
+        and when we are used directly in the implementation we will get None and we will detect it
+        automatically.
     """
     import nvidia.dali.ops  # Allow for late binding of the ArithmeticGenericOp from parent module.
 
@@ -202,8 +209,10 @@ def _arithm_op(name, *inputs):
     expression_desc = "{}({})".format(name, input_desc)
     dev = nvidia.dali.ops._choose_device(edges)
 
+    # We calculate the stack depth of the user code here to reduce the noise.
     if _dali_trace.is_tracing_enabled():
-        definition_frame_end = _dali_trace.get_stack_depth() - 3
+        if definition_frame_end is None:
+            definition_frame_end = _dali_trace.get_stack_depth() - 2
     else:
         definition_frame_end = None
     # Create "instance" of operator
