@@ -25,6 +25,8 @@ from nose2.tools import params
 from nose import SkipTest
 from nose.plugins.attrib import attr
 
+import subprocess as sp
+
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
 filenames = filter(lambda filename: "hevc" not in filename, filenames)
@@ -32,6 +34,22 @@ filenames = filter(lambda filename: "hevc" not in filename, filenames)
 filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
 
 files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
+
+
+def get_gpu_name_from_nvml():
+    try:
+        nvml_output = sp.check_output(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"])
+        return nvml_output.decode("utf-8").strip().split("\n")
+    except sp.CalledProcessError:
+        return None
+
+
+def skip_if_m60():
+    """Skip the test if the GPU is M60. The video decoder is not supported in full on M60."""
+
+    gpus = get_gpu_name_from_nvml()
+    if "Tesla M60" in gpus:
+        raise SkipTest()
 
 
 @pipeline_def(device_id=0)
@@ -103,6 +121,8 @@ def test_video_decoder(device):
 
 
 def test_full_range_video():
+    skip_if_m60()
+
     @pipeline_def
     def test_pipeline():
         videos = fn.readers.video(
@@ -130,6 +150,8 @@ def test_full_range_video():
 
 @params("cpu", "gpu")
 def test_full_range_video_in_memory(device):
+    skip_if_m60()
+
     @pipeline_def
     def test_pipeline():
         videos = fn.experimental.readers.video(
@@ -158,6 +180,7 @@ def test_full_range_video_in_memory(device):
 @attr("multi_gpu")
 @params("cpu", "mixed")
 def test_multi_gpu_video(device):
+    skip_if_m60()
     if not is_mulit_gpu():
         raise SkipTest()
 
@@ -196,6 +219,7 @@ def test_multi_gpu_video(device):
 
 @params("cpu", "gpu")
 def test_source_info(device):
+    skip_if_m60()
     filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
     # filter out HEVC because some GPUs do not support it
     filenames = filter(lambda filename: "hevc" not in filename, filenames)
