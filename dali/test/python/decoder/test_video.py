@@ -72,7 +72,7 @@ def video_decoder_iter(batch_size, epochs=1, device="cpu", module=fn.experimenta
         num_threads=4,
         source=video_loader(batch_size, epochs),
         device=device,
-        module=module
+        module=module,
     )
     pipe.build()
     for _ in range(int((epochs * len(files) + batch_size - 1) / batch_size)):
