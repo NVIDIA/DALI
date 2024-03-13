@@ -16,9 +16,12 @@ option(BUILD_FFMPEG "Whether we want to always build FFmpeg from source" $ENV{BU
 message(STATUS "env(FFMPEG_DIR) : $ENV{FFMPEG_DIR}")
 message(STATUS "opt(BUILD_FFMPEG) : ${BUILD_FFMPEG}")
 
-set(FFMPEG_SOURCE_URL    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.1.tar.gz)
-set(FFMPEG_SOURCE_URL    file:///opt/src/n6.1.1.tar.gz)
-set(FFMPEG_SOURCE_SHA512 a84209fe36a2a0262ebc34b727e7600b12d4739991a95599d7b4df533791b12e2e43586ccc6ff26aab2f935a3049866204e322ec0c5e49e378fc175ded34e183)
+set(FFMPEG_SOURCE_URL $ENV{FFMPEG_SOURCE_URL})
+set(FFMPEG_SOURCE_SHA512 $ENV{FFMPEG_SOURCE_SHA512})
+if ("${FFMPEG_SOURCE_URL}" STREQUAL "")
+  set(FFMPEG_SOURCE_URL    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.1.tar.gz)
+  set(FFMPEG_SOURCE_SHA512 a84209fe36a2a0262ebc34b727e7600b12d4739991a95599d7b4df533791b12e2e43586ccc6ff26aab2f935a3049866204e322ec0c5e49e378fc175ded34e183)
+endif()
 
 # Look for it first in $ENV{FFMPEG_DIR}, then in the prebuilt version found in pynvvideocodec
 if (NOT BUILD_FFMPEG)
