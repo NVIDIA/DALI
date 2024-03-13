@@ -28,6 +28,7 @@ from test_utils import (
 )
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from numba import cuda
+from nose.plugins.attrib import attr
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -128,6 +129,7 @@ def get_data_zeros(shapes, dtype):
     return [np.zeros(shape, dtype=dtype) for shape in shapes]
 
 
+@attr("sanitizer_skip")
 def _testimpl_numba_func(
     device,
     shapes,
@@ -309,6 +311,7 @@ def test_numba_func():
         )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_with_cond():
     # When the function is not converted, the numba still works with no issues.
@@ -330,6 +333,7 @@ def test_numba_func_with_cond():
     )
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_numba_func_with_cond_do_not_convert():
     # Test if do_not_convert decorated functions still work.
@@ -473,6 +477,7 @@ def numba_func_image_pipe(
     return images_in, images_out
 
 
+@attr("sanitizer_skip")
 def _testimpl_numba_func_image(
     device,
     run_fn,
@@ -746,6 +751,7 @@ def numba_func_split_image_pipe(
     return images_in, out0, out1, out2
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_split_images_col():
     pipe = numba_func_split_image_pipe(
@@ -823,6 +829,7 @@ def multiple_ins_run_gpu(out0, in0, in1, in2):
             out0[y][x][2] = in2[y][x]
 
 
+@attr("sanitizer_skip")
 @pipeline_def
 def numba_multiple_ins_pipe(
     shapes,
@@ -969,6 +976,7 @@ def nonuniform_types_pipe(
     return images_in, out_img, out_shape
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
 def test_nonuniform_types_cpu():
     pipe = nonuniform_types_pipe(
@@ -990,6 +998,7 @@ def test_nonuniform_types_cpu():
             assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
 
 
+@attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
 def test_nonuniform_types_gpu():
     blocks = [16, 16, 1]
