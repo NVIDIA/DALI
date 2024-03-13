@@ -25,6 +25,7 @@
 
 namespace dali {
 
+template <typename T>
 struct ChoiceSampleDist {
   using DistType = std::discrete_distribution<>;
 
@@ -32,22 +33,28 @@ struct ChoiceSampleDist {
 
   // TODO(klecki): We need to initialize once or many tiles based on returns_, just
   // handle the copy in the constructor once, accept begin and end here.
-  DALI_HOST_DEV explicit ChoiceSampleDist(std::vector<float> p_dist, bool returns)
-    : p_dist_(std::move(p_dist)), dist_(p_dist_.begin(), p_dist_.end()), returns_(returns) {}
+  DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last,
+                                 bool returns)
+      : elements_(elements),
+        p_dist_(p_first, p_last),
+        dist_(p_dist_.begin(), p_dist_.end()),
+        returns_(returns) {}
 
   template <typename Generator>
   DALI_HOST_DEV int Generate(Generator &st) {
     if (!returns_) {
-      auto val = dist_(st);
-      p_dist_[val] = 0;
+      auto choice_idx = dist_(st);
+      p_dist_[choice_idx] = 0;
       dist_ = DistType(p_dist_.begin(), p_dist_.end());
-      return val;
+      return choice_idx;
     }
-    return dist_(st);
+    auto choice_idx = dist_(st);
+    return elements_[choice_idx];
   }
+  const T *elements_;
+  std::vector<float> p_dist_;
   DistType dist_;
   // TODO(klecki): use it only when returns_ == false
-  std::vector<float> p_dist_;
   bool returns_;
 };
 
@@ -56,7 +63,8 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
  public:
   using BaseImpl = rng::RNGBase<Backend, Choice<Backend>, false>;
 
-  using Impl = ChoiceSampleDist;
+  template <typename T>
+  using Impl = ChoiceSampleDist<T>;
 
   explicit Choice(const OpSpec &spec)
       : BaseImpl(spec),
@@ -65,6 +73,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
 
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     p_dist_.Acquire(spec, ws, nsamples);
+
   }
 
   DALIDataType DefaultDataType() const {
@@ -72,10 +81,9 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   }
 
   template <typename T>
-  bool SetupDists(Impl* dists_data, int nsamples) {
+  bool SetupDists(ChoiceSampleDist<T>* dists_data, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      std::vector<float> p_dist(p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements());
-      dists_data[s] = Impl{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
+      dists_data[s] = ChoiceSampleDist<T>{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
     }
     return true;
   }
