@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import itertools
 import random
 
@@ -99,6 +100,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
         allow_no_crop=False,
         input_shape=None,
         crop_shape=None,
+        bbox_prune_threshold=None,
         all_boxes_above_threshold=False,
         output_bbox_indices=False,
         num_threads=1,
@@ -123,6 +125,7 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
             crop_shape=crop_shape,
             all_boxes_above_threshold=all_boxes_above_threshold,
             output_bbox_indices=output_bbox_indices,
+            bbox_prune_threshold=bbox_prune_threshold,
         )
 
     def define_graph(self):
@@ -149,15 +152,55 @@ def crop_contains(crop_anchor, crop_shape, point):
 
 def filter_by_centroid(crop_anchor, crop_shape, bboxes):
     ndim = len(crop_shape)
-    nboxes = bboxes.shape[0]
     indexes = []
-    for i in range(nboxes):
-        bbox = bboxes[i]
+    for i, bbox in enumerate(bboxes):
         centroid = [0.5 * (bbox[d] + bbox[ndim + d]) for d in range(ndim)]
         if crop_contains(crop_anchor, crop_shape, centroid):
             indexes.append(i)
-        filtered_boxes = np.array(bboxes[indexes, :])
-    return filtered_boxes
+    return np.array(bboxes[indexes, :])
+
+
+def intersection(bbox_a: np.ndarray, bbox_b: np.ndarray):
+    """bbox_a and bbox_b are xy(z)XY(Z) format"""
+    ndim, rem = divmod(len(bbox_a), 2)
+    assert rem == 0, "Should be even dims"
+    xy = np.maximum(bbox_a[:ndim], bbox_b[:ndim])
+    XY = np.minimum(bbox_a[ndim:], bbox_b[ndim:])
+    sides = XY - xy
+    return 0 if any(sides < 0) else np.prod(sides)
+
+
+def test_intersection():
+    a = np.array([0, 0, 2, 2])
+    b = np.array([2, 2, 4, 4])
+    h = np.array([3, 3, 4, 4])
+    assert intersection(a, h) == 0
+    assert intersection(a, b) == 0
+    assert intersection(b, a) == 0
+    assert intersection(b, b) == 4
+    c = np.array([1, 1, 4, 4])
+    assert intersection(a, c) == 1
+    assert intersection(b, c) == 4
+    d = np.array([0, 0, 2, 3])
+    e = np.array([1, 1, 3, 2])
+    assert intersection(d, e) == 1
+    assert intersection(e, d) == 1
+    f = np.array([0, 0, 0, 3, 3, 3])
+    g = np.array([1, 1, 1, 4, 4, 4])
+    assert intersection(f, g) == 8
+
+
+def filter_by_area(crop_anchor, crop_shape, bboxes, thresh):
+    ndim = len(crop_shape)
+    crop_box = np.concatenate([crop_anchor, crop_shape])  # xywh
+    crop_box[ndim:] += crop_box[:ndim]  # xyXY
+    indexes = []
+    for i, bbox in enumerate(bboxes):
+        intersec = intersection(bbox, crop_box)
+        box_area = np.prod(bbox[ndim:] - bbox[:ndim])
+        if intersec / box_area > thresh:
+            indexes.append(i)
+    return np.array(bboxes[indexes, :])
 
 
 def map_box(bbox, crop_anchor, crop_shape):
@@ -179,12 +222,12 @@ def map_box(bbox, crop_anchor, crop_shape):
 
 
 def check_processed_bboxes(
-    crop_anchor, crop_shape, original_boxes, processed_boxes, bbox_indices=None
+    crop_anchor, crop_shape, original_boxes, processed_boxes, filter_fn, bbox_indices=None
 ):
     if bbox_indices is not None:
         filtered_boxes = np.array(original_boxes[bbox_indices])
     else:
-        filtered_boxes = filter_by_centroid(crop_anchor, crop_shape, original_boxes)
+        filtered_boxes = filter_fn(crop_anchor, crop_shape, original_boxes)
     assert len(original_boxes) >= len(filtered_boxes)
     assert len(filtered_boxes) == len(processed_boxes)
     nboxes = len(filtered_boxes)
@@ -231,7 +274,13 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
 
 
 def check_random_bbox_crop_variable_shape(
-    batch_size, ndim, scaling, aspect_ratio, use_labels, output_bbox_indices
+    batch_size,
+    ndim,
+    scaling,
+    aspect_ratio,
+    use_labels,
+    output_bbox_indices,
+    bbox_prune_threshold,
 ):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
@@ -246,7 +295,14 @@ def check_random_bbox_crop_variable_shape(
         input_shape=None,
         crop_shape=None,
         output_bbox_indices=output_bbox_indices,
+        bbox_prune_threshold=bbox_prune_threshold,
     )
+
+    if bbox_prune_threshold is None:
+        filter_fn = filter_by_centroid
+    else:
+        filter_fn = functools.partial(filter_by_area, thresh=bbox_prune_threshold)
+
     pipe.build()
     for _ in range(100):
         outputs = pipe.run()
@@ -259,7 +315,7 @@ def check_random_bbox_crop_variable_shape(
             bbox_indices_out_idx = 4 if not use_labels else 5
             bbox_indices = outputs[bbox_indices_out_idx].at(sample) if output_bbox_indices else None
             check_processed_bboxes(
-                out_crop_anchor, out_crop_shape, in_boxes, out_boxes, bbox_indices
+                out_crop_anchor, out_crop_shape, in_boxes, out_boxes, filter_fn, bbox_indices
             )
 
 
@@ -270,7 +326,9 @@ def test_random_bbox_crop_variable_shape():
         3: [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]],
     }
     scalings = [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]
-    for batch_size, ndim, scaling in itertools.product([3], [2, 3], scalings):
+    for batch_size, ndim, scaling, prune_thresh in itertools.product(
+        [3], [2, 3], scalings, [None, 0.1, 0.3, 0.5]
+    ):
         for aspect_ratio in aspect_ratio_ranges[ndim]:
             use_labels = random.choice([True, False])
             out_bbox_indices = random.choice([True, False])
@@ -282,10 +340,13 @@ def test_random_bbox_crop_variable_shape():
                 aspect_ratio,
                 use_labels,
                 out_bbox_indices,
+                prune_thresh,
             )
 
 
-def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
+def check_random_bbox_crop_fixed_shape(
+    batch_size, ndim, crop_shape, input_shape, use_labels, bbox_prune_threshold
+):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
     pipe = RandomBBoxCropSynthDataPipeline(
@@ -299,7 +360,14 @@ def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape
         input_shape=input_shape,
         crop_shape=crop_shape,
         all_boxes_above_threshold=False,
+        bbox_prune_threshold=bbox_prune_threshold,
     )
+
+    if bbox_prune_threshold is None:
+        filter_fn = filter_by_centroid
+    else:
+        filter_fn = functools.partial(filter_by_area, thresh=bbox_prune_threshold)
+
     pipe.build()
     for _ in range(100):
         outputs = pipe.run()
@@ -311,7 +379,9 @@ def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape
             check_crop_dims_fixed_size(out_crop_anchor, out_crop_shape, crop_shape, input_shape)
             rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
             rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
-            check_processed_bboxes(rel_out_crop_anchor, rel_out_crop_shape, in_boxes, out_boxes)
+            check_processed_bboxes(
+                rel_out_crop_anchor, rel_out_crop_shape, in_boxes, out_boxes, filter_fn
+            )
 
 
 def test_random_bbox_crop_fixed_shape():
@@ -321,7 +391,7 @@ def test_random_bbox_crop_fixed_shape():
         2: [[100, 50], [400, 300], [600, 400]],
         3: [[100, 50, 32], [400, 300, 64], [600, 400, 48]],
     }
-    for batch_size, ndim in itertools.product([3], [2, 3]):
+    for batch_size, ndim, prune_thresh in itertools.product([3], [2, 3], [None, 0.1, 0.3, 0.5]):
         for input_shape, crop_shape, use_labels in itertools.product(
             input_shapes[ndim], crop_shapes[ndim], [True, False]
         ):
@@ -332,6 +402,7 @@ def test_random_bbox_crop_fixed_shape():
                 crop_shape,
                 input_shape,
                 use_labels,
+                prune_thresh,
             )
 
 
