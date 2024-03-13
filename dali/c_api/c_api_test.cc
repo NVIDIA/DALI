@@ -1140,6 +1140,7 @@ TEST(CApiTest, CheckpointingTest) {
     restored_external_context.iterator_data.data,
     mock_external_context.iterator_data.data,
     mock_external_context.iterator_data.size), 0);
+  daliDestroyExternalContextCheckpoint(&mock_external_context);
   daliDestroyExternalContextCheckpoint(&restored_external_context);
 
   // Check the result of the new pipeline
