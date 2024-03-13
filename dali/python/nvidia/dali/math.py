@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,15 +15,21 @@
 import sys
 
 from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
 
+    if _dali_trace.is_tracing_enabled():
+        definition_frame_end = _dali_trace.get_stack_depth() - 2
+    else:
+        definition_frame_end = None
+
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
-    return nvidia.dali.ops._arithm_op(*args, **kwargs)
+    return nvidia.dali.ops._arithm_op(*args, **kwargs, definition_frame_end=definition_frame_end)
 
 
 def sqrt(input) -> _DataNode:

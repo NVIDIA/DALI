@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 #define DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
 
+#include <algorithm>
 #include <exception>
 #include <stdexcept>
 #include <string>
@@ -24,6 +25,8 @@
 #include "dali/core/api_helper.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/operator/name_utils.h"
+
 namespace dali {
 
 // TODO(klecki): Throw this one into a namespace?
@@ -172,6 +175,16 @@ class DaliStopIteration : public DaliError {
  public:
   explicit DaliStopIteration(const std::string &msg) : DaliError(msg) {}
 };
+
+/**
+ * @brief Produce the error context message for given operator.
+ * It contains:
+ * * the name of the offending operator in the api variant it was instantiated from,
+ * * the origin stack trace of the operator within pipeline definition.
+ *
+ * It can be prepended to the original error message.
+ */
+std::string GetErrorContextMessage(const OpSpec &spec);
 
 }  // namespace dali
 

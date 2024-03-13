@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 
 #include <gtest/gtest.h>
+#include <exception>
 #include <functional>
 #include <stdexcept>
 #include <tuple>
@@ -438,7 +439,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedMerge) {
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Merge description must cover whole input, got ";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
@@ -474,7 +475,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedSplit) {
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Split description must cover whole input, got ";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
@@ -512,7 +513,7 @@ TEST_F(SplitMergeNegativeTest, MismatchedTypes) {
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Found distinct types: int32 and float.";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"

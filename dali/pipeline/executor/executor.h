@@ -43,6 +43,7 @@
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
@@ -246,38 +247,20 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       }
   }
 
-  void HandleError(const std::string &stage, const OpNode &op_node) {
-      // handle internal Operator names that start with underscore
-      const auto &op_name = op_node.spec.SchemaName()[0] == '_' ?
-                                op_node.spec.SchemaName().substr(1) :
-                                op_node.spec.SchemaName();
+ /**
+  * @brief Capture an exception produced by an executed operator and propagate it with
+  * additional context containing the operator name and the origin stack trace.
+  *
+  * @param op_node The operator node that caused the error.
+  */
+  void HandleError(const OpNode &op_node);
 
-      bool need_instance_name = false;
-      for (int op_id = 0; op_id < graph_->NumOp(); op_id++) {
-        if (op_id != op_node.id &&
-            graph_->Node(op_id).spec.SchemaName() == op_node.spec.SchemaName()) {
-          need_instance_name = true;
-          break;
-        }
-      }
-      if (need_instance_name) {
-        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                                ", instance name: \"", op_node.instance_name,
-                                "\", encountered:\n"));
-      } else {
-        HandleError(make_string("Error when executing ", stage, " operator ", op_name,
-                                " encountered:\n"));
-      }
-  }
-
-  void HandleError(const std::string& context = "", const std::string& additional_message = "") {
-    {
-      std::lock_guard<std::mutex> errors_lock(errors_mutex_);
-      errors_.push_back({std::current_exception(), context, additional_message});
-    }
-    exec_error_ = true;
-    ShutdownQueue();
-  }
+  /**
+   * @brief Capture the current exception that is processed and propagate it with the specified
+   * context (prepended to the exception message) and additional_message (appended to the exception
+   * message)
+   */
+  void HandleError(const std::string& context = "", const std::string& additional_message = "");
 
   void PruneUnusedGraphNodes() override;
 

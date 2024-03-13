@@ -26,7 +26,11 @@ namespace dali {
 template <typename Backend>
 class ThrowExceptionOp : public Operator<Backend> {
  public:
-  inline explicit ThrowExceptionOp(const OpSpec &spec) : Operator<Backend>(spec) {}
+  inline explicit ThrowExceptionOp(const OpSpec &spec) : Operator<Backend>(spec) {
+    if (spec.GetArgument<bool>("constructor")) {
+      throw DaliRuntimeError("Error in constructor");
+    }
+  }
 
   inline ~ThrowExceptionOp() override = default;
 

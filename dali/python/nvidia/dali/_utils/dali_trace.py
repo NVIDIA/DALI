@@ -18,7 +18,7 @@ from nvidia.dali._autograph.utils.tf_stack import get_frame_map, get_frame_filte
 from nvidia.dali._autograph import is_frame_ag_call_entrypoint, is_frame_ag_call_unconverted
 
 
-_origin_trace_enabled = False
+_origin_trace_enabled = True
 # Processing options, mainly for debugging purposes
 _collapse_ag_frames = True
 _filter_ag_frames = True

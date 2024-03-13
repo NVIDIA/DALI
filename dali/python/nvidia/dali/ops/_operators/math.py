@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from nvidia.dali.types import (
     _int_like_types,
     _float_types,
 )
+from nvidia.dali._utils import dali_trace as _dali_trace
 
 
 def _is_boolean_like(input):
@@ -189,10 +190,17 @@ def _generate_input_desc(categories_idx, integers, reals):
     return input_desc
 
 
-def _arithm_op(name, *inputs):
+def _arithm_op(name, *inputs, definition_frame_end=None):
     """
     Create arguments for ArithmeticGenericOp and call it with supplied inputs.
     Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
+
+    definition_frame_end : int, optional, by default None
+        Optional marker indicating the depth where the user code ends in the stack-trace.
+        As this function is imported an invoked by trampoline in data_node.py and math.py
+        at first use we need to count back from the trampoline (so this number will be overwritten)
+        and when we are used directly in the implementation we will get None and we will detect it
+        automatically.
     """
     import nvidia.dali.ops  # Allow for late binding of the ArithmeticGenericOp from parent module.
 
@@ -200,12 +208,22 @@ def _arithm_op(name, *inputs):
     input_desc = _generate_input_desc(categories_idxs, integers, reals)
     expression_desc = "{}({})".format(name, input_desc)
     dev = nvidia.dali.ops._choose_device(edges)
+
+    # We calculate the stack depth of the user code here to reduce the noise.
+    if _dali_trace.is_tracing_enabled():
+        if definition_frame_end is None:
+            definition_frame_end = _dali_trace.get_stack_depth() - 2
+    else:
+        definition_frame_end = None
     # Create "instance" of operator
     op = nvidia.dali.ops.ArithmeticGenericOp(
         device=dev,
         expression_desc=expression_desc,
         integer_constants=integers,
         real_constants=reals,
+        _module="nvidia.dali.math",
+        _display_name=name,
+        _definition_frame_end=definition_frame_end,
     )
     # If we are on gpu, we must mark all inputs as gpu
     if dev == "gpu":

@@ -25,6 +25,7 @@ DALI_SCHEMA(ThrowException)
     .NumInput(0)
     .AddOptionalArg("exception_type", "Exception to be thrown", "TypeError")
     .AddOptionalArg("message", "Message to be reported in exception", "Test message")
+    .AddOptionalArg<bool>("constructor", "Throw in constructor", false)
     .NumOutput(1);
 
 }  // namespace dali

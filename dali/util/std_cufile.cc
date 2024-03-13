@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include <tuple>
 
 #include "dali/core/dynlink_cufile.h"
+#include "dali/core/format.h"
 #include "dali/util/std_cufile.h"
 
 // import cufile and return handle
@@ -45,18 +46,18 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
   // we cannot use O_DIRECT. So better extract the realpath
   std::unique_ptr<char, decltype(&free)> rpath(realpath(path, NULL), &free);
   if (rpath == nullptr) {
-    DALI_FAIL("Could not resolve real path of: " + path);
+    DALI_FAIL("Could not resolve real path of: ", path);
   }
 
   // do conventional open
   if ((fh.fdd = open(rpath.get(), O_RDONLY | O_DIRECT)) < 0) {
-    DALI_FAIL("CUFile open failed: " + path);
+    DALI_FAIL("CUFile open failed: ", path);
   }
   if ((fh.fd = open(rpath.get(), O_RDONLY)) < 0) {
-    DALI_FAIL("CUFile open failed: " + path);
+    DALI_FAIL("CUFile open failed: ", path);
   }
   if (fstat(fh.fd, &s) < 0) {
-    DALI_FAIL("CUFile stats failed: " + path);
+    DALI_FAIL("CUFile stats failed: ", path);
   }
 
   // get length
@@ -70,8 +71,7 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
 
   CUfileError_t status = cuFileHandleRegister(&(fh.cufh), &descr);
   if (status.err != CU_FILE_SUCCESS) {
-    DALI_FAIL("CUFile import failed: " + path + ". " +
-              std::string(cufileop_status_error(status.err)) + ".");
+    DALI_FAIL("CUFile import failed: ", path, ". ", cufileop_status_error(status.err), ".");
   }
 }
 
@@ -117,13 +117,12 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
     int e = errno;
     auto ret = strerror_r(e, &errmsg[0], errmsg.size());
     if (ret != 0) {
-      DALI_FAIL(make_string("Unknown CUFile error: ", e));
+      DALI_FAIL("Unknown CUFile error: ", e);
     }
-    DALI_FAIL(
-        make_string("CUFile read failed for file ", path_, " with error (", e, "): ", errmsg));
+    DALI_FAIL("CUFile read failed for file ", path_, " with error (", e, "): ", errmsg);
   } else {
-    DALI_FAIL(make_string("CUFile read failed for file ", path_, " with error (", -ret,
-                          "): ", cufileop_status_error(static_cast<CUfileOpError>(-ret))));
+    DALI_FAIL("CUFile read failed for file ", path_, " with error (", -ret,
+              "): ", cufileop_status_error(static_cast<CUfileOpError>(-ret)));
   }
 }
 

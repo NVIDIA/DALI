@@ -35,7 +35,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
         data.tensors[0].data<uint8_t>(), data.tensors[0].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
-      DALI_FAIL(e.what() + ". File: " + file_name);
+      DALI_FAIL(e.what(), ". File: ", file_name);
     }
     const auto decoded = img->GetImage();
 
@@ -63,7 +63,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
                                       data.tensors[frame].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
-      DALI_FAIL(e.what() + ". File: " + file_name);
+      DALI_FAIL(e.what(), ". File: ", file_name);
     }
     img->GetImage(view_tensor.mutable_data<uint8_t>());
     DALI_ENFORCE(view_tensor.shares_data(),

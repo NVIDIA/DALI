@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ static void *file_map(const char *path, size_t *length, bool read_ahead) {
 
 fail:
   if (p == nullptr) {
-    DALI_FAIL("File mapping failed: " + path);
+    DALI_FAIL("File mapping failed: ", path);
   }
   if (fd > -1) {
     close(fd);

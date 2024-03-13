@@ -210,7 +210,7 @@ def test_wrong_feature_shape():
     assert_raises(
         RuntimeError,
         pipe.run,
-        glob="Error when executing CPU operator*readers*tfrecord*"
+        glob="Error in CPU operator `nvidia.dali.fn.readers.tfrecord`*"
         "Output tensor shape is too small*[]*Expected at least 4 elements",
     )
 

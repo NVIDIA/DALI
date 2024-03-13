@@ -648,7 +648,7 @@ Keyword Args
         self._batch_info = batch_info
         self._repeat_last = repeat_last
         if _dali_trace.is_tracing_enabled():
-            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+            self._definition_frame_end = kwargs.pop("_definition_frame_end", None)
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)

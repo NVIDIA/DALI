@@ -106,6 +106,22 @@ inline int InferBatchSizeFromInput(const Workspace &ws, int stage_batch_size) {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const OpNode &op_node) {
+  HandleError(GetErrorContextMessage(op_node.spec));
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
+void Executor<WorkspacePolicy, QueuePolicy>::HandleError(const std::string &context,
+                                                         const std::string &additional_message) {
+  {
+    std::lock_guard<std::mutex> errors_lock(errors_mutex_);
+    errors_.push_back({std::current_exception(), context, additional_message});
+  }
+  exec_error_ = true;
+  ShutdownQueue();
+}
+
+template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
   batch_sizes_cpu_.push(batch_size);
@@ -190,7 +206,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
       RunHelper(op_node, ws, iteration_id);
       FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
     } catch (...) {
-      HandleError("CPU", op_node);
+      HandleError(op_node);
     }
   }
 
@@ -239,7 +255,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
         CUDA_CALL(cudaGetLastError());
       }
     } catch (...) {
-      HandleError("Mixed", op_node);
+      HandleError(op_node);
     }
   }
 
@@ -306,7 +322,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
       }
       CUDA_CALL(cudaGetLastError());
     } catch (...) {
-      HandleError("GPU", op_node);
+      HandleError(op_node);
     }
   }
 

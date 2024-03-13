@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_spec.h"
 
@@ -63,10 +65,14 @@ void PropagateError(ErrorInfo error) {
   }
   // DALI <-> Python mapped type errors:
   catch (DaliError &e) {
-    if (error.context_info.size()) {
-      e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
-    }
+    e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
     throw;
+  }
+  catch (DALIException &e) {
+    // We drop the C++ stack trace at this point and go back to runtime_error.
+    throw std::runtime_error(
+        make_string(error.context_info, e.what(),
+                    "\nC++ context: " + e.GetFileAndLine() + error.additional_message));
   }
   // Exceptions that are mapped by pybind from C++ into a sensible C++ one:
   catch (std::invalid_argument &e) {
@@ -88,6 +94,23 @@ void PropagateError(ErrorInfo error) {
     throw std::runtime_error(
         make_string(error.context_info, "Unknown critical error.", error.additional_message));
   }
+}
+
+std::string GetErrorContextMessage(const OpSpec &spec) {
+  auto device = spec.GetArgument<std::string>("device");
+  auto op_name = GetOpDisplayName(spec, true);
+  std::transform(device.begin(), device.end(), device.begin(), ::toupper);
+
+  auto origin_stack_trace = GetOperatorOriginInfo(spec);
+  auto formatted_origin_stack = FormatStack(origin_stack_trace, true);
+  auto optional_stack_mention =
+      formatted_origin_stack.size() ?
+          (",\nwhich was used in the pipeline definition with the following traceback:\n\n" +
+           formatted_origin_stack + "\n") :
+          " ";  // we need space before "encountered"
+
+  return make_string("Error in ", device, " operator `", op_name, "`",
+                     optional_stack_mention, "encountered:\n\n");
 }
 
 

@@ -38,7 +38,9 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
     img->SetCropWindowGenerator(GetCropWindowGenerator(ws.data_idx()));
     img->SetUseFastIdct(use_fast_idct_);
     img->Decode();
-  } catch (std::exception &e) { DALI_FAIL(e.what() + ". File: " + file_name); }
+  } catch (std::exception &e) {
+    DALI_FAIL(e.what(), ". File: ", file_name);
+  }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();
   output.Resize(shape, DALI_UINT8);

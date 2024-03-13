@@ -104,8 +104,7 @@ class DataReader : public Operator<Backend> {
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     if constexpr (!supports_checkpointing) {
-      DALI_FAIL(
-          make_string("The reader ", spec_.SchemaName(), " does not support checkpointing."));
+      DALI_FAIL("The reader ", spec_.SchemaName(), " does not support checkpointing.");
     } else {
       DALI_ENFORCE(checkpointing_,
                    "Cannot save the checkpoint, because "
@@ -117,8 +116,7 @@ class DataReader : public Operator<Backend> {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (!supports_checkpointing) {
-      DALI_FAIL(
-          make_string("The reader ", spec_.SchemaName(), " does not support checkpointing."));
+      DALI_FAIL("The reader ", spec_.SchemaName(), " does not support checkpointing.");
     } else {
       DALI_ENFORCE(checkpointing_,
                    "Cannot restore the checkpoint, because "
