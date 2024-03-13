@@ -364,7 +364,7 @@ class FwTestBase:
                 pipe,
                 output_map=self.output_map(with_labels=False),
                 auto_reset=False,
-                reader_name="Reader"
+                reader_name="Reader",
             )
 
         def is_empty(it):
@@ -381,10 +381,7 @@ class FwTestBase:
             device_id=0,
         )
         def pipeline():
-            data, _ = fn.readers.file(
-                file_root=images_dir,
-                name="Reader"
-            )
+            data, _ = fn.readers.file(file_root=images_dir, name="Reader")
             return data
 
         pipe = pipeline()

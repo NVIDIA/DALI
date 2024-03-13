@@ -261,8 +261,10 @@ class _DaliBaseIterator(object):
         Restores state of the iterator based on serialized `iterator_data`
         """
         if not iterator_data:
-            logging.warning("Iterator data was not saved in the checkpoint. "
-                            + "This iterator might produce unexpected results.")
+            logging.warning(
+                "Iterator data was not saved in the checkpoint. "
+                + "This iterator might produce unexpected results."
+            )
             return
 
         iterator_data = pickle.loads(iterator_data)
@@ -271,9 +273,13 @@ class _DaliBaseIterator(object):
                 setattr(self, field, iterator_data[field])
 
     def _save_state(self):
-        iterator_data = pickle.dumps({
-            field: getattr(self, field) for field in self._checkpointed_fields() if hasattr(self, field)
-        })
+        iterator_data = pickle.dumps(
+            {
+                field: getattr(self, field)
+                for field in self._checkpointed_fields()
+                if hasattr(self, field)
+            }
+        )
         return iterator_data
 
     def _calculate_shard_sizes(self, shard_nums):
