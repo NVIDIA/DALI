@@ -30,6 +30,7 @@ import atexit
 import ctypes
 import functools
 import inspect
+import pickle
 import sys
 import traceback
 import warnings
@@ -948,12 +949,13 @@ class Pipeline(object):
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
             external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
-            self._consumer_epoch_idx = self._epoch_idx = external_ctx_cpt.epoch_idx
-            self._consumer_iter = external_ctx_cpt.iter
+            pipeline_data = pickle.loads(external_ctx_cpt.pipeline_data)
+            self._consumer_epoch_idx = self._epoch_idx = pipeline_data["epoch_idx"]
+            self._consumer_iter = pipeline_data["iter"]
             if self._input_callbacks:
                 for group in self._input_callbacks:
-                    group.current_iter = external_ctx_cpt.iter
-                    group.current_sample = external_ctx_cpt.iter * self._max_batch_size
+                    group.current_iter = pipeline_data["iter"]
+                    group.current_sample = pipeline_data["iter"] * self._max_batch_size
             self._is_restored_from_checkpoint = True
 
     def build(self):
@@ -1563,8 +1565,9 @@ class Pipeline(object):
                 The file that the serialized pipeline will be written to.
         """
         external_ctx_cpt = b.ExternalContextCheckpoint()
-        external_ctx_cpt.epoch_idx = self._consumer_epoch_idx
-        external_ctx_cpt.iter = self._consumer_iter
+        external_ctx_cpt.pipeline_data = pickle.dumps(
+            {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
+        )
         ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:

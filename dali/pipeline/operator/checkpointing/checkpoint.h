@@ -28,8 +28,7 @@ class OpGraph;
  * @brief Pipeline-wide state, passed from python side
 */
 struct ExternalContextCheckpoint {
-  int epoch_idx;  // Epoch index, as counted by python Pipeline
-  int iter;       // Iteration, as counted by python Pipeline
+  std::string pipeline_data;
 };
 
 /**
