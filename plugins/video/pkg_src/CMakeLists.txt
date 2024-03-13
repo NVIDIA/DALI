@@ -16,86 +16,38 @@ cmake_minimum_required(VERSION 3.21)
 set(PLUGIN_NAME "video")
 project(dali_plugin_${PLUGIN_NAME} LANGUAGES CUDA CXX C)
 
-# Silence DOWNLOAD_EXTRACT_TIMESTAMP warning in CMake 3.24
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-  cmake_policy(SET CMP0135 NEW)
-endif()
-
 include(GNUInstallDirs)
 include(FetchContent)
 include(common.cmake)
 
-set(FFMPEG_DIR $ENV{FFMPEG_DIR})
-find_package(PkgConfig REQUIRED)
+# Silence DOWNLOAD_EXTRACT_TIMESTAMP warning in CMake 3.24
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(PYTHON_EXECUTABLE $ENV{PYTHON_EXECUTABLE})
 if(NOT EXISTS ${PYTHON_EXECUTABLE})
   message(FATAL_ERROR "Python executable not set\n")
 endif()
 
-list(APPEND CMAKE_BUILD_RPATH "$ORIGIN")          # current directory
-list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN")        # current directory
-list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/../..")  # DALI dir is ../../ from plugin/${PLUGIN_NAME}
-
-set(FFMPEG_RPATH "")
-if (NOT "${FFMPEG_DIR}" STREQUAL "")
-  set(CMAKE_PREFIX_PATH ${FFMPEG_DIR})
-  message(STATUS "Using CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
-endif()
-pkg_check_modules(
-    FFMPEG
-    IMPORTED_TARGET
-    # Ubuntu 20.04 versions
-    libavfilter>=7.57.100
-    libavformat>=58.29.100
-    libavcodec>=58.54.100
-    libswresample>=3.5.100
-    libavutil>=56.31.100
-)
-if (NOT "${FFMPEG_FOUND}" STREQUAL "1")
-  message(WARNING
-    "FFmpeg not found in the system or the dir pointed by FFMPEG_DIR environment variable. "
-    "Will download and build a minimal version.")
-
-  set(FFMPEG_SOURCE_URL    https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.1.tar.gz)
-  set(FFMPEG_SOURCE_URL    file:///opt/src/plugins/n6.1.1.tar.gz)
-  set(FFMPEG_SOURCE_SHA512 a84209fe36a2a0262ebc34b727e7600b12d4739991a95599d7b4df533791b12e2e43586ccc6ff26aab2f935a3049866204e322ec0c5e49e378fc175ded34e183)
-  FetchContent_Declare(
-      ffmpeg
-      URL ${FFMPEG_SOURCE_URL}
-      URL_HASH SHA512=${FFMPEG_SOURCE_SHA512}
-  )
-  FetchContent_Populate(ffmpeg)
-
-  set(FFMPEG_SRC ${CMAKE_CURRENT_BINARY_DIR}/_deps/ffmpeg-src)
-  set(FFMPEG_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/ffmpeg)
-  set(ENV{FFMPEG_DIR} ${FFMPEG_DIR})
-  set(CMAKE_PREFIX_PATH ${FFMPEG_DIR})
-  file(MAKE_DIRECTORY ${FFMPEG_DIR})
-  execute_process(
-    COMMAND_ERROR_IS_FATAL ANY
-    WORKING_DIRECTORY ${FFMPEG_SRC}
-    COMMAND /bin/bash -ex ${CMAKE_CURRENT_SOURCE_DIR}/build_ffmpeg.sh ${FFMPEG_DIR})
-  install(
-    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/_deps/ffmpeg/lib/
-    DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}/deps/ffmpeg
-    FILES_MATCHING PATTERN "*.so*"
-  )
-  list(APPEND CMAKE_BUILD_RPATH "$ORIGIN/_deps/ffmpeg/lib")
-  list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN/deps/ffmpeg")
-else()
-list(APPEND CMAKE_BUILD_RPATH "${FFMPEG_LIBRARY_DIRS}")
-list(APPEND CMAKE_INSTALL_RPATH "${FFMPEG_LIBRARY_DIRS}")
-endif()
+set(PYNVVIDEOCODEC_SOURCE_URL    https://api.ngc.nvidia.com/v2/resources/nvidia/py_nvvideocodec/versions/0.0.9/zip)
+set(PYNVVIDEOCODEC_SOURCE_SHA512 b73d06f2239bc50a6a9971949a3579df56d8a6c223d64f5fcbebb3531b9adff2e9f25d23b1922bc42616e65fc850d60c085cadfd7daecbfc562f9959995f28a5)
+set(PYNVVIDEOCODEC_SOURCE_URL    file:///opt/src/mod_pynvvideocodec3.tar.gz)
+set(PYNVVIDEOCODEC_SOURCE_SHA512 011663b2bb11efdde2ad271689115984e798236fcef3137d9519a0318cc49ab1d916daf41dd28062e00ec14e398cda449eddda9f1071a6130a0511ae24afae5e)
 
 FetchContent_Declare(
     pynvvideocodec
-    URL      https://api.ngc.nvidia.com/v2/resources/nvidia/py_nvvideocodec/versions/0.0.9/zip
-    URL_HASH SHA512=b73d06f2239bc50a6a9971949a3579df56d8a6c223d64f5fcbebb3531b9adff2e9f25d23b1922bc42616e65fc850d60c085cadfd7daecbfc562f9959995f28a5
+    URL      ${PYNVVIDEOCODEC_SOURCE_URL}
+    URL_HASH SHA512=${PYNVVIDEOCODEC_SOURCE_SHA512}
 )
 FetchContent_Populate(pynvvideocodec)
+
+include(ffmpeg.cmake)
+
 message(STATUS "pynvvideocodec_SOURCE_DIR=${pynvvideocodec_SOURCE_DIR}")
 include_directories(SYSTEM "${pynvvideocodec_SOURCE_DIR}/src/")
+set(USE_PKGCONFIG OFF)
+set(ENV{FFMPEG_DIR} ${FFMPEG_DIR})
 add_subdirectory("${pynvvideocodec_SOURCE_DIR}/src/VideoCodecSDKUtils/")
 
 set(VIDEO_PLUGIN_SOURCES
