@@ -282,6 +282,7 @@ class Pipeline(object):
         self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
         self._is_restored_from_checkpoint = False
+        self._iterator_data = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             if not exec_async:
@@ -956,6 +957,7 @@ class Pipeline(object):
                 for group in self._input_callbacks:
                     group.current_iter = pipeline_data["iter"]
                     group.current_sample = pipeline_data["iter"] * self._max_batch_size
+            self._iterator_data = external_ctx_cpt.iterator_data
             self._is_restored_from_checkpoint = True
 
     def build(self):
@@ -1568,6 +1570,7 @@ class Pipeline(object):
         external_ctx_cpt.pipeline_data = pickle.dumps(
             {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
         )
+        external_ctx_cpt.iterator_data = self._iterator_data or ""
         ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:

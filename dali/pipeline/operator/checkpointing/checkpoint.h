@@ -29,6 +29,7 @@ class OpGraph;
 */
 struct ExternalContextCheckpoint {
   std::string pipeline_data;
+  std::string iterator_data;
 };
 
 /**

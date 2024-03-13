@@ -1841,6 +1841,13 @@ PYBIND11_MODULE(backend_impl, m) {
         },
         [](ExternalContextCheckpoint &self, const std::string &new_data) {
           self.pipeline_data = new_data;
+        })
+    .def_property("iterator_data",
+        [](const ExternalContextCheckpoint &self) {
+          return py::bytes(self.iterator_data);
+        },
+        [](ExternalContextCheckpoint &self, const std::string &new_data) {
+          self.iterator_data = new_data;
         });
 
   // Pipeline class
