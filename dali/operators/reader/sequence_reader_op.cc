@@ -55,8 +55,8 @@ Example directory structure::
       ....
 
 .. note::
-  This operator is an analogue of VideoReader working on video frames extracted as separate images.
-  It's main purpose is for test baseline. For regular usage, the VideoReader is
+  This operator is an analogue of video reader working on video frames extracted as separate images.
+  It's main purpose is for test baseline. For regular usage, the video reader is
   the recommended approach.)code")
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
@@ -73,7 +73,16 @@ represent streams.)code",
     .AddOptionalArg("image_type",
                     R"code(The color space of input and output image.)code", DALI_RGB, false)
     .AddParent("LoaderBase")
-    .AllowSequences();
+    .AllowSequences()
+    .Deprecate(
+        "",
+        R"code(This operator may be removed in future releases.
+
+:meth:`~nvidia.dali.fn.external_source` can be used to implement custom reading patterns.
+For reading video sequences, one of :meth:`nvidia.dali.fn.readers.video`,
+:meth:`nvidia.dali.fn.experimental.readers.video`,
+:meth:`nvidia.dali.fn.experimental.decoders.video` or
+:meth:`nvidia.dali.fn.experimental.inputs.video` can be used.)code");
 
 
 // Deprecated alias

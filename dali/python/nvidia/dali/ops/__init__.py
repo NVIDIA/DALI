@@ -211,10 +211,11 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
 def _handle_op_deprecation(schema, op_name):
     if schema.IsDeprecated():
         # TODO(klecki): how to know if this is fn or ops?
-        msg = "WARNING: `{}` is now deprecated".format(_op_name(op_name, "fn"))
-        use_instead = _op_name(schema.DeprecatedInFavorOf(), "fn")
-        if use_instead:
-            msg += ". Use `" + use_instead + "` instead."
+        msg = "WARNING: `{}` is now deprecated.".format(_op_name(op_name, "fn"))
+        replacement = schema.DeprecatedInFavorOf()
+        if replacement:
+            use_instead = _op_name(replacement, "fn")
+            msg += " Use `" + use_instead + "` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
             msg += "\n" + explanation

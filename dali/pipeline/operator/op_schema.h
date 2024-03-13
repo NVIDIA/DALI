@@ -248,7 +248,7 @@ class DLL_PUBLIC OpSchema {
    * @param in_favor_of schema name of the replacement
    * @param explanation additional explanation
    */
-  DLL_PUBLIC OpSchema &Deprecate(const std::string &in_favor_of,
+  DLL_PUBLIC OpSchema &Deprecate(const std::string &in_favor_of = "",
                                  const std::string &explanation = "");
 
   /**
