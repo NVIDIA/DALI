@@ -30,10 +30,12 @@ if(NOT EXISTS ${PYTHON_EXECUTABLE})
   message(FATAL_ERROR "Python executable not set\n")
 endif()
 
-set(PYNVVIDEOCODEC_SOURCE_URL    https://api.ngc.nvidia.com/v2/resources/nvidia/py_nvvideocodec/versions/0.0.9/zip)
-set(PYNVVIDEOCODEC_SOURCE_SHA512 b73d06f2239bc50a6a9971949a3579df56d8a6c223d64f5fcbebb3531b9adff2e9f25d23b1922bc42616e65fc850d60c085cadfd7daecbfc562f9959995f28a5)
-set(PYNVVIDEOCODEC_SOURCE_URL    file:///opt/src/mod_pynvvideocodec3.tar.gz)
-set(PYNVVIDEOCODEC_SOURCE_SHA512 011663b2bb11efdde2ad271689115984e798236fcef3137d9519a0318cc49ab1d916daf41dd28062e00ec14e398cda449eddda9f1071a6130a0511ae24afae5e)
+set(PYNVVIDEOCODEC_SOURCE_URL $ENV{PYNVVIDEOCODEC_SOURCE_URL})
+set(PYNVVIDEOCODEC_SOURCE_SHA512 $ENV{PYNVVIDEOCODEC_SOURCE_SHA512})
+if ("${PYNVVIDEOCODEC_SOURCE_URL}" STREQUAL "")
+  set(PYNVVIDEOCODEC_SOURCE_URL    https://api.ngc.nvidia.com/v2/resources/nvidia/py_nvvideocodec/versions/0.0.9/zip)
+  set(PYNVVIDEOCODEC_SOURCE_SHA512 b73d06f2239bc50a6a9971949a3579df56d8a6c223d64f5fcbebb3531b9adff2e9f25d23b1922bc42616e65fc850d60c085cadfd7daecbfc562f9959995f28a5)
+endif()
 
 FetchContent_Declare(
     pynvvideocodec
