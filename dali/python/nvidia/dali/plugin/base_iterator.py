@@ -272,11 +272,12 @@ class _DaliBaseIterator(object):
 
         iterator_data = pickle.loads(iterator_data)
         for field in self._checkpointed_fields():
-            setattr(self, field, iterator_data[field])
+            if hasattr(self, field):
+                setattr(self, field, iterator_data[field])
 
     def _save_state(self):
         iterator_data = pickle.dumps({
-            field: getattr(self, field) for field in self._checkpointed_fields()
+            field: getattr(self, field) for field in self._checkpointed_fields() if hasattr(self, field)
         })
         return iterator_data
 
