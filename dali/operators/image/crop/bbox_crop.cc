@@ -356,7 +356,7 @@ the original indices of the bounding boxes that passed the centroid filter and a
 the output bounding boxes.)code",
         false)
     .AddOptionalArg<float>("bbox_prune_threshold",
-        R"code(Controls how bboxes are considered outside of the ROI and pruned. If this argument is
+        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is
 set, boxes are kept if the fraction of their area within the ROI is greater than the threshold specified
 `[0.0,1.0)`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
 
