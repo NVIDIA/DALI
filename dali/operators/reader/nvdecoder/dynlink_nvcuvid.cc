@@ -35,7 +35,7 @@ CUVIDDRIVER loadNvcuvidLibrary() {
     ret = dlopen(__DriverLibName1, RTLD_NOW);
 
     if (!ret) {
-      fprintf(stderr, "dlopen libnvcuvid.so failed!. Please install GPU dirver");
+      fprintf(stderr, "dlopen libnvcuvid.so failed!. Please install NVIDIA GPU driver");
     }
   }
   return ret;
