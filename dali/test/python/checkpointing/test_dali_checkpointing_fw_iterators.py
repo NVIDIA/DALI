@@ -99,6 +99,27 @@ class FwTestBase:
 
         self.check_pipeline_checkpointing(pipeline_factory, size=8)
 
+    def check_decorator(self, decorator):
+        @decorator(output_map=["images"], reader_name="Reader")
+        def iterator_fn():
+            jpegs, _ = fn.readers.file(file_root=images_dir, name="Reader")
+            images = fn.decoders.image(jpegs, device="cpu")
+            images = fn.resize(images, size=(200, 200))
+            return images
+
+        def make_iterator(**kwargs):
+            return iterator_fn(batch_size=8, enable_checkpointing=True, **kwargs)
+
+        iterator = make_iterator()
+
+        for _ in range(3):
+            next(iterator)
+
+        checkpoints = iterator.checkpoints()
+
+        iterator_restored = make_iterator(checkpoints=checkpoints)
+        self.compare_iters(iterator, iterator_restored)
+
     # Reader tests section
 
     @params(
@@ -509,6 +530,11 @@ class TestJax(FwTestBase):
             (LastBatchPolicy.FILL, True),
             (LastBatchPolicy.FILL, False),
         )
+
+    def test_decorator(self):
+        from nvidia.dali.plugin.jax import data_iterator
+
+        self.check_decorator(data_iterator)
 
 
 class TestJaxPeekable(FwTestBase):

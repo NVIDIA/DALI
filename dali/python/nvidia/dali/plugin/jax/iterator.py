@@ -274,7 +274,7 @@ def _data_iterator_impl(
         raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
 
     def data_iterator_decorator(func):
-        def create_iterator(*args, **wrapper_kwargs):
+        def create_iterator(*args, checkpoints=None, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
 
             if "num_threads" not in wrapper_kwargs:
@@ -286,7 +286,8 @@ def _data_iterator_impl(
                     # assume that the first device is the one we want to use.
                     wrapper_kwargs["device_id"] = 0
 
-                pipelines = [pipeline_def_fn(*args, **wrapper_kwargs)]
+                checkpoint = checkpoints[0] if checkpoints else None
+                pipelines = [pipeline_def_fn(*args, checkpoint=checkpoint, **wrapper_kwargs)]
 
                 return iterator_type(
                     pipelines=pipelines,
@@ -317,17 +318,25 @@ def _data_iterator_impl(
                             "running in multiprocess mode. Use `sharding` argument instead."
                         )
 
+                if checkpoints and len(checkpoints) != len(devices_to_use):
+                    raise RuntimeError(
+                        "The number of checkpoints provided should match the number of devices "
+                        "to use."
+                    )
+
                 for id, device in enumerate(devices_to_use):
                     # How device_id, shard_id and num_shards are used in the pipeline
                     # is affected by: https://github.com/google/jax/issues/16024
                     # TODO(awolant): Should this match device with index in jax.devices() as id?
                     # This is connected with pmap experimental `devices` argument.
+                    checkpoint = checkpoints[id] if checkpoints else None
                     pipeline = pipeline_def_fn(
                         *args,
                         **wrapper_kwargs,
                         device_id=id,
                         shard_id=device.id,
                         num_shards=num_shards,
+                        checkpoint=checkpoint,
                     )
 
                     pipelines.append(pipeline)
