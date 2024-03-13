@@ -178,6 +178,7 @@ class FwTestBase:
         (
             # (last_batch_policy, pad_last_batch)
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.PARTIAL, True),
@@ -377,6 +378,7 @@ class TestPytorch(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -398,6 +400,7 @@ class TestPytorchRagged(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -420,6 +423,7 @@ class TestJax(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
         )
 
 
@@ -439,6 +443,7 @@ class TestPaddle(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -463,6 +468,7 @@ class TestMxnet(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -495,6 +501,7 @@ class TestGluon(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )

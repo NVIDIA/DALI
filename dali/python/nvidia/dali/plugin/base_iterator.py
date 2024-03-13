@@ -227,12 +227,6 @@ class _DaliBaseIterator(object):
                 )
 
         if self._enable_checkpointing:
-            if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded is False:
-                raise NotImplementedError(
-                    "Currently, checkpointing is not supported for iterators with "
-                    + "last_batch_policy=FILL and last_batch_padded=False"
-                )
-
             # Precompute the initial checkpoints, to prevent any problems
             # related to the `prepare_first_batch` flag.
             self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
@@ -259,6 +253,7 @@ class _DaliBaseIterator(object):
             "_counter_per_gpu",
             "_shard_sizes_per_gpu",
             "_shards_id",
+            "_size",
         ]
 
     def _restore_state(self, iterator_data):
