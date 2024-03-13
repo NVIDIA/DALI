@@ -96,6 +96,7 @@ typedef struct daliExternalContextField {
  */
 typedef struct {
   daliExternalContextField pipeline_data;
+  daliExternalContextField iterator_data;
 } daliExternalContextCheckpoint;
 
 

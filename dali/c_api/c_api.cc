@@ -836,6 +836,12 @@ void daliGetSerializedCheckpoint(
       external_context->pipeline_data.size
     };
   }
+  if (external_context->iterator_data.data) {
+    ctx.iterator_data = {
+      external_context->iterator_data.data,
+      external_context->iterator_data.size
+    };
+  }
   std::string cpt = pipeline->SerializedCheckpoint(ctx);
   *n = cpt.size();
   *checkpoint = reinterpret_cast<char *>(daliAlloc(cpt.size()));
@@ -864,6 +870,9 @@ void daliRestoreFromSerializedCheckpoint(
     *external_context = {};
     if (!ctx.pipeline_data.empty()) {
       external_context->pipeline_data = daliExternalContextFieldFromString(ctx.pipeline_data);
+    }
+    if (!ctx.pipeline_data.empty()) {
+      external_context->iterator_data = daliExternalContextFieldFromString(ctx.iterator_data);
     }
   }
 }
