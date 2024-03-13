@@ -358,6 +358,56 @@ class FwTestBase:
             pf, iterations, size=epoch_size * batch_size
         )
 
+    def test_reset(self):
+        def make_iter(pipe):
+            return self.FwIterator(
+                pipe,
+                output_map=self.output_map(with_labels=False),
+                auto_reset=False,
+                reader_name="Reader"
+            )
+
+        def is_empty(it):
+            try:
+                next(it)
+                return False
+            except StopIteration:
+                return True
+
+        @pipeline_def(
+            batch_size=1,
+            enable_checkpointing=True,
+            num_threads=4,
+            device_id=0,
+        )
+        def pipeline():
+            data, _ = fn.readers.file(
+                file_root=images_dir,
+                name="Reader"
+            )
+            return data
+
+        pipe = pipeline()
+        pipe.build()
+        it = make_iter(pipe)
+
+        for _ in it:
+            pass
+
+        checkpoint_before_reset = it.checkpoints()[0]
+        it.reset()
+        checkpoint_after_reset = it.checkpoints()[0]
+
+        pipe_before_reset = pipeline(checkpoint=checkpoint_before_reset)
+        pipe_before_reset.build()
+        it_before_reset = make_iter(pipe_before_reset)
+        assert is_empty(it_before_reset)
+
+        pipe_after_reset = pipeline(checkpoint=checkpoint_after_reset)
+        pipe_after_reset.build()
+        it_after_reset = make_iter(pipe_after_reset)
+        assert not is_empty(it_after_reset)
+
 
 # Framework tests
 
