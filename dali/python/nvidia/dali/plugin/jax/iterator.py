@@ -81,7 +81,8 @@ class DALIGenericIterator(_DaliBaseIterator):
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+    sharding : `jax.sharding.Sharding`
+                `jax.sharding.Sharding` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions, if multiple pipelines are provided.
 
@@ -434,7 +435,7 @@ def data_iterator(
                 is called internally automatically.
     last_batch_policy: optional, default = LastBatchPolicy.FILL
                 What to do with the last batch when there are not enough samples in the epoch
-                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
+                to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 JAX iterator does not support LastBatchPolicy.PARTIAL
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample
@@ -449,15 +450,20 @@ def data_iterator(
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
-    sharding : ``jax.sharding.Sharding`` compatible object that, if present, will be used to
+    sharding : `jax.sharding.Sharding`
+                `jax.sharding.Sharding` compatible object that, if present, will be used to
                 build an output jax.Array for each category. Iterator will return outputs
                 compatible with automatic parallelization in JAX.
                 This argument is mutually exclusive with `devices` argument. If `devices` is
                 provided, `sharding` should be set to None.
-    devices : list of jax.devices to be used to run the pipeline in parallel. Iterator will
+    devices : list of `jax.Device`
+                List of JAX devices to be used to run the pipeline in parallel. Iterator will
                 return outputs compatible with pmapped JAX functions.
                 This argument is  mutually exclusive with `sharding` argument. If `sharding`
                 is provided, `devices` should be set to None.
+    checkpoints : list of str, optional, default = None
+                Checkpoints obtained with `.checkpoints()` method of the iterator.
+                If provided, they will be used to restore the state of the pipelines.
 
     Example
     -------
