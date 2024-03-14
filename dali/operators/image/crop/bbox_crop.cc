@@ -356,14 +356,14 @@ the original indices of the bounding boxes that passed the centroid filter and a
 the output bounding boxes.)code",
         false)
     .AddOptionalArg<float>("bbox_prune_threshold",
-        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is set,
-boxes are kept if the fraction of their area within the ROI is greater than or equal to the threshold specified
+        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is set, boxes are kept
+if the fraction of their area within the ROI is greater than or equal to the threshold specified
 `[0.0,1.0]`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
 
-For example, when `bbox_prune_threshold=0.2` bboxes that have more than 20% of their original area within
+For example, when `bbox_prune_threshold=0.2` bboxes that have at least 20% of their original area within
 the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
 have some presence in the ROI are kept.)code",
-        0.0f);
+        nullptr);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -396,7 +396,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
-        bbox_prune_threshold_(spec_.GetArgument<float>("bbox_prune_threshold")),
         rngs_(rng) {
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
@@ -411,6 +410,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     if (spec_.ArgumentDefined("bbox_prune_threshold")) {
       box_prune_method_ = BoxPruneMethod::RelativeThresh;
+      bbox_prune_threshold_ = spec_.GetArgument<float>("bbox_prune_threshold");
       DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1.f,
         make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ",
                     bbox_prune_threshold_));
