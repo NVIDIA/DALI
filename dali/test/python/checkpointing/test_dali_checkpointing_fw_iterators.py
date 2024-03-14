@@ -24,6 +24,7 @@ from checkpointing.test_dali_checkpointing import (
     make_external_source_test_pipeline_factory,
     images_dir,
 )
+from nose_utils import assert_raises
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params, cartesian_params
@@ -421,6 +422,59 @@ class TestJax(FwTestBase):
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
         )
+
+
+class TestJaxPeekable(FwTestBase):
+    def __init__(self):
+        super().__init__()
+        from nvidia.dali.plugin.jax.clu import DALIGenericPeekableIterator
+
+        self.FwIterator = DALIGenericPeekableIterator
+
+    def compare_outs(self, out1, out2):
+        for key in out1.keys():
+            assert (out1[key] == out2[key]).all()
+
+    def supported_last_batch_policies(self):
+        return (
+            # (last_batch_policy, pad_last_batch)
+            (LastBatchPolicy.DROP, True),
+            (LastBatchPolicy.DROP, False),
+            (LastBatchPolicy.FILL, True),
+        )
+
+    def test_unsupported_after_peek(self):
+        @pipeline_def(
+            batch_size=1,
+            enable_checkpointing=True,
+            num_threads=4,
+            device_id=0,
+        )
+        def pipeline():
+            data, _ = fn.readers.file(
+                file_root=images_dir,
+                name="Reader"
+            )
+            data = fn.decoders.image(data)
+            data = fn.resize(data, size=(200,200))
+            return data
+
+        p = pipeline()
+        p.build()
+
+        it = self.FwIterator(
+            [p],
+            output_map=["data"],
+            reader_name="Reader",
+        )
+        it.peek()
+        next(it)
+        it.checkpoints()  # This is OK, we've consumed the peeked batch
+
+        it.peek()
+        with assert_raises(RuntimeError, glob="Checkpointing is not supported for peekable iterators with peeked data."):
+            it.checkpoints()
+
 
 
 class TestPaddle(FwTestBase):
