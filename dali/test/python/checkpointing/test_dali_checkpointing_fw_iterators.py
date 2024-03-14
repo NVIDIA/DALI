@@ -451,12 +451,9 @@ class TestJaxPeekable(FwTestBase):
             device_id=0,
         )
         def pipeline():
-            data, _ = fn.readers.file(
-                file_root=images_dir,
-                name="Reader"
-            )
+            data, _ = fn.readers.file(file_root=images_dir, name="Reader")
             data = fn.decoders.image(data)
-            data = fn.resize(data, size=(200,200))
+            data = fn.resize(data, size=(200, 200))
             return data
 
         p = pipeline()
@@ -472,9 +469,11 @@ class TestJaxPeekable(FwTestBase):
         it.checkpoints()  # This is OK, we've consumed the peeked batch
 
         it.peek()
-        with assert_raises(RuntimeError, glob="Checkpointing is not supported for peekable iterators with peeked data."):
+        with assert_raises(
+            RuntimeError,
+            glob="Checkpointing is not supported for peekable iterators with peeked data.",
+        ):
             it.checkpoints()
-
 
 
 class TestPaddle(FwTestBase):

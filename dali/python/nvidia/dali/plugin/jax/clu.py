@@ -228,7 +228,8 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         if self._peek is not None:
             raise RuntimeError(
                 "Checkpointing is not supported for peekable iterators with peeked data. "
-                "Consume the peeked data completely using next() before saving a checkpoint.")
+                "Consume the peeked data completely using next() before saving a checkpoint."
+            )
         return super().checkpoints()
 
     @property
