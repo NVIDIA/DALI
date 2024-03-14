@@ -66,7 +66,7 @@ class NormalDistribution : public rng::RNGBase<Backend, NormalDistribution<Backe
     stddev_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const Workspace &ws) const {
     return DALI_FLOAT;
   }
 

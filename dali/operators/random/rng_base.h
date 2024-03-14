@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "dali/core/convert.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 #include "dali/pipeline/util/batch_rng.h"
@@ -92,8 +93,9 @@ class OperatorWithRng : public Operator<Backend>{
 /**
  * @brief CRTP class for implementing random number and noise generators.
  *
- * AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples)
- * DALIDataType DefaultDataType() const
+
+ template <typename T, typename Dist>
+  void RunImplTyped(Workspace &ws) ->
  * bool SetupDists(ChoiceSampleDist<T>* dists_data, int nsamples)
  *
  * @tparam Backend
@@ -108,6 +110,19 @@ class RNGBase : public OperatorWithRng<Backend> {
 
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
   const Impl &This() const noexcept { return static_cast<const Impl&>(*this); }
+
+  DALIDataType DefaultDataType(const Workspace &ws) const {
+    return DALI_NO_TYPE;
+  }
+
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {}
+
+  TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
+    return shape_;
+  }
+
+  template <typename Dist>
+  bool SetupDists(Dist* dists_data, int nsamples);
 
   bool CanInferOutputs() const override {
     return true;
@@ -125,7 +140,7 @@ class RNGBase : public OperatorWithRng<Backend> {
     if (IsNoiseGen)
       dtype_ = ws.Input<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
-      dtype_ = This().DefaultDataType();
+      dtype_ = This().DefaultDataType(ws);
 
     bool has_shape = spec_.ArgumentDefined("shape");
     // The first optional input is the shape like
@@ -153,6 +168,7 @@ class RNGBase : public OperatorWithRng<Backend> {
       shape_ = uniform_list_shape(nsamples, TensorShape<0>{});
     }
     This().AcquireArgs(spec_, ws, shape_.size());
+    shape_ = This().PostprocessShape(spec_, ws);
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;

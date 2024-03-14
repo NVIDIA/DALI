@@ -98,7 +98,7 @@ class SaltAndPepperNoise : public rng::RNGBase<Backend, SaltAndPepperNoise<Backe
       pepper_val_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const Workspace &ws) const {
     assert(false);  // should not be used.
     return {};
   }

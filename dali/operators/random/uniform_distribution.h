@@ -189,7 +189,7 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
     }
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const Workspace &ws) const {
     return DALI_FLOAT;
   }
 
