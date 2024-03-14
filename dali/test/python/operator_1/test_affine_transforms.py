@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import random
-import warnings
-
 import numpy as np
 from scipy.spatial.transform import Rotation as scipy_rotate
 

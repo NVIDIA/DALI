@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 
-from nvidia.dali import pipeline_def, fn, ops
-from nose2.tools import params, cartesian_params
+from nvidia.dali import fn, ops
+from nose2.tools import params
 from test_utils import load_test_operator_plugin
 from nose_utils import assert_warns
 

@@ -47,4 +47,4 @@ class DeprecationWarningOp : public Operator<CPUBackend> {
 
 }  // namespace dali
 
-#endif  // DALI_TEST_OPERATORS_NAME_DUMP_H_
+#endif  // DALI_TEST_OPERATORS_DEPRECATION_WARNING_H_
