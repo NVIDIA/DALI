@@ -56,7 +56,7 @@ Example directory structure::
 
 .. note::
   This operator is an analogue of video reader working on video frames extracted as separate images.
-  It's main purpose is for test baseline. For regular usage, the video reader is
+  Its main purpose is for test baseline. For regular usage, the video reader is
   the recommended approach.)code")
     .NumInput(0)
     .NumOutput(1)  // ([Frames])
