@@ -27,7 +27,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
 from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb, ParamsProvider
-from nose_utils import assert_raises
+from nose_utils import assert_raises, assert_warns
 
 
 def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
@@ -659,25 +659,15 @@ def test_combine_transforms_correct_order():
         assert np.allclose(outs[2].at(idx), outs[3].at(idx), atol=1e-6)
 
 
-def verify_deprecation(callback):
-    with warnings.catch_warnings(record=True) as w:
-        # Cause all warnings to always be triggered.
-        warnings.simplefilter("always")
-        # Trigger a warning.
-        callback()
-        # Verify DeprecationWarning
-        expected_warning = (
-            "WARNING: `transform_translation` is now deprecated."
-            " Use `transforms.translation` instead."
-        )
-        assert len(w) == 1
-        assert issubclass(w[-1].category, DeprecationWarning)
-        assert expected_warning == str(w[-1].message)
-
-
 def test_transform_translation_deprecation():
-    verify_deprecation(lambda: fn.transform_translation(offset=(0, 0)))
-    verify_deprecation(lambda: ops.TransformTranslation(offset=(0, 0))())
+    fmt = (
+        "WARNING: `nvidia.dali.{}` is now deprecated."
+        " Use `nvidia.dali.fn.transforms.translation` instead."
+    )
+    with assert_warns(DeprecationWarning, glob=fmt.format("fn.transform_translation")):
+        fn.transform_translation(offset=(0, 0))
+    with assert_warns(DeprecationWarning, glob=fmt.format("ops.TransformTranslation")):
+        ops.TransformTranslation(offset=(0, 0))()
 
 
 def test_sequences():

@@ -629,7 +629,7 @@ Keyword Args
 
         import nvidia.dali.ops
 
-        kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
+        self._init_args, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
         callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
 
@@ -648,11 +648,16 @@ Keyword Args
         self._batch_info = batch_info
         self._repeat_last = repeat_last
         if _dali_trace.is_tracing_enabled():
-            self._definition_frame_end = kwargs.pop("_definition_frame_end", None)
+            self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
+
+        if "_module" not in self._init_args:
+            self._init_args.update({"_module": "nvidia.dali.ops"})
+        if "_display_name" not in self._init_args:
+            self._init_args.update({"_display_name": "ExternalSource"})
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)
-        for key, value in kwargs.items():
+        for key, value in self._init_args.items():
             self._spec.AddArg(key, value)
 
     @property
@@ -908,7 +913,7 @@ Keyword Args
                     kwargs["layout"] = this_layout
 
                 args, arg_inputs = _separate_kwargs(kwargs)
-                op_instance = _OperatorInstance([], arg_inputs, args, {}, self)
+                op_instance = _OperatorInstance([], arg_inputs, args, self._init_args, self)
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
@@ -931,7 +936,7 @@ Keyword Args
                 kwargs["layout"] = layout
 
             args, arg_inputs = _separate_kwargs(kwargs)
-            op_instance = _OperatorInstance([], arg_inputs, args, {}, self)
+            op_instance = _OperatorInstance([], arg_inputs, args, self._init_args, self)
             op_instance._callback = callback
             op_instance._output_index = None
             op_instance._group = _ExternalSourceGroup(
@@ -1063,6 +1068,7 @@ def external_source(
     else:
         if _dali_trace.is_tracing_enabled():
             kwargs = {**kwargs, "_definition_frame_end": _dali_trace.get_stack_depth() - 1}
+        kwargs.update({"_module": "nvidia.dali.fn", "_display_name": "external_source"})
         result = _external_source(
             source,
             num_outputs,
