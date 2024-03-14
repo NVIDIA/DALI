@@ -16,46 +16,104 @@
 #define DALI_OPERATORS_RANDOM_CHOICE_H_
 
 #include <random>
+#include "dali/core/error_handling.h"
 #include "dali/operators/random/rng_base.h"
-#include "dali/pipeline/operator/arg_helper.h"
-#include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/rng_base_gpu.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/operator/arg_helper.h"
 
-#define DALI_COINFLIP_TYPES bool, uint8_t, int32_t
+#define DALI_CHOICE_0D_TYPES \
+  uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
+#define DALI_CHOICE_1D_TYPES                                                                      \
+  bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
+      double
 
 namespace dali {
 
-template <typename T>
+/**
+ * @brief Variant for 1D input - we sample index and take the corresponding value from input pointer
+ *
+ * @tparam T
+ * @tparam scalar
+ */
+template <typename T, bool uniform, int dim = 1>
 struct ChoiceSampleDist {
-  using DistType = std::discrete_distribution<>;
+  using DistType =
+      std::conditional_t<uniform, std::uniform_int_distribution<>, std::discrete_distribution<>>;
 
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
   // TODO(klecki): We need to initialize once or many tiles based on returns_, just
   // handle the copy in the constructor once, accept begin and end here.
-  DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last,
-                                 bool returns)
-      : elements_(elements),
-        p_dist_(p_first, p_last),
-        dist_(p_dist_.begin(), p_dist_.end()),
-        returns_(returns) {}
+  DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last)
+      : elements_(elements), element_count_(p_last - p_first) {
+    if constexpr (!uniform) {
+      dist_ = DistType(p_first, p_last);
+    } else {
+      assert(false);  // Should not be called
+    }
+  }
+
+  DALI_HOST_DEV ChoiceSampleDist(const T *elements, int element_count)
+      : elements_(elements), element_count_(element_count) {
+    if constexpr (uniform) {
+      dist_ = DistType(0, element_count - 1);
+    } else {
+      assert(false);  // Should not be called
+    }
+  }
 
   template <typename Generator>
-  DALI_HOST_DEV int Generate(Generator &st) {
-    if (!returns_) {
-      auto choice_idx = dist_(st);
-      p_dist_[choice_idx] = 0;
-      dist_ = DistType(p_dist_.begin(), p_dist_.end());
-      return choice_idx;
-    }
+  DALI_HOST_DEV T Generate(Generator &st) {
+    // if (!returns_) {
+    //   auto choice_idx = dist_(st);
+    //   p_dist_[choice_idx] = 0;
+    //   dist_ = DistType(p_dist_.begin(), p_dist_.end());
+    //   return choice_idx;
+    // }
     auto choice_idx = dist_(st);
     return elements_[choice_idx];
   }
   const T *elements_;
-  std::vector<float> p_dist_;
+  int element_count_;
   DistType dist_;
   // TODO(klecki): use it only when returns_ == false
-  bool returns_;
+  // std::vector<float> p_dist_;
+  // bool returns_;
+};
+
+
+template <typename T, bool uniform>
+struct ChoiceSampleDist<T, uniform, 0> {
+  using DistType =
+      std::conditional_t<uniform, std::uniform_int_distribution<T>, std::discrete_distribution<T>>;
+
+  DALI_HOST_DEV explicit ChoiceSampleDist() {}
+
+  DALI_HOST_DEV ChoiceSampleDist(const float *p_first, const float *p_last)
+      : element_count_(p_last - p_first) {
+    if constexpr (!uniform) {
+      dist_ = DistType(p_first, p_last);
+    } else {
+      assert(false);  // Should not be called
+    }
+  }
+
+  DALI_HOST_DEV ChoiceSampleDist(int element_count) : element_count_(element_count) {
+    if constexpr (uniform) {
+      dist_ = DistType(0, element_count - 1);
+    } else {
+      assert(false);  // Should not be called
+    }
+  }
+
+  template <typename Generator>
+  DALI_HOST_DEV T Generate(Generator &st) {
+    return dist_(st);
+  }
+  int element_count_;
+  DistType dist_;
 };
 
 template <typename Backend>
@@ -63,47 +121,122 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
  public:
   using BaseImpl = rng::RNGBase<Backend, Choice<Backend>, false>;
 
-  template <typename T>
-  using Impl = ChoiceSampleDist<T>;
+  template <typename T, bool uniform, int dim>
+  using Impl = ChoiceSampleDist<T, uniform, dim>;
 
-  explicit Choice(const OpSpec &spec)
-      : BaseImpl(spec),
-        p_dist_("p", spec) {
+  explicit Choice(const OpSpec &spec) : BaseImpl(spec), p_dist_("p", spec) {}
+
+
+  /**
+   * @brief Returns the number of elements that will be sampled for given sample_idx within batch
+   */
+  int64_t GetSampleNumElements(const TensorList<CPUBackend> &input, int sample_idx) const {
+    if (input.sample_dim() == 0) {
+      TYPE_SWITCH(input.type(), type2id, T, (DALI_CHOICE_0D_TYPES),
+      (
+        return input.tensor<T>(sample_idx)[0];
+      ),
+      ());
+    }
+    return input.tensor_shape_span(sample_idx)[0];
   }
 
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
-    p_dist_.Acquire(spec, ws, nsamples);
-
+    const auto &input = ws.Input<CPUBackend>(0);
+    p_dist_expected_shape_.resize(nsamples);
+    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+      int64_t num_elements = GetSampleNumElements(ws.Input<CPUBackend>(0), sample_idx);
+      p_dist_expected_shape_.set_tensor_shape(sample_idx, {num_elements});
+    }
+    if (p_dist_.HasValue()) {
+      p_dist_.Acquire(spec, ws, nsamples, p_dist_expected_shape_);
+      for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+        double sum = 0.0;
+        for (int i = 0; i < p_dist_[sample_idx].num_elements(); i++) {
+          DALI_ENFORCE(
+              p_dist_[sample_idx].data[i] >= 0.0 && p_dist_[sample_idx].data[i] <= 1.0,
+              make_string("Probabilities must be in range [0, 1] but got ",
+                          p_dist_[sample_idx].data[i], "for sample ", sample_idx, " at index ", i));
+          sum += p_dist_[sample_idx].data[i];
+        }
+        DALI_ENFORCE(std::fabs(sum - 1.0) < 1e-4,
+                     make_string("Sum of probabilities must be 1.0 but got ", sum, " for sample ",
+                                 sample_idx));
+      }
+    }
   }
 
   DALIDataType DefaultDataType() const {
     return DALI_INT32;
   }
 
+
   template <typename T>
-  bool SetupDists(ChoiceSampleDist<T>* dists_data, int nsamples) {
+  bool SetupDists(Impl<T, false, 0> *dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = ChoiceSampleDist<T>{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
+      dists_data[s] =
+          Impl<T, false, 0>{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
+    }
+    return true;
+  }
+
+  template <typename T>
+  bool SetupDists(Impl<T, true, 0> *dists_data, const Workspace &ws, int nsamples) {
+    for (int s = 0; s < nsamples; s++) {
+      dists_data[s] = Impl<T, true, 0>{p_dist_expected_shape_[s][0]};
+    }
+    return true;
+  }
+
+
+  template <typename T>
+  bool SetupDists(Impl<T, false, 1> *dists_data, const Workspace &ws, int nsamples) {
+    for (int s = 0; s < nsamples; s++) {
+      dists_data[s] = Impl<T, false, 1>{ws.Input<CPUBackend>(0).tensor<T>(s), p_dist_[s].data,
+                                        p_dist_[s].data + p_dist_[s].num_elements()};
+    }
+    return true;
+  }
+
+  template <typename T>
+  bool SetupDists(Impl<T, true, 1> *dists_data, const Workspace &ws, int nsamples) {
+    for (int s = 0; s < nsamples; s++) {
+      dists_data[s] =
+          Impl<T, true, 1>{ws.Input<CPUBackend>(0).tensor<T>(s), p_dist_expected_shape_[s][0]};
     }
     return true;
   }
 
   using BaseImpl::RunImpl;
   void RunImpl(Workspace &ws) override {
-    TYPE_SWITCH(dtype_, type2id, T, (DALI_COINFLIP_TYPES), (
-      BaseImpl::template RunImplTyped<T, Impl>(ws);
-    ), (  // NOLINT
-      DALI_FAIL(make_string("Data type ", dtype_, " is currently not supported. "
-                            "Supported types are : ", ListTypeNames<DALI_COINFLIP_TYPES>()));
-    ));  // NOLINT
+    const auto &input = ws.Input<CPUBackend>(0);
+    if (input.sample_dim() == 0) {
+      TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_0D_TYPES), (
+
+        BaseImpl::template RunImplTyped<T, Impl<T, 0>>(ws);
+      ), (  // NOLINT
+        DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 0D inputs. "
+                              "Supported types are : ", ListTypeNames<DALI_CHOICE_0D_TYPES>()));
+      ));  // NOLINT
+    } else if (input.sample_dim() == 1) {
+      TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_1D_TYPES), (
+        BaseImpl::template RunImplTyped<T, Impl<T, 1>>(ws);
+      ), (  // NOLINT
+        DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 1D inputs. "
+                              "Supported types are : ", ListTypeNames<DALI_CHOICE_1D_TYPES>()));
+      ));  // NOLINT
+    } else {
+      DALI_FAIL("Choice operator supports only 0D or 1D inputs.");
+    }
   }
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using BaseImpl::dtype_;
   using BaseImpl::backend_data_;
+  using BaseImpl::dtype_;
 
   ArgValue<float, 1> p_dist_;
+  TensorListShape<1> p_dist_expected_shape_;
 };
 
 }  // namespace dali

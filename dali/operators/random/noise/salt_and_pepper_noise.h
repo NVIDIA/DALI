@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ class SaltAndPepperNoise : public rng::RNGBase<Backend, SaltAndPepperNoise<Backe
   }
 
   template <typename T>
-  bool SetupDists(Impl<T>* dists_data, int nsamples) {
+  bool SetupDists(Impl<T>* dists_data, const Workspace &ws, int nsamples) {
     if (!prob_.HasExplicitValue() && !salt_vs_pepper_.HasExplicitValue() &&
         !salt_val_.HasExplicitValue() && !pepper_val_.HasExplicitValue()) {
       return false;  // default constructed Impl will be used

@@ -35,9 +35,10 @@ sample is generated.
     .InputDox(1, "shape_like", "", "")
     .NumOutput(1)
     .AddOptionalArg<bool>("replace", "", true)
-    .AddOptionalArg<int>("axis", "", true)
-    .AddOptionalArg<float>("p",
-      R"code(Distribution of the probabilities)code",
+    // .AddOptionalArg<int>("axis", "", true)
+    // Acquire args can't interpolate from scalar to list?
+    .AddOptionalArg<std::vector<float>>("p",
+      R"code(Distribution of the probabilities.)code",
       nullptr, true)
     .AddParent("RNGAttr");
 

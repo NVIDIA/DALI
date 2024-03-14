@@ -89,7 +89,17 @@ class OperatorWithRng : public Operator<Backend>{
   OperatorWithRngFields<Backend> backend_data_;
 };
 
-
+/**
+ * @brief CRTP class for implementing random number and noise generators.
+ *
+ * AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples)
+ * DALIDataType DefaultDataType() const
+ * bool SetupDists(ChoiceSampleDist<T>* dists_data, int nsamples)
+ *
+ * @tparam Backend
+ * @tparam Impl
+ * @tparam IsNoiseGen
+ */
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public OperatorWithRng<Backend> {
  protected:
