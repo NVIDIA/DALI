@@ -208,13 +208,14 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
     return kwargs
 
 
-def _handle_op_deprecation(schema, op_name):
+def _handle_op_deprecation(schema, module, display_name):
     if schema.IsDeprecated():
+        api = _names._get_api_name(module)
         # TODO(klecki): how to know if this is fn or ops?
-        msg = "WARNING: `{}` is now deprecated.".format(_op_name(op_name, "fn"))
+        msg = f"WARNING: `{module}.{display_name}` is now deprecated."
         replacement = schema.DeprecatedInFavorOf()
         if replacement:
-            use_instead = _op_name(replacement, "fn")
+            use_instead = _op_name(replacement, api)
             msg += " Use `" + use_instead + "` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
@@ -391,7 +392,9 @@ class _OperatorInstance(object):
             op._schema, self._spec, arg_inputs, type(op).__name__
         )
 
-        _handle_op_deprecation(self._op.schema, type(op).__name__)
+        _handle_op_deprecation(
+            self._op.schema, _processed_arguments["_module"], _processed_arguments["_display_name"]
+        )
 
         self._generate_outputs()
 

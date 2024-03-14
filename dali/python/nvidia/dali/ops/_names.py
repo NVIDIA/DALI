@@ -108,3 +108,13 @@ def _get_generic_input_name(is_only_input=True):
         return "input"
     else:
         return "__input_"
+
+
+def _get_api_name(op_module=""):
+    """Get the API name of operator instance based on the contents of `_module` argument.
+
+    By default returns "fn" if the module cannot be detected.
+    """
+    if "nvidia.dali.ops" in op_module:
+        return "ops"
+    return "fn"
