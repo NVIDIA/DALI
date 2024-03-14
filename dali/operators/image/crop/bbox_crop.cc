@@ -412,7 +412,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     if (spec_.ArgumentDefined("bbox_prune_threshold")) {
       box_prune_method_ = BoxPruneMethod::RelativeThresh;
       DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1.f,
-        make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ", bbox_prune_threshold_));
+        make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ",
+                    bbox_prune_threshold_));
     }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
@@ -804,8 +805,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         crop.bbox_indices.clear();  // indices will be populated by FilterBboxes
         if (box_prune_method_ == BoxPruneMethod::Centroid) {
           FilterBboxes(crop.boxes, crop.bbox_indices,
-            [&](const Box<ndim, float>& bbox) { return rel_crop.contains(bbox.centroid()); });
-        } else { // box_prune_method_ == BoxPruneMethod::RelativeThresh
+            [&](const Box<ndim, float>& bbox) {
+              return rel_crop.contains(bbox.centroid());
+            });
+        } else {  // box_prune_method_ == BoxPruneMethod::RelativeThresh
           FilterBboxes(crop.boxes, crop.bbox_indices,
             [&](const Box<ndim, float>& bbox) {
               const float intersec = volume(intersection(rel_crop, bbox));
@@ -879,8 +882,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   }
 
   template <class UnaryPredicate>
-  void FilterBboxes(std::vector<Box<ndim, float>>& bboxes, std::vector<int>& indices, UnaryPredicate pred)
-  {
+  void FilterBboxes(std::vector<Box<ndim, float>>& bboxes,
+                    std::vector<int>& indices,
+                    UnaryPredicate pred) {
     std::vector<Box<ndim, float>> new_bboxes;
     new_bboxes.reserve(bboxes.size());
     indices.clear();

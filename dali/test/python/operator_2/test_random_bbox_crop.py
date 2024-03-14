@@ -198,7 +198,7 @@ def filter_by_area(crop_anchor, crop_shape, bboxes, thresh):
     for i, bbox in enumerate(bboxes):
         intersec = intersection(bbox, crop_box)
         box_area = np.prod(bbox[ndim:] - bbox[:ndim])
-        if intersec / box_area > thresh:
+        if intersec != 0 and intersec / box_area >= thresh:
             indexes.append(i)
     return np.array(bboxes[indexes, :])
 
@@ -327,7 +327,7 @@ def test_random_bbox_crop_variable_shape():
     }
     scalings = [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]
     for batch_size, ndim, scaling, prune_thresh in itertools.product(
-        [3], [2, 3], scalings, [None, 0.1, 0.3, 0.5]
+        [3], [2, 3], scalings, [None, 0.0, 0.1, 0.3, 0.5]
     ):
         for aspect_ratio in aspect_ratio_ranges[ndim]:
             use_labels = random.choice([True, False])
@@ -391,7 +391,9 @@ def test_random_bbox_crop_fixed_shape():
         2: [[100, 50], [400, 300], [600, 400]],
         3: [[100, 50, 32], [400, 300, 64], [600, 400, 48]],
     }
-    for batch_size, ndim, prune_thresh in itertools.product([3], [2, 3], [None, 0.1, 0.3, 0.5]):
+    for batch_size, ndim, prune_thresh in itertools.product(
+        [3], [2, 3], [None, 0.0, 0.1, 0.3, 0.5]
+    ):
         for input_shape, crop_shape, use_labels in itertools.product(
             input_shapes[ndim], crop_shapes[ndim], [True, False]
         ):
