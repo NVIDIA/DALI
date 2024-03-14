@@ -59,7 +59,7 @@ copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/COPYRIGHT" "${PROJECT_BINARY_
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/dali/python/nvidia/dali")
 copy_post_build(dali_python "${PROJECT_SOURCE_DIR}/tools/find_dali.cmake" "${PROJECT_BINARY_DIR}/dali/cmake")
 
-if(NOT ${CMAKE_CROSSCOMPILING})
+if(NOT ${CMAKE_CROSSCOMPILING} AND NOT ${BUILD_WITH_ASAN})
   # Prepate PYTHONPATH targetting the pre-packed wheel produced in this build
   set(PYTHON_TARGET_PATH ${PROJECT_BINARY_DIR}/dali/python)
   if($ENV{PYTHONPATH})
@@ -76,7 +76,7 @@ if(NOT ${CMAKE_CROSSCOMPILING})
                       DEPENDS dali_python ${dali_python_function_lib} dali dali_operators copy_post_build_target)
   endif (PREBUILD_DALI_LIBS)
 
-  # Build the .pyi stubs, adjusting the PYTHONPATH for the invokation, allowing to use the
+  # Build the .pyi stubs, adjusting the PYTHONPATH for the invocation, allowing to use the
   # backend from the current build.
   add_custom_command(
     TARGET dali_python_generate_stubs
