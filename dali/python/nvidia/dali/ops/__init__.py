@@ -210,13 +210,11 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
 
 def _handle_op_deprecation(schema, module, display_name):
     if schema.IsDeprecated():
-        api = _names._get_api_name(module)
-        # TODO(klecki): how to know if this is fn or ops?
         msg = f"WARNING: `{module}.{display_name}` is now deprecated."
         replacement = schema.DeprecatedInFavorOf()
         if replacement:
-            use_instead = _op_name(replacement, api)
-            msg += " Use `" + use_instead + "` instead."
+            use_instead = _op_name(replacement, "fn")
+            msg += f" Use `nvidia.dali.fn.{use_instead}` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
             msg += "\n" + explanation
