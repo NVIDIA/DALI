@@ -150,13 +150,16 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
 
         self._element_spec = None
 
+    def _set_element_spec(self, output):
+        self._element_spec = {
+            output_name: get_spec_for_array(output[output_name])
+            for output_name in self._output_categories
+        }
+
     def _assert_output_shape_and_type(self, output):
         if self._element_spec is None:
             # Set element spec based on the first seen element
-            self._element_spec = {
-                output_name: get_spec_for_array(output[output_name])
-                for output_name in self._output_categories
-            }
+            self._set_element_spec(output)
 
         for key in output:
             if get_spec_for_array(output[key]) != self._element_spec[key]:
@@ -241,6 +244,8 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         Returns:
             ElementSpec: Element spec for the elements returned by the iterator.
         """
+        if self._element_spec is None:
+            self._set_element_spec(self.peek())
         return self._element_spec
 
     @property
