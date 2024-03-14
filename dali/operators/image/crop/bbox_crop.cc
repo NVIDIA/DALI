@@ -356,9 +356,9 @@ the original indices of the bounding boxes that passed the centroid filter and a
 the output bounding boxes.)code",
         false)
     .AddOptionalArg<float>("bbox_prune_threshold",
-        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is
-set, boxes are kept if the fraction of their area within the ROI is greater than the threshold specified
-`[0.0,1.0)`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
+        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is set,
+boxes are kept if the fraction of their area within the ROI is greater than or equal to the threshold specified
+`[0.0,1.0]`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
 
 For example, when `bbox_prune_threshold=0.2` bboxes that have more than 20% of their original area within
 the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
@@ -411,8 +411,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     if (spec_.ArgumentDefined("bbox_prune_threshold")) {
       box_prune_method_ = BoxPruneMethod::RelativeThresh;
-      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ < 1.f,
-        make_string("`bbox_prune` must be in range `[0,1)`. Got: ", bbox_prune_threshold_));
+      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1.f,
+        make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ", bbox_prune_threshold_));
     }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
@@ -804,12 +804,12 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         crop.bbox_indices.clear();  // indices will be populated by FilterBboxes
         if (box_prune_method_ == BoxPruneMethod::Centroid) {
           FilterBboxes(crop.boxes, crop.bbox_indices,
-            [&](const Box<ndim, float>& bbox_) { return rel_crop.contains(bbox_.centroid()); });
+            [&](const Box<ndim, float>& bbox) { return rel_crop.contains(bbox.centroid()); });
         } else { // box_prune_method_ == BoxPruneMethod::RelativeThresh
           FilterBboxes(crop.boxes, crop.bbox_indices,
-            [&](const Box<ndim, float>& bbox_) {
-              const float intersec_ = volume(intersection(rel_crop, bbox_));
-              return intersec_ / volume(bbox_) > bbox_prune_threshold_;
+            [&](const Box<ndim, float>& bbox) {
+              const float intersec = volume(intersection(rel_crop, bbox));
+              return intersec != 0.0f && intersec / volume(bbox) >= bbox_prune_threshold_;
             });
         }
 
