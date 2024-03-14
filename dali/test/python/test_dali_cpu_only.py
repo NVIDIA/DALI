@@ -1004,7 +1004,7 @@ def test_dump_image_cpu():
 
 def test_sequence_reader_cpu():
     check_no_input(
-        fn.sequence_reader, file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1
+        fn.readers.sequence, file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1
     )
 
 
