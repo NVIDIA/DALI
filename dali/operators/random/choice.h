@@ -35,19 +35,14 @@ namespace dali {
 
 /**
  * @brief Variant for 1D input - we sample index and take the corresponding value from input pointer
- *
- * @tparam T
- * @tparam scalar
  */
-template <typename T, bool uniform, int dim = 1>
+template <typename T, bool uniform, bool indirect = true>
 struct ChoiceSampleDist {
   using DistType =
       std::conditional_t<uniform, std::uniform_int_distribution<>, std::discrete_distribution<>>;
 
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
-  // TODO(klecki): We need to initialize once or many tiles based on returns_, just
-  // handle the copy in the constructor once, accept begin and end here.
   DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last)
       : elements_(elements), element_count_(p_last - p_first) {
     if constexpr (!uniform) {
@@ -68,26 +63,21 @@ struct ChoiceSampleDist {
 
   template <typename Generator>
   DALI_HOST_DEV T Generate(Generator &st) {
-    // if (!returns_) {
-    //   auto choice_idx = dist_(st);
-    //   p_dist_[choice_idx] = 0;
-    //   dist_ = DistType(p_dist_.begin(), p_dist_.end());
-    //   return choice_idx;
-    // }
     auto choice_idx = dist_(st);
     return elements_[choice_idx];
   }
   const T *elements_;
   int64_t element_count_;
   DistType dist_;
-  // TODO(klecki): use it only when returns_ == false
-  // std::vector<float> p_dist_;
-  // bool returns_;
 };
 
-
+/**
+ * @brief Variant for generating indices. In case of 0D input, we treat those indices as the
+ * actual sampled values in range [0, element_count). For n-D elements, where n > 1, we used the
+ * result as the index of the element to be copied.
+ */
 template <typename T, bool uniform>
-struct ChoiceSampleDist<T, uniform, 0> {
+struct ChoiceSampleDist<T, uniform, false> {
   using DistType =
       std::conditional_t<uniform, std::uniform_int_distribution<T>, std::discrete_distribution<T>>;
 
@@ -157,6 +147,9 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     input_list_shape_.resize(nsamples);
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       int64_t num_elements = GetSampleNumElements(ws.Input<CPUBackend>(0), sample_idx);
+      DALI_ENFORCE(num_elements > 0,
+                   make_string("Expected positive number of elements for sampling, got: ",
+                               num_elements, " for sample: ", sample_idx, "."));
       input_list_shape_.set_tensor_shape(sample_idx, {num_elements});
     }
     if (p_dist_.HasValue()) {
@@ -198,10 +191,10 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
 
 
   template <typename T>
-  bool SetupDists(Impl<T, false, 0> *dists_data, const Workspace &ws, int nsamples) {
+  bool SetupDists(Impl<T, false, false> *dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
       dists_data[s] =
-          Impl<T, false, 0>{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
+          Impl<T, false, false>{p_dist_[s].data, p_dist_[s].data + p_dist_[s].num_elements()};
     }
     return true;
   }
@@ -209,26 +202,26 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   template <typename T>
   bool SetupDists(Impl<T, true, 0> *dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = Impl<T, true, 0>{input_list_shape_[s][0]};
+      dists_data[s] = Impl<T, true, false>{input_list_shape_[s][0]};
     }
     return true;
   }
 
 
   template <typename T>
-  bool SetupDists(Impl<T, false, 1> *dists_data, const Workspace &ws, int nsamples) {
+  bool SetupDists(Impl<T, false, true> *dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
-      dists_data[s] = Impl<T, false, 1>{ws.Input<CPUBackend>(0).tensor<T>(s), p_dist_[s].data,
+      dists_data[s] = Impl<T, false, true>{ws.Input<CPUBackend>(0).tensor<T>(s), p_dist_[s].data,
                                         p_dist_[s].data + p_dist_[s].num_elements()};
     }
     return true;
   }
 
   template <typename T>
-  bool SetupDists(Impl<T, true, 1> *dists_data, const Workspace &ws, int nsamples) {
+  bool SetupDists(Impl<T, true, true> *dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
       dists_data[s] =
-          Impl<T, true, 1>{ws.Input<CPUBackend>(0).tensor<T>(s), input_list_shape_[s][0]};
+          Impl<T, true, true>{ws.Input<CPUBackend>(0).tensor<T>(s), input_list_shape_[s][0]};
     }
     return true;
   }
@@ -236,12 +229,13 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   using BaseImpl::RunImpl;
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     if (input.sample_dim() == 0) {
       TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_0D_TYPES), (
         if (p_dist_.HasValue()) {
-          BaseImpl::template RunImplTyped<T, Impl<T, false, 0>>(ws);
+          BaseImpl::template RunImplTyped<T, Impl<T, false, false>>(ws);
         } else {
-          BaseImpl::template RunImplTyped<T, Impl<T, true, 0>>(ws);
+          BaseImpl::template RunImplTyped<T, Impl<T, true, false>>(ws);
         }
       ), (  // NOLINT
         DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 0D inputs. "
@@ -250,9 +244,9 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     } else if (input.sample_dim() == 1) {
       TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_1D_TYPES), (
         if (p_dist_.HasValue()) {
-          BaseImpl::template RunImplTyped<T, Impl<T, false, 1>>(ws);
+          BaseImpl::template RunImplTyped<T, Impl<T, false, true>>(ws);
         } else {
-          BaseImpl::template RunImplTyped<T, Impl<T, true, 1>>(ws);
+          BaseImpl::template RunImplTyped<T, Impl<T, true, true>>(ws);
         }
       ), (  // NOLINT
         DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 1D inputs. "
@@ -260,6 +254,15 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       ));  // NOLINT
     } else {
       ElementCopy(ws);
+    }
+    if (!input.GetLayout().empty()) {
+      if (input.sample_dim() == output.sample_dim()) {
+        output.SetLayout(input.GetLayout());
+      } else if (input.sample_dim() > 0 && output.sample_dim() == input.sample_dim() - 1) {
+        output.SetLayout(input.GetLayout().sub(1));
+      }
+    } else {
+      output.SetLayout("");
     }
   }
 
@@ -281,7 +284,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       tp.AddWork([=](int thread_id) {
         auto &rng = rng_[sample_idx];
         if (p_dist_.HasValue()) {
-          auto dist = ChoiceSampleDist<int64_t, false, 0>(
+          auto dist = ChoiceSampleDist<int64_t, false, false>(
               p_dist_[sample_idx].data,
               p_dist_[sample_idx].data + p_dist_[sample_idx].num_elements());
           for (int64_t i = 0; i < num_output_elements; ++i) {
@@ -290,7 +293,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
                    element_size);
           }
         } else {
-          auto dist = ChoiceSampleDist<int64_t, true, 0>(num_input_elements);
+          auto dist = ChoiceSampleDist<int64_t, true, false>(num_input_elements);
           for (int64_t i = 0; i < num_output_elements; ++i) {
             auto source_idx = dist.Generate(rng);
             memcpy(output_data + i * element_size, input_data + source_idx * element_size,
