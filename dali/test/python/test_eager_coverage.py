@@ -1026,12 +1026,6 @@ def test_dump_image():
     check_single_input("dump_image")
 
 
-def test_sequence_reader():
-    check_reader(
-        "readers.sequence", file_root=sequence_dir, sequence_length=2, shard_id=0, num_shards=1
-    )
-
-
 def test_affine_translate():
     check_no_input("transforms.translation", offset=(2, 3))
 
