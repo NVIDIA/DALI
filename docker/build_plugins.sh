@@ -30,7 +30,7 @@ set -e
 
 export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR:-}
 export NVIDIA_DALI_PLUGINS_INSTALL_DIR=${NVIDIA_DALI_PLUGINS_INSTALL_DIR:-install_plugins}
-export GIT_SHA=$(git rev-parse HEAD)
+export GIT_SHA=${GIT_SHA:-$(git rev-parse HEAD)}
 export PYTHON_EXECUTABLE=$(which python3 || which python)
 
 mkdir -p ${NVIDIA_DALI_PLUGINS_INSTALL_DIR}
