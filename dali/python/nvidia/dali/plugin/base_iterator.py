@@ -263,7 +263,7 @@ class _DaliBaseIterator(object):
         if not iterator_data:
             logging.warning(
                 "Iterator data was not saved in the checkpoint. "
-                + "This iterator might produce unexpected results."
+                "This iterator might produce unexpected results."
             )
             return
 
