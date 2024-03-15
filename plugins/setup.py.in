@@ -54,6 +54,7 @@ if __name__ == "__main__":
         author='NVIDIA Corporation',
         license='Apache License 2.0',
         license_files = ('LICENSE', 'COPYRIGHT', 'Acknowledgements.txt'),
+        python_requires='>=3.8, <3.13',
         classifiers=[
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
