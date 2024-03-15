@@ -158,10 +158,11 @@ def _docstring_generator_main(schema_name, api):
     ret = "\n"
 
     if schema.IsDeprecated():
-        use_instead = _names._op_name(schema.DeprecatedInFavorOf(), api)
-        ret += ".. warning::\n\n   This operator is now deprecated"
-        if use_instead:
-            ret += ". Use :meth:`" + use_instead + "` instead."
+        ret += ".. warning::\n\n   This operator is now deprecated."
+        replacement = schema.DeprecatedInFavorOf()
+        if replacement:
+            use_instead = _names._op_name(replacement, api)
+            ret += " Use :meth:`" + use_instead + "` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
             indent = "\n" + " " * 3
