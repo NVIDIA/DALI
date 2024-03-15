@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -172,14 +172,14 @@ the fixed ``crop_shape`` was used.
   should be set to False.
 
 
-The third output contains the bounding boxes, after filtering out the ones with a centroid outside
-of the cropping window, and with the coordinates mapped to the new coordinate space.
+The third output contains the bounding boxes, after filtering them out by centroid or area thresholding
+(see `bbox_prune_threshold` argument), and with the coordinates mapped to the new coordinate space.
 
 The next output is optional, and it represents the labels associated with the filtered bounding boxes.
 The output will be present if a labels input was provided.
 
-The last output, also optional, correspond to the original indices of the bounding boxes that passed the
-centroid filter and are present in the output.
+The last output, also optional, corresponds to the original indices of the bounding boxes that passed the
+aforementioned filtering process and are present in the output.
 This output will be present if the option ``output_bbox_indices`` is set to True.
 )code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
@@ -354,7 +354,16 @@ The values are:
         R"code(If set to True, an extra output will be returned, containing
 the original indices of the bounding boxes that passed the centroid filter and are present in
 the output bounding boxes.)code",
-        false);
+        false)
+    .AddOptionalArg<float>("bbox_prune_threshold",
+        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is set, boxes are kept
+if the fraction of their area within the ROI is greater than or equal to the threshold specified
+`[0.0,1.0]`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
+
+For example, when `bbox_prune_threshold=0.2` bboxes that have at least 20% of their original area within
+the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
+have some presence in the ROI are kept.)code",
+        nullptr);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -364,6 +373,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   enum OverlapMetric {
     IoU = 1,
     Overlap = 2
+  };
+
+  enum BoxPruneMethod {
+    Centroid,
+    RelativeThresh
   };
 
   ~RandomBBoxCropImpl() = default;
@@ -393,6 +407,14 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         scale_range_.min >= 0 && scale_range_.min <= scale_range_.max,
         make_string("`scaling` range must be positive and min <= max. Got: ", scale_range_.min,
                     ", ", scale_range_.max));
+
+    if (spec_.ArgumentDefined("bbox_prune_threshold")) {
+      box_prune_method_ = BoxPruneMethod::RelativeThresh;
+      bbox_prune_threshold_ = spec_.GetArgument<float>("bbox_prune_threshold");
+      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1.f,
+        make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ",
+                    bbox_prune_threshold_));
+    }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
     DALI_ENFORCE(aspect_ratio_arg.size() == 2 || aspect_ratio_arg.size() == 6,
@@ -780,8 +802,20 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
         crop.crop = out_crop;
         crop.boxes.assign(bounding_boxes.begin(), bounding_boxes.end());
-        crop.bbox_indices.clear();  // indices will be populated by FilterByCentroid
-        FilterByCentroid(rel_crop, crop.boxes, crop.bbox_indices);
+        crop.bbox_indices.clear();  // indices will be populated by FilterBboxes
+        if (box_prune_method_ == BoxPruneMethod::Centroid) {
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox) {
+              return rel_crop.contains(bbox.centroid());
+            });
+        } else {  // box_prune_method_ == BoxPruneMethod::RelativeThresh
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox) {
+              const float intersec = volume(intersection(rel_crop, bbox));
+              return intersec != 0.0f && intersec / volume(bbox) >= bbox_prune_threshold_;
+            });
+        }
+
         for (auto &box : crop.boxes) {
           box = RemapBox(box, rel_crop);
         }
@@ -847,13 +881,15 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
   }
 
-  void FilterByCentroid(const Box<ndim, float> &crop,
-                        std::vector<Box<ndim, float>> &bboxes,
-                        std::vector<int> &indices) {
+  template <class UnaryPredicate>
+  void FilterBboxes(std::vector<Box<ndim, float>>& bboxes,
+                    std::vector<int>& indices,
+                    UnaryPredicate pred) {
     std::vector<Box<ndim, float>> new_bboxes;
+    new_bboxes.reserve(bboxes.size());
     indices.clear();
     for (size_t i = 0; i < bboxes.size(); i++) {
-      if (crop.contains(bboxes[i].centroid())) {
+      if (pred(bboxes[i])) {
         new_bboxes.push_back(bboxes[i]);
         indices.push_back(static_cast<int>(i));
       }
@@ -873,8 +909,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   TensorLayout shape_layout_;
 
   OverlapMetric overlap_metric_ = OverlapMetric::IoU;
+  BoxPruneMethod box_prune_method_ = BoxPruneMethod::Centroid;
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
+  float bbox_prune_threshold_ = 0.0f;
 
   BatchRNG<std::mt19937_64> &rngs_;
 
