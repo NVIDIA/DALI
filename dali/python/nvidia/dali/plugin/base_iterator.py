@@ -468,9 +468,7 @@ class _DaliBaseIterator(object):
             return self._initial_checkpoints
         else:
             iterator_data = self._save_state()
-            for p in self._pipes:
-                p._iterator_data = iterator_data
-            return [p.checkpoint() for p in self._pipes]
+            return [p._get_checkpoint(iterator_data=iterator_data) for p in self._pipes]
 
     def reset(self):
         """
