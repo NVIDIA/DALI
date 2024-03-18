@@ -93,14 +93,9 @@ class OperatorWithRng : public Operator<Backend>{
 /**
  * @brief CRTP class for implementing random number and noise generators.
  *
-
- template <typename T, typename Dist>
-  void RunImplTyped(Workspace &ws) ->
- * bool SetupDists(ChoiceSampleDist<T>* dists_data, int nsamples)
- *
- * @tparam Backend
- * @tparam Impl
- * @tparam IsNoiseGen
+ * @tparam IsNoiseGen - noise generators by default copy type from input and compute the output
+ * value based on the input value at given coordinate.
+ * compute
  */
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public OperatorWithRng<Backend> {
@@ -111,18 +106,60 @@ class RNGBase : public OperatorWithRng<Backend> {
   Impl &This() noexcept { return static_cast<Impl&>(*this); }
   const Impl &This() const noexcept { return static_cast<const Impl&>(*this); }
 
-  DALIDataType DefaultDataType(const Workspace &ws) const {
+  /** @defgroup RngCRTP Customization points for random number generators.
+   *  @{
+   */
+
+  /**
+   * @brief Return the default data type of output if the "dtype" argument is not specified.
+   */
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_NO_TYPE;
   }
 
+  /**
+   * @brief Optional validation of the "dtype" argument. Called after `dtype_` is calculated
+   * based on the input, "dtype" argument, or DefaultDataType().
+   */
+  void ValidateDataType(const OpSpec &spec, const Workspace &ws) {}
+
+  /**
+   * @brief Customization point for obtaining argument inputs or arguments during SetupImpl.
+   */
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {}
 
+  /**
+   * @brief If the output shape is non copied from `shape` argument or `__shape_like` input,
+   * return new one that should be used instead. Called after basic shape parameter is obtained
+   * into `shape_`.
+   */
   TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
     return shape_;
   }
 
+  /**
+   * @brief The RNG implementation must provide SetupDist function, with `Dist` type
+   * and call RunImplTyped<T, Dist>(ws) in its RunImpl, for given output type `T`.
+   *
+   * The type `Dist` must implement function used for sampling based on random generator for
+   * given device with some output type `U`.
+   * The signature for random generators:
+   *   template <typename Generator>
+   *   DALI_HOST_DEV U Generate(Generator &st)
+   *
+   * The signature for noise generators:
+   *   template <typename Generator>
+   *   DALI_HOST_DEV U Generate(T input, Generator &st)
+
+   * @param dists_data
+   * @param nsamples
+   * @return true - if the Dist constructed by this function should be used
+   * @return false - if the default-constructed one can be used - allowing to skip the copy to GPU.
+   */
   template <typename Dist>
   bool SetupDists(Dist* dists_data, int nsamples);
+
+  /** @} */ // end of RngCRTP
 
   bool CanInferOutputs() const override {
     return true;
@@ -140,7 +177,9 @@ class RNGBase : public OperatorWithRng<Backend> {
     if (IsNoiseGen)
       dtype_ = ws.Input<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
-      dtype_ = This().DefaultDataType(ws);
+      dtype_ = This().DefaultDataType(spec_, ws);
+
+    This().ValidateDataType(spec_, ws);
 
     bool has_shape = spec_.ArgumentDefined("shape");
     // The first optional input is the shape like

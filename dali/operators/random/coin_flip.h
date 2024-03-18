@@ -61,7 +61,7 @@ class CoinFlip : public rng::RNGBase<Backend, CoinFlip<Backend>, false> {
     probability_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType(const Workspace &ws) const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_INT32;
   }
 

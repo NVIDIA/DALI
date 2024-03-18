@@ -69,7 +69,7 @@ class GaussianNoise : public rng::RNGBase<Backend, GaussianNoise<Backend>, true>
     stddev_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType(const Workspace &ws) const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_FLOAT;
   }
 

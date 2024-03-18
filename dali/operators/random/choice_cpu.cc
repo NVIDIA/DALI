@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/operators/random/choice.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
@@ -22,23 +22,24 @@ namespace dali {
 DALI_SCHEMA(random__Choice)
     .DocStr(R"code(Generates a random sample from a given 1-D array.
 
-The probability of generating a value 1 (true) is determined by the ``probability`` argument.
+The probability of selecting a sample from the input is determined by the probability distribution
+specified in ``p`` argument.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a single value per
-sample is generated.
+or chosen to match the shape of the ``shape_like` input, if provided. If none are present, a single
+value per sample is generated.
+
+Note that the output shape will
 )code")
     .NumInput(1, 2)
-    .InputDox(0, "a", "scalar or tensor",
-        R"code(If a scalar value is provided, values between [0, ``a``) are sampled. Otherwise
-``a`` is treated as 1-D array of input samples.)code")
-    .InputDox(1, "shape_like", "", "")
+    .InputDox(0, "a", "scalar or TensorList",
+              "If a scalar value is provided, values between [0, ``a``) are sampled. "
+              "Otherwise ``a`` is treated as 1-D array of input samples.")
+    .InputDox(1, "shape_like", "TensorList",
+              "Shape of this input will be used to infer the shape of the output")
     .NumOutput(1)
-    // .AddOptionalArg<bool>("replace", "", true)
-    // .AddOptionalArg<int>("axis", "", true)
-    .AddOptionalArg<std::vector<float>>("p",
-      R"code(Distribution of the probabilities.)code",
-      nullptr, true)
+    .AddOptionalArg<std::vector<float>>("p", R"code(Distribution of the probabilities.)code",
+                                        nullptr, true)
     .AddParent("RNGAttr");
 
 DALI_REGISTER_OPERATOR(random__Choice, Choice<CPUBackend>, CPU);

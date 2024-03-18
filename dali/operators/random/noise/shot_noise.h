@@ -71,7 +71,7 @@ class ShotNoise : public rng::RNGBase<Backend, ShotNoise<Backend>, true> {
     factor_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType(const Workspace &ws) const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     assert(false);  // should not be used
     return {};
   }

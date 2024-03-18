@@ -12,21 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import fn, pipeline_def
+from nvidia.dali import fn, pipeline_def, types
 
 import numpy as np
 import scipy.stats as st
-from nose2.tools import cartesian_params, params
+from nose2.tools import params
 from itertools import product, chain
 
+from nose_utils import assert_raises
 
 rng = np.random.default_rng(seed=12345)
-
-
-def get_counts(sample):
-    unique, counts = np.unique(sample, return_counts=True)
-    counts = dict(zip(unique, counts))
-    return counts
 
 
 def check_sample(sample, size, a, p, idx):
@@ -46,7 +41,6 @@ def check_sample(sample, size, a, p, idx):
     # this is ok. Next we flatten them so we can use the test.
     reduced_sample = np.sum(sample, axis=tuple(range(len(size), sample.ndim))).flatten()
     expected = np.sum(expected, axis=tuple(range(len(size), sample.ndim))).flatten()
-    print(f"{get_counts(reduced_sample)=}\n{get_counts(expected)=}")
 
     result = st.kstest(reduced_sample, expected)
     assert (
@@ -143,3 +137,54 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
             p=np.array(p[i]) if use_p else None,
             idx=i,
         )
+
+
+@params(
+    *[
+        (
+            (1,),
+            {"p": 1.5},
+            "Probabilities must be in range *, but got: 1.5 for sample 0 at index 0.",
+        ),
+        (
+            (2,),
+            {"p": 0.25},
+            "Sum of probabilities must be 1.0, but got 0.5 for sample: 0.",
+        ),
+        (
+            (-5,),
+            {},
+            "Expected positive number of elements for sampling, got: -5 for sample: 0.",
+        ),
+        (
+            (5,),
+            {"dtype": types.FLOAT},
+            "Data type float is not supported for 0D inputs. Supported types are: "
+            "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
+        ),
+        (
+            (np.array([[2, 3], [3, 4]]),),
+            {"dtype": types.FLOAT},
+            "For output sampled from list of input samples (when the input is not a scalar), "
+            "the requested output type must match the type of the input, "
+            "expected: int32, got: float.",
+        ),
+        (
+            (5,),
+            {"p": np.array([0.25, 0.5, 0.25])},
+            'Unexpected shape for argument "p". Expected {5}, but got {3}',
+        ),
+    ]
+)
+def test_choice_validation(args, kwargs, expected_error):
+
+    with assert_raises(RuntimeError, glob=expected_error):
+
+        @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+        def choice_pipe():
+            values = fn.random.choice(*args, **kwargs)
+            return values
+
+        pipe = choice_pipe()
+        pipe.build()
+        pipe.run()
