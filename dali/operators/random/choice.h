@@ -136,13 +136,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     return input.tensor_shape_span(sample_idx)[0];
   }
 
-  int GetElementDim(const TensorList<CPUBackend> &input) {
-    if (input.sample_dim() == 0) {
-      return 0;
-    }
-    return input.sample_dim() - 1;
-  }
-
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     const auto &input = ws.Input<CPUBackend>(0);
     input_list_shape_.resize(nsamples);
@@ -192,21 +185,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
                                ws.Input<CPUBackend>(0).type(), ", got: ", dtype_, "."));
     }
   }
-
-  /**
-   * @brief Concatenate the requested shape with the shape of sampled elements.
-   */
-  TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
-    const auto &input = ws.Input<CPUBackend>(0);
-    int element_dim = GetElementDim(input);
-    TensorListShape<> shape(shape_.num_samples(), shape_.sample_dim() + element_dim);
-    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      auto result = shape_cat(shape_[sample_idx], input.tensor_shape(sample_idx).last(element_dim));
-      shape.set_tensor_shape(sample_idx, result);
-    }
-    return shape;
-  }
-
 
   template <typename T>
   bool SetupDists(Impl<T, false, false> *dists_data, const Workspace &ws, int nsamples) {
