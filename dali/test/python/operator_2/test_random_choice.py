@@ -55,10 +55,18 @@ def check_sample(sample, size, a, p, idx):
             [()],
             [True, False],
             [None, (), (1000,), (500, 4)],
+            [False],
+        ),
+        product(
+            ["scalar"],
+            [()],
+            [True],
+            [(), (1000,), (500, 4)],
+            [True],
         ),
     )
 )
-def test_choice_dist(kind, elem_shape, use_p, output_shape):
+def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
     """Test if fn.random.choice distribution is matching the np.random.Generator.choice.
 
     Parameters
@@ -104,7 +112,10 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=1234)
     def choice_pipe():
         a, p = fn.external_source(inp, batch=False, num_outputs=2)
-        choice = fn.random.choice(a, p=p if use_p else None, shape=output_shape)
+        if not shape_like:
+            choice = fn.random.choice(a, p=p if use_p else None, shape=output_shape)
+        else:
+            choice = fn.random.choice(a, np.full(output_shape, 42), p=p if use_p else None)
         return choice, a, p
 
     tuple_output_shape = output_shape if output_shape is not None else ()
