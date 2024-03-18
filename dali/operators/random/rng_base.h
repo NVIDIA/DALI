@@ -159,7 +159,7 @@ class RNGBase : public OperatorWithRng<Backend> {
   template <typename Dist>
   bool SetupDists(Dist* dists_data, int nsamples);
 
-  /** @} */ // end of RngCRTP
+  /** @} */  // end of RngCRTP
 
   bool CanInferOutputs() const override {
     return true;
