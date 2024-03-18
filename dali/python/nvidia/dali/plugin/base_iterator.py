@@ -227,10 +227,6 @@ class _DaliBaseIterator(object):
                 )
 
         if self._enable_checkpointing:
-            # Precompute the initial checkpoints, to prevent any problems
-            # related to the `prepare_first_batch` flag.
-            self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
-
             if any(p.is_restored_from_checkpoint for p in self._pipes):
                 all_iterator_data = [p._iterator_data for p in self._pipes]
                 if not all(p.is_restored_from_checkpoint for p in self._pipes):
@@ -246,6 +242,12 @@ class _DaliBaseIterator(object):
                     )
                 iterator_data = all_iterator_data[0]
                 self._restore_state(iterator_data)
+
+            # Precompute the initial checkpoints, to prevent any problems
+            # related to the `prepare_first_batch` flag.
+            self._initial_checkpoints = [
+                p._get_checkpoint(iterator_data=self._save_state()) for p in self._pipes
+            ]
 
     def _checkpointed_fields(self):
         return [

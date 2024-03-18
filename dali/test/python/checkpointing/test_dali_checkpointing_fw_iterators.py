@@ -405,6 +405,41 @@ class FwTestBase:
         it_after_reset = make_iter(pipe_after_reset)
         assert not is_empty(it_after_reset)
 
+    @params(0, 3)
+    def test_multiple_restores(self, warmup_iters):
+        def make_iter(pipe):
+            return self.FwIterator(
+                pipe,
+                output_map=self.output_map(with_labels=False),
+                auto_reset=False,
+                size=100,
+            )
+
+        @pipeline_def(
+            batch_size=1,
+            enable_checkpointing=True,
+            num_threads=4,
+            device_id=0,
+        )
+        def pipeline():
+            return fn.random.uniform()
+
+        pipe = pipeline()
+        pipe.build()
+        it = make_iter(pipe)
+
+        for _ in range(warmup_iters):
+            next(it)
+
+        pipe2 = pipeline(checkpoint=it.checkpoints()[0])
+        pipe2.build()
+        it2 = make_iter(pipe2)
+
+        pipe3 = pipeline(checkpoint=it2.checkpoints()[0])
+        pipe3.build()
+        it3 = make_iter(pipe3)
+
+        self.compare_iters(it2, it3)
 
 # Framework tests
 
