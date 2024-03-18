@@ -28,8 +28,6 @@ specified in ``p`` argument.
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
 or chosen to match the shape of the ``shape_like` input, if provided. If none are present, a single
 value per sample is generated.
-
-Note that the output shape will
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",
