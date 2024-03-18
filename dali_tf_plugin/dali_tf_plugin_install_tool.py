@@ -237,6 +237,8 @@ class InstallerHelper:
                 if ret is None:
                     p.terminate()
                     p.join()
+                if ret != 0:
+                    print(f"Failed to import TF library, importing returned {ret}")
                 return ret == 0
             except Exception as e:
                 print("Failed to import TF library: ", str(e))
@@ -280,7 +282,7 @@ class InstallerHelper:
             return True
         else:
             print(
-                "Failed check for {self.prebuilt_plugin_best_match},"
+                f"Failed check for {self.prebuilt_plugin_best_match},"
                 + "will not install prebuilt plugin"
             )
             return False
