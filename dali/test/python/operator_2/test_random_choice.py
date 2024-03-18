@@ -56,12 +56,6 @@ def check_sample(sample, size, a, p, idx):
             [True, False],
             [None, (), (1000,), (500, 4)],
         ),
-        product(
-            ["nd"],
-            [(2,), (2, 2)],
-            [True, False],
-            [None, (), (1000,), (500, 4)],
-        ),
     )
 )
 def test_choice_dist(kind, elem_shape, use_p, output_shape):
@@ -70,8 +64,7 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
     Parameters
     ----------
     kind : str
-        What kind of `a` parameter to test: "scalar" - just a scalar value, "0d" - list of scalars,
-        or "nd" - "list" of n-d elements.
+        What kind of `a` parameter to test: "scalar" - just a scalar value, "0d" - list of scalars
     elem_shape : tuple of int
         Shape of the elements sampled by the distribution, non-empty tuple allowed only for "nd"
         case.
@@ -105,11 +98,8 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
         p = get_p(n)
         if kind == "scalar":
             return np.array(n), p
-        elif kind == "0d":
+        else:  # "0d"
             return np.arange(sampling_offset, n + sampling_offset), p
-        else:
-            # nd - repeat the same scalar value with the elem_shape for given sample
-            return np.stack([np.full(elem_shape, i) for i in range(n)]), p
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=1234)
     def choice_pipe():
@@ -144,7 +134,7 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
         (
             (1,),
             {"p": 1.5},
-            "Probabilities must be in range *, but got: 1.5 for sample 0 at index 0.",
+            "Probabilities must be in range *, but got: 1.5 for sample: 0 at index 0.",
         ),
         (
             (2,),
@@ -163,11 +153,16 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape):
             "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
         ),
         (
-            (np.array([[2, 3], [3, 4]]),),
+            (np.array([2, 3, 4]),),
             {"dtype": types.FLOAT},
             "For output sampled from list of input samples (when the input is not a scalar), "
             "the requested output type must match the type of the input, "
             "expected: int32, got: float.",
+        ),
+        (
+            (np.array([[2, 3], [4, 5]]),),
+            {},
+            "The operator only supports sampling of 0D elements, got: 2D input.",
         ),
         (
             (5,),

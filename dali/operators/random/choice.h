@@ -74,8 +74,7 @@ struct ChoiceSampleDist {
 
 /**
  * @brief Variant for generating indices. In case of 0D input, we treat those indices as the
- * actual sampled values in range [0, element_count). For n-D elements, where n > 1, we used the
- * result as the index of the element to be copied.
+ * actual sampled values in range [0, element_count).
  */
 template <typename T, bool uniform>
 struct ChoiceSampleDist<T, uniform, false> {
@@ -180,6 +179,10 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     }
   }
 
+  /**
+   * @brief We only allow sampling of the input elements or generating integral types if the
+   * input is scalar.
+   */
   void ValidateDataType(const OpSpec &spec, const Workspace &ws) const {
     if (ws.Input<CPUBackend>(0).sample_dim() != 0) {
       DALI_ENFORCE(ws.Input<CPUBackend>(0).type() == dtype_,
@@ -190,6 +193,9 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     }
   }
 
+  /**
+   * @brief Concatenate the requested shape with the shape of sampled elements.
+   */
   TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
     int element_dim = GetElementDim(input);
@@ -250,8 +256,8 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
           BaseImpl::template RunImplTyped<T, Impl<T, true, false>>(ws);
         }
       ), (  // NOLINT
-        DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 0D inputs. "
-                              "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), "."));
+        DALI_FAIL("Data type ", dtype_, " is not supported for 0D inputs. "
+                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");
       ));  // NOLINT
     } else if (input.sample_dim() == 1) {
       TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_1D_TYPES), (
@@ -261,11 +267,12 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
           BaseImpl::template RunImplTyped<T, Impl<T, true, true>>(ws);
         }
       ), (  // NOLINT
-        DALI_FAIL(make_string("Data type ", dtype_, " is not supported for 1D inputs. "
-                              "Supported types are: ", ListTypeNames<DALI_CHOICE_1D_TYPES>(), "."));
+        DALI_FAIL("Data type ", dtype_, " is not supported for 1D inputs. "
+                  "Supported types are: ", ListTypeNames<DALI_CHOICE_1D_TYPES>(), ".");
       ));  // NOLINT
     } else {
-      ElementCopy(ws);
+      DALI_FAIL("The operator only supports sampling of 0D elements, got: ", input.sample_dim(),
+                "D input.");
     }
     if (!input.GetLayout().empty()) {
       if (input.sample_dim() == output.sample_dim()) {
@@ -276,47 +283,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     } else {
       output.SetLayout("");
     }
-  }
-
-  void ElementCopy(Workspace &ws) {
-    const auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
-    int num_samples = input.num_samples();
-    auto &tp = ws.GetThreadPool();
-    for (int sample_idx = 0; sample_idx < num_samples; ++sample_idx) {
-      int element_dim = GetElementDim(input);
-      int64_t element_size = volume(input.tensor_shape(sample_idx).last(element_dim)) *
-                             TypeTable::GetTypeInfo(input.type()).size();
-      int64_t num_input_elements = input_list_shape_[sample_idx][0];
-      int64_t num_output_elements =
-          volume(output.tensor_shape(sample_idx).first(output.sample_dim() - element_dim));
-      uint8_t *output_data = static_cast<uint8_t *>(output.raw_mutable_tensor(sample_idx));
-      const uint8_t *input_data = static_cast<const uint8_t *>(input.raw_tensor(sample_idx));
-
-      tp.AddWork(
-          [=](int thread_id) {
-            auto &rng = rng_[sample_idx];
-            if (p_dist_.HasValue()) {
-              auto dist = ChoiceSampleDist<int64_t, false, false>(
-                  p_dist_[sample_idx].data,
-                  p_dist_[sample_idx].data + p_dist_[sample_idx].num_elements());
-              for (int64_t i = 0; i < num_output_elements; ++i) {
-                auto source_idx = dist.Generate(rng);
-                memcpy(output_data + i * element_size, input_data + source_idx * element_size,
-                       element_size);
-              }
-            } else {
-              auto dist = ChoiceSampleDist<int64_t, true, false>(num_input_elements);
-              for (int64_t i = 0; i < num_output_elements; ++i) {
-                auto source_idx = dist.Generate(rng);
-                memcpy(output_data + i * element_size, input_data + source_idx * element_size,
-                       element_size);
-              }
-            }
-          },
-          volume(output.tensor_shape(sample_idx)));
-    }
-    tp.RunAll();
   }
 
  protected:
