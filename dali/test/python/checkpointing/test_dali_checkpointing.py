@@ -1140,7 +1140,7 @@ def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
     pipe = pipeline()
     pipe.build()
 
-    iters_in_epoch = pipe.reader_meta()['Reader']['epoch_size'] // batch_size
+    iters_in_epoch = pipe.reader_meta()["Reader"]["epoch_size"] // batch_size
     warmup_iters += warmup_epochs * iters_in_epoch
     run_iters += run_epochs * iters_in_epoch
 
