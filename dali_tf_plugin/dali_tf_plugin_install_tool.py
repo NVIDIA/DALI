@@ -232,7 +232,7 @@ class InstallerHelper:
                 # try in a separate process just in case it recives SIGV
                 p = Process(target=test_fn, args=(lib_path_tmpdir,))
                 p.start()
-                p.join(5)
+                p.join(10)
                 ret = p.exitcode
                 if ret is None:
                     p.terminate()
