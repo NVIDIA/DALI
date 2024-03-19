@@ -31,10 +31,10 @@ a single value per sample is generated.
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",
-              "If a scalar value ``a`` is provided, values between ``[0, a)`` are sampled. "
-              "Otherwise ``a`` is treated as 1D array of input samples.")
+              "If a scalar value ``__a`` is provided, values in ``[0, __a)`` are sampled. "
+              "Otherwise ``__a`` is treated as 1D array of input samples.")
     .InputDox(1, "shape_like", "TensorList",
-              "Shape of this input will be used to infer the shape of the output.")
+              "Shape of this input will be used to infer the shape of the output, if provided.")
     .NumOutput(1)
     .AddOptionalArg<std::vector<float>>("p", R"code(Distribution of the probabilities.)code",
                                         nullptr, true)
