@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,6 +128,7 @@ struct SeparableResamplingGPUImpl : Interface {
         which_pass,
         descs_gpu, block2sample.data, block2sample.shape[0],
         setup.block_dim,
+        setup.shm_size_for_pass[which_pass],
         stream);
   }
 

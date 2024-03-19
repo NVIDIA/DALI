@@ -45,7 +45,7 @@ struct SampleDesc {
   DeviceArray<uintptr_t, num_buffers> pointers;
   DeviceArray<ptrdiff_t, num_buffers> offsets;
   DeviceArray<Strides, num_buffers>   strides;
-  DeviceArray<Shape, num_buffers>  shapes;
+  DeviceArray<Shape, num_buffers>     shapes;
 
   template <typename Input, typename Tmp, typename Output, int D = spatial_ndim>
   void set_base_pointers(Input *in, Tmp *tmp, Output *out) {
@@ -109,7 +109,9 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
 template <int _spatial_ndim>
 class SeparableResamplingSetup {
  public:
-  DLL_PUBLIC SeparableResamplingSetup();
+  inline SeparableResamplingSetup() {
+    block_dim = { 32, 8, 1 };
+  }
 
   static constexpr int channel_dim = _spatial_ndim;  // assumes interleaved channel data
   static constexpr int spatial_ndim = _spatial_ndim;
@@ -140,6 +142,7 @@ class SeparableResamplingSetup {
   }
 
   ivec3 block_dim;
+  int shm_size_for_pass[spatial_ndim] = {};
 
  protected:
   using ROI = Roi<spatial_ndim>;
@@ -161,6 +164,8 @@ class BatchResamplingSetup : public SeparableResamplingSetup<_spatial_ndim> {
   using Base::spatial_ndim;
   using Base::tensor_ndim;
   using Base::num_tmp_buffers;
+  using Base::block_dim;
+  using Base::shm_size_for_pass;
   using Params = span<const ResamplingParamsND<spatial_ndim>>;
   using SampleDesc = resampling::SampleDesc<spatial_ndim>;
   using BlockDesc = kernels::BlockDesc<spatial_ndim>;
