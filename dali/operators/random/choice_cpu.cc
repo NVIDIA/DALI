@@ -20,7 +20,7 @@
 namespace dali {
 
 DALI_SCHEMA(random__Choice)
-    .DocStr(R"code(Generates a random sample from a given 1-D array.
+    .DocStr(R"code(Generates a random sample from a given 1D array.
 
 The probability of selecting a sample from the input is determined by the probability distribution
 specified in ``p`` argument.
@@ -31,8 +31,8 @@ a single value per sample is generated.
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",
-              "If a scalar value is provided, values between [0, ``a``) are sampled. "
-              "Otherwise ``a`` is treated as 1-D array of input samples.")
+              "If a scalar value ``a`` is provided, values between ``[0, a)`` are sampled. "
+              "Otherwise ``a`` is treated as 1D array of input samples.")
     .InputDox(1, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output.")
     .NumOutput(1)
