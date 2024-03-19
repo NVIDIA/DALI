@@ -44,7 +44,7 @@ struct ChoiceSampleDist {
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
   DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last)
-      : elements_(elements), element_count_(p_last - p_first) {
+      : elements_(elements) {
     if constexpr (!uniform) {
       dist_ = DistType(p_first, p_last);
     } else {
@@ -52,8 +52,7 @@ struct ChoiceSampleDist {
     }
   }
 
-  DALI_HOST_DEV ChoiceSampleDist(const T *elements, int64_t element_count)
-      : elements_(elements), element_count_(element_count) {
+  DALI_HOST_DEV ChoiceSampleDist(const T *elements, int64_t element_count) : elements_(elements) {
     if constexpr (uniform) {
       dist_ = DistType(0, element_count - 1);
     } else {
@@ -67,9 +66,8 @@ struct ChoiceSampleDist {
     return elements_[choice_idx];
   }
 
-  const T *elements_;
-  int64_t element_count_;
-  DistType dist_;
+  const T *elements_ = nullptr;
+  DistType dist_ = {};
 };
 
 /**
@@ -83,8 +81,7 @@ struct ChoiceSampleDist<T, uniform, false> {
 
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
-  DALI_HOST_DEV ChoiceSampleDist(const float *p_first, const float *p_last)
-      : element_count_(p_last - p_first) {
+  DALI_HOST_DEV ChoiceSampleDist(const float *p_first, const float *p_last) {
     if constexpr (!uniform) {
       dist_ = DistType(p_first, p_last);
     } else {
@@ -92,7 +89,7 @@ struct ChoiceSampleDist<T, uniform, false> {
     }
   }
 
-  DALI_HOST_DEV ChoiceSampleDist(int64_t element_count) : element_count_(element_count) {
+  DALI_HOST_DEV ChoiceSampleDist(int64_t element_count) {
     if constexpr (uniform) {
       dist_ = DistType(0, element_count - 1);
     } else {
@@ -105,8 +102,7 @@ struct ChoiceSampleDist<T, uniform, false> {
     return dist_(st);
   }
 
-  int64_t element_count_;
-  DistType dist_;
+  DistType dist_ = {};
 };
 
 template <typename Backend>
