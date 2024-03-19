@@ -26,15 +26,15 @@ The probability of selecting a sample from the input is determined by the probab
 specified in ``p`` argument.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the ``shape_like` input, if provided. If none are present, a single
-value per sample is generated.
+or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+a single value per sample is generated.
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",
               "If a scalar value is provided, values between [0, ``a``) are sampled. "
               "Otherwise ``a`` is treated as 1-D array of input samples.")
     .InputDox(1, "shape_like", "TensorList",
-              "Shape of this input will be used to infer the shape of the output")
+              "Shape of this input will be used to infer the shape of the output.")
     .NumOutput(1)
     .AddOptionalArg<std::vector<float>>("p", R"code(Distribution of the probabilities.)code",
                                         nullptr, true)

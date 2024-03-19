@@ -346,6 +346,12 @@ def test_uniform_device():
     check_no_input(fn.random.uniform)
 
 
+def test_random_choice_cpu():
+    check_single_input(
+        fn.random.choice, input_layout=None, get_data=lambda: np.array(5), batch=False
+    )
+
+
 def test_reshape_cpu():
     new_shape = test_data_shape.copy()
     new_shape[0] //= 2
@@ -1421,6 +1427,7 @@ tested_methods = [
     "coin_flip",
     "uniform",
     "random.uniform",
+    "random.choice",
     "random.coin_flip",
     "random.normal",
     "random_bbox_crop",

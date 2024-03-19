@@ -37,15 +37,20 @@ def check_sample(sample, size, a, p, idx):
 
     expected = rng.choice(a, size=size, p=p)
     # In N-D case, we reduce over the sample dimensions as otherwise the distribution
-    # counts are skewed and kstest fails. As we use samples of unique repeated numbers,
-    # this is ok. Next we flatten them so we can use the test.
-    reduced_sample = np.sum(sample, axis=tuple(range(len(size), sample.ndim))).flatten()
-    expected = np.sum(expected, axis=tuple(range(len(size), sample.ndim))).flatten()
+    # counts are skewed. Next we flatten them so we can use the test.
+    reduced_sample = np.sum(sample, axis=tuple(range(len(size), sample.ndim)))
+    expected = np.sum(expected, axis=tuple(range(len(size), sample.ndim)))
 
-    result = st.kstest(reduced_sample, expected)
+    sample_values, sample_counts = np.unique(reduced_sample, return_counts=True)
+    expected_values, expected_counts = np.unique(expected, return_counts=True)
     assert (
-        result[1] > 0.05
-    ), f"Sample is not identical to expected distribution, {result}, for {idx}"
+        sample_values == expected_values
+    ).all(), "Bucketing is different between pipeline output and expected numpy output."
+
+    stat = st.chisquare(
+        sample_counts / np.sum(sample_counts), expected_counts / np.sum(expected_counts)
+    )
+    assert stat.pvalue >= 0.01, f"{stat} - distributions do not match for {idx}."
 
 
 @params(

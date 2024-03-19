@@ -858,6 +858,17 @@ def test_experimental_video_reader(
 # `check_single_input_operator`
 
 
+@params(*[lambda n: np.arange(n) / (n * (n - 1) / 2), lambda n: None])
+@random_signed_off("random.choice")
+def test_random_choice(p_dist):
+    @pipeline_def
+    def pipeline():
+        n = 10
+        return fn.random.choice(n, p=p_dist(n))
+
+    check_pipeline_checkpointing_native(pipeline)
+
+
 @cartesian_params(("cpu", "gpu"), (None, (1,), (10,)))
 @random_signed_off("random.coin_flip", "coin_flip")
 def test_random_coin_flip(device, shape):

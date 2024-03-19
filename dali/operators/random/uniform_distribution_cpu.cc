@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,10 +26,12 @@ or a discrete uniform distribution where any of the specified ``values`` [v0, v1
 with equal probability.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a scalar is
-generated.
+or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+a single value per sample is generated.
 )code")
     .NumInput(0, 1)
+    .InputDox(0, "shape_like", "TensorList",
+              "Shape of this input will be used to infer the shape of the output.")
     .NumOutput(1)
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.
@@ -59,10 +61,12 @@ or a discrete uniform distribution where any of the specified ``values`` [v0, v1
 with equal probability.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
-or chosen to match the shape of the input, if provided. If none are present, a scalar is
-generated.
+or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
+a single value per sample is generated.
 )code")
     .NumInput(0, 1)
+    .InputDox(0, "shape_like", "TensorList",
+              "Shape of this input will be used to infer the shape of the output.")
     .NumOutput(1)
     .AddOptionalArg("range",
       R"code(Range ``[min, max)`` of a continuous uniform distribution.

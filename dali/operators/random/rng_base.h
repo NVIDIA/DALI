@@ -175,14 +175,14 @@ class RNGBase : public OperatorWithRng<Backend> {
     bool has_shape = spec_.ArgumentDefined("shape");
     // The first optional input is the shape like
     bool has_shape_like = spec_.NumRegularInput() == spec_.GetSchema().MinNumInput() + 1;
-    int shape_like_idx = spec_.GetSchema().MinNumInput();
     int nsamples = GetBatchSize(ws);
     DALI_ENFORCE(!(has_shape && has_shape_like),
       "Providing argument \"shape\" is incompatible with providing a shape-like input");
 
     if (IsNoiseGen) {
-      shape_ = ws.Input<Backend>(shape_like_idx).shape();
+      shape_ = ws.Input<Backend>(0).shape();
     } else if (has_shape_like) {
+      int shape_like_idx = spec_.GetSchema().MinNumInput();
       if (ws.InputIsType<Backend>(shape_like_idx)) {
         shape_ = ws.Input<Backend>(shape_like_idx).shape();
       } else if (std::is_same<GPUBackend, Backend>::value &&
