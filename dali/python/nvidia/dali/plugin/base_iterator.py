@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import math
 import logging
 import numpy as np
 import warnings
+import pickle
 from enum import Enum, unique
 from collections.abc import Iterable
 
@@ -226,59 +227,62 @@ class _DaliBaseIterator(object):
                 )
 
         if self._enable_checkpointing:
-            if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded is False:
-                raise NotImplementedError(
-                    "Currently, checkpointing is not supported for iterators with "
-                    + "last_batch_policy=FILL and last_batch_padded=False"
-                )
-
-            # Precompute the initial checkpoints, to prevent any problems
-            # related to the `prepare_first_batch` flag.
-            self._initial_checkpoints = [p.checkpoint() for p in self._pipes]
-
             if any(p.is_restored_from_checkpoint for p in self._pipes):
-                iters = [p._consumer_iter for p in self._pipes]
+                all_iterator_data = [p._iterator_data for p in self._pipes]
                 if not all(p.is_restored_from_checkpoint for p in self._pipes):
                     logging.warning(
                         "Some, but not all of the pipelines used were restored from checkpoint. "
                         + "This iterator might produce unexpected results."
                     )
-                elif not all(i == iters[0] for i in iters):
+                elif not all(data == all_iterator_data[0] for data in all_iterator_data):
                     logging.warning(
-                        "The provided pipelines have different number of completed iterations. "
+                        "The provided pipelines had different iterator data in the checkpoints "
+                        + "they were restored from. "
                         + "This iterator might produce unexpected results."
                     )
+                iterator_data = all_iterator_data[0]
+                self._restore_state(iterator_data)
 
-                self._restore_state(min(iters))
+            # Precompute the initial checkpoints, to prevent any problems
+            # related to the `prepare_first_batch` flag.
+            self._initial_checkpoints = [
+                p._get_checkpoint(iterator_data=self._save_state()) for p in self._pipes
+            ]
 
-    def _restore_state(self, pipeline_iterations):
+    def _checkpointed_fields(self):
+        return [
+            "_counter",
+            "_counter_per_gpu",
+            "_shard_sizes_per_gpu",
+            "_shards_id",
+            "_size",
+        ]
+
+    def _restore_state(self, iterator_data):
         """
-        Restores state of the iterator to a state after `pipeline_iterations` iterations of the
-        pipeline.
+        Restores state of the iterator based on serialized `iterator_data`
         """
-
-        if self._last_batch_policy == LastBatchPolicy.FILL and self._last_batch_padded is False:
-            raise NotImplementedError(
-                "Currently, checkpointing is not supported for iterators with "
-                + "last_batch_policy=FILL and last_batch_padded=False"
+        if not iterator_data:
+            logging.warning(
+                "Iterator data was not saved in the checkpoint. "
+                "This iterator might produce unexpected results."
             )
+            return
 
-        # In modes other than FILL + last_batch_padded=False, each epoch starts with the first
-        # sample of a shard and the number of pipeline iterations per epoch is constant.
+        iterator_data = pickle.loads(iterator_data)
+        for field in self._checkpointed_fields():
+            if hasattr(self, field):
+                setattr(self, field, iterator_data[field])
 
-        size = self._shard_sizes_per_gpu.min() if self._reader_name else self._size
-        iters_per_epoch = (size + self.batch_size - 1) // self.batch_size
-        complete_epochs = (max(0, pipeline_iterations - 1)) // iters_per_epoch
-
-        self._counter = self.batch_size * (pipeline_iterations - complete_epochs * iters_per_epoch)
-
-        if not self._reader_name:
-            # If not in reader_name mode, the counter keeps the total count for all pipelines
-            self._counter *= self._num_gpus
-
-        if self._reader_name and not self._is_stick_to_shard:
-            self._shard_sizes_per_gpu = np.roll(self._shard_sizes_per_gpu, complete_epochs)
-            self._shards_id = (self._shards_id + complete_epochs) % self._num_gpus
+    def _save_state(self):
+        iterator_data = pickle.dumps(
+            {
+                field: getattr(self, field)
+                for field in self._checkpointed_fields()
+                if hasattr(self, field)
+            }
+        )
+        return iterator_data
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)
@@ -465,7 +469,8 @@ class _DaliBaseIterator(object):
         if not self._ever_consumed:
             return self._initial_checkpoints
         else:
-            return [p.checkpoint() for p in self._pipes]
+            iterator_data = self._save_state()
+            return [p._get_checkpoint(iterator_data=iterator_data) for p in self._pipes]
 
     def reset(self):
         """

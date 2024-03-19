@@ -61,6 +61,7 @@ std::string Checkpoint::SerializeToProtobuf(const OpGraph &graph) const {
     op_cpt->set_operator_state(nodes[i].op->SerializeCheckpoint(cpts_[i]));
   }
   checkpoint.mutable_external_ctx_cpt()->set_pipeline_data(external_ctx_cpt_.pipeline_data);
+  checkpoint.mutable_external_ctx_cpt()->set_iterator_data(external_ctx_cpt_.iterator_data);
   return checkpoint.SerializeAsString();
 }
 
@@ -84,6 +85,7 @@ void Checkpoint::DeserializeFromProtobuf(const OpGraph &graph,
     nodes[i].op->DeserializeCheckpoint(op_cpt, data);
   }
   external_ctx_cpt_.pipeline_data = checkpoint.external_ctx_cpt().pipeline_data();
+  external_ctx_cpt_.iterator_data = checkpoint.external_ctx_cpt().iterator_data();
 }
 
 }  // namespace dali

@@ -85,6 +85,7 @@ message Checkpoint {
 
   message ExternalContextCheckpoint {
     optional bytes pipeline_data = 1;
+    optional bytes iterator_data = 2;
   }
 
   repeated OpCheckpoint cpts = 1;

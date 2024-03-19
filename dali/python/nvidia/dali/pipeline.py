@@ -282,6 +282,7 @@ class Pipeline(object):
         self._checkpoint = checkpoint
         self._prefetch_queue_depth = prefetch_queue_depth
         self._is_restored_from_checkpoint = False
+        self._iterator_data = None
         if type(prefetch_queue_depth) is dict:
             self._exec_separated = True
             if not exec_async:
@@ -956,6 +957,7 @@ class Pipeline(object):
                 for group in self._input_callbacks:
                     group.current_iter = pipeline_data["iter"]
                     group.current_sample = pipeline_data["iter"] * self._max_batch_size
+            self._iterator_data = external_ctx_cpt.iterator_data
             self._is_restored_from_checkpoint = True
 
     def build(self):
@@ -1547,6 +1549,19 @@ class Pipeline(object):
             raise RuntimeError("Pipeline must be built first.")
         self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
 
+    def _get_checkpoint(self, iterator_data=""):
+        """
+        Returns the pipeline's state as a serialized Protobuf string.
+        Also, allows to pass additional data to be saved in the checkpoint.
+        """
+
+        external_ctx_cpt = b.ExternalContextCheckpoint()
+        external_ctx_cpt.pipeline_data = pickle.dumps(
+            {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
+        )
+        external_ctx_cpt.iterator_data = iterator_data
+        return self._pipe.SerializedCheckpoint(external_ctx_cpt)
+
     def checkpoint(self, filename=None):
         """Returns the pipeline's state as a serialized Protobuf string.
 
@@ -1564,15 +1579,12 @@ class Pipeline(object):
         filename : str
                 The file that the serialized pipeline will be written to.
         """
-        external_ctx_cpt = b.ExternalContextCheckpoint()
-        external_ctx_cpt.pipeline_data = pickle.dumps(
-            {"iter": self._consumer_iter, "epoch_idx": self._epoch_idx}
-        )
-        ret = self._pipe.SerializedCheckpoint(external_ctx_cpt)
+
+        cpt = self._get_checkpoint()
         if filename is not None:
             with open(filename, "wb") as checkpoint_file:
-                checkpoint_file.write(ret)
-        return ret
+                checkpoint_file.write(cpt)
+        return cpt
 
     def set_outputs(self, *output_data_nodes):
         """Set the outputs of the pipeline.

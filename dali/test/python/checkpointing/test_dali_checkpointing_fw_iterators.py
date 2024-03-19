@@ -178,6 +178,7 @@ class FwTestBase:
         (
             # (last_batch_policy, pad_last_batch)
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.PARTIAL, True),
@@ -357,6 +358,89 @@ class FwTestBase:
             pf, iterations, size=epoch_size * batch_size
         )
 
+    def test_reset(self):
+        def make_iter(pipe):
+            return self.FwIterator(
+                pipe,
+                output_map=self.output_map(with_labels=False),
+                auto_reset=False,
+                reader_name="Reader",
+            )
+
+        def is_empty(it):
+            try:
+                next(it)
+                return False
+            except StopIteration:
+                return True
+
+        @pipeline_def(
+            batch_size=1,
+            enable_checkpointing=True,
+            num_threads=4,
+            device_id=0,
+        )
+        def pipeline():
+            data, _ = fn.readers.file(file_root=images_dir, name="Reader")
+            return data
+
+        pipe = pipeline()
+        pipe.build()
+        it = make_iter(pipe)
+
+        for _ in it:
+            pass
+
+        checkpoint_before_reset = it.checkpoints()[0]
+        it.reset()
+        checkpoint_after_reset = it.checkpoints()[0]
+
+        pipe_before_reset = pipeline(checkpoint=checkpoint_before_reset)
+        pipe_before_reset.build()
+        it_before_reset = make_iter(pipe_before_reset)
+        assert is_empty(it_before_reset)
+
+        pipe_after_reset = pipeline(checkpoint=checkpoint_after_reset)
+        pipe_after_reset.build()
+        it_after_reset = make_iter(pipe_after_reset)
+        assert not is_empty(it_after_reset)
+
+    @params(0, 3)
+    def test_multiple_restores(self, warmup_iters):
+        def make_iter(pipe):
+            return self.FwIterator(
+                pipe,
+                output_map=self.output_map(with_labels=False),
+                auto_reset=False,
+                size=100,
+            )
+
+        @pipeline_def(
+            batch_size=1,
+            enable_checkpointing=True,
+            num_threads=4,
+            device_id=0,
+        )
+        def pipeline():
+            return fn.random.uniform()
+
+        pipe = pipeline()
+        pipe.build()
+        it = make_iter(pipe)
+
+        for _ in range(warmup_iters):
+            next(it)
+
+        pipe2 = pipeline(checkpoint=it.checkpoints()[0])
+        pipe2.build()
+        it2 = make_iter(pipe2)
+
+        pipe3 = pipeline(checkpoint=it2.checkpoints()[0])
+        pipe3.build()
+        it3 = make_iter(pipe3)
+
+        self.compare_iters(it2, it3)
+
 
 # Framework tests
 
@@ -377,6 +461,7 @@ class TestPytorch(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -398,6 +483,7 @@ class TestPytorchRagged(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -420,6 +506,7 @@ class TestJax(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
         )
 
 
@@ -439,6 +526,7 @@ class TestPaddle(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -463,6 +551,7 @@ class TestMxnet(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )
@@ -495,6 +584,7 @@ class TestGluon(FwTestBase):
             (LastBatchPolicy.DROP, True),
             (LastBatchPolicy.DROP, False),
             (LastBatchPolicy.FILL, True),
+            (LastBatchPolicy.FILL, False),
             (LastBatchPolicy.PARTIAL, False),
             (LastBatchPolicy.PARTIAL, True),
         )

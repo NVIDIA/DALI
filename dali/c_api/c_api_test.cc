@@ -1103,11 +1103,16 @@ TEST(CApiTest, CheckpointingTest) {
 
   // Save the checkpoint
   daliExternalContextCheckpoint mock_external_context{};
-  const std::string data = "Hello world";
 
-  mock_external_context.pipeline_data.data = static_cast<char *>(daliAlloc(data.size()));
-  memcpy(mock_external_context.pipeline_data.data, data.c_str(), data.size());
-  mock_external_context.pipeline_data.size = data.size();
+  const std::string pipeline_data = "Hello world";
+  mock_external_context.pipeline_data.data = static_cast<char *>(daliAlloc(pipeline_data.size()));
+  memcpy(mock_external_context.pipeline_data.data, pipeline_data.c_str(), pipeline_data.size());
+  mock_external_context.pipeline_data.size = pipeline_data.size();
+
+  const std::string iterator_data = "Iterator data!";
+  mock_external_context.iterator_data.data = static_cast<char *>(daliAlloc(iterator_data.size()));
+  memcpy(mock_external_context.iterator_data.data, iterator_data.c_str(), iterator_data.size());
+  mock_external_context.iterator_data.size = iterator_data.size();
 
   char *cpt;
   size_t n;
@@ -1130,7 +1135,12 @@ TEST(CApiTest, CheckpointingTest) {
   EXPECT_EQ(strncmp(
     restored_external_context.pipeline_data.data,
     mock_external_context.pipeline_data.data,
-    restored_external_context.pipeline_data.size), 0);
+    mock_external_context.pipeline_data.size), 0);
+  EXPECT_EQ(strncmp(
+    restored_external_context.iterator_data.data,
+    mock_external_context.iterator_data.data,
+    mock_external_context.iterator_data.size), 0);
+  daliDestroyExternalContextCheckpoint(&mock_external_context);
   daliDestroyExternalContextCheckpoint(&restored_external_context);
 
   // Check the result of the new pipeline
