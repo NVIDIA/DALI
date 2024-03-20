@@ -189,9 +189,9 @@ def test_choice_64_bit_type():
     pipe.build()
     for _ in range(3):
         (out,) = pipe.run()
-        assert out.dtype == types.INT64, f"Expected {types.INT64}, got {out[i].dtype}."
+        assert out.dtype == types.INT64, f"Expected {types.INT64}, got {out.dtype}."
         for i in range(2):
-            assert (0 <= np.array(out[i]) < (1 << 40)).all(), "Expected all outputs to be 1."
+            assert (0 <= np.array(out[i]) < (1 << 40)).all(), f"Output out of range: {out[i]}."
 
 
 @params(

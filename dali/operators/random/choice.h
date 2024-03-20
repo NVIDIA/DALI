@@ -131,8 +131,8 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
       ),  // NOLINT
       (
         DALI_FAIL("Data type ", dtype_, " is not supported for 0D inputs. "
-                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");)
-      );
+                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");
+      ));  // NOLINT
     }
     return input.tensor_shape_span(sample_idx)[0];
   }
