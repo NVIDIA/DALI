@@ -196,6 +196,27 @@ def test_choice_64_bit_type():
 
 @params(
     *[
+        ("N", 10),
+        ("", None),
+    ]
+)
+def test_layout(expected_layout, shape):
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
+    def choice_pipe():
+        a = fn.external_source(lambda: np.array([1, 2, 3], dtype=np.int32), batch=False, layout="N")
+        return fn.random.choice(a, shape=shape)
+
+    pipe = choice_pipe()
+    pipe.build()
+    for _ in range(3):
+        (out,) = pipe.run()
+        assert (
+            out.layout() == expected_layout
+        ), f'Expected layout "{expected_layout}", got {out.layout()}.'
+
+
+@params(
+    *[
         (
             (1,),
             {"p": 1.5},

@@ -45,21 +45,16 @@ struct ChoiceSampleDist {
 
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
+  template <bool uniform_ = uniform, typename = std::enable_if_t<!uniform_>>
   DALI_HOST_DEV ChoiceSampleDist(const T *elements, const float *p_first, const float *p_last)
-      : elements_(elements) {
-    if constexpr (!uniform) {
-      dist_ = DistType(p_first, p_last);
-    } else {
-      assert(false);  // Should not be called
-    }
+      : elements_(elements), dist_{p_first, p_last} {
+    static_assert(!uniform_, "This is non-uniform variant");
   }
 
-  DALI_HOST_DEV ChoiceSampleDist(const T *elements, int64_t element_count) : elements_(elements) {
-    if constexpr (uniform) {
-      dist_ = DistType(0, element_count - 1);
-    } else {
-      assert(false);  // Should not be called
-    }
+  template <bool uniform_ = uniform, typename = std::enable_if_t<uniform_>>
+  DALI_HOST_DEV ChoiceSampleDist(const T *elements, int64_t element_count)
+      : elements_(elements), dist_(0, element_count - 1) {
+    static_assert(uniform_, "This is uniform variant");
   }
 
   template <typename Generator>
@@ -83,20 +78,16 @@ struct ChoiceSampleDist<T, uniform, false> {
 
   DALI_HOST_DEV explicit ChoiceSampleDist() {}
 
-  DALI_HOST_DEV ChoiceSampleDist(const float *p_first, const float *p_last) {
-    if constexpr (!uniform) {
-      dist_ = DistType(p_first, p_last);
-    } else {
-      assert(false);  // Should not be called
-    }
+  template <bool uniform_ = uniform, typename = std::enable_if_t<!uniform_>>
+  DALI_HOST_DEV ChoiceSampleDist(const float *p_first, const float *p_last)
+      : dist_{p_first, p_last} {
+    static_assert(!uniform_, "This is non-uniform variant");
   }
 
-  DALI_HOST_DEV ChoiceSampleDist(int64_t element_count) {
-    if constexpr (uniform) {
-      dist_ = DistType(0, element_count - 1);
-    } else {
-      assert(false);  // Should not be called
-    }
+
+  template <bool uniform_ = uniform, typename = std::enable_if_t<uniform_>>
+  DALI_HOST_DEV ChoiceSampleDist(int64_t element_count) : dist_(0, element_count - 1) {
+    static_assert(uniform_, "This is uniform variant");
   }
 
   template <typename Generator>
