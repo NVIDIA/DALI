@@ -288,6 +288,10 @@ for ((i=0;i<${#rec_list[@]};++i)); do
    make_wheel_record $FNAME $RECORD_FILE $TMPDIR &
 done
 wait
+
+echo "Removing lock file..."
+rm -f $TMPDIR/dali_rec.lock
+
 echo "$RECORD_FILE,," >> $RECORD_FILE
 echo "Finished generating new record file $RECORD_FILE"
 
