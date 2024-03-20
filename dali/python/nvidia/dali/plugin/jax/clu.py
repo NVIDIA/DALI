@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -148,18 +148,18 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         self._pool = None
         self._peek = None
 
-        # Set element spec based on the first element
         self._element_spec = None
-        peeked_output = self.peek()
 
+    def _set_element_spec(self, output):
         self._element_spec = {
-            output_name: get_spec_for_array(peeked_output[output_name])
+            output_name: get_spec_for_array(output[output_name])
             for output_name in self._output_categories
         }
 
     def _assert_output_shape_and_type(self, output):
         if self._element_spec is None:
-            return output
+            # Set element spec based on the first seen element
+            self._set_element_spec(output)
 
         for key in output:
             if get_spec_for_array(output[key]) != self._element_spec[key]:
@@ -227,6 +227,14 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         future = self._pool.submit(self.peek)
         return future
 
+    def checkpoints(self):
+        if self._peek is not None:
+            raise RuntimeError(
+                "Checkpointing is not supported for peekable iterators with peeked data. "
+                "Consume the peeked data completely using next() before saving a checkpoint."
+            )
+        return super().checkpoints()
+
     @property
     def element_spec(self) -> ElementSpec:
         """Returns the element spec for the elements returned by the iterator.
@@ -236,6 +244,8 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         Returns:
             ElementSpec: Element spec for the elements returned by the iterator.
         """
+        if self._element_spec is None:
+            self._set_element_spec(self.peek())
         return self._element_spec
 
     @property
