@@ -159,12 +159,10 @@ def test_choice_0_prob():
 
 
 @params(
-    *[
-        (1, np.array(0), 1.0),
-        (1, np.array(0), None),
-        (np.array([7]), np.array(7), 1.0),
-        (np.array([7]), np.array(7), None),
-    ]
+    (1, np.array(0), 1.0),
+    (1, np.array(0), None),
+    (np.array([7]), np.array(7), 1.0),
+    (np.array([7]), np.array(7), None),
 )
 def test_choice_1_elem(input, expected_output, p):
     @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
@@ -195,10 +193,8 @@ def test_choice_64_bit_type():
 
 
 @params(
-    *[
-        ("N", 10),
-        ("", None),
-    ]
+    ("N", 10),
+    ("", None),
 )
 def test_layout(expected_layout, shape):
     @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
@@ -216,44 +212,42 @@ def test_layout(expected_layout, shape):
 
 
 @params(
-    *[
-        (
-            (1,),
-            {"p": 1.5},
-            "Probabilities must be in range *, but got: 1.5 for sample: 0 at index 0.",
-        ),
-        (
-            (2,),
-            {"p": 0.25},
-            "Sum of probabilities must be 1.0, but got 0.5 for sample: 0.",
-        ),
-        (
-            (-5,),
-            {},
-            "Expected positive number of elements for sampling, got: -5 for sample: 0.",
-        ),
-        (
-            (0,),
-            {},
-            "Expected positive number of elements for sampling, got: 0 for sample: 0.",
-        ),
-        (
-            (5.0,),
-            {},
-            "Data type float is not supported for 0D inputs. Supported types are: "
-            "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
-        ),
-        (
-            (np.array([[2, 3], [4, 5]]),),
-            {},
-            "The operator only supports sampling of 0D elements, got: 2D input.",
-        ),
-        (
-            (5,),
-            {"p": np.array([0.25, 0.5, 0.25])},
-            'Unexpected shape for argument "p". Expected {5}, but got {3}',
-        ),
-    ]
+    (
+        (1,),
+        {"p": 1.5},
+        "Probabilities must be in range *, but got: 1.5 for sample: 0 at index 0.",
+    ),
+    (
+        (2,),
+        {"p": 0.25},
+        "Sum of probabilities must be 1.0, but got 0.5 for sample: 0.",
+    ),
+    (
+        (-5,),
+        {},
+        "Expected positive number of elements for sampling, got: -5 for sample: 0.",
+    ),
+    (
+        (0,),
+        {},
+        "Expected positive number of elements for sampling, got: 0 for sample: 0.",
+    ),
+    (
+        (5.0,),
+        {},
+        "Data type float is not supported for 0D inputs. Supported types are: "
+        "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
+    ),
+    (
+        (np.array([[2, 3], [4, 5]]),),
+        {},
+        "The operator only supports sampling of 0D elements, got: 2D input.",
+    ),
+    (
+        (5,),
+        {"p": np.array([0.25, 0.5, 0.25])},
+        'Unexpected shape for argument "p". Expected {5}, but got {3}',
+    ),
 )
 def test_choice_validation(args, kwargs, expected_error):
 
