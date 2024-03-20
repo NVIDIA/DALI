@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 namespace dali {
 namespace kernels {
 namespace resampling {
-
 
 template <int spatial_ndim, typename Output, typename Input>
 __global__ void BatchedSeparableResampleKernel(
@@ -97,6 +96,7 @@ void BatchedSeparableResample(
     const SampleDesc<spatial_ndim> *samples,
     const BlockDesc<spatial_ndim> *block2sample, int num_blocks,
     ivec3 block_size,
+    int shm_size,
     cudaStream_t stream) {
   if (num_blocks <= 0)
     return;
@@ -104,7 +104,7 @@ void BatchedSeparableResample(
   dim3 block(block_size.x, block_size.y, block_size.z);
 
   BatchedSeparableResampleKernel<spatial_ndim, Output, Input>
-  <<<num_blocks, block, ResampleSharedMemSize, stream>>>(which_pass, samples, block2sample);
+  <<<num_blocks, block, shm_size, stream>>>(which_pass, samples, block2sample);
   CUDA_CALL(cudaGetLastError());
 }
 
@@ -114,7 +114,7 @@ template DLL_PUBLIC void BatchedSeparableResample<spatial_ndim, Output, Input>( 
   int which_pass,                                                               \
   const SampleDesc<spatial_ndim> *samples,                                      \
   const BlockDesc<spatial_ndim> *block2sample, int num_blocks,                  \
-  ivec3 block_size, cudaStream_t stream)
+  ivec3 block_size, int shm_size, cudaStream_t stream)
 
 // Instantiate the resampling functions.
 // The resampling always goes through intermediate image of float type.

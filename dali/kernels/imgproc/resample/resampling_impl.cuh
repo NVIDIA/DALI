@@ -24,8 +24,6 @@
 namespace dali {
 namespace kernels {
 
-constexpr int ResampleSharedMemSize = 32<<10;
-
 namespace {  // NOLINT
 
 template <int n>

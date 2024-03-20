@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -200,6 +200,8 @@ ProcessingOrder<ndim> GetProcessingOrder(
   return poc();
 }
 
+static constexpr int kMaxElementsPerBlock = 2048;
+
 /**
  * @brief Calculates block layout for a 2D sample
  */
@@ -214,6 +216,11 @@ void SeparableResamplingSetup<2>::ComputeBlockLayout(SampleDesc &sample) const {
 
     ivec2 blk = sample.shapes[pass+1];
     blk[axis] = block_dim[axis];
+    int64_t block_vol = volume(blk);
+    if (block_vol > kMaxElementsPerBlock) {
+      int den = div_ceil(block_vol, static_cast<uint64_t>(kMaxElementsPerBlock));
+      blk[1 - axis] = align_up(blk[1 - axis] / den, 32);
+    }
     sample.logical_block_shape[pass] = blk;
   }
 }
@@ -231,8 +238,6 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
   for (int pass = 0; pass < 3; pass++) {
     int axis = sample.order[pass];
 
-    const int MaxElementsPerBlock = 1<<18;  // 256k elements, incl. channels
-
     // Horizontal pass (axis == 0) is processed in vertical slices
     // the width of block_dim and extending down the entire image.
     // Depth of the slice is calculated so that it contains no more than
@@ -245,10 +250,10 @@ void SeparableResamplingSetup<3>::ComputeBlockLayout(SampleDesc &sample) const {
     ivec3 blk = pass_output_shape;
     if (axis < 2) {
       blk[axis] = block_dim[axis];
-      blk.z = MaxElementsPerBlock / (blk[0] * blk[1] * sample.channels);
+      blk.z = kMaxElementsPerBlock / (blk[0] * blk[1] * sample.channels);
     } else {
       blk.z = block_dim.y;  // (yes, .y)
-      blk.y = MaxElementsPerBlock / (blk[0] * blk[2] * sample.channels);
+      blk.y = kMaxElementsPerBlock / (blk[0] * blk[2] * sample.channels);
     }
     blk = clamp(blk, ivec3(1, 1, 1), pass_output_shape);
     sample.logical_block_shape[pass] = blk;
@@ -345,6 +350,9 @@ void BatchResamplingSetup<spatial_ndim>::SetupBatch(
   if (!this->filters)
     this->Initialize();
 
+  for (int &s : shm_size_for_pass)
+    s = 0;
+
   int N = in.num_samples();
   assert(params.size() == static_cast<span_extent_t>(N));
 
@@ -383,6 +391,28 @@ void BatchResamplingSetup<spatial_ndim>::SetupBatch(
         blocks[d] = div_ceil(desc.shapes[pass+1][d], desc.logical_block_shape[pass][d]);
       }
       total_blocks[pass] += volume(blocks);
+    }
+
+    // compute shared memory requirements for this sample
+    for (int pass = 0; pass < spatial_ndim; pass++) {
+      auto &filter = desc.filter[desc.order[pass]];
+      int shm_size = 0;
+      if (filter.num_coeffs > 0) {
+        int sup = filter.support();
+
+        // above 256 we go the "huge kernel" route - the kernel is the same for all threads
+        if (sup > 256) {
+          shm_size = sup * sizeof(float);
+        } else {
+          // The coefficients are calculated separately for each:
+          // - threadIdx.x, when resampling horizontally
+          // - threadIdx.y, when resampling vertically or depthwise
+          int block_extent = desc.order[pass] == 0 ? block_dim.x : block_dim.y;
+          shm_size = sup * block_extent * sizeof(float);
+        }
+      }
+      if (shm_size > shm_size_for_pass[pass])
+        shm_size_for_pass[pass] = shm_size;
     }
   }
 }
