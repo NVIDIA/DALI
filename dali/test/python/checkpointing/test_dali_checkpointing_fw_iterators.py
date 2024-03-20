@@ -593,6 +593,7 @@ class TestJaxPeekable(FwTestBase):
 
         self.check_decorator(peekable_data_iterator)
 
+
 class TestPaddle(FwTestBase):
     def __init__(self):
         super().__init__()
