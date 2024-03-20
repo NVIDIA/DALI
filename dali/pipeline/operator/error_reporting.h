@@ -186,6 +186,29 @@ class DaliStopIteration : public DaliError {
  */
 std::string GetErrorContextMessage(const OpSpec &spec);
 
+namespace validate {
+
+//TODO: additional message
+//Dim, Type, axis, dtype
+//Matching shape reference, matching other input.
+void CheckInputType(OpSpec &spec, Workspace &ws, int input_idx, DALIDataType allowed_type);
+void CheckInputType(OpSpec &spec, Workspace &ws, int input_idx,
+                    const std::vector<DALIDataType> &allowed_types);
+void CheckInputType(OpSpec &spec, Workspace &ws, const std::string &argument_name,
+                    DALIDataType allowed_type);
+void CheckInputType(OpSpec &spec, Workspace &ws, const std::string &argument_name,
+                    const std::vector<DALIDataType> &allowed_types);
+
+template <typename... InputTypes>
+void CheckInputType(OpSpec &spec, Workspace &ws, int input_idx);
+template <typename... InputTypes>
+void CheckInputType(OpSpec &spec, Workspace &ws, const std::string &argument_name);
+
+
+
+}
+
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_
