@@ -1434,6 +1434,19 @@ def test_random_bbox_crop():
     )
 
 
+def test_random_choice_cpu():
+    shape_batch_list = [[np.array(i + 3) for i in range(batch_size)] for _ in range(data_size)]
+
+    data = GetData(shape_batch_list)
+
+    check_single_input_stateful(
+        "random.choice",
+        fn_source=data.fn_source,
+        eager_source=data.eager_source,
+        layout=None,
+    )
+
+
 def test_random_coin_flip():
     check_no_input_stateful("random.coin_flip")
 
@@ -1590,6 +1603,7 @@ tested_methods = [
     "random_bbox_crop",
     "random_resized_crop",
     "resize_crop_mirror",
+    "random.choice",
     "random.coin_flip",
     "random.normal",
     "random.uniform",

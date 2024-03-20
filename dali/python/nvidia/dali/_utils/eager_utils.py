@@ -40,6 +40,7 @@ _stateful_operators = {
     "RandomBBoxCrop",
     "RandomResizedCrop",
     "RandomCropGenerator",
+    "random__Choice",
     "random__CoinFlip",
     "random__Normal",
     "random__Uniform",
