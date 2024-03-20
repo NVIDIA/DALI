@@ -19,13 +19,12 @@ import cv2
 import nvidia.dali.types as types
 import glob
 from itertools import cycle
-from test_utils import get_dali_extra_path, is_mulit_gpu
+from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 from nose import SkipTest
 from nose.plugins.attrib import attr
 
-import subprocess as sp
 
 filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
 # filter out HEVC because some GPUs do not support it
@@ -34,22 +33,6 @@ filenames = filter(lambda filename: "hevc" not in filename, filenames)
 filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
 
 files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
-
-
-def get_gpu_name_from_nvml():
-    try:
-        nvml_output = sp.check_output(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"])
-        return nvml_output.decode("utf-8").strip().split("\n")
-    except sp.CalledProcessError:
-        return None
-
-
-def skip_if_m60():
-    """Skip the test if the GPU is M60. The video decoder is not supported in full on M60."""
-
-    gpus = get_gpu_name_from_nvml()
-    if "Tesla M60" in gpus:
-        raise SkipTest()
 
 
 @pipeline_def(device_id=0)

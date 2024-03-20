@@ -26,9 +26,9 @@ import re
 import subprocess
 import sys
 import tempfile
+from nose import SkipTest
 
 from distutils.version import LooseVersion
-
 
 def get_arch(device_id=0):
     compute_cap = 0
@@ -66,6 +66,24 @@ def get_device_memory_info(device_id=0):
     except ModuleNotFoundError:
         print("Python bindings for NVML not found")
         return None
+
+
+def get_gpu_name_from_nvml():
+    try:
+        nvml_output = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"]
+        )
+        return nvml_output.decode("utf-8").strip().split("\n")
+    except subprocess.CalledProcessError:
+        return None
+
+
+def skip_if_m60():
+    """Skip the test if the GPU is M60. The video decoder is not supported in full on M60."""
+
+    gpus = get_gpu_name_from_nvml()
+    if "Tesla M60" in gpus:
+        raise SkipTest()
 
 
 def get_dali_extra_path():
