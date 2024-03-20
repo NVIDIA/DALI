@@ -22,23 +22,29 @@ namespace dali {
 DALI_SCHEMA(random__Choice)
     .DocStr(R"code(Generates a random sample from a given 1D array.
 
-The probability of selecting a sample from the input is determined by the probability distribution
+The probability of selecting a sample from the input is determined by the corresponding probability
 specified in ``p`` argument.
 
 The shape of the generated data can be either specified explicitly with a ``shape`` argument,
 or chosen to match the shape of the ``__shape_like`` input, if provided. If none are present,
 a single value per sample is generated.
+
+The type of the output matches the type of the input.
+For scalar inputs, only integral types are supported, otherwise any type can be used.
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",
-              "If a scalar value ``__a`` is provided, values in ``[0, __a)`` are sampled. "
+              "If a scalar value ``__a`` is provided, the operator behaves as if "
+              "``[0, 1, ..., __a-1]`` list was passed as input. "
               "Otherwise ``__a`` is treated as 1D array of input samples.")
     .InputDox(1, "shape_like", "TensorList",
               "Shape of this input will be used to infer the shape of the output, if provided.")
     .NumOutput(1)
-    .AddOptionalArg<std::vector<float>>("p", R"code(Distribution of the probabilities.)code",
+    .AddOptionalArg<std::vector<float>>("p",
+                                        "Distribution of the probabilities. "
+                                        "If not specified, uniform distribution is assumed.",
                                         nullptr, true)
-    .AddParent("RNGAttr");
+    .AddOptionalArg<std::vector<int>>("shape", "Shape of the output data.", nullptr, true);
 
 DALI_REGISTER_OPERATOR(random__Choice, Choice<CPUBackend>, CPU);
 

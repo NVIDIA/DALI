@@ -145,6 +145,55 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
         )
 
 
+def test_choice_0_prob():
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
+    def choice_pipe():
+        return fn.random.choice(2, p=[0.0, 1.0], shape=10)
+
+    pipe = choice_pipe()
+    pipe.build()
+    for _ in range(3):
+        (out,) = pipe.run()
+        for i in range(2):
+            assert (out[i] == np.full(10, 1)).all(), "Expected all outputs to be 1."
+
+
+@params(
+    *[
+        (1, np.array(0), 1.0),
+        (1, np.array(0), None),
+        (np.array([7]), np.array(7), 1.0),
+        (np.array([7]), np.array(7), None),
+    ]
+)
+def test_choice_1_elem(input, expected_output, p):
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
+    def choice_pipe():
+        return fn.random.choice(input, p=p)
+
+    pipe = choice_pipe()
+    pipe.build()
+    for _ in range(3):
+        (out,) = pipe.run()
+        for i in range(2):
+            assert (out[i] == expected_output).all(), f"Expected {expected_output}, got {out[i]}."
+
+
+def test_choice_64_bit_type():
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
+    def choice_pipe():
+        a = fn.external_source(lambda: np.array(1 << 40, dtype=np.int64), batch=False)
+        return fn.random.choice(a)
+
+    pipe = choice_pipe()
+    pipe.build()
+    for _ in range(3):
+        (out,) = pipe.run()
+        assert out.dtype == types.INT64, f"Expected {types.INT64}, got {out[i].dtype}."
+        for i in range(2):
+            assert (0 <= np.array(out[i]) < (1 << 40)).all(), "Expected all outputs to be 1."
+
+
 @params(
     *[
         (
@@ -163,17 +212,15 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
             "Expected positive number of elements for sampling, got: -5 for sample: 0.",
         ),
         (
-            (5,),
-            {"dtype": types.FLOAT},
-            "Data type float is not supported for 0D inputs. Supported types are: "
-            "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
+            (0,),
+            {},
+            "Expected positive number of elements for sampling, got: 0 for sample: 0.",
         ),
         (
-            (np.array([2, 3, 4]),),
-            {"dtype": types.FLOAT},
-            "For output sampled from list of input samples (when the input is not a scalar), "
-            "the requested output type must match the type of the input, "
-            "expected: int32, got: float.",
+            (5.0,),
+            {},
+            "Data type float is not supported for 0D inputs. Supported types are: "
+            "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
         ),
         (
             (np.array([[2, 3], [4, 5]]),),

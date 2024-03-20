@@ -95,7 +95,6 @@ class OperatorWithRng : public Operator<Backend>{
  *
  * @tparam IsNoiseGen - noise generators by default copy type from input and compute the output
  * value based on the input value at given coordinate.
- * compute
  */
 template <typename Backend, typename Impl, bool IsNoiseGen>
 class RNGBase : public OperatorWithRng<Backend> {
@@ -116,12 +115,6 @@ class RNGBase : public OperatorWithRng<Backend> {
   DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_NO_TYPE;
   }
-
-  /**
-   * @brief Optional validation of the "dtype" argument. Called after `dtype_` is calculated
-   * based on the input, "dtype" argument, or DefaultDataType().
-   */
-  void ValidateDataType(const OpSpec &spec, const Workspace &ws) {}
 
   /**
    * @brief Customization point for obtaining argument inputs or arguments during SetupImpl.
@@ -169,8 +162,6 @@ class RNGBase : public OperatorWithRng<Backend> {
       dtype_ = ws.Input<Backend>(0).type();
     else if (!spec_.TryGetArgument(dtype_, "dtype"))
       dtype_ = This().DefaultDataType(spec_, ws);
-
-    This().ValidateDataType(spec_, ws);
 
     bool has_shape = spec_.ArgumentDefined("shape");
     // The first optional input is the shape like

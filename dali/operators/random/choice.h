@@ -35,6 +35,8 @@ namespace dali {
 
 /**
  * @brief Variant for 1D input - we sample index and take the corresponding value from input pointer
+ * @tparam indirect - whether the distribution result is used as the index into the `elements`
+ * array (true) or returned directly (false).
  */
 template <typename T, bool uniform, bool indirect = true>
 struct ChoiceSampleDist {
@@ -71,8 +73,8 @@ struct ChoiceSampleDist {
 };
 
 /**
- * @brief Variant for generating indices. In case of 0D input, we treat those indices as the
- * actual sampled values in range [0, element_count).
+ * @brief Variant that uses the result of distribution directly, to generate values in the
+ * [0, element_count) range for 0D case.
  */
 template <typename T, bool uniform>
 struct ChoiceSampleDist<T, uniform, false> {
@@ -123,11 +125,14 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
    */
   int64_t GetSampleNumElements(const TensorList<CPUBackend> &input, int sample_idx) const {
     if (input.sample_dim() == 0) {
-      TYPE_SWITCH(input.type(), type2id, T, (DALI_CHOICE_0D_TYPES),
+      TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_0D_TYPES),
       (
         return input.tensor<T>(sample_idx)[0];
       ),  // NOLINT
-      ());
+      (
+        DALI_FAIL("Data type ", dtype_, " is not supported for 0D inputs. "
+                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");)
+      );
     }
     return input.tensor_shape_span(sample_idx)[0];
   }
@@ -160,26 +165,19 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     }
   }
 
-  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
-    if (ws.Input<CPUBackend>(0).sample_dim() == 0) {
-      return DALI_INT32;
-    } else {
-      return ws.Input<CPUBackend>(0).type();
-    }
-  }
-
   /**
-   * @brief We only allow sampling of the input elements or generating integral types if the
-   * input is scalar.
+   * @brief Set the same output type as input type.
+   * Choice doesn't support customizing the output type.
    */
-  void ValidateDataType(const OpSpec &spec, const Workspace &ws) const {
-    if (ws.Input<CPUBackend>(0).sample_dim() != 0) {
-      DALI_ENFORCE(ws.Input<CPUBackend>(0).type() == dtype_,
-                   make_string("For output sampled from list of input samples "
-                               "(when the input is not a scalar), the requested output type must "
-                               "match the type of the input, expected: ",
-                               ws.Input<CPUBackend>(0).type(), ", got: ", dtype_, "."));
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
+    const auto &input = ws.Input<CPUBackend>(0);
+    if (input.sample_dim() == 0) {
+      DALI_ENFORCE(input.type() != DALI_BOOL && !IsFloatingPoint(input.type()),
+                   make_string("Data type ", input.type(),
+                               " is not supported for 0D inputs. Supported types are: ",
+                               ListTypeNames<DALI_CHOICE_0D_TYPES>(), "."));
     }
+    return ws.Input<CPUBackend>(0).type();
   }
 
   template <typename T>
