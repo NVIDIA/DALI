@@ -30,6 +30,7 @@ from nose import SkipTest
 
 from distutils.version import LooseVersion
 
+
 def get_arch(device_id=0):
     compute_cap = 0
     try:
