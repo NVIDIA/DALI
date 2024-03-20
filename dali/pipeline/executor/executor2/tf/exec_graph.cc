@@ -148,6 +148,13 @@ void assert_valid(ExecGraph &eg) {
 }
 
 void assert_valid(SchedGraph &eg) {
+  for (auto &e : eg.edges) {
+    if (e.producer)
+      assert(e.producer >= eg.nodes.data() && e.producer < eg.nodes.data() + eg.nodes.size());
+    if (e.consumer)
+      assert(e.consumer >= eg.nodes.data() && e.consumer < eg.nodes.data() + eg.nodes.size());
+  }
+
   for (auto &sched_node : eg.nodes) {
     assert(sched_node.definition);
     auto &exec_node = *sched_node.definition;
@@ -155,10 +162,14 @@ void assert_valid(SchedGraph &eg) {
     auto validate_edges = [](auto &sched_edges, auto &exec_edges) {
       assert(static_cast<size_t>(sched_edges.size()) == exec_edges.size());
       for (int i = 0; i < sched_edges.size(); i++) {
-        assert(sched_edges[i].producer->definition == exec_edges[i]->producer);
-        assert(sched_edges[i].consumer->definition == exec_edges[i]->consumer);
-        assert(sched_edges[i].producer_output_idx == exec_edges[i]->producer_output_idx);
-        assert(sched_edges[i].consumer_input_idx == exec_edges[i]->consumer_input_idx);
+        if (sched_edges[i].producer) {
+          assert(sched_edges[i].producer->definition == exec_edges[i]->producer);
+          assert(sched_edges[i].producer_output_idx == exec_edges[i]->producer_output_idx);
+        }
+        if (sched_edges[i].consumer) {
+          assert(sched_edges[i].consumer->definition == exec_edges[i]->consumer);
+          assert(sched_edges[i].consumer_input_idx == exec_edges[i]->consumer_input_idx);
+        }
       }
     };
 
@@ -168,7 +179,9 @@ void assert_valid(SchedGraph &eg) {
     for (int i = 0; i < sched_node.outputs.size(); i++) {
       auto &e = sched_node.outputs[i];
       assert(e.producer == &sched_node);
-      assert(e.consumer->inputs[e.consumer_input_idx] == e);
+      if (e.consumer) {
+        assert(e.consumer->inputs[e.consumer_input_idx] == e);
+      }
     }
     for (int i = 0; i < sched_node.inputs.size(); i++) {
       auto &e = sched_node.inputs[i];
@@ -188,6 +201,115 @@ void assert_valid(SchedGraph &eg) {
   }
 }
 
+inline ptrdiff_t ptrdiff(const void *a, const void *b) {
+  return reinterpret_cast<intptr_t>(a) - reinterpret_cast<intptr_t>(b);
+}
+
+template <typename T>
+inline T *ptradd(T *a, ptrdiff_t byte_offset) {
+  return reinterpret_cast<T*>(reinterpret_cast<intptr_t>(a) + byte_offset);
+}
+
+void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
+  std::unordered_map<ExecNode *, int> node_indices(def.nodes.size());
+  nodes.clear();
+  edges.clear();
+
+  std::vector<ExecNode *> sorted;
+  def.sort_and_prune(sorted);
+
+  int num_edges = 0;
+  for (auto *node : sorted) {
+    node_indices.insert({node, node_indices.size()});
+    num_edges += node->inputs.size() + node->outputs.size();
+  }
+
+  edges.resize(num_edges);
+  nodes.resize(sorted.size());
+
+  int i = 0;
+  int e = 0;
+  for (auto &exec_node : sorted) {
+    auto &sched_node = nodes[i++];
+    sched_node.definition = exec_node;
+    sched_node.ws = sched_node.definition->GetWorkspace(params);
+    SchedEdge *inp = &edges[e];
+    for (auto *exec_edge : exec_node->inputs) {
+      assert(e < (int)edges.size());
+      auto &sched_edge = edges[e++];
+      sched_edge.producer_output_idx = exec_edge->producer_output_idx;
+      sched_edge.consumer_input_idx = exec_edge->consumer_input_idx;
+      if (exec_edge->producer)
+        sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
+      if (exec_edge->consumer)
+        sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
+    }
+    SchedEdge *out = &edges[e];
+    for (auto *exec_edge : exec_node->outputs) {
+      assert(e < (int)edges.size());
+      auto &sched_edge = edges[e++];
+      sched_edge.producer_output_idx = exec_edge->producer_output_idx;
+      sched_edge.consumer_input_idx = exec_edge->consumer_input_idx;
+      if (exec_edge->producer)
+        sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
+      if (exec_edge->consumer)
+        sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
+    }
+    SchedEdge *end = &edges[e];
+    sched_node.inputs = span(inp, out);
+    sched_node.outputs = span(out, end);
+  }
+  assert(static_cast<size_t>(e) == edges.size());
+  assert_valid(*this);
+}
+
+SchedGraph &SchedGraph::operator=(const SchedGraph &g) {
+  nodes.resize(g.nodes.size());
+  edges = g.edges;
+
+  int V = nodes.size();
+  int E = edges.size();
+
+  ptrdiff_t edge_fixup = ptrdiff(edges.data(), g.edges.data());
+  ptrdiff_t node_fixup = ptrdiff(nodes.data(), g.nodes.data());
+
+  for (auto &e : edges) {
+    if (e.producer) {
+      assert(e.producer >= g.nodes.data() && e.producer < g.nodes.data() + g.nodes.size());
+      e.producer = ptradd(e.producer, node_fixup);
+      assert(e.producer >= nodes.data() && e.producer < nodes.data() + nodes.size());
+    }
+    if (e.consumer) {
+      assert(e.consumer >= g.nodes.data() && e.consumer < g.nodes.data() + g.nodes.size());
+      e.consumer = ptradd(e.consumer, node_fixup);
+      assert(e.consumer >= nodes.data() && e.consumer < nodes.data() + nodes.size());
+    }
+  }
+
+  for (int i = 0; i < V; i++) {
+    nodes[i].definition = g.nodes[i].definition;
+    nodes[i].inputs = nodes[i].outputs = {};
+    nodes[i].ws = nodes[i].definition->GetWorkspace(GetWorkspaceParams(*g.nodes[i].ws));
+
+    if (!g.nodes[i].inputs.empty())
+      nodes[i].inputs =
+          span(ptradd(g.nodes[i].inputs.data(), edge_fixup), g.nodes[i].inputs.size());
+    if (!g.nodes[i].outputs.empty())
+      nodes[i].outputs =
+          span(ptradd(g.nodes[i].outputs.data(), edge_fixup), g.nodes[i].outputs.size());
+
+    assert(nodes[i].inputs.data() == nullptr ||
+            (nodes[i].inputs.data() >= edges.data() &&
+            nodes[i].inputs.data() + nodes[i].inputs.size() <= edges.data() + edges.size()));
+
+    assert(nodes[i].outputs.data() == nullptr ||
+            (nodes[i].outputs.data() >= edges.data() &&
+            nodes[i].outputs.data() + nodes[i].outputs.size() <= edges.data() + edges.size()));
+  }
+
+  assert_valid(*this);
+  return *this;
+}
 
 }  // namespace exec2
 }  // namespace dali

@@ -133,8 +133,6 @@ TEST(Exec2Test, SimpleGraph) {
 
 
 TEST(Exec2Test, Exception) {
-  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
-  auto start = dali::test::perf_timer::now();
   DummyOp::CreateSchema();
   OpSpec spec0("DummyOp");
   spec0.AddArg("addend", 100)
@@ -171,29 +169,19 @@ TEST(Exec2Test, Exception) {
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
   def.link(n2, 0, nullptr, 0);
-  auto end = dali::test::perf_timer::now();
-  std::cerr << "Test setup took " << dali::test::format_time(end-start) << std::endl;
-  start = dali::test::perf_timer::now();
-  auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, true, "test");
-  end = dali::test::perf_timer::now();
-  std::cerr << "Thread pool construction took " << dali::test::format_time(end-start) << std::endl;
+  ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
   WorkspaceParams params;
-  params.thread_pool = tp.get();
-  start = dali::test::perf_timer::now();
+  params.thread_pool = &tp;
   {
-    auto sched = SchedGraph::from_def(def, params);
-    tf::Taskflow tf;
-    sched->schedule(tf);
+    auto sched_template = SchedGraph::from_def(def, params);
     tf::Executor ex(4);
-    throw std::runtime_error("Wut");
-    ex.run(tf).get();
+    for (int i = 0; i < 10; i++) {
+      tf::Taskflow tf;
+      auto sched = sched_template->clone();
+      sched->schedule(tf);
+      EXPECT_THROW(ex.run(tf).get(), DALIException);
+    }
   }
-  end = dali::test::perf_timer::now();
-  std::cerr << "Graph lowering, execution and cleanup took " << dali::test::format_time(end-start) << std::endl;
-  start = dali::test::perf_timer::now();
-  tp.reset();
-  end = dali::test::perf_timer::now();
-  std::cerr << "Thread pool disposal took " << dali::test::format_time(end-start) << std::endl;
 }
 
 
