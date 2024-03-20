@@ -588,6 +588,10 @@ class TestJaxPeekable(FwTestBase):
         ):
             it.checkpoints()
 
+    def test_decorator(self):
+        from nvidia.dali.plugin.jax.clu import peekable_data_iterator
+
+        self.check_decorator(peekable_data_iterator)
 
 class TestPaddle(FwTestBase):
     def __init__(self):
