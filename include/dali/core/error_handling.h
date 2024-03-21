@@ -38,6 +38,7 @@
 #include <utility>
 
 #include "dali/core/common.h"
+#include "dali/core/source_location.h"
 
 namespace dali {
 
@@ -227,7 +228,16 @@ inline dali::string GetStacktrace() {
     }                                                                         \
   } while (0)
 
-#define DALI_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
+// #define DALI_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
+
+template <typename T>
+void DALI_ENFORCE(T condition, const std::string &error_string = "",
+                  source_location loc = source_location::current()) {
+  if (!condition) {
+    throw DALIException(error_string, make_string("[", loc.source_file(), ":", loc.line(), "]"),
+                        dali::GetStacktrace());
+  }
+}
 
 // Enforces that the value of 'var' is in the range [lower, upper)
 #define DALI_ENFORCE_IN_RANGE(var, lower, upper)                                         \
