@@ -156,13 +156,13 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
    * @brief Concatenate the requested output shape with the shape of the sampled element.
    */
   TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
-     const auto &input = ws.Input<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
     int element_dim = GetElementDim(input);
     TensorListShape<> shape(shape_.num_samples(), shape_.sample_dim() + element_dim);
     for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
       auto result = shape_cat(shape_[sample_idx], input.tensor_shape(sample_idx).last(element_dim));
       shape.set_tensor_shape(sample_idx, result);
-     }
+    }
     return shape;
   }
 
@@ -243,7 +243,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   }
 
  protected:
-
   /**
    * @brief Returns the number of elements that will be sampled for given sample_idx within batch.
    *
@@ -321,7 +320,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
     }
     tp.RunAll();
   }
-
 
 
   using Operator<Backend>::max_batch_size_;
