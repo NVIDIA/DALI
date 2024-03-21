@@ -14,31 +14,40 @@
 
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
-from nose import with_setup
+from nose import with_setup, SkipTest
 
 import test_dali_tf_dataset_mnist as mnist
 from nose_utils import raises
+from distutils.version import StrictVersion
 
 mnist.tf.compat.v1.disable_eager_execution()
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_gpu():
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("gpu", 0)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_other_gpu():
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("gpu", 1)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_cpu():
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     mnist.run_keras_single_device("cpu", 0)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
 def test_keras_wrong_placement_gpu():
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     with tf.device("cpu:0"):
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset("gpu", 0)
@@ -46,8 +55,10 @@ def test_keras_wrong_placement_gpu():
         model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
 def test_keras_wrong_placement_cpu():
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     with tf.device("gpu:0"):
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset("cpu", 0)

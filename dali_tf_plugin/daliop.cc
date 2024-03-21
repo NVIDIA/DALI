@@ -17,10 +17,15 @@
 #include <sstream>
 
 #include "tensorflow/core/framework/op.h"
+#include "tensorflow/core/public/version.h"
 
 // for Eigen::GpuDevice
 #define EIGEN_USE_GPU
+#if TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 16
+#include "unsupported/Eigen/CXX11/Tensor"
+#else
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#endif
 
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"

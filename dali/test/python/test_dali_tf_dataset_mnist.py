@@ -21,6 +21,8 @@ from test_utils_tensorflow import num_available_gpus
 from shutil import rmtree as remove_directory
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
+from distutils.version import StrictVersion
+from nose import SkipTest
 
 
 TARGET = 0.8
@@ -114,6 +116,8 @@ def run_keras_single_device(device="cpu", device_id=0):
 
 
 def graph_model(images, reuse, is_training):
+    if StrictVersion(tf.__version__) >= StrictVersion("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
     with tf_v1.variable_scope("mnist_net", reuse=reuse):
         images = tf_v1.layers.flatten(images)
         images = tf_v1.layers.dense(images, HIDDEN_SIZE, activation=tf_v1.nn.relu)
@@ -192,9 +196,12 @@ def _run_config(device="cpu", device_id=0):
 
 
 def run_estimators_single_device(device="cpu", device_id=0):
-    with tf.device("/{0}:{1}".format(device, device_id)):
-        model = keras_model()
-    model = tf.keras.estimator.model_to_estimator(
-        keras_model=model, config=_run_config(device, device_id)
-    )
-    _test_estimators_single_device(model, device, device_id)
+    if StrictVersion(tf.__version__) < StrictVersion("2.16"):
+        with tf.device("/{0}:{1}".format(device, device_id)):
+            model = keras_model()
+        model = tf.keras.estimator.model_to_estimator(
+            keras_model=model, config=_run_config(device, device_id)
+        )
+        _test_estimators_single_device(model, device, device_id)
+    else:
+        raise SkipTest("TF < 2.16 is required for this test")

@@ -513,18 +513,6 @@ all_packages = [
             ],
             "120": [
                 PckgVer(
-                    "2.13.1",
-                    python_min_ver="3.8",
-                    python_max_ver="3.10",
-                    alias="tensorflow",
-                    dependencies=[
-                        "protobuf<4",
-                        "numpy<1.24",
-                        "urllib3<2.0",
-                        "typing_extensions<4.6",
-                    ],
-                ),
-                PckgVer(
                     "2.14.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
@@ -536,7 +524,18 @@ all_packages = [
                     ],
                 ),
                 PckgVer(
-                    "2.15.0",
+                    "2.15.1",
+                    python_min_ver="3.9",
+                    alias="tensorflow",
+                    dependencies=[
+                        "protobuf<4",
+                        "numpy<1.24",
+                        "urllib3<2.0",
+                        "typing_extensions<4.6",
+                    ],
+                ),
+                PckgVer(
+                    "2.16.1",
                     python_min_ver="3.9",
                     alias="tensorflow",
                     dependencies=[
