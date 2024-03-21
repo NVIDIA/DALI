@@ -204,13 +204,16 @@ def test_choice_64_bit_type():
 
 
 @params(
-    ("N", 10),
-    ("", None),
+    (np.arange(3), "N", "N", 10),
+    (np.arange(3), "N", "", None),
+    (np.full((2, 3), 4), "NS", "S", None),
+    (np.full((2, 3), 4), "NS", "NS", 5),
+    (np.full((2, 3), 4), "NS", "", (1, 2)),
 )
-def test_layout(expected_layout, shape):
+def test_layout(input, input_layout, expected_layout, shape):
     @pipeline_def(batch_size=2, device_id=0, num_threads=4, seed=1234)
     def choice_pipe():
-        a = fn.external_source(lambda: np.array([1, 2, 3], dtype=np.int32), batch=False, layout="N")
+        a = fn.external_source(lambda: input, batch=False, layout=input_layout)
         return fn.random.choice(a, shape=shape)
 
     pipe = choice_pipe()
