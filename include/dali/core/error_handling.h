@@ -231,7 +231,7 @@ inline dali::string GetStacktrace() {
 // #define DALI_ENFORCE(...) GET_MACRO(__VA_ARGS__, ENFRC_2, ENFRC_1)(__VA_ARGS__)
 
 template <typename T>
-void DALI_ENFORCE(T condition, const std::string &error_string = "",
+void DALI_ENFORCE(const T &condition, const std::string &error_string = "",
                   source_location loc = source_location::current()) {
   if (!condition) {
     throw DALIException(error_string, make_string("[", loc.source_file(), ":", loc.line(), "]"),

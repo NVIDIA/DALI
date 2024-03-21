@@ -97,7 +97,7 @@ int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
  */
 dali::InputOperatorNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
   dali::InputOperatorNoCopyMode no_copy_mode = dali::InputOperatorNoCopyMode::DEFAULT;
-  DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
+  dali::DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
                "External Source cannot be forced to use DALI_ext_force_copy and "
                "DALI_ext_force_no_copy at the same time.");
   if (flags & DALI_ext_force_copy) {
@@ -722,7 +722,7 @@ void daliLoadLibrary(const char* lib_path) {
 
 void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,
                            daliReaderMetadata* meta) {
-  DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
+  dali::DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
   dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
   meta->epoch_size = returned_meta.epoch_size;
@@ -827,7 +827,7 @@ void daliGetSerializedCheckpoint(
     daliPipelineHandle_t pipe_handle,
     const daliExternalContextCheckpoint *external_context,
     char **checkpoint, size_t *n) {
-  DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
+  dali::DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
   auto &pipeline = (*pipe_handle)->pipeline;
   dali::ExternalContextCheckpoint ctx{};
   if (external_context->pipeline_data.data) {
@@ -845,7 +845,7 @@ void daliGetSerializedCheckpoint(
   std::string cpt = pipeline->SerializedCheckpoint(ctx);
   *n = cpt.size();
   *checkpoint = reinterpret_cast<char *>(daliAlloc(cpt.size()));
-  DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
+  dali::DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
   memcpy(*checkpoint, cpt.c_str(), *n);
 }
 
@@ -862,7 +862,7 @@ void daliRestoreFromSerializedCheckpoint(
     daliPipelineHandle *pipe_handle,
     const char *checkpoint, size_t n,
     daliExternalContextCheckpoint *external_context) {
-  DALI_ENFORCE(external_context != nullptr,
+  dali::DALI_ENFORCE(external_context != nullptr,
                "Null external context provided.");
   auto &pipeline = (*pipe_handle)->pipeline;
   auto ctx = pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
