@@ -69,6 +69,13 @@ def check_sample(sample, size, a, p, idx):
             [(), (1000,), (500, 4)],
             [True],
         ),
+        product(
+            ["nd"],
+            [(2,), (2, 2)],
+            [True, False],
+            [None, (), (1000,), (500, 4)],
+            [True, False],
+        ),
     )
 )
 def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
@@ -77,7 +84,8 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
     Parameters
     ----------
     kind : str
-        What kind of `a` parameter to test: "scalar" - just a scalar value, "0d" - list of scalars
+        What kind of `a` parameter to test: "scalar" - just a scalar value, "0d" - list of scalars,
+        or "nd" - "list" of n-d elements.
     elem_shape : tuple of int
         Shape of the elements sampled by the distribution, non-empty tuple allowed only for "nd"
         case.
@@ -111,8 +119,11 @@ def test_choice_dist(kind, elem_shape, use_p, output_shape, shape_like):
         p = get_p(n)
         if kind == "scalar":
             return np.array(n), p
-        else:  # "0d"
+        elif kind == "0d":
             return np.arange(sampling_offset, n + sampling_offset), p
+        else:
+            # nd - repeat the same scalar value with the elem_shape for given sample
+            return np.stack([np.full(elem_shape, i) for i in range(n)]), p
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4, seed=1234)
     def choice_pipe():
@@ -237,11 +248,6 @@ def test_layout(expected_layout, shape):
         {},
         "Data type float is not supported for 0D inputs. Supported types are: "
         "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
-    ),
-    (
-        (np.array([[2, 3], [4, 5]]),),
-        {},
-        "The operator only supports sampling of 0D elements, got: 2D input.",
     ),
     (
         (5,),
