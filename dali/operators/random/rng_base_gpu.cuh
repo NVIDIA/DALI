@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, GPUBackend)
   kernels::DynamicScratchpad scratch({}, ws.stream());
 
   auto dists_cpu = make_span(scratch.Allocate<mm::memory_kind::host, Dist>(nsamples), nsamples);
-  bool use_default_dist = !This().template SetupDists<T>(dists_cpu.data(), nsamples);
+  bool use_default_dist = !This().template SetupDists<T>(dists_cpu.data(), ws, nsamples);
 
   rng::SampleDesc* samples_gpu = nullptr;
   rng::BlockDesc* blocks_gpu = nullptr;

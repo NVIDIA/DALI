@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
   auto &dists_cpu = backend_data_.dists_cpu_;
   dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
   Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
-  bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
+  bool use_default_dist = !This().template SetupDists<T>(dists, ws, nsamples);
 
   int channel_dim = -1;
   auto layout = output.GetLayout();

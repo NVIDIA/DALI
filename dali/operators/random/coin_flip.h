@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,12 +61,12 @@ class CoinFlip : public rng::RNGBase<Backend, CoinFlip<Backend>, false> {
     probability_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_INT32;
   }
 
   template <typename T>
-  bool SetupDists(Impl* dists_data, int nsamples) {
+  bool SetupDists(Impl* dists_data, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
       dists_data[s] = Impl{probability_[s].data[0]};
     }

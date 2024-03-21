@@ -523,6 +523,17 @@ def test_uniform():
     run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe)
 
 
+def test_random_choice():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data = fn.external_source(source=input_data, cycle=False, device=device)
+        dist = fn.random.choice(data)
+        pipe.set_outputs(dist)
+        return pipe
+
+    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+
+
 def test_random_normal():
     def pipe_input(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1648,6 +1659,7 @@ tested_methods = [
     "power_spectrum",
     "preemphasis_filter",
     "python_function",
+    "random.choice",
     "random.coin_flip",
     "random.normal",
     "random.uniform",
