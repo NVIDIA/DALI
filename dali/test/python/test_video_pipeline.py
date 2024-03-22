@@ -22,7 +22,7 @@ from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import numpy as np
 import tempfile
-from test_utils import check_output_pattern
+from test_utils import check_output_pattern, skip_if_m60
 
 from nose_utils import assert_raises, raises
 
@@ -590,6 +590,7 @@ def test_pad_sequence():
 
 
 def test_10bit_vid_reconfigure():
+    skip_if_m60()
     batch_size = 1
     sequence_length = 5
     iter = 5
@@ -631,6 +632,7 @@ def test_10bit_vid_reconfigure():
 
 
 def test_2gb_sequence():
+    skip_if_m60()
     # make sure the sequence exceeds beyond 2GB
     sequence_length = int(math.ceil((1 << 31) / 720 / 1280 / 3) + 3)
 
