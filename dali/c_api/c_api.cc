@@ -871,7 +871,7 @@ void daliRestoreFromSerializedCheckpoint(
     if (!ctx.pipeline_data.empty()) {
       external_context->pipeline_data = daliExternalContextFieldFromString(ctx.pipeline_data);
     }
-    if (!ctx.pipeline_data.empty()) {
+    if (!ctx.iterator_data.empty()) {
       external_context->iterator_data = daliExternalContextFieldFromString(ctx.iterator_data);
     }
   }
