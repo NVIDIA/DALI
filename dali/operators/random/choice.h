@@ -108,25 +108,6 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
 
   explicit Choice(const OpSpec &spec) : BaseImpl(spec), p_dist_("p", spec) {}
 
-  /**
-   * @brief Returns the number of elements that will be sampled for given sample_idx within batch.
-   *
-   * If the input is scalar, it represents the number of elements, otherwise it's the outermost
-   * dimension (we treat the input as flat list of elements for sampling).
-   */
-  int64_t GetSampleNumElements(const TensorList<CPUBackend> &input, int sample_idx) const {
-    if (input.sample_dim() == 0) {
-      TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_0D_TYPES),
-      (
-        return input.tensor<T>(sample_idx)[0];
-      ),  // NOLINT
-      (
-        DALI_FAIL("Data type ", dtype_, " is not supported for 0D inputs. "
-                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");
-      ));  // NOLINT
-    }
-    return input.tensor_shape_span(sample_idx)[0];
-  }
 
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     const auto &input = ws.Input<CPUBackend>(0);
@@ -169,6 +150,20 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
                                ListTypeNames<DALI_CHOICE_0D_TYPES>(), "."));
     }
     return ws.Input<CPUBackend>(0).type();
+  }
+
+  /**
+   * @brief Concatenate the requested output shape with the shape of the sampled element.
+   */
+  TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
+    const auto &input = ws.Input<CPUBackend>(0);
+    int element_dim = GetElementDim(input);
+    TensorListShape<> shape(shape_.num_samples(), shape_.sample_dim() + element_dim);
+    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+      auto result = shape_cat(shape_[sample_idx], input.tensor_shape(sample_idx).last(element_dim));
+      shape.set_tensor_shape(sample_idx, result);
+    }
+    return shape;
   }
 
   template <typename T>
@@ -234,8 +229,7 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
                   "Supported types are: ", ListTypeNames<DALI_CHOICE_1D_TYPES>(), ".");
       ));  // NOLINT
     } else {
-      DALI_FAIL("The operator only supports sampling of 0D elements, got: ", input.sample_dim(),
-                "D input.");
+      ElementCopy(ws);
     }
     if (!input.GetLayout().empty()) {
       if (input.sample_dim() == output.sample_dim()) {
@@ -249,6 +243,85 @@ class Choice : public rng::RNGBase<Backend, Choice<Backend>, false> {
   }
 
  protected:
+  /**
+   * @brief Returns the number of elements that will be sampled for given sample_idx within batch.
+   *
+   * If the input is scalar, it represents the number of elements, otherwise it's the outermost
+   * dimension (we treat the input as flat list of elements for sampling).
+   */
+  int64_t GetSampleNumElements(const TensorList<CPUBackend> &input, int sample_idx) const {
+    if (input.sample_dim() == 0) {
+      TYPE_SWITCH(dtype_, type2id, T, (DALI_CHOICE_0D_TYPES),
+      (
+        return input.tensor<T>(sample_idx)[0];
+      ),  // NOLINT
+      (
+        DALI_FAIL("Data type ", dtype_, " is not supported for 0D inputs. "
+                  "Supported types are: ", ListTypeNames<DALI_CHOICE_0D_TYPES>(), ".");
+      ));  // NOLINT
+    }
+    return input.tensor_shape_span(sample_idx)[0];
+  }
+
+  /**
+   * @brief Get the dimension of the element to be sampled.
+   */
+  int GetElementDim(const TensorList<CPUBackend> &input) {
+    if (input.sample_dim() == 0) {
+      return 0;
+    }
+    return input.sample_dim() - 1;
+  }
+
+  /**
+   * @brief Implement sampling from input of dimensionality > 1.
+   *
+   * The sampling is done by configuring indirect distribution to generate indices in
+   * [0, num_elements), where `num_elements` is the outermost dimension of the input.
+   * Next the selected samples are memcopied to the output.
+   */
+  void ElementCopy(Workspace &ws) {
+    const auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
+    int num_samples = input.num_samples();
+    auto &tp = ws.GetThreadPool();
+    for (int sample_idx = 0; sample_idx < num_samples; ++sample_idx) {
+      int element_dim = GetElementDim(input);
+      int64_t element_size = volume(input.tensor_shape(sample_idx).last(element_dim)) *
+                             TypeTable::GetTypeInfo(input.type()).size();
+      int64_t num_input_elements = input_list_shape_[sample_idx][0];
+      int64_t num_output_elements =
+          volume(output.tensor_shape(sample_idx).first(output.sample_dim() - element_dim));
+      uint8_t *output_data = static_cast<uint8_t *>(output.raw_mutable_tensor(sample_idx));
+      const uint8_t *input_data = static_cast<const uint8_t *>(input.raw_tensor(sample_idx));
+
+      tp.AddWork(
+          [=](int thread_id) {
+            auto &rng = rng_[sample_idx];
+            if (p_dist_.HasValue()) {
+              auto dist = ChoiceSampleDist<int64_t, false, false>(
+                  p_dist_[sample_idx].data,
+                  p_dist_[sample_idx].data + p_dist_[sample_idx].num_elements());
+              for (int64_t i = 0; i < num_output_elements; ++i) {
+                auto source_idx = dist.Generate(rng);
+                memcpy(output_data + i * element_size, input_data + source_idx * element_size,
+                       element_size);
+              }
+            } else {
+              auto dist = ChoiceSampleDist<int64_t, true, false>(num_input_elements);
+              for (int64_t i = 0; i < num_output_elements; ++i) {
+                auto source_idx = dist.Generate(rng);
+                memcpy(output_data + i * element_size, input_data + source_idx * element_size,
+                       element_size);
+              }
+            }
+          },
+          volume(output.tensor_shape(sample_idx)));
+    }
+    tp.RunAll();
+  }
+
+
   using Operator<Backend>::max_batch_size_;
   using BaseImpl::backend_data_;
   using BaseImpl::dtype_;

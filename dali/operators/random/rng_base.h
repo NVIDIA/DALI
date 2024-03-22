@@ -122,6 +122,15 @@ class RNGBase : public OperatorWithRng<Backend> {
   void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {}
 
   /**
+   * @brief If the output shape is non copied from `shape` argument or `__shape_like` input,
+   * return new one that should be used instead. Called after basic shape parameter is obtained
+   * into `shape_`.
+   */
+  TensorListShape<> PostprocessShape(const OpSpec &spec, const Workspace &ws) {
+    return shape_;
+  }
+
+  /**
    * @brief The RNG implementation must provide SetupDist function, with `Dist` type
    * and call RunImplTyped<T, Dist>(ws) in its RunImpl, for given output type `T`.
    *
@@ -189,6 +198,7 @@ class RNGBase : public OperatorWithRng<Backend> {
       shape_ = uniform_list_shape(nsamples, TensorShape<0>{});
     }
     This().AcquireArgs(spec_, ws, shape_.size());
+    shape_ = This().PostprocessShape(spec_, ws);
 
     output_desc.resize(1);
     output_desc[0].shape = shape_;
