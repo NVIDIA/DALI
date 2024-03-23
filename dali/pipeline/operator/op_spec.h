@@ -188,6 +188,7 @@ class DLL_PUBLIC OpSpec {
    */
   DLL_PUBLIC inline void EnforceNoAliasWithDeprecated(const string& arg_name) {
     auto set_through = set_through_deprecated_arguments_.find(arg_name);
+    // TODO: OMG - lazy evaluation of when this is macro ):
     DALI_ENFORCE(
         set_through == set_through_deprecated_arguments_.end(),
         make_string("Operator ", SchemaName(), " got an unexpected '", set_through->second,
