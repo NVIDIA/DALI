@@ -37,7 +37,7 @@ def test_keras_single_cpu():
 
 
 @with_setup(skip_for_incompatible_tf)
-@raises(Exception, "TF device and DALI device mismatch")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_gpu():
     with tf.device("cpu:0"):
         model = mnist.keras_model()
@@ -47,7 +47,7 @@ def test_keras_wrong_placement_gpu():
 
 
 @with_setup(skip_for_incompatible_tf)
-@raises(Exception, "TF device and DALI device mismatch")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_cpu():
     with tf.device("gpu:0"):
         model = mnist.keras_model()

@@ -23,10 +23,17 @@ test_body() {
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/frameworks/tensorflow/
-        jupyter nbconvert tensorflow-dataset.ipynb \
-                  --to notebook --inplace --execute \
-                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600
+        # TF 2.16 removed usage of tf.estimator the test uses
+        is_below_2_16=$(python -c 'import tensorflow as tf; \
+                                   from distutils.version import StrictVersion; \
+                                   print(StrictVersion(tf.__version__) < StrictVersion("2.16"))')
+
+        if [ $is_below_2_16 = 'True' ]; then
+            jupyter nbconvert tensorflow-dataset.ipynb \
+                    --to notebook --inplace --execute \
+                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                    --ExecutePreprocessor.timeout=600
+        fi
 
         # due to compatibility problems between the driver, cuda version and
         # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
