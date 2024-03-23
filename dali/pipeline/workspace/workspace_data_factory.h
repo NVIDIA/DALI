@@ -28,6 +28,41 @@
 
 namespace dali {
 
+
+template <template <typename...> class TupleLike, typename... Ts, typename F>
+void tuple_for_each_impl(TupleLike<Ts...> &t, F &&fun,
+                         std::integral_constant<int, sizeof...(Ts)>) {}
+
+template <template <typename...> class TupleLike, typename... Ts, typename F, int N>
+std::enable_if_t<N != sizeof...(Ts)>
+tuple_for_each_impl(TupleLike<Ts...> &t, F &&fun, std::integral_constant<int, N>) {
+    fun(std::get<N>(t));
+    tuple_for_each_impl(t, std::forward<F>(fun), std::integral_constant<int, N+1>());
+}
+
+template <template <typename...> class TupleLike, typename... Ts, typename F>
+void tuple_for_each(TupleLike<Ts...> &t, F &&fun) {
+  tuple_for_each_impl(t, std::forward<F>(fun), std::integral_constant<int, 0>());
+}
+
+
+template <template <typename...> class TupleLike, typename... Ts, typename F>
+void tuple_for_each_impl(const TupleLike<Ts...> &t, F &&fun,
+                         std::integral_constant<int, sizeof...(Ts)>) {}
+
+template <template <typename...> class TupleLike, typename... Ts, typename F, int N>
+std::enable_if_t<N != sizeof...(Ts)>
+tuple_for_each_impl(const TupleLike<Ts...> &t, F &&fun, std::integral_constant<int, N>) {
+    fun(std::get<N>(t));
+    tuple_for_each_impl(t, std::forward<F>(fun), std::integral_constant<int, N+1>());
+}
+
+template <template <typename...> class TupleLike, typename... Ts, typename F>
+void tuple_for_each(const TupleLike<Ts...> &t, F &&fun) {
+  tuple_for_each_impl(t, std::forward<F>(fun), std::integral_constant<int, 0>());
+}
+
+
 /*
  * Mappings from OpType, StorageDevice to index in tensor_data_store_queue_t
  */
@@ -113,6 +148,8 @@ struct StoreBufferQueue {
   size_t size() const {
     return store.size();
   }
+
+  int num_consumers = 0;
 };
 
 // Generator for Queue of Worskpace Output Type, indexed by GetTensorStoreIndex()
