@@ -107,6 +107,7 @@ TEST(Exec2Test, SimpleGraph) {
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
   def.link(n2, 0, nullptr, 0);
+  def.outputs.push_back(&def.edges.back());
   auto end = dali::test::perf_timer::now();
   std::cerr << "Test setup took " << dali::test::format_time(end-start) << std::endl;
   start = dali::test::perf_timer::now();
@@ -153,7 +154,7 @@ TEST(Exec2Test, Exception) {
   DummyOp op1(spec1);
 
   OpSpec spec2("DummyOp");
-  spec2.AddArg("addend", 1000.0f)
+  spec2.AddArg("addend", 1000.0f)  // this will cause a type error at run-time
        .AddArg("num_threads", 1)
        .AddArg("device", "cpu")
        .AddArg("max_batch_size", 32)
@@ -169,6 +170,7 @@ TEST(Exec2Test, Exception) {
   def.link(n0, 0, n2, 0);
   def.link(n1, 0, n2, 1);
   def.link(n2, 0, nullptr, 0);
+  def.outputs.push_back(&def.edges.back());
   ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
   WorkspaceParams params;
   params.thread_pool = &tp;
