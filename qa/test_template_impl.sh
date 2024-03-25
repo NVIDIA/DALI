@@ -84,12 +84,16 @@ enable_sanitizer() {
     gcc -shared -fPIC $topdir/qa/test_wrapper_post.c -o /tmp/post.so
     export OLD_LD_PRELOAD=${LD_PRELOAD}
     export LD_PRELOAD="/tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
+    # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
+    export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(python -c 'import nvidia.nvimgcodec as n; import os; print(os.path.dirname(n.__file__))')
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins
 disable_sanitizer() {
     export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0:detect_container_overflow=0
     export LD_PRELOAD=${OLD_LD_PRELOAD}
+    export LD_LIBRARY_PATH=${OLD_LD_LIBRARY_PATH2}
     unset ASAN_SYMBOLIZER_PATH
     unset PYTHONMALLOC
 }
