@@ -17,12 +17,27 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <fmt/format.h>
+// for fmt::join
+#include <fmt/ranges.h>
+// for ostream support
+#include <fmt/ostream.h>
 
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_spec.h"
 
+// template <> struct fmt::formatter<dali::DALIDataType> : fmt::ostream_formatter {};
+// template <> struct fmt::formatter<dali::DALIDataType> : fmt::tostring_formatter<dali::DALIDataType> {};
+
+
 namespace dali {
+
+auto format_as(dali::DALIDataType type) {
+  return dali::to_string(type);
+}
 
 std::vector<PythonStackFrame> GetOperatorOriginInfo(const OpSpec &spec) {
   auto origin_stack_filename = spec.GetRepeatedArgument<std::string>("_origin_stack_filename");
@@ -67,8 +82,7 @@ void PropagateError(ErrorInfo error) {
   catch (DaliError &e) {
     e.UpdateMessage(make_string(error.context_info, e.what(), error.additional_message));
     throw;
-  }
-  catch (DALIException &e) {
+  } catch (DALIException &e) {
     // We drop the C++ stack trace at this point and go back to runtime_error.
     throw std::runtime_error(
         make_string(error.context_info, e.what(),
@@ -109,9 +123,129 @@ std::string GetErrorContextMessage(const OpSpec &spec) {
            formatted_origin_stack + "\n") :
           " ";  // we need space before "encountered"
 
-  return make_string("Error in ", device, " operator `", op_name, "`",
-                     optional_stack_mention, "encountered:\n\n");
+  return make_string("Error in ", device, " operator `", op_name, "`", optional_stack_mention,
+                     "encountered:\n\n");
 }
+
+
+namespace validate {
+
+std::string SepIfNotEmpty(const std::string &str, const std::string &sep = " ") {
+  if (str.empty()) {
+    return "";
+  }
+  return sep;
+}
+
+void Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
+          const std::string &additional_msg) {
+  if (actual_type == expected_type) {
+    return;
+  }
+
+  throw DaliTypeError(fmt::format("Unexpected type for {}. Got type: `{}` but expected: `{}`.{}{}", name, actual_type,
+                                  expected_type, SepIfNotEmpty(additional_msg),
+                                  additional_msg));
+}
+
+void Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
+          const std::string &name, const std::string &additional_msg) {
+  if (std::size(expected_types) == 1) {
+    Type(actual_type, expected_types[0], name, additional_msg);
+    return;
+  }
+  for (auto expected_type : expected_types) {
+    if (actual_type == expected_type) {
+      return;
+    }
+  }
+
+  throw DaliTypeError(fmt::format("Unexpected type for {}. Got type: `{}` but expected one of: `{}`.{}{}",
+                                  name, actual_type, fmt::join(expected_types, "`, `"),
+                                  SepIfNotEmpty(additional_msg), additional_msg));
+}
+
+
+std::string FormatInput(const OpSpec &spec, const Workspace &ws, int input_idx) {
+  if (spec.GetSchema().HasInputDox()) {
+    return fmt::format("input `{}` (`__{}`)", input_idx, spec.GetSchema().GetInputName(input_idx));
+  }
+
+  return fmt::format("input `{}`", input_idx);
+}
+
+std::string FormatOutput(const OpSpec &spec, const Workspace &ws, int output_idx) {
+  return fmt::format("output `{}`", output_idx);
+}
+
+void InputType(const OpSpec &spec, const Workspace &ws, int input_idx, DALIDataType allowed_type,
+          const std::string &additional_msg) {
+  DALIDataType dtype = ws.GetInputDataType(input_idx);
+  Type(dtype, allowed_type, FormatInput(spec, ws, input_idx), additional_msg);
+}
+
+void InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+          span<DALIDataType> &allowed_types, const std::string &additional_msg) {
+  DALIDataType dtype = ws.GetInputDataType(input_idx);
+  Type(dtype, allowed_types, FormatInput(spec, ws, input_idx), additional_msg);
+}
+
+void Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified,
+               const std::string &additional_msg) {
+  if (allow_unspecified && !spec.HasArgument("dtype")) {
+    return;
+  } else if (!allow_unspecified &&!spec.HasArgument("dtype")) {
+    throw DaliValueError(fmt::format("Argument `dtype` was not specified.{}{}", SepIfNotEmpty(additional_msg),
+                                  additional_msg));
+  }
+               }
+
+void Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types, bool allow_unspecified,
+               const std::string &additional_msg) {
+
+               }
+
+void Dim(int actual_dim, int expected_dim, const std::string &name,
+         const std::string &additional_msg) {
+  if (actual_dim == expected_dim) {
+    return;
+  }
+  throw DaliValueError(fmt::format("Got dim: `{}` for {}, but expected: `{}`.{}{}", actual_dim,
+                                   name, expected_dim, SepIfNotEmpty(additional_msg),
+                                   additional_msg));
+}
+
+void Dim(int actual_dim, int expected_from, int expected_to, const std::string &name, const std::string &additional_msg) {
+
+  if (expected_from <= actual_dim && actual_dim < expected_to) {
+    return;
+  }
+  throw DaliValueError(fmt::format(
+      "Got dim: `{}` for {}, but expected value in `[{}, {})` range.{}{}", actual_dim, name,
+      expected_from, expected_to, SepIfNotEmpty(additional_msg), additional_msg));
+}
+
+void Dim(int actual_dim, span<int> &expected, const std::string &name, const std::string &additional_msg) {
+  if (size(expected) == 1) {
+    Dim(actual_dim, expected[0], name, additional_msg);
+    return;
+  }
+  for (auto expected_dim : expected) {
+    if (actual_dim == expected_dim) {
+      return;
+    }
+  }
+  throw DaliValueError(fmt::format("Got dim: `{}` for {}, but expected one of: `{}`.{}{}",
+                                  actual_dim, name, fmt::join(expected, "`, `"),
+                                  SepIfNotEmpty(additional_msg), additional_msg));
+}
+
+// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, DALIDataType allowed_type,
+//           const std::string &additional_msg);
+// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
+//           span<DALIDataType> &allowed_types, const std::string &additional_msg);
+
+}  // namespace validate
 
 
 }  // namespace dali

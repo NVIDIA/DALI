@@ -29,3 +29,6 @@
 [submodule "third_party/cvcuda"]
 	path = third_party/cvcuda
         url = https://github.com/CVCUDA/CV-CUDA.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = git@github.com:fmtlib/fmt.git
