@@ -120,6 +120,17 @@ inline int static_dali_pinned_free(void *ctx, void *ptr, size_t size, cudaStream
   return cudaSuccess;
 }
 
+inline void get_nvimgcodec_version(int* major, int *minor, int* patch) {
+  nvimgcodecProperties_t properties{NVIMGCODEC_STRUCTURE_TYPE_PROPERTIES,
+                                    sizeof(nvimgcodecProperties_t), 0};
+  if (NVIMGCODEC_STATUS_SUCCESS != nvimgcodecGetProperties(&properties))
+    throw std::runtime_error("Failed to check the version of nvimgcodec.");
+  int version = static_cast<int>(properties.version);
+  *major = NVIMGCODEC_MAJOR_FROM_SEMVER(version);
+  *minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
+  *patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
+}
+
 template <typename Backend>
 class ImageDecoder : public StatelessOperator<Backend> {
  public:
@@ -551,6 +562,24 @@ class ImageDecoder : public StatelessOperator<Backend> {
     return true;
   }
 
+  /**
+   * @brief nvImageCodec 0.2 doesn't synchronize with the user stream before decoding.
+   * Because of that, we need to host synchronize before passing the async allocated buffer 
+   * to the decoding function
+   */
+  bool need_host_sync_alloc() {
+    static std::once_flag once;
+    static bool need_sync = false;
+    std::call_once(once, []() {
+      int major, minor, patch;
+      get_nvimgcodec_version(&major, &minor, &patch);
+      if (major <= 0 || minor <= 2) {
+        need_sync = true;
+      }
+    });
+    return need_sync;
+  }
+
   template <typename OutBackend>
   void PrepareOutput(SampleState &st, SampleView<OutBackend> out, const ROI &roi,
                      const Workspace &ws) {
@@ -611,10 +640,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.decode_out_cpu = {};
     st.decode_out_gpu = {};
+
     if (st.need_processing) {
       if constexpr (std::is_same<MixedBackend, Backend>::value) {
+        // This is a workaround for nvImageCodec <= 0.2
+        auto alloc_stream =
+            need_host_sync_alloc() ? AccessOrder::host().stream() : st.image_info.cuda_stream;
         st.device_buf = mm::alloc_raw_async_unique<uint8_t, mm::memory_kind::device>(
-            image_buffer_size, st.image_info.cuda_stream, st.image_info.cuda_stream);
+            image_buffer_size, alloc_stream, st.image_info.cuda_stream);
         st.image_info.buffer = st.device_buf.get();
         st.decode_out_gpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       } else {
