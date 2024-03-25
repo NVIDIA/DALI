@@ -25,6 +25,7 @@ endif()
 
 # Look for it first in $ENV{FFMPEG_DIR}, then in the prebuilt version found in pynvvideocodec
 if (NOT BUILD_FFMPEG)
+  set(BUNDLE_FFMPEG_LIBS OFF)
   # Check ENV{FFMPEG_DIR} first
   find_path(
       FFMPEG_DIR
@@ -33,14 +34,15 @@ if (NOT BUILD_FFMPEG)
       PATHS $ENV{FFMPEG_DIR}
       NO_DEFAULT_PATH
   )
-  set(BUNDLE_FFMPEG_LIBS OFF)
   if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
+    set(BUNDLE_FFMPEG_LIBS ON)
+    message(STATUS "Will bundle FFmpeg libs")
     # Check pynvvvideocodec FFmpeg now
     find_path(
         FFMPEG_DIR
         NAMES "lib/libavformat.so"
               "lib/${CMAKE_HOST_SYSTEM_PROCESSOR}/libavformat.so"
-        PATHS ${pynvvideocodec_SOURCE_DIR}/ffmpeg
+        PATHS ${pynvvideocodec_SOURCE_DIR}/external/ffmpeg
         NO_DEFAULT_PATH
     )
     if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
@@ -48,9 +50,6 @@ if (NOT BUILD_FFMPEG)
       message(WARNING
         "FFmpeg not found in the system or the dir pointed by FFMPEG_DIR environment variable. "
         "Will download and build a minimal version.")
-    else()
-      set(BUNDLE_FFMPEG_LIBS ON)
-      message(STATUS "Will bundle FFmpeg libs")
     endif()
   endif()
 endif()
