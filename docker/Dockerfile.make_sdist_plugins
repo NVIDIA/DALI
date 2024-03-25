@@ -13,7 +13,16 @@ WORKDIR /opt/dali
 ARG NVIDIA_DALI_BUILD_FLAVOR
 ENV NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
 
-ARG NVIDIA_DALI_PLUGINS_INSTALL_DIR=/opt/install-plugins-docker
-ENV NVIDIA_DALI_PLUGINS_INSTALL_DIR=${NVIDIA_DALI_PLUGINS_INSTALL_DIR}
+ARG GIT_SHA
+ENV GIT_SHA=${GIT_SHA}
 
+COPY Acknowledgements.txt .
+COPY COPYRIGHT .
+COPY LICENSE .
+COPY VERSION .
+COPY cmake ./cmake
+COPY plugins ./plugins
 
+ENTRYPOINT /bin/bash -c 'mkdir -p /opt/dali-plugins-build && mkdir -p /wheelhouse && cd /opt/dali-plugins-build && \
+    cmake -DPYTHON_EXECUTABLE=`which python3` -DCMAKE_INSTALL_PREFIX=/wheelhouse /opt/dali/plugins && \
+    make install'

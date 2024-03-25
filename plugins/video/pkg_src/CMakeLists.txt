@@ -36,6 +36,7 @@ if ("${PYNVVIDEOCODEC_SOURCE_URL}" STREQUAL "")
   set(PYNVVIDEOCODEC_SOURCE_URL    https://api.ngc.nvidia.com/v2/resources/nvidia/py_nvvideocodec/versions/0.0.9/zip)
   set(PYNVVIDEOCODEC_SOURCE_SHA512 b73d06f2239bc50a6a9971949a3579df56d8a6c223d64f5fcbebb3531b9adff2e9f25d23b1922bc42616e65fc850d60c085cadfd7daecbfc562f9959995f28a5)
 endif()
+message(STATUS "PYNVVIDEOCODEC_SOURCE_URL=${PYNVVIDEOCODEC_SOURCE_URL}")
 
 FetchContent_Declare(
     pynvvideocodec
