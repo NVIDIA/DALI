@@ -86,6 +86,7 @@ class ExecNode {
   std::optional<tf::Semaphore> output_queue;
 
   OperatorBase *op = nullptr;
+  bool essential = false;
 
   std::queue<std::unique_ptr<Workspace>> workspaces;
 
@@ -132,22 +133,14 @@ class ExecNode {
     workspaces.push(std::move(ws));
   }
 
-  bool IsEssential() const {
-    for (auto *edge : outputs) {
-      if (edge->consumer == nullptr)  // pipeline output
-        return true;
-    }
-    if (op->GetSpec().GetSchema().IsNoPrune())
-      return true;
-    return false;
-  }
-
   mutable bool visited = false;
 };
 
 struct ExecGraph {
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
+
+  std::vector<ExecEdge *> inputs, outputs;
 
   template <typename... Args>
   ExecNode *add_node(Args &&...args) {
@@ -167,6 +160,26 @@ struct ExecGraph {
       consumer->inputs.push_back(&edge);
   }
 
+
+  void mark_essential_nodes() {
+    for (auto &node : nodes)
+      node.essential = false;
+
+    for (auto *e : outputs) {
+      if (e->producer)
+        e->producer->essential = true;
+    }
+
+    for (auto &node : nodes) {
+      if (!node.essential) {
+        auto *op = node.op;
+        if (op && op->GetSpec().GetSchema().IsNoPrune())
+          node.essential = true;
+      }
+    }
+  }
+
+
   /**
    * @brief Runs a depth-first search to topologiclaly sort and prune the graph
    */
@@ -174,11 +187,13 @@ struct ExecGraph {
     for (auto &n : nodes)
       n.visited = false;
 
+    mark_essential_nodes();
+
     sorted.clear();
     sorted.reserve(nodes.size());
 
     for (auto &node : nodes) {
-      if (node.IsEssential())
+      if (node.essential)
         sort_subgraph(sorted, &node);
     }
   }
