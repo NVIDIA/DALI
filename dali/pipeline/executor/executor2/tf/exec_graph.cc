@@ -82,6 +82,8 @@ void SchedNode::task_propagate_outputs() {
 
 void SchedNode::task_reset_outputs() {
   for (int i = 0; i < ws->NumOutput(); i++) {
+    if (outputs[i].pipeline_output)
+      continue;  // do not reset pipeline outputs
     if (ws->OutputIsType<CPUBackend>(i))
       ws->SetOutput<CPUBackend>(i, nullptr);
     else
@@ -145,6 +147,8 @@ void assert_valid(ExecGraph &eg) {
       }
     }
   }
+  for (auto *out : eg.outputs)
+    assert(out != nullptr);
 }
 
 void assert_valid(SchedGraph &eg) {
@@ -199,6 +203,8 @@ void assert_valid(SchedGraph &eg) {
       }
     }
   }
+  for (auto *out : eg.outputs)
+    assert(out != nullptr);
 }
 
 inline ptrdiff_t ptrdiff(const void *a, const void *b) {
@@ -226,6 +232,10 @@ void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
 
   edges.resize(num_edges);
   nodes.resize(sorted.size());
+  outputs.resize(def.outputs.size());
+  std::unordered_map<const ExecEdge *, int> output_idx(outputs.size());
+  for (int i = 0, n = def.outputs.size(); i < n; i++)
+    output_idx[def.outputs[i]] = i;
 
   int i = 0;
   int e = 0;
@@ -254,6 +264,11 @@ void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
         sched_edge.producer = &nodes[node_indices[exec_edge->producer]];
       if (exec_edge->consumer)
         sched_edge.consumer = &nodes[node_indices[exec_edge->consumer]];
+      auto it = output_idx.find(exec_edge);
+      if (it != output_idx.end()) {
+        out->pipeline_output = true;
+        outputs[it->second] = out;
+      }
     }
     SchedEdge *end = &edges[e];
     sched_node.inputs = span(inp, out);
@@ -266,6 +281,7 @@ void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
 SchedGraph &SchedGraph::operator=(const SchedGraph &g) {
   nodes.resize(g.nodes.size());
   edges = g.edges;
+  outputs = g.outputs;
 
   int V = nodes.size();
   int E = edges.size();
@@ -275,15 +291,19 @@ SchedGraph &SchedGraph::operator=(const SchedGraph &g) {
 
   for (auto &e : edges) {
     if (e.producer) {
-      assert(e.producer >= g.nodes.data() && e.producer < g.nodes.data() + g.nodes.size());
+      assert(e.producer >= &g.nodes.front() && e.producer <= &g.nodes.back());
       e.producer = ptradd(e.producer, node_fixup);
-      assert(e.producer >= nodes.data() && e.producer < nodes.data() + nodes.size());
+      assert(e.producer >= &nodes.front() && e.producer <= &nodes.back());
     }
     if (e.consumer) {
-      assert(e.consumer >= g.nodes.data() && e.consumer < g.nodes.data() + g.nodes.size());
+      assert(e.consumer >= &g.nodes.front() && e.consumer <= &g.nodes.back());
       e.consumer = ptradd(e.consumer, node_fixup);
-      assert(e.consumer >= nodes.data() && e.consumer < nodes.data() + nodes.size());
+      assert(e.consumer >= &nodes.front() && e.consumer <= &nodes.back());
     }
+  }
+  for (auto *&e : outputs) {
+    e = ptradd(e, edge_fixup);
+    assert(e >= &edges.front() && e <= &edges.back());
   }
 
   for (int i = 0; i < V; i++) {

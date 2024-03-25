@@ -59,17 +59,23 @@ using ExecEdge = DataEdge<ExecNode>;
 struct WorkspaceParams {
   ThreadPool  *thread_pool = nullptr;
   AccessOrder  order = AccessOrder::host();
+  int          batch_size = 0;  // TODO(michalz): add more batch size logic
 };
 
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
   ws.SetThreadPool(params.thread_pool);
   ws.set_output_order(params.order);
+  ws.SetBatchSizes(params.batch_size);
 }
 
 inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
-  WorkspaceParams params;
+  WorkspaceParams params = {};
   params.thread_pool = ws.HasThreadPool() ? &ws.GetThreadPool() : nullptr;
   params.order = ws.output_order();
+  if (ws.NumOutput())
+    params.batch_size = ws.GetRequestedBatchSize(0);
+  else if (ws.NumInput())
+    params.batch_size = ws.GetInputBatchSize(0);
   return params;
 }
 
@@ -214,7 +220,9 @@ struct ExecGraph {
 
 class SchedNode;
 
-using SchedEdge = DataEdge<SchedNode>;
+struct SchedEdge : public DataEdge<SchedNode> {
+  bool pipeline_output = false;
+};
 
 struct SchedGraph;
 
@@ -256,6 +264,7 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
 
   std::vector<SchedNode> nodes;
   std::vector<SchedEdge> edges;
+  std::vector<SchedEdge *> outputs;
 
   SchedGraph &operator=(const SchedGraph &g);
 
