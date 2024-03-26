@@ -30,6 +30,7 @@
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
@@ -96,15 +97,6 @@ class DLL_PUBLIC OperatorBase {
    * @brief Executes the operator on a batch of samples.
    */
   DLL_PUBLIC virtual void Run(Workspace &ws) = 0;
-
-  /**
-   * @brief returns the name of the operator. By default returns
-   * the name of the op as specified by the OpSpec it was constructed
-   * from.
-   */
-  DLL_PUBLIC virtual string name() const {
-    return spec_.SchemaName();
-  }
 
   /**
    * @brief For reader Ops, returns the metadata of the reader and dataset,
@@ -211,8 +203,8 @@ class DLL_PUBLIC OperatorBase {
   }
 
   [[noreturn]] void CheckpointingUnsupportedError() const {
-    DALI_FAIL(
-        make_string("Checkpointing is not implemented for this operator: ", spec_.SchemaName()));
+    DALI_FAIL(make_string("Checkpointing is not implemented for this operator: `",
+                          GetOpDisplayName(spec_, true), "`."));
   }
 
   // TODO(mszolucha): remove these two to allow i2i variable batch size, when all ops are ready

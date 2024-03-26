@@ -96,7 +96,7 @@ void PropagateError(ErrorInfo error) {
   }
 }
 
-std::string GetErrorContextMessage(const OpSpec &spec) {
+std::string GetErrorContextMessage(const OpSpec &spec, const std::string &message_name) {
   auto device = spec.GetArgument<std::string>("device");
   auto op_name = GetOpDisplayName(spec, true);
   std::transform(device.begin(), device.end(), device.begin(), ::toupper);
@@ -109,7 +109,7 @@ std::string GetErrorContextMessage(const OpSpec &spec) {
            formatted_origin_stack + "\n") :
           " ";  // we need space before "encountered"
 
-  return make_string("Error in ", device, " operator `", op_name, "`",
+  return make_string(message_name, " in ", device, " operator `", op_name, "`",
                      optional_stack_mention, "encountered:\n\n");
 }
 

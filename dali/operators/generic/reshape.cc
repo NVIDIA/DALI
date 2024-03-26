@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/tensor_shape_print.h"
 #include "dali/operators/generic/reshape.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/name_utils.h"
 
 namespace dali {
 
@@ -135,11 +136,11 @@ Reshape<Backend>::Reshape(const OpSpec &spec) : Base(spec) {
       && !has_src_dims_arg) {
     bool can_have_dtype = spec.GetSchema().HasArgument("dtype");
     if (can_have_dtype) {
-      DALI_ENFORCE(output_type_arg_ != DALI_NO_TYPE, make_string(OpName(),
-                   " is no-op: arguments specify neither new shape, layout nor type."));
+      DALI_ENFORCE(output_type_arg_ != DALI_NO_TYPE, make_string("`", GetOpDisplayName(spec, true),
+                   "` is no-op: arguments specify neither new shape, layout nor type."));
     } else {
-      DALI_FAIL(make_string(OpName(),
-                " is no-op: arguments specify neither new shape nor layout."));
+      DALI_FAIL(make_string("`", GetOpDisplayName(spec, true),
+                "` is no-op: arguments specify neither new shape nor layout."));
     }
   }
   use_layout_ = has_layout_arg;

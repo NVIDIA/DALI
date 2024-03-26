@@ -146,53 +146,12 @@ class DLL_PUBLIC OpSpec {
    *
    * @remarks Deprecated arguments are renamed (or dropped, if no longer used).
    */
-  DLL_PUBLIC inline OpSpec& SetInitializedArg(const string& arg_name,
-                                              std::shared_ptr<Argument> arg) {
-    if (schema_ && schema_->IsDeprecatedArg(arg_name)) {
-      const auto& deprecation_meta = schema_->DeprecatedArgMeta(arg_name);
-      // Argument was removed, and we can discard it
-      if (deprecation_meta.removed) {
-        return *this;
-      }
-      if (!deprecation_meta.renamed_to.empty()) {
-        const auto& new_arg_name = deprecation_meta.renamed_to;
-        DALI_ENFORCE(
-            argument_idxs_.find(new_arg_name) == argument_idxs_.end(),
-            make_string("Operator ", SchemaName(), " got an unexpected '", arg_name,
-                        "' deprecated argument when '", new_arg_name, "' was already provided."));
-
-        set_through_deprecated_arguments_[new_arg_name] = arg_name;
-        // Adjust the arg so it carries the proper name for serialization
-        if (arg->has_name()) {
-          arg->set_name(new_arg_name);
-        }
-        auto [it, inserted] = argument_idxs_.insert({ new_arg_name, arguments_.size() });
-        if (inserted)
-          arguments_.push_back(std::move(arg));
-        else
-          arguments_[it->second] = std::move(arg);
-        return *this;
-      }
-    }
-    EnforceNoAliasWithDeprecated(arg_name);
-    auto [it, inserted] = argument_idxs_.insert({ arg_name, arguments_.size() });
-    if (inserted)
-      arguments_.push_back(std::move(arg));
-    else
-      arguments_[it->second] = std::move(arg);
-    return *this;
-  }
+  DLL_PUBLIC OpSpec& SetInitializedArg(const string& arg_name, std::shared_ptr<Argument> arg);
 
   /**
    * @brief Check if the `arg_name` was already set through a deprecated argument
    */
-  DLL_PUBLIC inline void EnforceNoAliasWithDeprecated(const string& arg_name) {
-    auto set_through = set_through_deprecated_arguments_.find(arg_name);
-    DALI_ENFORCE(
-        set_through == set_through_deprecated_arguments_.end(),
-        make_string("Operator ", SchemaName(), " got an unexpected '", set_through->second,
-                    "' deprecated argument when '", arg_name, "' was already provided."));
-  }
+  DLL_PUBLIC void EnforceNoAliasWithDeprecated(const string& arg_name);
 
   // Forward to string implementation
   template <unsigned N>

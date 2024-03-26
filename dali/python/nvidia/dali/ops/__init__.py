@@ -573,7 +573,13 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
                 self._init_args.update({"_module": Operator.__module__.replace(".hidden", "")})
             if "_display_name" not in self._init_args:
                 self._init_args.update({"_display_name": type(self).__name__})
+            # Make sure that the internal name arguments are added first in case backend
+            # needs them to report errors.
+            name_internal_keys = ["_display_name", "_module"]
+            name_args = {key: self._init_args.pop(key) for key in name_internal_keys}
+            _process_arguments(self._schema, self._spec, name_args, type(self).__name__)
             _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
+            self._init_args.update(name_args)
 
         @property
         def spec(self):
