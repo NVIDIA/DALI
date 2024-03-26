@@ -94,8 +94,8 @@ def test_move_to_device_end():
         RuntimeError,
         pipe.build,
         glob="Cannot move the data node __ExternalSource_* to the GPU in a CPU-only pipeline. "
-        "The `device_id` parameter is set to `CPU_ONLY_DEVICE_ID`. "
-        "Set `device_id` to a valid GPU identifier to enable GPU features in the pipeline.",
+        "The 'device_id' parameter is set to `CPU_ONLY_DEVICE_ID`. "
+        "Set 'device_id' to a valid GPU identifier to enable GPU features in the pipeline.",
     )
 
 
@@ -113,7 +113,11 @@ def test_move_to_device_middle():
     assert_raises(
         RuntimeError,
         pipe.build,
-        glob="Cannot add a GPU operator Rotate, device_id should not be equal CPU_ONLY_DEVICE_ID.",
+        glob=(
+            "Error in GPU operator `nvidia.dali.fn.rotate`*"
+            "Cannot add a GPU operator. "
+            "Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
+        ),
     )
 
 
@@ -133,7 +137,11 @@ def check_bad_device(device_id, error_msg):
 def test_gpu_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        "Cannot add a GPU operator ExternalSource, device_id should not be equal CPU_ONLY_DEVICE_ID.",  # noqa: E501
+        (
+            "Error in GPU operator `nvidia.dali.fn.external_source`*"
+            "Cannot add a GPU operator."
+            " Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
+        ),
         "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
     ]
 
@@ -152,7 +160,11 @@ def check_mixed_op_bad_device(device_id, error_msg):
 def test_mixed_op_bad_device():
     device_ids = [None, 0]
     error_msgs = [
-        "Cannot add a mixed operator decoders__Image with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID.",  # noqa: E501
+        (
+            "Error in MIXED operator `nvidia.dali.fn.decoders.image`*"
+            "Cannot add a Mixed operator with a GPU output,"
+            " 'device_id' should not be `CPU_ONLY_DEVICE_ID`"
+        ),
         "You are trying to create a GPU DALI pipeline, while CUDA is not available.*",
     ]
 
@@ -1150,8 +1162,9 @@ def test_arithm_ops_cpu_gpu():
         RuntimeError,
         pipe.build,
         glob=(
-            "Cannot add a GPU operator ArithmeticGenericOp,"
-            " device_id should not be equal CPU_ONLY_DEVICE_ID."
+            "Error in GPU operator `nvidia.dali.math.*`*"
+            "Cannot add a GPU operator."
+            " Pipeline 'device_id' should not be equal to `CPU_ONLY_DEVICE_ID`."
         ),
     )
 

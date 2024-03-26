@@ -265,3 +265,29 @@ encountered:
         pipe = non_scalar_condition()
         pipe.build()
         pipe.run()
+
+
+def test_operator_exception_arg_input_placement():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        batch_gpu = fn.copy(1.0).gpu() + 0
+        return fn.random.coin_flip(probability=batch_gpu)
+
+    with assert_raises(
+        RuntimeError,
+        glob=(
+            """Error in CPU operator `nvidia.dali.fn.random.coin_flip`,
+which was used in the pipeline definition with the following traceback:
+
+  File "*/test_operator_exception.py", line *, in pipe
+    return fn.random.coin_flip(probability=batch_gpu)
+
+encountered:
+
+Error for argument 'probability'. Named arguments inputs to operators must be CPU data nodes.*
+"""
+        ),
+    ):
+        p = pipe()
+        p.build()
+        p.run()
