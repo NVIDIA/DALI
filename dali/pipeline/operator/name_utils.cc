@@ -39,4 +39,20 @@ std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path) {
   }
 }
 
+std::string FormatInput(const OpSpec &spec, int input_idx, bool capitalize) {
+  if (spec.GetSchema().HasInputDox()) {
+    return make_string(capitalize ? "I" : "i", "nput `", input_idx, "` ('__",
+                       spec.GetSchema().GetInputName(input_idx), "')");
+  }
+  return make_string(capitalize ? "I" : "i", "nput `", input_idx, "`");
+}
+
+std::string FormatOutput(const OpSpec &spec, int output_idx, bool capitalize) {
+  return make_string(capitalize ? "O" : "o", "utput `", output_idx, "`");
+}
+
+std::string FormatArgument(const OpSpec &spec, const std::string &argument, bool capitalize) {
+  return make_string(capitalize ? "A" : "a", "rgument '", argument, "'");
+}
+
 }  // namespace dali

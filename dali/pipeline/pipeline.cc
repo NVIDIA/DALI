@@ -294,7 +294,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
   auto device = const_spec.GetArgument<std::string>("device");
 
   DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
-               "Cannot add a GPU operator. Pipeline's 'device_id' should not be equal to "
+               "Cannot add a GPU operator. Pipeline 'device_id' should not be equal to "
                "`CPU_ONLY_DEVICE_ID`.");
 
   if (device == "support") {
@@ -317,9 +317,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     string input_device = spec.InputDevice(i);
     auto it = edge_names_.find(input_name);
 
-    DALI_ENFORCE(
-        it != edge_names_.end(),
-        make_string("Input '", input_name, "' to the operator is not known to the pipeline."));
+    DALI_ENFORCE(it != edge_names_.end(),
+                 make_string("Data node \"", input_name, "\" requested as ", FormatInput(spec, i),
+                             " to the operator is not known to the pipeline."));
 
     // Table of possible scenarios:
     // Op location / requested input type / data location
@@ -337,22 +337,21 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     // mixed / gpu / gpu -> both of above errors
     if (device == "cpu" || device == "mixed") {
       DALI_ENFORCE(input_device == "cpu",
-                   make_string("Error for input: '", input_name,
-                               "'. CPU/Mixed ops can only take CPU inputs. CPU operator cannot "
+                   make_string("Error for ", FormatInput(spec, i),
+                               ". CPU/Mixed ops can only take CPU inputs. CPU operator cannot "
                                "follow GPU operator. "));
       DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error for input: '", input_name,
-                               "'. CPU input requested by operator exists only on GPU. CPU "
+                   make_string("Error for ", FormatInput(spec, i),
+                               ". CPU input requested by operator exists only on GPU. CPU "
                                "operator cannot follow GPU operator."));
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
-                   make_string("Error for input: '", input_name,
-                               "'. Cannot add a Mixed operator with a GPU output, `device_id` "
-                               "should not be `CPU_ONLY_DEVICE_ID`."));
+                   "Cannot add a Mixed operator with a GPU output, 'device_id' "
+                   "should not be `CPU_ONLY_DEVICE_ID`.");
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error for input: '", input_name,
-                               "'. CPU input requested by operator exists only on GPU. CPU "
+                   make_string("Error for ", FormatInput(spec, i),
+                               ". CPU input requested by operator exists only on GPU. CPU "
                                "operator cannot follow GPU operator."));
       SetupCPUInput(it, i, &spec);
     } else {
@@ -367,11 +366,12 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
 
     DALI_ENFORCE(
         it != edge_names_.end(),
-        make_string("Argument input '", input_name, "' to operator is not known to the pipeline."));
+        make_string("Data node \"", input_name, "\" requested as ", FormatArgument(spec, arg_name),
+                    " to operator is not known to the pipeline."));
 
     if (!it->second.has_cpu) {
-      DALI_FAIL(make_string("Error for argument input '", input_name,
-                            "'. Named arguments inputs to operators must be CPU data nodes. "
+      DALI_FAIL(make_string("Error for ", FormatArgument(spec, arg_name),
+                            ". Named arguments inputs to operators must be CPU data nodes. "
                             "However, a GPU data node was provided."));
     }
 
@@ -386,8 +386,8 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
 
     auto it = edge_names_.find(output_name);
     DALI_ENFORCE(it == edge_names_.end(),
-                 make_string("Error for output '", output_name, "'. Output name '", output_name,
-                             "' conflicts with existing intermediate result name."));
+                 make_string("Error for ", FormatOutput(spec, i), ". Output name \"", output_name,
+                             "\" conflicts with existing intermediate result name."));
 
     // Validate output data conforms to graph constraints
     // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
@@ -396,8 +396,8 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
       DALI_ENFORCE(output_device == "cpu",
-                   make_string("Error for output '", output_name,
-                               "'. Only CPU operators can produce CPU outputs."));
+                   make_string("Error for ", FormatOutput(spec, i),
+                               ". Only CPU operators can produce CPU outputs."));
     } else if (device == "gpu") {
       if (output_device == "cpu") {
         mark_explicitly_contiguous = true;
@@ -414,9 +414,9 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
       meta.has_contiguous = true;
     }
 
-    DALI_ENFORCE(
-        edge_names_.insert({output_name, meta}).second,
-        make_string("Error for output '", output_name, "'. Output name insertion failure."));
+    DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
+                 make_string("Error for ", FormatOutput(spec, i), "node name: \"", output_name,
+                             "\". Output name insertion failure."));
   }
 
   // store updated spec
@@ -553,8 +553,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
                    make_string(
                      "Cannot move the data node ", name, " to the GPU "
-                     "in a CPU-only pipeline. The `device_id` parameter "
-                     "is set to `CPU_ONLY_DEVICE_ID`. Set `device_id` "
+                     "in a CPU-only pipeline. The 'device_id' parameter "
+                     "is set to `CPU_ONLY_DEVICE_ID`. Set 'device_id' "
                      "to a valid GPU identifier to enable GPU features "
                      "in the pipeline."));
       if (!it->second.has_gpu) {
