@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -198,6 +198,9 @@ class Loader {
     }
 
     DALI_ENFORCE(GetMissingSamples().empty(), "Internal error: reading missing samples failed");
+
+    // current_snapshot_.age was increased by `ReadOne` calls, reset it to correct value
+    current_snapshot_.age = state.age;
   }
 
   bool ShouldPadBatch(bool is_new_batch) {
