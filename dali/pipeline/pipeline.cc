@@ -29,6 +29,10 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/default_resources.h"
 #include "dali/pipeline/dali.pb.h"
+#include "dali/pipeline/operator/argument.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 
 namespace dali {
 
@@ -245,8 +249,35 @@ int Pipeline::AddOperator(const OpSpec &spec) {
 
 
 int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name, int logical_id) {
-  DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-      "\"Build()\" has been called are not allowed");
+  DALI_ENFORCE(!built_,
+               "Alterations to the pipeline after \"Build()\" has been called are not allowed");
+
+  // Validate op device
+  auto device = const_spec.GetArgument<std::string>("device");
+  // Doesn't make sense to state the wrong device in the error message, so we use the operator name
+  // directly instead of the error context message..
+  DALI_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed" || device == "support",
+               make_string("Invalid device argument \"", device, "\" for operator `",
+                           GetOpDisplayName(const_spec, true),
+                           "`. Valid options are \"cpu\", \"gpu\" or \"mixed\""));
+
+  int result = -1;
+  std::exception_ptr eptr;
+  try {
+    result = AddOperatorImpl(const_spec, inst_name, logical_id);
+  } catch (...) {
+    eptr = std::current_exception();
+  }
+  if (eptr) {
+    PropagateError({eptr, GetErrorContextMessage(const_spec), ""});
+  }
+  return result;
+}
+
+int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_name,
+                              int logical_id) {
+  assert(!built_ && "Already checked by AddOperator()");
+
   DALI_ENFORCE(0 <= logical_id,
                "Logical id of the node must be positive, got " + std::to_string(logical_id) + ".");
 
@@ -256,22 +287,20 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // we modify spec so copy it
   OpSpec spec = const_spec;
-  auto operator_name = spec.SchemaName();
+  auto operator_name = GetOpDisplayName(spec, true);
   // Take a copy of the passed OpSpec for serialization purposes before any modification
   this->op_specs_for_serialization_.push_back({inst_name, spec, logical_id});
 
-  // Validate op device
-  string device = spec.GetArgument<string>("device");
-  DALI_ENFORCE(device == "cpu" || device == "gpu" || device == "mixed" || device == "support",
-    "Invalid device argument \"" +  device +
-    "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
+  auto device = const_spec.GetArgument<std::string>("device");
 
   DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
-               make_string("Cannot add a GPU operator ", operator_name, ", device_id should not be"
-               " equal CPU_ONLY_DEVICE_ID."));
+               "Cannot add a GPU operator. Pipeline's 'device_id' should not be equal to "
+               "`CPU_ONLY_DEVICE_ID`.");
 
   if (device == "support") {
-    DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
+    auto warning_context = GetErrorContextMessage(spec, "Warning");
+    DALI_WARN(warning_context,
+              " \"support\" device is deprecated; use \"cpu\" or leave blank instead.");
     device = "cpu";
     spec.SetArg("device", "cpu");
   }
@@ -288,8 +317,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     string input_device = spec.InputDevice(i);
     auto it = edge_names_.find(input_name);
 
-    DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
-        "' to op '" + spec.SchemaName() + "' is not known to the pipeline.");
+    DALI_ENFORCE(
+        it != edge_names_.end(),
+        make_string("Input '", input_name, "' to the operator is not known to the pipeline."));
 
     // Table of possible scenarios:
     // Op location / requested input type / data location
@@ -305,21 +335,25 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     // mixed / cpu / gpu -> error, data does not exist on cpu
     // mixed / gpu / cpu -> error, mixed op not allowed to have gpu inputs
     // mixed / gpu / gpu -> both of above errors
-    string error_str = "(op: '" + spec.SchemaName() + "', input: '" +
-      input_name + "')";
-
     if (device == "cpu" || device == "mixed") {
-      DALI_ENFORCE(input_device == "cpu", "cpu/mixed ops can only take cpu "
-          "inputs. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. CPU op cannot follow GPU op. " + error_str);
+      DALI_ENFORCE(input_device == "cpu",
+                   make_string("Error for input: '", input_name,
+                               "'. CPU/Mixed ops can only take CPU inputs. CPU operator cannot "
+                               "follow GPU operator. "));
+      DALI_ENFORCE(it->second.has_cpu,
+                   make_string("Error for input: '", input_name,
+                               "'. CPU input requested by operator exists only on GPU. CPU "
+                               "operator cannot follow GPU operator."));
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
-                   make_string("Cannot add a mixed operator ", operator_name,
-                   " with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID."));
+                   make_string("Error for input: '", input_name,
+                               "'. Cannot add a Mixed operator with a GPU output, `device_id` "
+                               "should not be `CPU_ONLY_DEVICE_ID`."));
     } else if (input_device == "cpu") {
       // device == gpu
-      DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-          "only on gpu. CPU op cannot follow GPU op. " + error_str);
+      DALI_ENFORCE(it->second.has_cpu,
+                   make_string("Error for input: '", input_name,
+                               "'. CPU input requested by operator exists only on GPU. CPU "
+                               "operator cannot follow GPU operator."));
       SetupCPUInput(it, i, &spec);
     } else {
       SetupGPUInput(it);
@@ -331,16 +365,14 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     std::string input_name = spec.InputName(input_idx);
     auto it = edge_names_.find(input_name);
 
-    DALI_ENFORCE(it != edge_names_.end(), "Input '" + input_name +
-        "' to op '" + spec.SchemaName() + "' is not known to the pipeline.");
-
-    string error_str = "(op: '" + spec.SchemaName() + "', input: '" +
-      input_name + "')";
+    DALI_ENFORCE(
+        it != edge_names_.end(),
+        make_string("Argument input '", input_name, "' to operator is not known to the pipeline."));
 
     if (!it->second.has_cpu) {
-      DALI_FAIL(make_string(
-          "Named arguments inputs to operators must be CPU data nodes. However, a GPU ",
-          "data node was provided (op: '", spec.SchemaName(), "', input: '", input_name, "')"));
+      DALI_FAIL(make_string("Error for argument input '", input_name,
+                            "'. Named arguments inputs to operators must be CPU data nodes. "
+                            "However, a GPU data node was provided."));
     }
 
     if (device == "gpu" && separated_execution_)
@@ -351,13 +383,11 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   for (int i = 0; i < spec.NumOutput(); ++i) {
     string output_name = spec.OutputName(i);
     string output_device = spec.OutputDevice(i);
-    string error_str = "(op: '" + spec.SchemaName() + "', output: '" +
-      output_name + "')";
 
     auto it = edge_names_.find(output_name);
-    DALI_ENFORCE(it == edge_names_.end(), "Output name '" +
-        output_name + "' conflicts with existing intermediate "
-        "result name. " + error_str);
+    DALI_ENFORCE(it == edge_names_.end(),
+                 make_string("Error for output '", output_name, "'. Output name '", output_name,
+                             "' conflicts with existing intermediate result name."));
 
     // Validate output data conforms to graph constraints
     // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
@@ -365,8 +395,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     // TODO(klecki): Are there any GPU ops that actually return CPU outputs?
     bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
-      DALI_ENFORCE(output_device == "cpu", "Only CPU operators can produce CPU outputs." +
-                                            error_str);
+      DALI_ENFORCE(output_device == "cpu",
+                   make_string("Error for output '", output_name,
+                               "'. Only CPU operators can produce CPU outputs."));
     } else if (device == "gpu") {
       if (output_device == "cpu") {
         mark_explicitly_contiguous = true;
@@ -383,8 +414,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
       meta.has_contiguous = true;
     }
 
-    DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
-        "Output name insertion failure.");
+    DALI_ENFORCE(
+        edge_names_.insert({output_name, meta}).second,
+        make_string("Error for output '", output_name, "'. Output name insertion failure."));
   }
 
   // store updated spec
@@ -402,13 +434,13 @@ void Pipeline::AddToOpSpecs(const std::string &inst_name, const OpSpec &spec, in
     const auto &group_name = op_specs_[logical_group.front()].spec.SchemaName();
     DALI_ENFORCE(
         group_name == spec.SchemaName(),
-        "Different Operator types cannot be groupped with the same logical id. Tried to group " +
-            spec.SchemaName() + " using logical_id=" + std::to_string(logical_id) +
+        "Different Operator types cannot be grouped with the same logical id. Tried to group `" +
+            GetOpDisplayName(spec, true) + "` using logical_id=" + std::to_string(logical_id) +
             " which is already assigned to " + group_name + ".");
     const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
     DALI_ENFORCE(schema.AllowsInstanceGrouping(),
-                 "Operator " + spec.SchemaName() +
-                     " does not support synced random execution required "
+                 "Operator `" + GetOpDisplayName(spec, true) +
+                     "` does not support synced random execution required "
                      "for multiple input sets processing.");
   }
   op_specs_.push_back({inst_name, spec, logical_id});
@@ -479,35 +511,22 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   executor_->Init();
 
   // Creating the graph
+
+  std::exception_ptr eptr;
   for (auto& name_op_spec : op_specs_) {
     string& inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
     PrepareOpSpec(&op_spec, name_op_spec.logical_id);
+    std::exception_ptr eptr;
     try {
       graph_.AddOp(op_spec, inst_name);
-    } catch (std::exception &e) {
-      int same_op_count = 0;
-      for (const auto& elem : op_specs_) {
-        if (elem.spec.SchemaName() == op_spec.SchemaName()) {
-          same_op_count++;
-        }
-        if (same_op_count > 1) {
-          break;
-        }
-      }
-      if (same_op_count > 1) {
-        throw std::runtime_error(make_string(
-            "Critical error when building pipeline:\nError when adding operator: ",
-            op_spec.SchemaName(), ", instance name: \"", inst_name, "\", encountered:\n", e.what(),
-            "\nCurrent pipeline object is no longer valid."));
-      } else {
-        throw std::runtime_error(
-            make_string("Critical error when building pipeline:\nError when adding operator: ",
-                        op_spec.SchemaName(), "\" encountered:\n", e.what(),
-                        "\nCurrent pipeline object is no longer valid."));
-      }
     } catch (...) {
-      throw std::runtime_error("Unknown critical error when building pipeline.");
+      eptr = std::current_exception();
+    }
+    if (eptr) {
+      PropagateError({eptr,
+                      "Critical error when building pipeline:\n" + GetErrorContextMessage(op_spec),
+                      "\nCurrent pipeline object is no longer valid."});
     }
   }
 
@@ -764,8 +783,8 @@ string Pipeline::SerializeToProtobuf() const {
     const auto& p = this->op_specs_for_serialization_[i];
     const OpSpec& spec = p.spec;
 
-    DALI_ENFORCE(spec.GetSchema().IsSerializable(), "Could not serialize the operator: "
-                                                    + spec.SchemaName());
+    DALI_ENFORCE(spec.GetSchema().IsSerializable(), "Could not serialize the operator: `"
+                                                    + GetOpDisplayName(spec, true) + "`.");
 
     dali::SerializeToProtobuf(op_def, p.instance_name, spec, p.logical_id);
   }

@@ -19,6 +19,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/op_schema.h"
 
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
@@ -55,17 +56,17 @@ void CheckOpConstraints(const OpSpec &spec) {
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 
   DALI_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
-      "Op '" + spec.SchemaName() + "' does not support in-place execution.");
+      "Operator `" + GetOpDisplayName(spec, true) + "` does not support in-place execution.");
   DALI_ENFORCE(spec.NumRegularInput() <= schema.MaxNumInput(),
-      "Operator '" + spec.SchemaName() +
-      "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
+      "Operator `" + GetOpDisplayName(spec, true) +
+      "` supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
   DALI_ENFORCE(spec.NumRegularInput() >= schema.MinNumInput(),
-      "Operator '" + spec.SchemaName() +
-      "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
+      "Operator `" + GetOpDisplayName(spec, true) +
+      "` supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
       "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
   DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
-      "Operator '" + spec.SchemaName() + "' supports "
+      "Operator `" + GetOpDisplayName(spec, true) + "` supports "
       + std::to_string(schema.CalculateOutputs(spec) + additional_outputs)
       + " outputs, but was passed " + std::to_string(spec.NumOutput()) + ".");
 }

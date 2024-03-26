@@ -63,10 +63,6 @@ class Reshape : public StatelessOperator<Backend> {
   TensorLayout layout_;
 
  private:
-  inline const std::string &OpName() const {
-    return this->spec_.SchemaName();
-  }
-
   TensorListShape<> input_shape_;
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;

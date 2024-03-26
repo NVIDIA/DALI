@@ -596,6 +596,14 @@ class DLL_PUBLIC Pipeline {
     return base_ptr_offset;
   }
 
+  /**
+   * @brief See Pipeline::AddOperator for details.
+   *
+   * Does the internal processing allowing the errors to be processed once.
+   * Assumes that Build() has not been called.
+   */
+  DLL_PUBLIC int AddOperatorImpl(const OpSpec &spec, const std::string& inst_name, int logical_id);
+
   void SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec);
 
   void SetupGPUInput(std::map<string, EdgeMeta>::iterator it);

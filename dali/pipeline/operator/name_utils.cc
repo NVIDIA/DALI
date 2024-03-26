@@ -23,7 +23,7 @@
 namespace dali {
 
 std::string GetOpModule(const OpSpec &spec) {
-  return spec.GetArgument<std::string>("_module");;
+  return spec.GetArgument<std::string>("_module");
 }
 
 std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path) {

@@ -183,8 +183,10 @@ class DaliStopIteration : public DaliError {
  * * the origin stack trace of the operator within pipeline definition.
  *
  * It can be prepended to the original error message.
+ * @param message_name Will be used as the prefix of the error message, for example:
+ * "Error in <device> operator <op_name>" or "Warning in <device> operator <op_name>"
  */
-std::string GetErrorContextMessage(const OpSpec &spec);
+std::string GetErrorContextMessage(const OpSpec &spec, const std::string &message_name = "Error");
 
 }  // namespace dali
 
