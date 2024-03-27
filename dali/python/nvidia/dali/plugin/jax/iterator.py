@@ -321,8 +321,8 @@ def _data_iterator_impl(
 
                 if checkpoints and len(checkpoints) != len(devices_to_use):
                     raise RuntimeError(
-                        "The number of checkpoints provided should match the number of devices "
-                        "to use."
+                        f"The number of checkpoints provided ({len(checkpoints)}) should match "
+                        f"the number of devices to use ({len(devices_to_use)})."
                     )
 
                 for id, device in enumerate(devices_to_use):
