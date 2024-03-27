@@ -358,9 +358,9 @@ class Augmentation:
             return None
         if magnitude_bin is None:
             raise Exception(
-                f"The augmentation `{self.name}` has `mag_range` specified, so when called, "
-                f"it requires `magnitude_bin` parameter to select the magnitude from the "
-                f"`mag_range`.\nError in augmentation: {self}."
+                f"The augmentation `{self.name}` has `mag_range` specified, "  # nosec B608
+                f"so when called, it requires `magnitude_bin` parameter to select "
+                f"the magnitude from the `mag_range`.\nError in augmentation: {self}."
             )
         if self.randomly_negate and not isinstance(magnitude_bin, _SignedMagnitudeBin):
             magnitude_bin = signed_bin(magnitude_bin)

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import inspect
-import pickle
+import pickle  # nosec B403
 import sys
 import types
 import marshal
@@ -48,7 +48,7 @@ def set_funcion_state(fun, state):
 
 
 def function_unpickle(name, qualname, code, closure):
-    code = marshal.loads(code)
+    code = marshal.loads(code)  # nosec B302
     global_scope = {"__builtins__": __builtins__}
     fun = types.FunctionType(code, global_scope, name, closure=closure)
     fun.__qualname__ = qualname

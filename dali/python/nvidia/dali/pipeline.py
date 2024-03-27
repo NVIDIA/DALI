@@ -30,7 +30,7 @@ import atexit
 import ctypes
 import functools
 import inspect
-import pickle
+import pickle  # nosec B403
 import sys
 import traceback
 import warnings
@@ -950,7 +950,7 @@ class Pipeline(object):
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
             external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
-            pipeline_data = pickle.loads(external_ctx_cpt.pipeline_data)
+            pipeline_data = pickle.loads(external_ctx_cpt.pipeline_data)  # nosec B301
             self._consumer_epoch_idx = self._epoch_idx = pipeline_data["epoch_idx"]
             self._consumer_iter = pipeline_data["iter"]
             if self._input_callbacks:
