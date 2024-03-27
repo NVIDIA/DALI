@@ -15,6 +15,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -96,7 +97,7 @@ void PropagateError(ErrorInfo error) {
   }
 }
 
-std::string GetErrorContextMessage(const OpSpec &spec, const std::string &message_name) {
+std::string GetErrorContextMessage(const OpSpec &spec, std::string_view message_name) {
   auto device = spec.GetArgument<std::string>("device");
   auto op_name = GetOpDisplayName(spec, true);
   std::transform(device.begin(), device.end(), device.begin(), ::toupper);

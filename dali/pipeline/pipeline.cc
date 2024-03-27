@@ -333,11 +333,11 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     // mixed / gpu / gpu -> both of above errors
     if (device == "cpu" || device == "mixed") {
       DALI_ENFORCE(input_device == "cpu",
-                   make_string("Error for ", FormatInput(spec, i),
+                   make_string("Error while specifying ", FormatInput(spec, i),
                                ". CPU/Mixed ops can only take CPU inputs. CPU operator cannot "
                                "follow GPU operator. "));
       DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error for ", FormatInput(spec, i),
+                   make_string("Error while specifying ", FormatInput(spec, i),
                                ". CPU input requested by operator exists only on GPU. CPU "
                                "operator cannot follow GPU operator."));
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
@@ -346,7 +346,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu,
-                   make_string("Error for ", FormatInput(spec, i),
+                   make_string("Error while specifying ", FormatInput(spec, i),
                                ". CPU input requested by operator exists only on GPU. CPU "
                                "operator cannot follow GPU operator."));
       SetupCPUInput(it, i, &spec);
@@ -366,7 +366,8 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
                     " to operator is not known to the pipeline."));
 
     if (!it->second.has_cpu) {
-      DALI_FAIL(make_string("Error for ", FormatArgument(spec, arg_name),
+      assert(it->second.has_gpu);
+      DALI_FAIL(make_string("Error while specifying ", FormatArgument(spec, arg_name),
                             ". Named arguments inputs to operators must be CPU data nodes. "
                             "However, a GPU data node was provided."));
     }
@@ -381,9 +382,10 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     string output_device = spec.OutputDevice(i);
 
     auto it = edge_names_.find(output_name);
-    DALI_ENFORCE(it == edge_names_.end(),
-                 make_string("Error for ", FormatOutput(spec, i), ". Output name \"", output_name,
-                             "\" conflicts with an existing intermediate result name."));
+    DALI_ENFORCE(
+        it == edge_names_.end(),
+        make_string("Error while specifying ", FormatOutput(spec, i), ". Output name \"",
+                    output_name, "\" conflicts with an existing intermediate result name."));
 
     // Validate output data conforms to graph constraints
     // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
@@ -392,7 +394,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     bool mark_explicitly_contiguous = false;
     if (device == "cpu") {
       DALI_ENFORCE(output_device == "cpu",
-                   make_string("Error for ", FormatOutput(spec, i),
+                   make_string("Error while specifying ", FormatOutput(spec, i),
                                ". Only CPU operators can produce CPU outputs."));
     } else if (device == "gpu") {
       if (output_device == "cpu") {
@@ -411,8 +413,8 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     }
 
     DALI_ENFORCE(edge_names_.insert({output_name, meta}).second,
-                 make_string("Error for ", FormatOutput(spec, i), "node name: \"", output_name,
-                             "\". Output name insertion failure."));
+                 make_string("Error while specifying ", FormatOutput(spec, i), "node name: \"",
+                             output_name, "\". Output name insertion failure."));
   }
 
   // store updated spec
