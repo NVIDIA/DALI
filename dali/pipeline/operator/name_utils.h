@@ -42,6 +42,35 @@ DLL_PUBLIC std::string GetOpModule(const OpSpec &spec);
  */
 DLL_PUBLIC std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path = false);
 
+/**
+ * @brief Uniformly format the display of the operator input index, optionally including the name
+ * if provided in schema doc.
+ *
+ * @param input_idx Index of the input
+ * @param capitalize should be true if the output should start with capital letter (used at the
+ * start of the sentence)
+ */
+DLL_PUBLIC std::string FormatInput(const OpSpec &spec, int input_idx, bool capitalize = false);
+
+/**
+ * @brief Uniformly format the display of the operator output index.
+ *
+ * @param input_idx Index of the output
+ * @param capitalize should be true if the output should start with capital letter (used at the
+ * start of the sentence)
+ */
+DLL_PUBLIC std::string FormatOutput(const OpSpec &spec, int output_idx, bool capitalize = false);
+
+/**
+ * @brief Uniformly format the display of the operator argument name
+ *
+ * @param argument string representing the name of the argument (without additional quotes)
+ * @param capitalize should be true if the output should start with capital letter (used at the
+ * start of the sentence)
+ */
+DLL_PUBLIC std::string FormatArgument(const OpSpec &spec, const std::string &argument,
+                                      bool capitalize = false);
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATOR_NAME_UTILS_H_
