@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_RANDOM_RNG_BASE_CPU_H_
 #define DALI_OPERATORS_RANDOM_RNG_BASE_CPU_H_
 
+#include <any>
 #include <random>
 #include <utility>
 #include <vector>
@@ -31,7 +32,14 @@ template<>
 struct OperatorWithRngFields<CPUBackend> {
   OperatorWithRngFields(int64_t seed, int nsamples) {}
 
-  std::vector<uint8_t> dists_cpu_;
+  template <typename Dist>
+  std::vector<Dist> &dists_cpu() {
+    if (!dists_cpu_.has_value())
+        dists_cpu_ = std::vector<Dist>();
+    return std::any_cast<std::vector<Dist> &>(dists_cpu_);
+  }
+
+  std::any dists_cpu_;
 };
 
 template <bool IsNoiseGen>
@@ -125,9 +133,9 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
 
   // TODO(janton): set layout explicitly from the user for RNG
 
-  auto &dists_cpu = backend_data_.dists_cpu_;
-  dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
-  Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
+  auto &dists_cpu = backend_data_.template dists_cpu<Dist>();
+  dists_cpu.resize(nsamples);
+  Dist* dists = dists_cpu.data();
   bool use_default_dist = !This().template SetupDists<T>(dists, ws, nsamples);
 
   int channel_dim = -1;
