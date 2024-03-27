@@ -262,14 +262,10 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
                            "`. Valid options are \"cpu\", \"gpu\" or \"mixed\""));
 
   int result = -1;
-  std::exception_ptr eptr;
   try {
     result = AddOperatorImpl(const_spec, inst_name, logical_id);
   } catch (...) {
-    eptr = std::current_exception();
-  }
-  if (eptr) {
-    PropagateError({eptr, GetErrorContextMessage(const_spec), ""});
+    PropagateError({std::current_exception(), GetErrorContextMessage(const_spec), ""});
   }
   return result;
 }
@@ -387,7 +383,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     auto it = edge_names_.find(output_name);
     DALI_ENFORCE(it == edge_names_.end(),
                  make_string("Error for ", FormatOutput(spec, i), ". Output name \"", output_name,
-                             "\" conflicts with existing intermediate result name."));
+                             "\" conflicts with an existing intermediate result name."));
 
     // Validate output data conforms to graph constraints
     // Note: DALI CPU -> GPU flow is enforced, when the operators are added via the Python layer
@@ -512,19 +508,14 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   // Creating the graph
 
-  std::exception_ptr eptr;
   for (auto& name_op_spec : op_specs_) {
     string& inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
     PrepareOpSpec(&op_spec, name_op_spec.logical_id);
-    std::exception_ptr eptr;
     try {
       graph_.AddOp(op_spec, inst_name);
     } catch (...) {
-      eptr = std::current_exception();
-    }
-    if (eptr) {
-      PropagateError({eptr,
+      PropagateError({std::current_exception(),
                       "Critical error when building pipeline:\n" + GetErrorContextMessage(op_spec),
                       "\nCurrent pipeline object is no longer valid."});
     }
@@ -642,39 +633,33 @@ bool Pipeline::ValidateOutputs(const Workspace &ws) const {
 
 void Pipeline::Outputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
-  std::exception_ptr eptr;
   try {
     executor_->Outputs(ws);
   } catch (...) {
-    eptr = std::current_exception();
+    ProcessException(std::current_exception());
   }
-  ProcessException(eptr);
 
   ValidateOutputs(*ws);
 }
 
 void Pipeline::ShareOutputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
-  std::exception_ptr eptr;
   try {
     executor_->ShareOutputs(ws);
   } catch (...) {
-    eptr = std::current_exception();
+    ProcessException(std::current_exception());
   }
-  ProcessException(eptr);
 
   ValidateOutputs(*ws);
 }
 
 void Pipeline::ReleaseOutputs() {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
-  std::exception_ptr eptr;
   try {
     executor_->ReleaseOutputs();
   } catch (...) {
-    eptr = std::current_exception();
+    ProcessException(std::current_exception());
   }
-  ProcessException(eptr);
 }
 
 void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_idx, OpSpec *spec) {

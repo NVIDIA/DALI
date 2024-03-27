@@ -691,7 +691,8 @@ class DLL_PUBLIC Pipeline {
   void DiscoverInputOperators();
 
   /**
-   * @brief Process exception that was thrown when executing DALI.
+   * @brief Process exception that was thrown when executing DALI. Executor already provided context
+   * for operator if possible.
    */
   void ProcessException(std::exception_ptr eptr);
 
