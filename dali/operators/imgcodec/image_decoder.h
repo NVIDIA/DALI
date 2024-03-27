@@ -563,20 +563,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   /**
-   * @brief nvImageCodec 0.2 doesn't synchronize with the user stream before decoding.
-   * Because of that, we need to host synchronize before passing the async allocated buffer 
+   * @brief nvImageCodec up to 0.2 doesn't synchronize with the user stream before decoding.
+   * Because of that, we need to host synchronize before passing the async allocated buffer
    * to the decoding function
    */
   bool need_host_sync_alloc() {
-    static std::once_flag once;
-    static bool need_sync = false;
-    std::call_once(once, []() {
+    static bool need_sync = [] {
       int major, minor, patch;
       get_nvimgcodec_version(&major, &minor, &patch);
-      if (major <= 0 || minor <= 2) {
-        need_sync = true;
-      }
-    });
+      return major == 0 && minor <= 2;
+    }();
     return need_sync;
   }
 
@@ -645,7 +641,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       if constexpr (std::is_same<MixedBackend, Backend>::value) {
         // This is a workaround for nvImageCodec <= 0.2
         auto alloc_stream =
-            need_host_sync_alloc() ? AccessOrder::host().stream() : st.image_info.cuda_stream;
+            need_host_sync_alloc() ? mm::host_sync : st.image_info.cuda_stream;
         st.device_buf = mm::alloc_raw_async_unique<uint8_t, mm::memory_kind::device>(
             image_buffer_size, alloc_stream, st.image_info.cuda_stream);
         st.image_info.buffer = st.device_buf.get();
