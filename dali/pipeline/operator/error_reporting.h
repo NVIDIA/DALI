@@ -190,92 +190,144 @@ std::string GetErrorContextMessage(const OpSpec &spec);
 
 namespace validate {
 
-void Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
-          const std::string &additional_message = "");
+/** @defgroup TypeValidation Validation of types.
+ * Input/Output type validation - based on the workspace contents and the index.
+ * Argument type validation - internal check if the argument matches the spec before operator
+ * code is able to access it.
+ * Argument 'dtype' validation - based on the operator spec, checks the contents.
+ * Type() variant provides generic validation.
+ * @{
+ */
 
-void Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
-          const std::string &name, const std::string &additional_message = "");
+/**
+ * @brief Check if the actual_type matches the expected_type. If not, throws TypeError
+ * containing the message:
+ *
+ * Unexpected type for <name>: Got type: <actual_type>, but expected: <expected_type>.
+ * <additional_message>
+ *
+ * @param actual_type
+ * @param expected_type
+ * @param name
+ * @param additional_message
+ * @return DALIDataType
+ */
+DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
+                  const std::string &additional_message = "");
 
-//TODO: additional message
-//Dim, Type, axis, dtype
-//Matching shape reference, matching other input.
-void InputType(const OpSpec &spec, const Workspace &ws, int input_idx, DALIDataType allowed_type,
-               const std::string &additional_msg = "");
+/**
+ * @brief Check if the actual_type matches the expected_type. If not, throws TypeError
+ * containing the message:
+ *
+ * Unexpected type for <name>: Got type: <actual_type>, but expected one of: <expected_types>.
+ * <additional_message>
+ *
+ * @param actual_type
+ * @param expected_types
+ * @param name
+ * @param additional_message
+ * @return DALIDataType
+ */
+DALIDataType Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
+                  const std::string &name, const std::string &additional_message = "");
 
-void InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-               span<DALIDataType> &allowed_types,
-               const std::string &additional_msg = "");
+DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                       DALIDataType allowed_type, const std::string &additional_msg = "");
+
+DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                       span<DALIDataType> &allowed_types, const std::string &additional_msg = "");
 
 template <typename... InputTypes>
-void InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-               const std::string &additional_msg = "") {
+DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                       const std::string &additional_msg = "") {
   static std::array<DALIDataType, sizeof...(InputTypes)> allowed_types = {
       type2id<InputTypes>::value...};
-  InputType(spec, ws, input_idx, make_cspan(allowed_types), additional_msg);
+  return InputType(spec, ws, input_idx, make_cspan(allowed_types), additional_msg);
 }
 
-void Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified = false,
-               const std::string &additional_msg = "");
+DALIDataType Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified = false,
+                   const std::string &additional_msg = "");
 
-void Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types, bool allow_unspecified = false,
-               const std::string &additional_msg = "");
+DALIDataType Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types,
+                   bool allow_unspecified = false, const std::string &additional_msg = "");
 
-// template <typename... InputTypes>
-// void Dtype(const OpSpec &spec, const Workspace &ws, int input_idx,
-//                const std::string &additional_msg = "") {
-//   static std::array<DALIDataType, sizeof...(InputTypes)> allowed_types = {
-//       type2id<InputTypes>::value...};
-//   InputType(spec, ws, input_idx, make_cspan(allowed_types), additional_msg);
-// }
+DALIDataType Dtype(const OpSpec &spec, const Workspace &ws, bool (*is_valid)(DALIDataType),
+                   const std::string &explanation);
 
 
-void OutputType(const OpSpec &spec, const Workspace &ws, int output_idx, DALIDataType allowed_type,
-                const std::string &additional_msg = "");
+DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                        DALIDataType allowed_type, const std::string &additional_msg = "");
 
-void OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-                span<DALIDataType> &allowed_types,
-                const std::string &additional_msg = "");
+DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                        span<DALIDataType> &allowed_types, const std::string &additional_msg = "");
 
 template <typename... InputTypes>
-void OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-               const std::string &additional_msg = "") {
+DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                        const std::string &additional_msg = "") {
   static std::array<DALIDataType, sizeof...(InputTypes)> allowed_types = {
       type2id<InputTypes>::value...};
-  OutputType(spec, ws, output_idx, make_cspan(allowed_types), additional_msg);
+  return OutputType(spec, ws, output_idx, make_cspan(allowed_types), additional_msg);
 }
 
-void Dim(int actual_dim, int expected_dim, const std::string &name, const std::string &additional_msg = "");
-void Dim(int actual_dim, int expected_from, int expected_to, const std::string &name, const std::string &additional_msg = "");
-void Dim(int actual_dim, span<int> &expected, const std::string &name, const std::string &additional_msg = "");
+/**
+ * @brief Verifies if given argument input has a correct backing type.
+ *
+ * @param spec
+ * @param ws
+ * @param arg_name
+ * @param additional_msg
+ * @return DALIDataType
+ */
+DALIDataType ArgumentType(const OpSpec &spec, const Workspace &ws, const std::string &arg_name,
+                          const std::string &additional_msg = "");
 
-void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, int expected_dim, const std::string &name, const std::string &additional_msg = "");
-void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, int expected_from, int expected_to, const std::string &name, const std::string &additional_msg = "");
-void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, span<int> &expected, const std::string &name, const std::string &additional_msg = "");
+/** @} */  // end of TypeValidation
 
-void InputDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, int expected_dim, const std::string &name, const std::string &additional_msg = "");
-void InputDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, int expected_from, int expected_to, const std::string &name, const std::string &additional_msg = "");
-void InputDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, span<int> &expected, const std::string &name, const std::string &additional_msg = "");
+// TODO(klecki): Same convention can be applied to checks for inputs and arguments:
+// * dimensionality
+// * shape: matching, uniform, non-empty ...
+// * layout (we already have some of this)
+// Also, there are groups of arguments similar to 'dtype', that can have specific checks:
+// * relative coordinates [0, 1] in tensor
+// * absolute coordinates in tensor shape.
+// * axis within dim.
+// Examples: Roi, crop window, anchor points, bboxes...
+//
+// Mutually exclusive arguments are also popular.
+//
+// The downside is, this generates a lot of boilerplate code, maybe we should just stick with
+// the main variant + the FormatInput/Output/Argument variants.
+//
+//
+// void Dim(int actual_dim, int expected_dim, const std::string &name,
+//          const std::string &additional_msg = "");
+// void Dim(int actual_dim, int expected_from, int expected_to, const std::string &name,
+//          const std::string &additional_msg = "");
+// void Dim(int actual_dim, span<int> expected, const std::string &name,
+//          const std::string &additional_msg = "");
 
-void Shape(const TensorListShape<> &actual_shape, const TensorListShape<> &expected_shape, const std::string &name, const std::string &additional_msg = "");
-void UniformShape(const TensorListShape<> &actual_shape, const std::string &name, const std::string &additional_msg = "");
+// void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, int expected_dim,
+//               const std::string &name, const std::string &additional_msg = "");
+// void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, int expected_from,
+//               int expected_to, const std::string &name, const std::string &additional_msg = "");
+// void InputDim(const OpSpec &spec, const Workspace &ws, int input_idx, span<int> &expected,
+//               const std::string &name, const std::string &additional_msg = "");
 
+// void ArgumentDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
+//                  int expected_dim, const std::string &name, const std::string &additional_msg = "");
+// void ArgumentDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
+//                  int expected_from, int expected_to, const std::string &name,
+//                  const std::string &additional_msg = "");
+// void ArgumentDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
+//                  span<int> &expected, const std::string &name,
+//                  const std::string &additional_msg = "");
 
-// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, DALIDataType
-// allowed_type,
-//           const std::string &additional_msg = "");
-// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
-//           span<DALIDataType> &allowed_types, const std::string &additional_msg =
-//           "");
+// void Shape(const TensorListShape<> &actual_shape, const TensorListShape<> &expected_shape,
+//            const std::string &name, const std::string &additional_msg = "");
+// void UniformShape(const TensorListShape<> &actual_shape, const std::string &name,
+//                   const std::string &additional_msg = "");
 
-
-// template <typename... InputTypes>
-// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
-//           const std::string &additional_msg = "") {
-//   Type(spec, ws, argument_name, {type2id<InputTypes>::value...}, additional_msg);
-// }
 }  // namespace validate
-
-
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_OPERATOR_ERROR_REPORTING_H_

@@ -15,8 +15,8 @@
 
 #include <string>
 #include <vector>
+#include <fmt/format.h>
 
-#include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/op_spec.h"
 
@@ -37,6 +37,23 @@ std::string GetOpDisplayName(const OpSpec &spec, bool include_module_path) {
   } else {
     return display_name;
   }
+}
+
+std::string FormatInput(const OpSpec &spec, int input_idx, bool capitalize) {
+  if (spec.GetSchema().HasInputDox()) {
+    return fmt::format("{}nput `{}` ('__{}')", capitalize ? "I" : "i", input_idx,
+                       spec.GetSchema().GetInputName(input_idx));
+  }
+
+  return fmt::format("{}nput `{}`", capitalize ? "I" : "i", input_idx);
+}
+
+std::string FormatOutput(const OpSpec &spec, int output_idx, bool capitalize) {
+  return fmt::format("{}utput `{}`", capitalize ? "O" : "o", output_idx);
+}
+
+std::string FormatArgument(const OpSpec &spec, const std::string &argument, bool capitalize) {
+  return fmt::format("{}rgument '{}'", capitalize ? "A" : "a", argument);
 }
 
 }  // namespace dali

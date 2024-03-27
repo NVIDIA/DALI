@@ -27,6 +27,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/op_spec.h"
 
 // template <> struct fmt::formatter<dali::DALIDataType> : fmt::ostream_formatter {};
@@ -137,73 +138,70 @@ std::string SepIfNotEmpty(const std::string &str, const std::string &sep = " ") 
   return sep;
 }
 
-void Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
-          const std::string &additional_msg) {
+DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
+                  const std::string &additional_msg) {
   if (actual_type == expected_type) {
-    return;
+    return actual_type;
   }
 
-  throw DaliTypeError(fmt::format("Unexpected type for {}. Got type: `{}` but expected: `{}`.{}{}", name, actual_type,
-                                  expected_type, SepIfNotEmpty(additional_msg),
+  throw DaliTypeError(fmt::format("Unexpected type for {}. Got type: `{}` but expected: `{}`.{}{}",
+                                  name, actual_type, expected_type, SepIfNotEmpty(additional_msg),
                                   additional_msg));
 }
 
-void Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
-          const std::string &name, const std::string &additional_msg) {
+DALIDataType Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
+                  const std::string &name, const std::string &additional_msg) {
   if (std::size(expected_types) == 1) {
-    Type(actual_type, expected_types[0], name, additional_msg);
-    return;
+    return Type(actual_type, expected_types[0], name, additional_msg);
   }
   for (auto expected_type : expected_types) {
     if (actual_type == expected_type) {
-      return;
+      return actual_type;
     }
   }
 
-  throw DaliTypeError(fmt::format("Unexpected type for {}. Got type: `{}` but expected one of: `{}`.{}{}",
-                                  name, actual_type, fmt::join(expected_types, "`, `"),
-                                  SepIfNotEmpty(additional_msg), additional_msg));
+  throw DaliTypeError(fmt::format(
+      "Unexpected type for {}. Got type: `{}` but expected one of: `{}`.{}{}", name, actual_type,
+      fmt::join(expected_types, "`, `"), SepIfNotEmpty(additional_msg), additional_msg));
 }
 
-
-std::string FormatInput(const OpSpec &spec, const Workspace &ws, int input_idx) {
-  if (spec.GetSchema().HasInputDox()) {
-    return fmt::format("input `{}` (`__{}`)", input_idx, spec.GetSchema().GetInputName(input_idx));
-  }
-
-  return fmt::format("input `{}`", input_idx);
-}
-
-std::string FormatOutput(const OpSpec &spec, const Workspace &ws, int output_idx) {
-  return fmt::format("output `{}`", output_idx);
-}
-
-void InputType(const OpSpec &spec, const Workspace &ws, int input_idx, DALIDataType allowed_type,
-          const std::string &additional_msg) {
+DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                       DALIDataType allowed_type, const std::string &additional_msg) {
   DALIDataType dtype = ws.GetInputDataType(input_idx);
-  Type(dtype, allowed_type, FormatInput(spec, ws, input_idx), additional_msg);
+  return Type(dtype, allowed_type, FormatInput(spec, input_idx), additional_msg);
 }
 
-void InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-          span<DALIDataType> &allowed_types, const std::string &additional_msg) {
+DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                       span<DALIDataType> &allowed_types, const std::string &additional_msg) {
   DALIDataType dtype = ws.GetInputDataType(input_idx);
-  Type(dtype, allowed_types, FormatInput(spec, ws, input_idx), additional_msg);
+  return Type(dtype, allowed_types, FormatInput(spec, input_idx), additional_msg);
 }
 
-void Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified,
-               const std::string &additional_msg) {
+DALIDataType Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified,
+                   const std::string &additional_msg) {
   if (allow_unspecified && !spec.HasArgument("dtype")) {
-    return;
-  } else if (!allow_unspecified &&!spec.HasArgument("dtype")) {
-    throw DaliValueError(fmt::format("Argument `dtype` was not specified.{}{}", SepIfNotEmpty(additional_msg),
-                                  additional_msg));
+    return DALI_NO_TYPE;
+  } else if (!allow_unspecified && !spec.HasArgument("dtype")) {
+    throw DaliValueError(fmt::format("{} was not specified.{}{}",
+                                     FormatArgument(spec, "dtype", true),
+                                     SepIfNotEmpty(additional_msg), additional_msg));
   }
-               }
+  return Type(spec.GetArgument<DALIDataType>("dtype"), allowed_type, FormatArgument(spec, "dtype"),
+              additional_msg);
+}
 
-void Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types, bool allow_unspecified,
-               const std::string &additional_msg) {
-
-               }
+DALIDataType Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types, bool allow_unspecified,
+                   const std::string &additional_msg) {
+  if (allow_unspecified && !spec.HasArgument("dtype")) {
+    return DALI_NO_TYPE;
+  } else if (!allow_unspecified && !spec.HasArgument("dtype")) {
+    throw DaliValueError(fmt::format("{} was not specified.{}{}",
+                                     FormatArgument(spec, "dtype", true),
+                                     SepIfNotEmpty(additional_msg), additional_msg));
+  }
+  return Type(spec.GetArgument<DALIDataType>("dtype"), allowed_types, FormatArgument(spec, "dtype"),
+              additional_msg);
+}
 
 void Dim(int actual_dim, int expected_dim, const std::string &name,
          const std::string &additional_msg) {
@@ -215,37 +213,32 @@ void Dim(int actual_dim, int expected_dim, const std::string &name,
                                    additional_msg));
 }
 
-void Dim(int actual_dim, int expected_from, int expected_to, const std::string &name, const std::string &additional_msg) {
-
-  if (expected_from <= actual_dim && actual_dim < expected_to) {
-    return;
-  }
-  throw DaliValueError(fmt::format(
-      "Got dim: `{}` for {}, but expected value in `[{}, {})` range.{}{}", actual_dim, name,
-      expected_from, expected_to, SepIfNotEmpty(additional_msg), additional_msg));
+DALIDataType Dtype(const OpSpec &spec, const Workspace &ws, bool (*is_valid)(DALIDataType),
+                   const std::string &explanation) {
+  return DALI_NO_TYPE;  // TODO(klecki): implement
 }
 
-void Dim(int actual_dim, span<int> &expected, const std::string &name, const std::string &additional_msg) {
-  if (size(expected) == 1) {
-    Dim(actual_dim, expected[0], name, additional_msg);
-    return;
-  }
-  for (auto expected_dim : expected) {
-    if (actual_dim == expected_dim) {
-      return;
-    }
-  }
-  throw DaliValueError(fmt::format("Got dim: `{}` for {}, but expected one of: `{}`.{}{}",
-                                  actual_dim, name, fmt::join(expected, "`, `"),
-                                  SepIfNotEmpty(additional_msg), additional_msg));
+DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                        DALIDataType allowed_type, const std::string &additional_msg) {
+  DALIDataType dtype = ws.GetOutputDataType(output_idx);
+  return Type(dtype, allowed_type, FormatOutput(spec, output_idx), additional_msg);
 }
 
-// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name, DALIDataType allowed_type,
-//           const std::string &additional_msg);
-// void Type(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
-//           span<DALIDataType> &allowed_types, const std::string &additional_msg);
+DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                        span<DALIDataType> &allowed_types, const std::string &additional_msg) {
+  DALIDataType dtype = ws.GetOutputDataType(output_idx);
+  return Type(dtype, allowed_types, FormatOutput(spec, output_idx), additional_msg);
+}
+
+DALIDataType ArgumentType(const OpSpec &spec, const Workspace &ws, const std::string &arg_name,
+                          const std::string &additional_msg) {
+  DALIDataType expected_type = spec.GetSchema().GetArgumentType(arg_name);
+  if (!spec.HasTensorArgument(arg_name)) {
+    return expected_type;
+  }
+  return Type(ws.ArgumentInput(arg_name).type(), expected_type, FormatArgument(spec, arg_name),
+              additional_msg);
+}
 
 }  // namespace validate
-
-
 }  // namespace dali
