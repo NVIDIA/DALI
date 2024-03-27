@@ -13,6 +13,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 +-----------------+---------------------+---------------------+
 | |cutlass|_      | |cutlassver|_       | |cutlasslic|_       |
 +-----------------+---------------------+---------------------+
+| |cvcuda|_       | |cvcudaver|_        | |cvcudalic|_        |
++-----------------+---------------------+---------------------+
 | |dlpack|_       | |dlpackver|_        | |dlpacklic|_        |
 +-----------------+---------------------+---------------------+
 | |ffts|_         | |fftsver|_          | |fftslic|_          |
@@ -53,6 +55,13 @@ This part of the repository contains extra dependencies required to build DALI, 
 .. _cutlassver: https://github.com/NVIDIA/cutlass/tree/v3.4.1
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
+
+.. |cvcuda| replace:: CV-CUDA
+.. _cvcuda: https://github.com/CV-CUDA/CV-CUDA
+.. |cvcudaver| replace:: 0.6.0
+.. _cvcudaver: https://github.com/CV-CUDA/CV-CUDA/tree/v0.6.0-beta
+.. |cvcudalic| replace:: Apache License 2.0
+.. _cvcudalic: https://github.com/CV-CUDA/CV-CUDA/blob/master/LICENSE.md
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
