@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <exception>
 #include <string>
 
 #include "dali/core/error_handling.h"
@@ -208,17 +209,14 @@ void OpGraph::InstantiateOperators() {
 
   for (auto op_type : order) {
     for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
-      std::exception_ptr eptr;
       try {
         op_nodes_[op_id].InstantiateOperator();
       } catch (...) {
-        eptr = std::current_exception();
+        PropagateError({std::current_exception(),
+                        "Critical error when building pipeline:\n" +
+                            GetErrorContextMessage(op_nodes_[op_id].spec),
+                        "\nCurrent pipeline object is no longer valid."});
       }
-
-      PropagateError({eptr,
-                      "Critical error when building pipeline:\n" +
-                          GetErrorContextMessage(op_nodes_[op_id].spec),
-                      "\nCurrent pipeline object is no longer valid."});
     }
   }
 }
