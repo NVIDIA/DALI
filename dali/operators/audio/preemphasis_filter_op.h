@@ -22,9 +22,10 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 #define PREEMPH_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double)
+  uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
 
 namespace dali {
 namespace detail {
@@ -46,7 +47,7 @@ class PreemphasisFilter : public StatelessOperator<Backend> {
 
   explicit PreemphasisFilter(const OpSpec &spec)
       : StatelessOperator<Backend>(spec),
-        output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {
+        output_type_(validate::Dtype<PREEMPH_TYPES>(spec)) {
     auto border_str = spec.GetArgument<std::string>(detail::kBorder);
     if (border_str == "zero") {
       border_type_ = BorderType::Zero;

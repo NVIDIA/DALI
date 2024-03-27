@@ -27,6 +27,7 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
@@ -485,6 +486,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
           SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<GPUBackend>(i), schema, i);
     }
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
+  }
+
+  // TODO(klecki): Extract this to a separate function, this is just an example.
+  for (auto &argument_input : ws.ArgumentInputs()) {
+    // Check the types of argument inputs before they are accessed
+    validate::ArgumentType(spec, ws, argument_input.name);
   }
 
   bool should_allocate = false;

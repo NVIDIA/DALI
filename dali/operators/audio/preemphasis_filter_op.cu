@@ -108,8 +108,8 @@ void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
 
 void PreemphasisFilterGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
-  TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
-    TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, (PREEMPH_TYPES), (
+    TYPE_SWITCH(output_type_, type2id, OutputType, (PREEMPH_TYPES), (
       RunImplTyped<OutputType, InputType>(ws);
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
