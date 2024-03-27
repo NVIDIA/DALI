@@ -19,7 +19,7 @@ from nvidia.dali._utils.external_source_impl import (
     assert_cpu_sample_data_type as _assert_cpu_sample_data_type,
     sample_to_numpy as _sample_to_numpy,
 )
-import pickle
+import pickle  # nosec B403
 
 
 np = None
@@ -160,7 +160,7 @@ def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchM
     if sbm.meta_size == 0:
         return []
     pickled_meta = buffer.buf[sbm.meta_offset : sbm.meta_offset + sbm.meta_size]
-    samples_meta = pickle.loads(pickled_meta)
+    samples_meta = pickle.loads(pickled_meta)  # nosec B301
     return samples_meta
 
 
@@ -294,7 +294,7 @@ def read_shm_message(shm_chunk: BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset : shm_message.offset + shm_message.num_bytes]
-    return pickle.loads(buffer)
+    return pickle.loads(buffer)  # nosec B301
 
 
 def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize=True):
