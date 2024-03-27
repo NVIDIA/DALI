@@ -14,17 +14,23 @@
 
 add_custom_target(lint-cpp
         COMMAND
-          python ${PROJECT_SOURCE_DIR}/tools/lint.py ${PROJECT_SOURCE_DIR} --nproc=5
+          python ${PROJECT_SOURCE_DIR}/internal_tools/lint.py ${PROJECT_SOURCE_DIR} --nproc=5
         COMMENT
           "Performing C++ linter check"
 )
 
-set(PYTHON_LINT_PATHS
-        ${PROJECT_SOURCE_DIR}/dali
-        ${PROJECT_SOURCE_DIR}/docs
+set(PYTHON_SECURITY_LINT_PATHS
+        ${PROJECT_SOURCE_DIR}/dali/python
         ${PROJECT_SOURCE_DIR}/tools
         ${PROJECT_SOURCE_DIR}/dali_tf_plugin
+)
+
+set(PYTHON_LINT_PATHS
+        ${PYTHON_SECURITY_LINT_PATHS}
+        ${PROJECT_SOURCE_DIR}/dali
+        ${PROJECT_SOURCE_DIR}/docs
         ${PROJECT_SOURCE_DIR}/qa
+        ${PROJECT_SOURCE_DIR}/internal_tools
 )
 
 set(AUTOGRAPH_LINT_PATHS
@@ -39,6 +45,13 @@ add_custom_target(lint-python-black
           "Performing black Python formatting check"
 )
 
+add_custom_target(lint-python-bandit
+        COMMAND
+          bandit --config ${PROJECT_SOURCE_DIR}/bandit.yml -r ${PYTHON_SECURITY_LINT_PATHS}
+        COMMENT
+          "Performing Bandit Python security check"
+)
+
 
 add_custom_target(lint-python-flake
         COMMAND
@@ -51,7 +64,7 @@ add_custom_target(lint-python-flake
 add_dependencies(lint-python-flake lint-python-black)
 
 add_custom_target(lint-python)
-add_dependencies(lint-python lint-python-flake)
+add_dependencies(lint-python lint-python-flake lint-python-bandit)
 
 add_custom_target(lint)
 add_dependencies(lint lint-cpp lint-python)

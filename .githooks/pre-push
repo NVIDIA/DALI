@@ -34,8 +34,8 @@ do
         file_list_arg="$file_list_arg $fname"
     done
 
-    echo "Performing linter check: python tools/lint.py . --nproc=5 --file-list $file_list_arg"
-    python tools/lint.py . --nproc=5 --file-list $file_list_arg || exit 1
+    echo "Performing linter check: python internal_tools/lint.py . --nproc=5 --file-list $file_list_arg"
+    python internal_tools/lint.py . --nproc=5 --file-list $file_list_arg || exit 1
     echo "OK"
 done
 
