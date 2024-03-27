@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fmt/format.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
-#include <fmt/format.h>
 // for fmt::join
 #include <fmt/ranges.h>
 // for ostream support
@@ -31,7 +31,8 @@
 #include "dali/pipeline/operator/op_spec.h"
 
 // template <> struct fmt::formatter<dali::DALIDataType> : fmt::ostream_formatter {};
-// template <> struct fmt::formatter<dali::DALIDataType> : fmt::tostring_formatter<dali::DALIDataType> {};
+// template <> struct fmt::formatter<dali::DALIDataType> :
+// fmt::tostring_formatter<dali::DALIDataType> {};
 
 
 namespace dali {
@@ -149,7 +150,7 @@ DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type, const st
                                   additional_msg));
 }
 
-DALIDataType Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
+DALIDataType Type(DALIDataType actual_type, span<const DALIDataType> expected_types,
                   const std::string &name, const std::string &additional_msg) {
   if (std::size(expected_types) == 1) {
     return Type(actual_type, expected_types[0], name, additional_msg);
@@ -172,7 +173,7 @@ DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
 }
 
 DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-                       span<DALIDataType> &allowed_types, const std::string &additional_msg) {
+                       span<const DALIDataType> allowed_types, const std::string &additional_msg) {
   DALIDataType dtype = ws.GetInputDataType(input_idx);
   return Type(dtype, allowed_types, FormatInput(spec, input_idx), additional_msg);
 }
@@ -190,8 +191,8 @@ DALIDataType Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_uns
               additional_msg);
 }
 
-DALIDataType Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types, bool allow_unspecified,
-                   const std::string &additional_msg) {
+DALIDataType Dtype(const OpSpec &spec, span<const DALIDataType> allowed_types,
+                   bool allow_unspecified, const std::string &additional_msg) {
   if (allow_unspecified && !spec.HasArgument("dtype")) {
     return DALI_NO_TYPE;
   } else if (!allow_unspecified && !spec.HasArgument("dtype")) {
@@ -225,7 +226,7 @@ DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
 }
 
 DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-                        span<DALIDataType> &allowed_types, const std::string &additional_msg) {
+                        span<const DALIDataType> allowed_types, const std::string &additional_msg) {
   DALIDataType dtype = ws.GetOutputDataType(output_idx);
   return Type(dtype, allowed_types, FormatOutput(spec, output_idx), additional_msg);
 }

@@ -25,8 +25,8 @@
 #include "dali/core/api_helper.h"
 #include "dali/core/span.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/name_utils.h"
+#include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
@@ -212,8 +212,8 @@ namespace validate {
  * @param additional_message
  * @return DALIDataType
  */
-DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type, const std::string &name,
-                  const std::string &additional_message = "");
+DLL_PUBLIC DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type,
+                             const std::string &name, const std::string &additional_message = "");
 
 /**
  * @brief Check if the actual_type matches the expected_type. If not, throws TypeError
@@ -228,44 +228,69 @@ DALIDataType Type(DALIDataType actual_type, DALIDataType expected_type, const st
  * @param additional_message
  * @return DALIDataType
  */
-DALIDataType Type(DALIDataType actual_type, span<DALIDataType> &expected_types,
-                  const std::string &name, const std::string &additional_message = "");
+DLL_PUBLIC DALIDataType Type(DALIDataType actual_type, span<const DALIDataType> expected_types,
+                             const std::string &name, const std::string &additional_message = "");
 
-DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-                       DALIDataType allowed_type, const std::string &additional_msg = "");
+DLL_PUBLIC DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                                  DALIDataType allowed_type,
+                                  const std::string &additional_msg = "");
 
-DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
-                       span<DALIDataType> &allowed_types, const std::string &additional_msg = "");
+DLL_PUBLIC DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
+                                  span<const DALIDataType> allowed_types,
+                                  const std::string &additional_msg = "");
 
-template <typename... InputTypes>
+template <typename... AllowedTypes>
 DALIDataType InputType(const OpSpec &spec, const Workspace &ws, int input_idx,
                        const std::string &additional_msg = "") {
-  static std::array<DALIDataType, sizeof...(InputTypes)> allowed_types = {
-      type2id<InputTypes>::value...};
+  static constexpr std::array<DALIDataType, sizeof...(AllowedTypes)> allowed_types = {
+      type2id<AllowedTypes>::value...};
   return InputType(spec, ws, input_idx, make_cspan(allowed_types), additional_msg);
 }
 
-DALIDataType Dtype(const OpSpec &spec, DALIDataType allowed_type, bool allow_unspecified = false,
-                   const std::string &additional_msg = "");
+/**
+ * @brief Check if provided argument 'dtype' has a valid value. If not, throws TypeError
+ *
+ * @param spec
+ * @param allowed_type
+ * @param allow_unspecified - if true, allows dtype to be left empty, in that case DALI_NO_TYPE is
+ * returned
+ * @param additional_msg
+ * @return DALIDataType - if type is valid, it will be returned.
+ */
+DLL_PUBLIC DALIDataType Dtype(const OpSpec &spec, DALIDataType allowed_type,
+                              bool allow_unspecified = false,
+                              const std::string &additional_msg = "");
 
-DALIDataType Dtype(const OpSpec &spec, span<DALIDataType> &allowed_types,
-                   bool allow_unspecified = false, const std::string &additional_msg = "");
+DLL_PUBLIC DALIDataType Dtype(const OpSpec &spec, span<const DALIDataType> allowed_types,
+                              bool allow_unspecified = false,
+                              const std::string &additional_msg = "");
 
-DALIDataType Dtype(const OpSpec &spec, const Workspace &ws, bool (*is_valid)(DALIDataType),
-                   const std::string &explanation);
+template <typename... AllowedTypes>
+DLL_PUBLIC DALIDataType Dtype(const OpSpec &spec, bool allow_unspecified = false,
+                              const std::string &additional_msg = "") {
+  static constexpr std::array<DALIDataType, sizeof...(AllowedTypes)> allowed_types = {
+      type2id<AllowedTypes>::value...};
+  return Dtype(spec, make_cspan(allowed_types), allow_unspecified, additional_msg);
+}
 
+DLL_PUBLIC DALIDataType Dtype(const OpSpec &spec, const Workspace &ws,
+                              bool (*is_valid)(DALIDataType), const std::string &explanation);
 
-DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-                        DALIDataType allowed_type, const std::string &additional_msg = "");
+// Note that the output type checks are valid only if the output is already allocated by the
+// executor. It may be tricky to use.
+DLL_PUBLIC DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                                   DALIDataType allowed_type,
+                                   const std::string &additional_msg = "");
 
-DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-                        span<DALIDataType> &allowed_types, const std::string &additional_msg = "");
+DLL_PUBLIC DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                                   span<const DALIDataType> allowed_types,
+                                   const std::string &additional_msg = "");
 
-template <typename... InputTypes>
-DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
-                        const std::string &additional_msg = "") {
-  static std::array<DALIDataType, sizeof...(InputTypes)> allowed_types = {
-      type2id<InputTypes>::value...};
+template <typename... AllowedTypes>
+DLL_PUBLIC DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
+                                   const std::string &additional_msg = "") {
+  static constexpr std::array<DALIDataType, sizeof...(AllowedTypes)> allowed_types = {
+      type2id<AllowedTypes>::value...};
   return OutputType(spec, ws, output_idx, make_cspan(allowed_types), additional_msg);
 }
 
@@ -278,8 +303,9 @@ DALIDataType OutputType(const OpSpec &spec, const Workspace &ws, int output_idx,
  * @param additional_msg
  * @return DALIDataType
  */
-DALIDataType ArgumentType(const OpSpec &spec, const Workspace &ws, const std::string &arg_name,
-                          const std::string &additional_msg = "");
+DLL_PUBLIC DALIDataType ArgumentType(const OpSpec &spec, const Workspace &ws,
+                                     const std::string &arg_name,
+                                     const std::string &additional_msg = "");
 
 /** @} */  // end of TypeValidation
 
@@ -314,7 +340,8 @@ DALIDataType ArgumentType(const OpSpec &spec, const Workspace &ws, const std::st
 //               const std::string &name, const std::string &additional_msg = "");
 
 // void ArgumentDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
-//                  int expected_dim, const std::string &name, const std::string &additional_msg = "");
+//                  int expected_dim, const std::string &name, const std::string &additional_msg =
+//                  "");
 // void ArgumentDim(const OpSpec &spec, const Workspace &ws, const std::string &argument_name,
 //                  int expected_from, int expected_to, const std::string &name,
 //                  const std::string &additional_msg = "");
