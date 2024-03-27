@@ -19,6 +19,7 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -186,7 +187,7 @@ class DaliStopIteration : public DaliError {
  * @param message_name Will be used as the prefix of the error message, for example:
  * "Error in <device> operator <op_name>" or "Warning in <device> operator <op_name>"
  */
-std::string GetErrorContextMessage(const OpSpec &spec, const std::string &message_name = "Error");
+std::string GetErrorContextMessage(const OpSpec &spec, std::string_view message_name = "Error");
 
 }  // namespace dali
 

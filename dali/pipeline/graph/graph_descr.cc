@@ -57,19 +57,20 @@ void CheckOpConstraints(const OpSpec &spec) {
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 
   DALI_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
-      "Operator `" + GetOpDisplayName(spec, true) + "` does not support in-place execution.");
-  DALI_ENFORCE(spec.NumRegularInput() <= schema.MaxNumInput(),
-      "Operator `" + GetOpDisplayName(spec, true) +
-      "` supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
-  DALI_ENFORCE(spec.NumRegularInput() >= schema.MinNumInput(),
-      "Operator `" + GetOpDisplayName(spec, true) +
-      "` supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
+               make_string("Operator `", GetOpDisplayName(spec, true),
+                           "` does not support in-place execution."));
+  DALI_ENFORCE(
+      spec.NumRegularInput() <= schema.MaxNumInput(),
+      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a maximum of ",
+                  schema.MaxNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
+  DALI_ENFORCE(
+      spec.NumRegularInput() >= schema.MinNumInput(),
+      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a minimum of ",
+                  schema.MinNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
   DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
-      "Operator `" + GetOpDisplayName(spec, true) + "` supports "
-      + std::to_string(schema.CalculateOutputs(spec) + additional_outputs)
-      + " outputs, but was passed " + std::to_string(spec.NumOutput()) + ".");
+               make_string("Operator `", GetOpDisplayName(spec, true), "` supports ",
+                           schema.CalculateOutputs(spec) + additional_outputs,
+                           " outputs, but was passed ", spec.NumOutput(), "."));
 }
 
 OpType ParseOpType(const std::string &device) {
