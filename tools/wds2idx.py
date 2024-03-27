@@ -15,7 +15,7 @@
 
 import argparse
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tarfile
 import time
@@ -80,15 +80,15 @@ class IndexCreator:
         return filepath[:dot_pos], filepath[dot_pos + 1 :]
 
     def _get_data_tar(self):
-        """Retreives the data about the offset, name and size of each component
+        """Retrieves the data about the offset, name and size of each component
         using the gnu tar utility, while also filtering out non-file entries"""
 
-        tar_blocks_proc = subprocess.Popen(
+        tar_blocks_proc = subprocess.Popen(  # nosec B603, B607
             ["tar", "--list", "--block-num", "--file", self.uri],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        tar_types_sizes_proc = subprocess.Popen(
+        tar_types_sizes_proc = subprocess.Popen(  # nosec B603, B607
             ["tar", "--verbose", "--list", "--file", self.uri],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

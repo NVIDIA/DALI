@@ -17,7 +17,7 @@ import math
 import logging
 import numpy as np
 import warnings
-import pickle
+import pickle  # nosec B403
 from enum import Enum, unique
 from collections.abc import Iterable
 
@@ -269,7 +269,7 @@ class _DaliBaseIterator(object):
             )
             return
 
-        iterator_data = pickle.loads(iterator_data)
+        iterator_data = pickle.loads(iterator_data)  # nosec B301
         for field in self._checkpointed_fields():
             if hasattr(self, field):
                 setattr(self, field, iterator_data[field])
