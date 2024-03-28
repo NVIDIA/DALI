@@ -245,7 +245,11 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
     decoder_info_.ChromaFormat = format->chroma_format;
     decoder_info_.OutputFormat = cudaVideoSurfaceFormat_NV12;
     decoder_info_.bitDepthMinus8 = format->bit_depth_luma_minus8;
-    decoder_info_.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
+    if (format->progressive_sequence) {
+        decoder_info_.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
+    } else {
+        decoder_info_.DeinterlaceMode = cudaVideoDeinterlaceMode_Adaptive;
+    }
     decoder_info_.ulTargetWidth = format->display_area.right - format->display_area.left;
     decoder_info_.ulTargetHeight = format->display_area.bottom - format->display_area.top;
     decoder_info_.ulMaxWidth = static_cast<unsigned long>(max_width_);  // NOLINT
