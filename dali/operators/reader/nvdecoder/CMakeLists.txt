@@ -29,17 +29,17 @@ separate_arguments(DEFAULT_COMPILER_INCLUDE UNIX_COMMAND  "${DEFAULT_COMPILER_IN
 set(NVCUVID_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvcuvid_gen.cc")
 add_custom_command(
     OUTPUT ${NVCUVID_GENERATED_STUB}
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid --
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/nvcuvid.json" ${NVCUVID_GENERATED_STUB}
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid --
+                "${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/nvcuvid.json" ${NVCUVID_GENERATED_STUB}
                 "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                 "-I${CMAKE_SOURCE_DIR}/include" "-I${CMAKE_SOURCE_DIR}"
                 # for some reason QNX fails with 'too many errors emitted' is this is not set
                 "-ferror-limit=0"
                 ${DEFAULT_COMPILER_INCLUDE}
-    DEPENDS  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/stub_codegen.py
+    DEPENDS  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py
             "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h"
             "${CMAKE_CURRENT_SOURCE_DIR}/cuviddec.h"
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../../../tools/stub_generator/nvcuvid.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/nvcuvid.json"
     COMMENT "Running nvcuvid.h stub generator"
     VERBATIM)
 

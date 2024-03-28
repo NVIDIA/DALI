@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import subprocess
+import subprocess  # nosec B404
 import os
 import re
 import sys
@@ -55,8 +55,11 @@ def get_tf_compiler_version():
         if not tensorflow_libs:
             return ""
     lib = tensorflow_libs[0]
-    cmd = "strings -a " + lib + ' | grep "GCC: ("'
-    s = str(subprocess.check_output(cmd, shell=True))
+    cmd = ["strings", "-a", lib]
+    process_strings = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
+    cmd = ["grep", "GCC: ("]
+    s = str(subprocess.check_output(cmd, stdin=process_strings.stdout, shell=False))  # nosec B603
+    process_strings.stdout.close()
     lines = s.split("\\n")
     ret_ver = ""
     for line in lines:
@@ -99,8 +102,18 @@ def get_cpp_compiler():
 
 
 def get_cpp_compiler_version():
-    cmd = get_cpp_compiler() + ' --version | head -1 | grep "[c|g]++ ("'
-    s = str(subprocess.check_output(cmd, shell=True).strip())
+    cmd = [get_cpp_compiler(), "--version"]
+    process_compiler = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
+    cmd = ["head", "-1"]
+    process_head = subprocess.Popen(
+        cmd, stdin=process_compiler.stdout, stdout=subprocess.PIPE  # nosec B603
+    )
+    cmd = ["grep", "[c|g]++ "]
+    s = str(
+        subprocess.check_output(cmd, stdin=process_head.stdout, shell=False).strip()  # nosec B603
+    )
+    process_compiler.stdout.close()
+    process_head.stdout.close()
     version = re.search(r"[g|c]\+\+\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
     return version
 
@@ -110,7 +123,7 @@ def get_cpp_compiler_version():
 
 def which(program):
     try:
-        return subprocess.check_output("which " + program, shell=True).strip()
+        return subprocess.check_output(["which", program]).strip()  # nosec B603, B607
     except subprocess.CalledProcessError:
         return None
 

@@ -297,7 +297,7 @@ echo "Finished generating new record file $RECORD_FILE"
 
 if [[ "$TEST_BUNDLED_LIBS" != "NO" ]]; then
     echo "Check bundled libs..."
-    python ${SCRIPT_PATH}/../../tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
+    python ${SCRIPT_PATH}/../../internal_tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
 fi
 
 # zip up the new wheel into the wheelhouse

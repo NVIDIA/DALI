@@ -30,7 +30,7 @@ import subprocess
 #
 # #!/bin/sh
 # DALI_ROOT_DIR=$(git rev-parse --show-toplevel)
-# python $DALI_ROOT_DIR/tools/lint.py $DALI_ROOT_DIR --nproc=10
+# python $DALI_ROOT_DIR/internal_tools/lint.py $DALI_ROOT_DIR --nproc=10
 # ret=$?
 # if [ $ret -ne 0 ]; then
 #     exit 1
