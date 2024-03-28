@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/core/api_helper.h"
 #include "dali/operators.h"
-#include "dali/npp/npp.h"
+#include "dali/core/api_helper.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/npp/npp.h"
+#include "dali/plugin/plugin_manager.h"
 
 #if DALI_USE_NVJPEG
-  #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #endif
 
+#include <dlfcn.h>
 #include <nvimgcodec.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
@@ -33,9 +38,83 @@
 
 namespace dali {
 
+inline void loadPlugin(const std::string& path) {
+  std::cout << "Loading " << path << std::endl;
+  PluginManager::LoadLibrary(path);
+}
+
+inline std::string GetDefaultPluginPath() {
+  Dl_info info;
+  if (dladdr((const void*)GetDefaultPluginPath, &info)) {
+    fs::path path(info.dli_fname);
+    // use the directory of the current shared-object file as starting point to autodiscover the
+    // plugins
+    // ~/.local/lib/python3.8/site-packages/nvidia/dali/libdali_operators.so ->
+    //     ~/.local/lib/python3.8/site-packages/nvidia/dali/plugins/{plugin_name}/libdali_{plugin_name}.so
+    path = path.parent_path();
+    path /= "plugin";
+    return path.string();
+  }
+  DALI_FAIL("Can't find the default plugin path");
+  return "";
+}
+
+inline void AutodiscoverPluginsLibs() {
+  const char* dali_autodiscover_plugins = std::getenv("DALI_AUTODISCOVER_PLUGINS");
+  int autodiscover_plugins = dali_autodiscover_plugins ? atoi(dali_autodiscover_plugins) : 0;
+  if (!autodiscover_plugins)
+    return;
+
+  std::cout << "Auto discovering DALI plugins\n";
+  auto path = GetDefaultPluginPath();
+  std::vector<std::string> plugin_paths;
+  if (!fs::is_directory(path)) {
+    LOG_LINE << path << " is not a directory. Nothing to load\n";
+    return;
+  }
+
+  for (const auto& fpath : fs::recursive_directory_iterator(path)) {
+    // pos=0 limits the search to the prefix
+    if (fpath.path().stem().string().rfind("libdali_", 0) == 0 &&
+        fpath.path().extension() == ".so") {
+      // filename starts with libdali_ and ends with .so
+      loadPlugin(fpath.path().string());
+    }
+  }
+  std::cout << "Auto discovering DALI plugins done\n";
+}
+
+inline void PreloadPluginsLibs() {
+  const char* dali_preload_plugins_env = std::getenv("DALI_PRELOAD_PLUGINS");
+  if (!dali_preload_plugins_env)
+    return;
+  std::string dali_preload_plugins(dali_preload_plugins_env);
+
+  std::cout << "Preloading DALI plugins\n";
+  const char delimiter = ':';
+  size_t previous = 0;
+  std::string preload(dali_preload_plugins);
+  size_t index = dali_preload_plugins.find(delimiter);
+  std::vector<std::string> plugins;
+  while (index != string::npos) {
+    auto plugin_path = dali_preload_plugins.substr(previous, index - previous);
+    loadPlugin(plugin_path);
+    previous = index + 1;
+    index = dali_preload_plugins.find(delimiter, previous);
+  }
+  auto plugin_path = dali_preload_plugins.substr(previous);
+  loadPlugin(plugin_path);
+  plugins.push_back(dali_preload_plugins.substr(previous));
+
+  std::cout << "Preloading DALI plugins done\n";
+}
+
 DLL_PUBLIC void InitOperatorsLib() {
   (void)CUDAStreamPool::instance();
+  PreloadPluginsLibs();
+  AutodiscoverPluginsLibs();
 }
+
 
 DLL_PUBLIC int GetNppVersion() {
   return NPPGetVersion();
