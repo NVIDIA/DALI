@@ -112,14 +112,14 @@ void SchedNode::schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow) {
     // If the preceding task has a "release_outputs" task, our current task needs to precede it -
     // that is, This way the producer will not have its output queue semaphore lowered until all
     // consumers are done.
-    if (!in.producer->release_output.empty())
-      main_task.precede(in.producer->release_output);
+    if (!in.producer->release_outputs.empty())
+      main_task.precede(in.producer->release_outputs);
   }
   main_task.acquire(definition->concurrency).release(definition->concurrency);
   auto &output_queue = definition->output_queue;
   if (output_queue.has_value()) {
     main_task.acquire(*output_queue);
-    release_output = flow.emplace([]() {}).release(*output_queue);
+    release_outputs = flow.emplace([]() {}).release(*output_queue);
   }
 }
 
