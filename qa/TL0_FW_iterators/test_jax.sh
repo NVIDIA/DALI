@@ -14,7 +14,7 @@ test_body() {
     ${python_new_invoke_test} -A 'jax' test_fw_iterators
 
     # More specific JAX tests
-    ${python_new_invoke_test} -s jax_plugin/ test_integration test_iterator test_peekable_iterator
+    ${python_new_invoke_test} -s jax_plugin/ test_integration test_iterator test_peekable_iterator test_jax_operator
     ${python_new_invoke_test} checkpointing.test_dali_checkpointing_fw_iterators.TestJax
 }
 

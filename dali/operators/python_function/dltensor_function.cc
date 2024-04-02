@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 #include <memory>
 #include <utility>
 #include <string>
+#include <optional>
 #include "dali/operators/python_function/dltensor_function.h"
+#include "dali/pipeline/data/dltensor_obj.h"
 #include "dali/pipeline/util/copy_with_stride.h"
 
 namespace dali {
@@ -236,6 +238,23 @@ PYBIND11_MODULE(python_function_plugin, m) {
                                        false, 0, std::make_unique<DLTensorNumpyResource>(array));
     return DLTensorToCapsule(std::move(dlm_tensor_ptr));
   });
+
+  // For the _a suffix
+  using namespace pybind11::literals;  // NOLINT
+
+  py::class_<DLTensorObj>(m, "DLTensorObj")
+      .def("__dlpack_device__", &DLTensorObj::dlpack_device)
+      .def(
+          "__dlpack__",
+          [](DLTensorObj &self, std::optional<int64_t> stream) {
+            std::optional<cudaStream_t> cuda_stream{};
+            if (stream.has_value()) {
+              cuda_stream = reinterpret_cast<cudaStream_t>(*stream);
+            }
+            DLManagedTensor *data_ptr = self.dlpack(cuda_stream);
+            return py::capsule(data_ptr, DLTENSOR_NAME, &DLTensorCapsuleDestructor);
+          },
+          "stream"_a);
 }
 
 }  // namespace dali
