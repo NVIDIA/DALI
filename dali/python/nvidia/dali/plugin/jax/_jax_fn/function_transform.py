@@ -22,7 +22,9 @@ def with_gpu_dl_tensors_as_arrays(callback):
     def inner(stream, *dl_tensors):
         ts = tuple(jax.dlpack.from_dlpack(t) for t in dl_tensors)
         out = callback(*ts)
-        if out is not None:
+        if out is None:
+            return
+        else:
             out = out if isinstance(out, (tuple, list)) else (out,)
             return tuple(jax.dlpack.to_dlpack(t, stream=stream) for t in out)
 
@@ -34,7 +36,9 @@ def with_cpu_dl_tensors_as_arrays(callback):
     def inner(*dl_tensors):
         ts = tuple(jax.dlpack.from_dlpack(t) for t in dl_tensors)
         out = callback(*ts)
-        if out is not None:
+        if out is None:
+            return
+        else:
             out = out if isinstance(out, (tuple, list)) else (out,)
             return tuple(jax.dlpack.to_dlpack(t) for t in out)
 
@@ -71,7 +75,9 @@ def with_sharding(callback, sharding):
     def inner(*arrays: jax.Array):
         sharded_arrays = tuple(as_sharded_array(array) for array in arrays)
         out = callback(*sharded_arrays)
-        if out is not None:
+        if out is None:
+            return
+        else:
             out = out if isinstance(out, (tuple, list)) else (out,)
             return tuple(as_single_device_array(t) for t in out)
 

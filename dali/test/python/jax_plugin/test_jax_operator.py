@@ -20,7 +20,6 @@ import jax
 from nvidia.dali import pipeline_def, fn, types
 import nvidia.dali.plugin.jax as dax
 
-from nose_utils import raises
 from nose2.tools import params
 from test_utils import get_dali_extra_path, check_batch
 from jax_op_utils import jax_color_twist
@@ -40,7 +39,7 @@ def test_jit_vs_dali_op(device, dtype):
     assert device in ("cpu", "gpu")
     num_iters = 3
 
-    @dax.fn.jax_function(output_layouts="HWC")
+    @dax.jax_fn(output_layouts="HWC")
     @jax.jit
     @jax.vmap
     def dax_color_twist(img, bcs, hue):

@@ -21,7 +21,7 @@ import jax.sharding
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import fn
 
-from ._function_transform import jax_callback_wrapper as _jax_callback_wrapper
+from .function_transform import jax_callback_wrapper as _jax_callback_wrapper
 
 
 class JaxCallback(Protocol):
@@ -34,7 +34,7 @@ class DaliCallback(Protocol):
     def __call__(self, *args: _DataNode) -> Optional[Tuple[_DataNode, ...]]: ...
 
 
-def jax_function(
+def jax_fn(
     function: Optional[JaxCallback]=None,
     num_outputs: int = 1,
     output_layouts: Union[None, str, Tuple[str]] = None,
