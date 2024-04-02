@@ -59,13 +59,14 @@ using ExecEdge = DataEdge<ExecNode>;
 struct WorkspaceParams {
   ThreadPool  *thread_pool = nullptr;
   AccessOrder  order = AccessOrder::host();
-  int          batch_size = 0;  // TODO(michalz): add more batch size logic
+  std::optional<int> batch_size = 0;  // TODO(michalz): add more batch size logic
 };
 
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
   ws.SetThreadPool(params.thread_pool);
   ws.set_output_order(params.order);
-  ws.SetBatchSizes(params.batch_size);
+  if (params.batch_size.has_value())
+    ws.SetBatchSizes(*params.batch_size);
 }
 
 inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
@@ -233,7 +234,7 @@ class DLL_PUBLIC SchedNode {
 
   std::unique_ptr<Workspace> ws;
 
-  tf::Task main_task, release_output;
+  tf::Task main_task, release_outputs;
   // TODO(michalz): sync with GPU ops - we only need it when the following op needs to access the
   // results on host; GPU-side dependencies can be scheduled on the stream without a need to engage
   // the CPU part of the executor.
@@ -293,7 +294,7 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
   void clear_tasks() {
     for (auto &node : nodes) {
       node.main_task.reset();
-      node.release_output.reset();
+      node.release_outputs.reset();
     }
   }
 
