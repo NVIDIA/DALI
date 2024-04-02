@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import inspect
-import pickle
+import pickle  # nosec B403
 import io
 from nvidia.dali import reducers
 
@@ -27,7 +27,7 @@ class _DaliPickle:
 
     @staticmethod
     def loads(s, **kwargs):
-        return pickle.loads(s, **kwargs)
+        return pickle.loads(s, **kwargs)  # nosec B301
 
 
 class _CustomPickler:

@@ -141,11 +141,11 @@ class NumbaFunction(
             eval_string += "shape[{}]".format(i)
             eval_string += ", " if i + 1 != ndim else "), "
         eval_string += "dtype=np.{})".format(_to_numpy[dtype])
-        return njit(eval(eval_string))
+        return njit(eval(eval_string))  # nosec B307
 
     def _get_carrays_eval_lambda(self, types, ndim):
         ret = [self._get_carray_eval_lambda(dtype, ndim) for dtype, ndim in zip(types, ndim)]
-        ret += [njit(eval(("lambda x, y: None"))) for i in range(6 - len(types))]
+        ret += [njit(eval(("lambda x, y: None"))) for i in range(6 - len(types))]  # nosec B307
         return tuple(ret)
 
     def _get_run_fn_lambda(self, num_outs, num_ins):
@@ -160,7 +160,7 @@ class NumbaFunction(
         for i in range(num_ins):
             eval_string += "in{}".format(i)
             eval_string += ", " if i + 1 != num_ins else ")"
-        return njit(eval(eval_string))
+        return njit(eval(eval_string))  # nosec B307
 
     def _get_setup_fn_cpu(self, setup_fn):
         setup_fn_address = None
