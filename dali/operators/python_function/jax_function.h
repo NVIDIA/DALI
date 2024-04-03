@@ -18,6 +18,8 @@
 #include <dali/util/pybind.h>
 #include <pybind11/embed.h>
 #include <pybind11/stl.h>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,7 +33,8 @@ namespace detail {
 
 template <typename Backend>
 struct DLDaliTensorResource {
-  DLDaliTensorResource(Tensor<Backend> &&tensor) : tensor(std::move(tensor)), dlm_tensor{} {}
+  explicit DLDaliTensorResource(Tensor<Backend> &&tensor)
+      : tensor(std::move(tensor)), dlm_tensor{} {}
   Tensor<Backend> tensor;
   DLManagedTensor dlm_tensor;
 };
@@ -243,7 +246,7 @@ class JaxFunction : public StatelessOperator<Backend> {
       auto dl_inputs = detail::TensorsAsDLTensorObjs(std::move(batched_inputs), std::nullopt);
       auto dl_outputs = python_function_(*dl_inputs);
       return ConsumePythonOutputs(ws, std::move(dl_outputs));
-    } else if constexpr (!std::is_same_v<Backend, CPUBackend>) {
+    } else if constexpr (!std::is_same_v<Backend, CPUBackend>) {  // NOLINT
       static_assert(std::is_same_v<Backend, GPUBackend>,
                     "The operator supports only CPU and GPU backends");
       cudaStream_t stream = ws.stream();
@@ -337,7 +340,27 @@ class JaxFunction : public StatelessOperator<Backend> {
     }
   }
 
-  void PropagateSourceInfo(Workspace &ws) {}
+  void PropagateSourceInfo(Workspace &ws) {
+    int batch_size = ws.GetRequestedBatchSize(0);
+    for (int sample_idx = 0; sample_idx < batch_size; ++sample_idx) {
+      std::stringstream out_source_info_ss;
+      bool appended = false;
+      for (int in_idx = 0; in_idx < ws.NumInput(); ++in_idx) {
+        const auto &source_info = ws.Input<Backend>(in_idx).GetMeta(sample_idx).GetSourceInfo();
+        if (!source_info.empty()) {
+          out_source_info_ss << source_info;
+          if (appended) {
+            out_source_info_ss << ";";
+          }
+          appended = true;
+        }
+      }
+      std::string source_info = out_source_info_ss.str();
+      for (int out_idx = 0; out_idx < ws.NumOutput(); ++out_idx) {
+        ws.Output<Backend>(out_idx).SetSourceInfo(sample_idx, source_info);
+      }
+    }
+  }
 
   py::object python_function_;
   std::vector<TensorLayout> output_layouts_;

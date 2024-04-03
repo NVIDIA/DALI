@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include "third_party/dlpack/include/dlpack/dlpack.h"
 
 #include "dali/core/common.h"

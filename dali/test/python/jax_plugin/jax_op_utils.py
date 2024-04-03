@@ -14,6 +14,7 @@
 
 import jax.numpy as jnp
 
+
 def hue_mat(hue):
     h_rad = hue * jnp.pi / 180
     ret = jnp.eye(3)

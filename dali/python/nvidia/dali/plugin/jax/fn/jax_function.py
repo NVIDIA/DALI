@@ -65,10 +65,11 @@ def jax_function(
 ) -> DaliCallback:
     """
     Transforms the Python function ``function`` that processes ``jax.Array`` objects into
-    DALI operator that can be used inside DALI pipeline definition or jax plugin iterator definition.
+    DALI operator that can be used inside DALI pipeline definition
+    or jax plugin iterator definition.
     The transformed function accepts and returns the same number of inputs and outputs as the
-    original `function`. The inputs and outputs of the transformed function are traced by DALI
-    and are interoperable with other DALI operators.
+    original `function`, but changes their types: from ``jax.Array`` to DALI-traced ``DataNodes``.
+    The resulting function is interoperable with other DALI operators.
 
     For example, we could implement horizontal flipping operation in JAX as follows::
 
@@ -76,9 +77,9 @@ def jax_function(
         from nvidia.dali import pipeline_def, fn, types
         from nvidia.dali.plugin import jax as dax
 
-        @dax.fn.jax_function
-        @jax.jit
-        @jax.vmap
+        @dax.fn.jax_function  # make the function interoperable with DALI
+        @jax.jit              # jit the code
+        @jax.vmap             # vectorize across batch dimension
         def flip_horizontal(image: jax.Array):
             return image[:, ::-1, :]
 
@@ -90,8 +91,9 @@ def jax_function(
             flipped = flip_horizontal(image)
             return image, flipped
 
-    If the resulting operator is run with DALI GPU batches, the internal DALI and JAX streams will be
-    synchronized. The JAX operations do not need to be further synchronized by the user.
+    If the resulting function is run with DALI GPU batches, the internal DALI and JAX
+    streams will be synchronized. The JAX operations do not need to be further
+    synchronized by the user.
 
     The inputs passed to the ``function`` must not be accessed after the ``function`` completes
     (for example, they should not be stored in some non-local scope).
@@ -117,8 +119,8 @@ def jax_function(
     output_layouts: Union[str, Tuple[str]], optional
         The layouts of returned tensors.
 
-        It can be either a list of strings for all of ``num_outputs`` respective outputs or a single string
-        to be set to all of the outputs.
+        It can be either a list of strings for all of ``num_outputs`` respective outputs
+        or a single string to be set to all of the outputs.
 
         Please note, in DALI, the outermost batch extent is implicit, the layout should
         take into account only the sample dimensions.
@@ -127,8 +129,9 @@ def jax_function(
         dimensionality as the i-th input, the layout will be propagated from the input to
         the corresponding output.
     sharding: jax.sharding.Sharding, optional
-        The JAX sharding object (either ``PositionalSharding`` or ``NamedSharding``). If specified, the
-        ``jax.Arrays`` passed to the ``function`` will be a global ``jax.Array`` aware of the sharding.
+        The JAX sharding object (either ``PositionalSharding`` or ``NamedSharding``).
+        If specified, the ``jax.Arrays`` passed to the ``function`` will be a global
+        ``jax.Array`` aware of the sharding.
 
         .. note::
 
@@ -136,12 +139,14 @@ def jax_function(
             in the given process must be exactly one.
     device: str, optional
         Either "cpu", "gpu" or None.
-        The device kind on which all of the DALI inputs and outputs to the transformed function will be placed.
-        If not specified, the device will be deduced based on the DALI inputs passed to the resulting function.
-        Currently, the device kind of all the inputs and outputs must be the same.
+        The device kind on which all of the DALI inputs and outputs to the transformed function
+        will be placed. If not specified, the device will be deduced based on the DALI
+        inputs passed to the resulting function. Currently, the device kind of all the inputs
+        and outputs must be the same.
     preserve: bool, default=True
-        If set to False, the returned DALI function may be optimized out of the DALI pipeline, if
-        it does not return any outputs or none of the function outputs contribute to the pipeline's output.
+        If set to False, the returned DALI function may be optimized out of the DALI pipeline,
+        if it does not return any outputs or none of the function outputs contribute
+        to the pipeline's output.
 
     Returns
     -------

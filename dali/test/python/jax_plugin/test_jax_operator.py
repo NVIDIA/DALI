@@ -39,7 +39,7 @@ def test_jit_vs_dali_op(device, dtype):
     assert device in ("cpu", "gpu")
     num_iters = 3
 
-    @dax.jax_fn(output_layouts="HWC")
+    @dax.fn.jax_function
     @jax.jit
     @jax.vmap
     def dax_color_twist(img, bcs, hue):
@@ -55,7 +55,9 @@ def test_jit_vs_dali_op(device, dtype):
             img = img / 255
         bcs = fn.random.uniform(range=[0.1, 1.9], shape=3)
         hue = fn.random.uniform(range=[0, 180])
-        dali_img = fn.color_twist(img, brightness=bcs[0], contrast=bcs[1], saturation=bcs[2], hue=hue)
+        dali_img = fn.color_twist(
+            img, brightness=bcs[0], contrast=bcs[1], saturation=bcs[2], hue=hue
+        )
         if device == "gpu":
             bcs, hue = bcs.gpu(), hue.gpu()
         dax_img = dax_color_twist(img, bcs, hue)
@@ -65,4 +67,9 @@ def test_jit_vs_dali_op(device, dtype):
     p.build()
     for _ in range(num_iters):
         dali_img, dax_img = p.run()
-        check_batch(dali_img, dax_img, compare_layouts=True, max_allowed_error=1 if dtype != np.float32 else 1e-6)
+        check_batch(
+            dali_img,
+            dax_img,
+            compare_layouts=True,
+            max_allowed_error=1 if dtype != np.float32 else 1e-6,
+        )

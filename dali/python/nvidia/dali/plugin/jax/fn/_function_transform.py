@@ -48,12 +48,15 @@ def with_cpu_dl_tensors_as_arrays(callback):
 def with_sharding(callback, sharding):
     if jax.local_device_count() != 1:
         raise NotImplementedError(
-            f"Currently, the `jax_function` supports only global/multiprocessing sharding. The number of local devices seen by the process must be 1, got {jax.local_device_count()}"
+            f"Currently, the `jax_function` supports only global/multiprocessing sharding. "
+            f"The number of local devices seen by the process must be 1, "
+            f"got {jax.local_device_count()}"
         )
 
     if not isinstance(sharding, (jax.sharding.NamedSharding, jax.sharding.PositionalSharding)):
         raise ValueError(
-            f"The value passed as `sharding` must be an instance of `NamedSharding` or `PositionalSharding`, got value of a type {type(sharding)}"
+            f"The value passed as `sharding` must be an instance of `NamedSharding` or "
+            f"`PositionalSharding`, got value of a type {type(sharding)}"
         )
 
     def as_sharded_array(array: jax.Array) -> jax.Array:
@@ -68,7 +71,8 @@ def with_sharding(callback, sharding):
         local_arrays = [x.data for x in sharded_array.addressable_shards]
         if len(local_arrays) != 1:
             raise ValueError(
-                f"The function returned multiple shards, expected exactly one, got {len(local_arrays)}."
+                f"The function returned multiple shards, "
+                f"expected exactly one, got {len(local_arrays)}."
             )
         return local_arrays[0]
 
