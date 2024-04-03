@@ -166,7 +166,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     DALIImageType req_img_type;
     float dyn_range_multiplier = 1.0f;
 
-    mm::uptr<uint8_t> pinned_buf;
+    mm::uptr<uint8_t> host_buf;
     mm::async_uptr<uint8_t> device_buf;
 
     SampleView<CPUBackend> out_cpu;
@@ -639,16 +639,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     if (st.need_processing) {
       if constexpr (std::is_same<MixedBackend, Backend>::value) {
-        // This is a workaround for nvImageCodec <= 0.2
-        auto alloc_stream =
-            need_host_sync_alloc() ? mm::host_sync : st.image_info.cuda_stream;
         st.device_buf = mm::alloc_raw_async_unique<uint8_t, mm::memory_kind::device>(
-            image_buffer_size, alloc_stream, st.image_info.cuda_stream);
+            image_buffer_size, st.image_info.cuda_stream, st.image_info.cuda_stream);
         st.image_info.buffer = st.device_buf.get();
         st.decode_out_gpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       } else {
-        st.pinned_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(image_buffer_size);
-        st.image_info.buffer = st.pinned_buf.get();
+        st.host_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::host>(image_buffer_size);
+        st.image_info.buffer = st.host_buf.get();
         st.decode_out_cpu = {st.image_info.buffer, st.out_shape, st.parsed_sample.orig_dtype};
       }
     } else {
@@ -751,6 +748,20 @@ class ImageDecoder : public StatelessOperator<Backend> {
       }
     }
 
+    // This is a workaround for nvImageCodec <= 0.2
+    auto any_need_processing = [this]() {
+      for (auto &st : state_) {
+        assert(ws.stream() == st->image_info.cuda_stream);  // assuming this is true
+        if (st->need_processing)
+          return true;
+      }
+      return false;
+    };
+    if (need_host_sync_alloc() && any_need_processing()) {
+      DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
+      CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    }
+
     {
       DomainTimeRange tr("Decode", DomainTimeRange::kOrange);
       nvimgcodecFuture_t future;
@@ -790,7 +801,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                 assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
                 ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu, st.req_layout,
                            st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
-                st.pinned_buf.reset();
+                st.host_buf.reset();
               }
             },
             -orig_idx);
@@ -846,7 +857,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
   int max_batch_size_ = 1;
   int num_threads_ = -1;
   ThreadPool* tp_ = nullptr;
-
   std::vector<std::unique_ptr<SampleState>> state_;
   std::vector<nvimgcodecCodeStream_t> batch_encoded_streams_;
   std::vector<nvimgcodecImage_t> batch_images_;
