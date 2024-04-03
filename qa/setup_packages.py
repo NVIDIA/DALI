@@ -496,7 +496,6 @@ all_packages = [
                         "protobuf<4",
                         "numpy<1.24",
                         "urllib3<2.0",
-                        "typing_extensions<4.6",
                     ],
                 ),
                 PckgVer(
@@ -507,7 +506,6 @@ all_packages = [
                         "protobuf<4",
                         "numpy<1.24",
                         "urllib3<2.0",
-                        "typing_extensions<4.6",
                     ],
                 ),
             ],
@@ -520,7 +518,6 @@ all_packages = [
                         "protobuf<4",
                         "numpy<1.24",
                         "urllib3<2.0",
-                        "typing_extensions<4.6",
                     ],
                 ),
                 PckgVer(
@@ -531,7 +528,6 @@ all_packages = [
                         "protobuf<4",
                         "numpy<1.24",
                         "urllib3<2.0",
-                        "typing_extensions<4.6",
                     ],
                 ),
                 PckgVer(
@@ -542,7 +538,6 @@ all_packages = [
                         "protobuf<4",
                         "numpy<1.24",
                         "urllib3<2.0",
-                        "typing_extensions<4.6",
                     ],
                 ),
             ],
