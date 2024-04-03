@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .jax_fn import jax_fn  # noqa: F401
+from .jax_function import jax_function  # noqa: F401
 
-__all__ = [
-    "jax_fn",
-]
+__all__ = ["jax_function"]

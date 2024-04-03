@@ -330,7 +330,7 @@ class JaxFunction : public StatelessOperator<Backend> {
   TensorLayout GetOutputLayout(Workspace &ws, int out_idx, int out_ndim) {
     if (output_layouts_.size() > 0) {
       return output_layouts_[out_idx];
-    } else if (ws.NumOutput() == ws.NumInput() && ws.GetInputDim(out_idx) == out_ndim) {
+    } else if (ws.NumOutput() <= ws.NumInput() && ws.GetInputDim(out_idx) == out_ndim) {
       return ws.GetInputLayout(out_idx);
     } else {
       return "";

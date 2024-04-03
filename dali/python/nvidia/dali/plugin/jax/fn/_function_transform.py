@@ -48,7 +48,7 @@ def with_cpu_dl_tensors_as_arrays(callback):
 def with_sharding(callback, sharding):
     if jax.local_device_count() != 1:
         raise NotImplementedError(
-            f"Currently, the `jax_python_function` supports only global/multiprocessing sharding. The number of local devices seen by the process must be 1, got {jax.local_device_count()}"
+            f"Currently, the `jax_function` supports only global/multiprocessing sharding. The number of local devices seen by the process must be 1, got {jax.local_device_count()}"
         )
 
     if not isinstance(sharding, (jax.sharding.NamedSharding, jax.sharding.PositionalSharding)):

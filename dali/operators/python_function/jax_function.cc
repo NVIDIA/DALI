@@ -53,6 +53,7 @@ the dimensionality of respective inputs and outputs is preserved, the layout wil
 from the input to the output.)code",
                                                nullptr)
     .Unserializable()
+    .MakeInternal()
     .MakeDocHidden();
 
 
