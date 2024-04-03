@@ -66,7 +66,7 @@ def jax_function(
     """
     Transforms the Python function ``function`` that processes ``jax.Array`` objects into
     DALI operator that can be used inside DALI pipeline definition
-    or jax plugin iterator definition.
+    or JAX plugin iterator definition.
     The transformed function accepts and returns the same number of inputs and outputs as the
     original `function`, but changes their types: from ``jax.Array`` to DALI-traced ``DataNodes``.
     The resulting function is interoperable with other DALI operators.
@@ -77,11 +77,9 @@ def jax_function(
         from nvidia.dali import pipeline_def, fn, types
         from nvidia.dali.plugin import jax as dax
 
-        @dax.fn.jax_function  # make the function interoperable with DALI
-        @jax.jit              # jit the code
-        @jax.vmap             # vectorize across batch dimension
-        def flip_horizontal(image: jax.Array):
-            return image[:, ::-1, :]
+        @dax.fn.jax_function
+        def flip_horizontal(image_batch: jax.Array):
+            return image_batch[:, :, ::-1, :]  # batch of HWC images
 
         @pipeline_def(batch_size=4, device_id=0, num_threads=4)
         def pipeline():
@@ -91,12 +89,22 @@ def jax_function(
             flipped = flip_horizontal(image)
             return image, flipped
 
+    The ``function`` can be transformed with usual JAX transformations, for example
+    we can utilize JAX's just-in-time compilation and vectorization adding
+    the appropriate decorators in the above example::
+
+        @dax.fn.jax_function
+        @jax.jit
+        @jax.vmap
+        def flip_horizontal(image: jax.Array):
+            return image[:, ::-1, :]  # HWC image
+
     If the resulting function is run with DALI GPU batches, the internal DALI and JAX
     streams will be synchronized. The JAX operations do not need to be further
     synchronized by the user.
 
-    The inputs passed to the ``function`` must not be accessed after the ``function`` completes
-    (for example, they should not be stored in some non-local scope).
+    The ``jax.Array``s passed to the ``function`` must not be accessed after the
+    ``function`` completes (for example, they should not be stored in some non-local scope).
 
     .. note::
 
@@ -125,7 +133,7 @@ def jax_function(
         Please note, in DALI, the outermost batch extent is implicit, the layout should
         take into account only the sample dimensions.
 
-        If the argument is not specified, and the ``function``'s i-th output has the same
+        If the argument is not specified and the ``function``'s i-th output has the same
         dimensionality as the i-th input, the layout will be propagated from the input to
         the corresponding output.
     sharding: jax.sharding.Sharding, optional

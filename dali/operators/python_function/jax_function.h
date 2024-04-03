@@ -84,9 +84,9 @@ DLMTensorPtr AsDLTensor(Tensor<Backend> tensor) {
  * that will further transfer the ownership if the __dlpack__ method is called.
  *
  * @param tensors Tensors to expose as a Python list of DLTensorObjs.
- * @param stream The stream on which the underlying tensors memory can be accessed.
- *               The consumer's stream will wait for the completion of the work scheduled
- *               on the `producer_stream` up to the moment of calling this function.
+ * @param producer_stream The stream on which the underlying tensors memory can be accessed.
+ *                        The consumer's stream will wait for the completion of the work scheduled
+ *                        on the `producer_stream` up to the moment of calling this function.
  * @return py::list of DlTensorObjs.
  */
 template <typename Backend>
@@ -267,10 +267,16 @@ class JaxFunction : public StatelessOperator<Backend> {
   std::vector<DLMTensorPtr> ConsumePythonOutputs(Workspace &ws, py::object &&py_outputs) {
     std::vector<DLMTensorPtr> outputs;
     int num_outputs = ws.NumOutput();
-    py::tuple dl_output_tuple =  // am I a tuple, none or a single element?
-        (py::tuple::check_(py_outputs)) ?
-            py_outputs :
-            (py_outputs.is_none() ? py::make_tuple() : py::make_tuple(py_outputs));
+    auto as_tuple = [](py::object &py_outputs) -> pybind11::tuple {
+      if (py::tuple::check_(py_outputs)) {
+        return py_outputs;  // it's a tuple already
+      } else if (!py_outputs.is_none()) {
+        return py::make_tuple(py_outputs);  // it's a single element
+      } else {
+        return py::make_tuple();
+      }
+    };
+    py::tuple dl_output_tuple = as_tuple(py_outputs);
     DALI_ENFORCE(
         dl_output_tuple.size() == static_cast<size_t>(num_outputs),
         make_string("The Python callback was expected to return (a tuple of) `num_outputs=",
@@ -289,9 +295,9 @@ class JaxFunction : public StatelessOperator<Backend> {
    * @brief Consumes the outputs coming from the Python callback and ties their
    *        lifespan to the output tensor list.
    * @param ws
-   * @param dl_outputs The vector of DLManagedTensor unique pointers.
-   *                   The tensor's underlying memory is expected to be safe to access
-   *                   in the host or ws.stream() order (for CPU and GPU backends respectively).
+   * @param outputs The vector of DLManagedTensor unique pointers.
+   *                The tensor's underlying memory is expected to be safe to access
+   *                in the host or ws.stream() order (for CPU and GPU backends respectively).
    */
   void ShareOutputs(Workspace &ws, std::vector<DLMTensorPtr> &&outputs) {
     assert(outputs.size() == static_cast<size_t>(ws.NumOutput()));
