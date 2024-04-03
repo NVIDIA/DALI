@@ -1,7 +1,7 @@
-JAX in DALI pipeline
+Running JAX in DALI pipeline
 ============================
 
-.. automodule:: nvidia.dali.plugin.jax.jax_fn
+.. automodule:: nvidia.dali.plugin.jax.fn
    :members:
    :undoc-members:
    :inherited-members:

@@ -68,11 +68,30 @@ def jax_function(
     DALI operator that can be used inside DALI pipeline definition or jax plugin iterator definition.
     The transformed function accepts and returns the same number of inputs and outputs as the
     original `function`. The inputs and outputs of the transformed function are traced by DALI
-    and are interoperable with remaining DALI operators.
+    and are interoperable with other DALI operators.
+
+    For example, we could implement horizontal flipping operation in JAX as follows::
+
+        import jax
+        from nvidia.dali import pipeline_def, fn, types
+        from nvidia.dali.plugin import jax as dax
+
+        @dax.fn.jax_function
+        @jax.jit
+        @jax.vmap
+        def flip_horizontal(image: jax.Array):
+            return image[:, ::-1, :]
+
+        @pipeline_def(batch_size=4, device_id=0, num_threads=4)
+        def pipeline():
+            image, _ = fn.readers.file(file_root=jpeg_path_dali_extra)
+            image = fn.decoders.image(image, device="mixed", output_type=types.RGB)
+            image = fn.resize(image, size=(244, 244))
+            flipped = flip_horizontal(image)
+            return image, flipped
 
     If the resulting operator is run with DALI GPU batches, the internal DALI and JAX streams will be
-    synchronized. The JAX operations do not need to be further synchronized by the user, they can
-    be scheduled and run asynchronously.
+    synchronized. The JAX operations do not need to be further synchronized by the user.
 
     The inputs passed to the ``function`` must not be accessed after the ``function`` completes
     (for example, they should not be stored in some non-local scope).
