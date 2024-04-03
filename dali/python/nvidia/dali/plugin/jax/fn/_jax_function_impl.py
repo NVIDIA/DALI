@@ -20,6 +20,7 @@ import jax.sharding
 
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import ops
+import nvidia.dali.ops._python_def_op_utils as _python_def_op_utils
 from nvidia.dali.plugin import jax as dax
 
 from ._function_transform import jax_callback_wrapper as _jax_callback_wrapper
@@ -103,7 +104,7 @@ def jax_function(
     streams will be synchronized. The JAX operations do not need to be further
     synchronized by the user.
 
-    The ``jax.Array``s passed to the ``function`` must not be accessed after the
+    The ``jax.Arrays`` passed to the ``function`` must not be accessed after the
     ``function`` completes (for example, they should not be stored in some non-local scope).
 
     .. note::
@@ -182,3 +183,11 @@ def jax_function(
         return decorator
     else:
         return decorator(function)
+
+
+_jax_function_desc = _python_def_op_utils.PyOpDesc(
+    "nvidia.dali.plugin.jax.fn",
+    "jax_function",
+    ["CPU", "GPU"],
+    "Transforms ``jax.Array`` processing function into DALI operator",
+)

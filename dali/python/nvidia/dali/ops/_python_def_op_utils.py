@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ._jax_function_impl import jax_function  # noqa: F401
+from dataclasses import dataclass
 
-__all__ = ["jax_function"]
+
+@dataclass
+class PyOpDesc:
+    module: str
+    name: str
+    devices: list
+    short_desc: str
+
+
+def get_py_op_desc(module, fun_name):
+    return getattr(module, f"_{fun_name}_desc")
