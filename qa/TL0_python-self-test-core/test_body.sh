@@ -37,7 +37,9 @@ test_py() {
 test_autograph() {
     ${python_new_invoke_test} -s autograph
     ${python_new_invoke_test} -s conditionals
-    ${python_new_invoke_test} -s auto_aug
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        ${python_new_invoke_test} -s auto_aug
+    fi
 }
 
 test_type_annotations() {
