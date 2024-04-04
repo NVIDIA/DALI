@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
-#define DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR_IMPL_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR_IMPL_H_
 
 #include <atomic>
 #include <exception>
@@ -24,13 +24,12 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <unordered_map>
 #include <mutex>
 
-#include "dali/core/common.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
+#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
@@ -50,15 +49,8 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
-namespace dali {
 
-struct DLL_PUBLIC ExecutorMeta {
-  size_t real_size;
-  size_t max_real_size;
-  size_t reserved;
-  size_t max_reserved;
-};
-using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
+namespace dali {
 
 namespace detail {
 // This is stream callback used on GPU stream to indicate that GPU work for this
@@ -70,37 +62,6 @@ static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mu
 
 }  // namespace detail
 
-class DLL_PUBLIC ExecutorBase {
- public:
-  DLL_PUBLIC virtual ~ExecutorBase() {}
-  DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
-  DLL_PUBLIC virtual void Init() = 0;
-  DLL_PUBLIC virtual void Run() = 0;
-  DLL_PUBLIC virtual void Prefetch() = 0;
-  DLL_PUBLIC virtual void Outputs(Workspace *ws) = 0;
-  DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
-  DLL_PUBLIC virtual void ReleaseOutputs() = 0;
-  DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
-  DLL_PUBLIC virtual void EnableCheckpointing(bool checkpointing = false) = 0;
-  DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
-  DLL_PUBLIC virtual void Shutdown() = 0;
-  DLL_PUBLIC virtual Checkpoint& GetCurrentCheckpoint() = 0;
-  DLL_PUBLIC virtual void RestoreStateFromCheckpoint(const Checkpoint &cpt) = 0;
-  DLL_PUBLIC virtual int InputFeedCount(const std::string &input_name) = 0;
-
- protected:
-  // virtual to allow the TestPruneWholeGraph test in gcc
-  virtual void PruneUnusedGraphNodes() = 0;
-
-  /**
-   * @brief Returns true if conditionals are used in the executed graph, @see DetectConditionals().
-   * Valid after Build().
-   */
-  virtual bool HasConditionals() const = 0;
-
-  template <typename T>
-  friend class ExecutorTest;
-};
 
 /**
  * @brief Basic executor for dali graphs. This executor enables
@@ -875,7 +836,6 @@ void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mu
 }
 
 }  // namespace detail
-
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR_IMPL_H_

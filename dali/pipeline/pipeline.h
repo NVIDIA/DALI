@@ -33,6 +33,7 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
