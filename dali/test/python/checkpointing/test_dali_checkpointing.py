@@ -1139,6 +1139,36 @@ def test_trivial_augment(device):
     check_pipeline_checkpointing_native(pipeline)
 
 
+@cartesian_params((0, 1), (0, 3), (0, 1), (0, 4))
+def test_multiple_restores(warmup_epochs, warmup_iters, run_epochs, run_iters):
+    batch_size = 4
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, enable_checkpointing=True)
+    def pipeline():
+        data, _ = fn.readers.file(name="Reader", file_root=images_dir)
+        return fn.decoders.image(data, device="cpu")
+
+    pipe = pipeline()
+    pipe.build()
+
+    iters_in_epoch = pipe.reader_meta()["Reader"]["epoch_size"] // batch_size
+    warmup_iters += warmup_epochs * iters_in_epoch
+    run_iters += run_epochs * iters_in_epoch
+
+    for _ in range(warmup_iters):
+        pipe.run()
+
+    pipe2 = pipeline(checkpoint=pipe.checkpoint())
+    pipe2.build()
+    for _ in range(run_iters):
+        pipe2.run()
+
+    pipe3 = pipeline(checkpoint=pipe2.checkpoint())
+    pipe3.build()
+
+    compare_pipelines(pipe2, pipe3, batch_size, 5)
+
+
 unsupported_readers = [
     "experimental.readers.fits",
 ]
