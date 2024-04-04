@@ -367,3 +367,24 @@ def test_coco_empty_annotations_poly():
         assert (poly != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or (
             vert == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids])
         )
+
+
+def test_coco_pix_mask_ratio():
+    file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
+    train_annotations = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
+
+    batch_size = 2
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def coco_pipe(ratio=False):
+        _, _, _, masks = fn.readers.coco(
+            file_root=file_root,
+            annotations_file=train_annotations,
+            pixelwise_masks=True,
+            ratio=ratio,
+        )
+        return masks
+
+    pipe_ref = coco_pipe(batch_size=batch_size, ratio=False)
+    pipe_test = coco_pipe(batch_size=batch_size, ratio=True)
+    compare_pipelines(pipe_ref, pipe_test, batch_size, 5)

@@ -260,6 +260,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
 }
 
 void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
+  bool ratio = spec_.GetArgument<bool>("ratio");
   auto &loader_impl = LoaderImpl();
   auto pol = loader_impl.polygons(image_idx);
   auto ver = loader_impl.vertices(image_idx);
@@ -290,8 +291,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     auto pol_ver = span<const vec2>{ver.data() + start_idx, nver};
     in.resize(pol_ver.size() * 2);
     for (int i = 0, k = 0; i < pol_ver.size(); i++) {
-      in[k++] = static_cast<double>(pol_ver[i].x);
-      in[k++] = static_cast<double>(pol_ver[i].y);
+      in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
+      in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
     }
     RLE M;
     rleInit(&M, 0, 0, 0, 0);
