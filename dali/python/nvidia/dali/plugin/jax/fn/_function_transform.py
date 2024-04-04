@@ -17,6 +17,36 @@ import jax.dlpack
 import jax.sharding
 
 
+def gpu_to_dlpack(tensor: jax.Array, stream):
+    devices = list(tensor.devices())
+    if not len(devices) == 1:
+        raise ValueError(
+            f"The function returned array split across multiple devices ({len(devices)}), "
+            f"expected single device array."
+        )
+    if devices[0].platform != "gpu":
+        raise ValueError(
+            f"The function returned array residing on the device of "
+            f"kind `{devices[0].platform}`, expected `gpu`."
+        )
+    return jax.dlpack.to_dlpack(tensor, stream=stream)
+
+
+def cpu_to_dlpack(tensor: jax.Array):
+    devices = list(tensor.devices())
+    if not len(devices) == 1:
+        raise ValueError(
+            f"The function returned array split across multiple devices ({len(devices)}), "
+            f"expected single device array."
+        )
+    if devices[0].platform != "cpu":
+        raise ValueError(
+            f"The function returned array residing on the device of "
+            f"kind `{devices[0].platform}`, expected `gpu`."
+        )
+    return jax.dlpack.to_dlpack(tensor)
+
+
 def with_gpu_dl_tensors_as_arrays(callback):
 
     def inner(stream, *dl_tensors):
@@ -26,7 +56,7 @@ def with_gpu_dl_tensors_as_arrays(callback):
             return
         else:
             out = out if isinstance(out, (tuple, list)) else (out,)
-            return tuple(jax.dlpack.to_dlpack(t, stream=stream) for t in out)
+            return tuple(gpu_to_dlpack(t, stream=stream) for t in out)
 
     return inner
 
@@ -40,7 +70,7 @@ def with_cpu_dl_tensors_as_arrays(callback):
             return
         else:
             out = out if isinstance(out, (tuple, list)) else (out,)
-            return tuple(jax.dlpack.to_dlpack(t) for t in out)
+            return tuple(cpu_to_dlpack(t) for t in out)
 
     return inner
 
