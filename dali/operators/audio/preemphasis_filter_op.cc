@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 #include "dali/operators/audio/preemphasis_filter_op.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 namespace dali {
 
@@ -93,11 +94,11 @@ void PreemphasisFilterCPU::RunImplTyped(Workspace &ws) {
 
 void PreemphasisFilterCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
-  TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
-    TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
+  TYPE_SWITCH(input.type(), type2id, InputType, (PREEMPH_TYPES), (
+    TYPE_SWITCH(output_type_, type2id, OutputType, (PREEMPH_TYPES), (
       RunImplTyped<OutputType, InputType>(ws);
-    ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)));  // NOLINT
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
+    ), (validate::OutputType<PREEMPH_TYPES>(spec_, ws, 0)));  // NOLINT
+  ), (validate::InputType<PREEMPH_TYPES>(spec_, ws, 0)));  // NOLINT
 }
 
 DALI_REGISTER_OPERATOR(PreemphasisFilter, PreemphasisFilterCPU, CPU);

@@ -380,3 +380,11 @@ if(BUILD_NVIMAGECODEC)
       endif()
   endif()
 endif()
+
+##################################################################
+# {fmt}
+##################################################################
+check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/fmt EXCLUDE_FROM_ALL)
+set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
+list(APPEND DALI_LIBS fmt)
+list(APPEND DALI_EXCLUDES libfmt.a)
