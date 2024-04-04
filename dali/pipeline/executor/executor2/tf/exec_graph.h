@@ -269,10 +269,10 @@ struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
 
   SchedGraph &operator=(const SchedGraph &g);
 
-  void init(ExecGraph &def, const WorkspaceParams &params);
+  void init(ExecGraph &exec, const WorkspaceParams &params);
 
-  static auto from_def(ExecGraph &def, const WorkspaceParams &params) {
-    return std::make_shared<SchedGraph>(def, params);
+  static auto from_exec(ExecGraph &exec, const WorkspaceParams &params) {
+    return std::make_shared<SchedGraph>(exec, params);
   }
 
 

@@ -216,13 +216,13 @@ inline T *ptradd(T *a, ptrdiff_t byte_offset) {
   return reinterpret_cast<T*>(reinterpret_cast<intptr_t>(a) + byte_offset);
 }
 
-void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
-  std::unordered_map<ExecNode *, int> node_indices(def.nodes.size());
+void SchedGraph::init(ExecGraph &exec, const WorkspaceParams &params) {
+  std::unordered_map<ExecNode *, int> node_indices(exec.nodes.size());
   nodes.clear();
   edges.clear();
 
   std::vector<ExecNode *> sorted;
-  def.sort_and_prune(sorted);
+  exec.sort_and_prune(sorted);
 
   int num_edges = 0;
   for (auto *node : sorted) {
@@ -232,10 +232,10 @@ void SchedGraph::init(ExecGraph &def, const WorkspaceParams &params) {
 
   edges.resize(num_edges);
   nodes.resize(sorted.size());
-  outputs.resize(def.outputs.size());
+  outputs.resize(exec.outputs.size());
   std::unordered_map<const ExecEdge *, int> output_idx(outputs.size());
-  for (int i = 0, n = def.outputs.size(); i < n; i++)
-    output_idx[def.outputs[i]] = i;
+  for (int i = 0, n = exec.outputs.size(); i < n; i++)
+    output_idx[exec.outputs[i]] = i;
 
   int i = 0;
   int e = 0;
