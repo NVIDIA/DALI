@@ -118,7 +118,7 @@ TEST(Exec2Test, SimpleGraph) {
   params.batch_size = batch_size;
   start = dali::test::perf_timer::now();
   {
-    auto sched = SchedGraph::from_def(def, params);
+    auto sched = SchedGraph::from_exec(def, params);
     tf::Taskflow tf;
     sched->schedule(tf);
     tf::Executor ex(4);
@@ -180,7 +180,7 @@ TEST(Exec2Test, SimpleGraphRepeat) {
   params.thread_pool = &tp;
   params.batch_size = batch_size;
   {
-    auto sched_template = SchedGraph::from_def(def, params);
+    auto sched_template = SchedGraph::from_exec(def, params);
     auto start = dali::test::perf_timer::now();
     int N = 100;
     for (int i = 0; i < N; i++) {
@@ -244,7 +244,7 @@ TEST(Exec2Test, Exception) {
   params.thread_pool = &tp;
   params.batch_size = 32;
   {
-    auto sched_template = SchedGraph::from_def(def, params);
+    auto sched_template = SchedGraph::from_exec(def, params);
     tf::Executor ex(4);
     for (int i = 0; i < 10; i++) {
       tf::Taskflow tf;
