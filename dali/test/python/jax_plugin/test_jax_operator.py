@@ -21,6 +21,7 @@ from nvidia.dali import pipeline_def, fn, types
 import nvidia.dali.plugin.jax as dax
 
 from nose2.tools import params
+from nose_utils import assert_raises
 from test_utils import get_dali_extra_path, check_batch
 
 
@@ -252,13 +253,18 @@ def test_multi_input_different_contiguity(device):
         else:
             mod = sample_idx & 1
             mod_dev = mod.gpu() if device == "gpu" else mod
-        return flip_hor(img, mod_dev), fn.flip(img, horizontal=mod)
+        return flip_hor(img, mod_dev), fn.flip(img, horizontal=mod), img
 
     p = pipeline()
     p.build()
     for _ in range(num_iters):
-        jax_flip, dali_flip = p.run()
+        jax_flip, dali_flip, imgs = p.run()
         check_batch(jax_flip, dali_flip, compare_layouts=True, max_allowed_error=0)
+        for jax_sample, source_sample in zip(jax_flip, imgs):
+            jax_sample_source_info = jax_sample.source_info()
+            dali_sample_source_info = source_sample.source_info()
+            assert jax_sample_source_info == dali_sample_source_info, \
+                f"`{jax_sample_source_info}`!= `{dali_sample_source_info}`"
 
 
 @params(
@@ -301,3 +307,52 @@ def test_preserve(device, preserve, no_in_out):
         assert counter != 0
     else:
         assert counter == 0
+
+
+@params("cpu", "gpu")
+def test_explicit_output_layouts(device):
+
+    batch_size = 7
+    num_iters = 3
+
+    @dax.fn.jax_function(output_layouts=["HWC", "FHWC"], num_outputs=2)
+    @jax.jit
+    @jax.vmap
+    def reshape(image):
+        h, w, c = image.shape
+        return image, image.reshape((1, h, w, c))
+
+    @pipeline_def(
+        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+    )
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        img = fn.resize(img, size=(224, 224))
+        return tuple(reshape(img))
+
+    p = pipeline()
+    p.build()
+    for _ in range(num_iters):
+        img, f_image = p.run()
+        assert len(img) == batch_size, f"{len(img)}!= {batch_size}"
+        assert len(f_image) == batch_size, f"{len(f_image)}!= {batch_size}"
+        assert img.layout() == "HWC", f"{img.layout()}"
+        assert f_image.layout() == "FHWC", f"{f_image.layout()}"
+
+
+@params("cpu", "gpu")
+def test_non_uniform_shape(device):
+
+    @pipeline_def(
+        batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+    )
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
+        return dax.fn.jax_function(lambda x:x)(img)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(RuntimeError, glob="*batch of samples with different shapes*"):
+        p.run()
