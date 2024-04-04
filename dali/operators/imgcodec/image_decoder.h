@@ -757,7 +757,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       }
       return false;
     };
-    if (need_host_sync_alloc() && any_need_processing()) {
+    if (ws.has_stream() && need_host_sync_alloc() && any_need_processing()) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     }
