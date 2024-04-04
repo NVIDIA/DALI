@@ -263,8 +263,9 @@ def test_multi_input_different_contiguity(device):
         for jax_sample, source_sample in zip(jax_flip, imgs):
             jax_sample_source_info = jax_sample.source_info()
             dali_sample_source_info = source_sample.source_info()
-            assert jax_sample_source_info == dali_sample_source_info, \
-                f"`{jax_sample_source_info}`!= `{dali_sample_source_info}`"
+            assert (
+                jax_sample_source_info == dali_sample_source_info
+            ), f"`{jax_sample_source_info}`!= `{dali_sample_source_info}`"
 
 
 @params(
@@ -344,13 +345,11 @@ def test_explicit_output_layouts(device):
 @params("cpu", "gpu")
 def test_non_uniform_shape(device):
 
-    @pipeline_def(
-        batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True
-    )
+    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
     def pipeline():
         img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
         img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
-        return dax.fn.jax_function(lambda x:x)(img)
+        return dax.fn.jax_function(lambda x: x)(img)
 
     p = pipeline()
     p.build()
