@@ -101,18 +101,10 @@ Highlights
 - Flexible graphs let developers create custom pipelines.
 - Extensible for user-specific needs with custom operators.
 - Accelerates image classification (ResNet-50), object detection (SSD) workloads as well as ASR models (Jasper, RNN-T).
-- Allows direct data path between storage and GPU memory with |gds|_.
-- Easy integration with |triton|_ with |triton-dali-backend|_.
+- Allows direct data path between storage and GPU memory with `GPUDirect Storage <https://developer.nvidia.com/gpudirect-storage>`_.
+- Easy integration with `NVIDIA Triton Inference Server <https://developer.nvidia.com/nvidia-triton-inference-server>`_
+  with `DALI TRITON Backend <https://github.com/triton-inference-server/dali_backend>`_.
 - Open source.
-
-.. |gds| replace:: GPUDirect Storage
-.. _gds: https://developer.nvidia.com/gpudirect-storage
-
-.. |triton| replace:: NVIDIA Triton Inference Server
-.. _triton: https://developer.nvidia.com/nvidia-triton-inference-server
-
-.. |triton-dali-backend| replace:: DALI TRITON Backend
-.. _triton-dali-backend: https://github.com/triton-inference-server/dali_backend
 
 .. overview-end-marker-do-not-remove
 
@@ -121,39 +113,22 @@ Highlights
 DALI success stories:
 ---------------------
 
-- |kaggle_dali_link|_: |kaggle_great_dali_link|_
-- |neuroscience_DALI|_
-- |HPC_DALI|_
-- |MLPERF_DALI|_
-
-.. |kaggle_dali_link| replace:: During Kaggle computer vision competitions
-.. _kaggle_dali_link: https://www.kaggle.com/code/theoviel/rsna-breast-baseline-faster-inference-with-dali
-
-.. |kaggle_great_dali_link| replace:: "*DALI is one of the best things I have learned in this competition*"
-.. _kaggle_great_dali_link: https://www.kaggle.com/competitions/rsna-breast-cancer-detection/discussion/391059
-
-.. |neuroscience_DALI| replace:: Lightning Pose - state of the art pose estimation research model
-.. _neuroscience_DALI: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10168383/
-
-.. |HPC_DALI| replace:: To improve the resource utilization in Advanced Computing Infrastructure
-.. _HPC_DALI: https://arcwiki.rs.gsu.edu/en/dali/using_nvidia_dali_loader
-
-.. |MLPERF_DALI| replace:: MLPerf - the industry standard for benchmarking compute and deep learning hardware and software
-.. _MLPERF_DALI: https://developer.nvidia.com/blog/mlperf-hpc-v1-0-deep-dive-into-optimizations-leading-to-record-setting-nvidia-performance/
+- `During Kaggle computer vision competitions <https://www.kaggle.com/code/theoviel/rsna-breast-baseline-faster-inference-with-dali>`_:
+  `"*DALI is one of the best things I have learned in this competition*" <https://www.kaggle.com/competitions/rsna-breast-cancer-detection/discussion/391059>`_
+- `Lightning Pose - state of the art pose estimation research model <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10168383/>`_
+- `To improve the resource utilization in Advanced Computing Infrastructure <https://arcwiki.rs.gsu.edu/en/dali/using_nvidia_dali_loader>`_
+- `MLPerf - the industry standard for benchmarking compute and deep learning hardware and software <https://developer.nvidia.com/blog/mlperf-hpc-v1-0-deep-dive-into-optimizations-leading-to-record-setting-nvidia-performance/>`_
 
 ----
 
 DALI Roadmap
 ------------
 
-|dali-roadmap-link|_ a high-level overview of our 2023 plan. You should be aware that this
+`The following issue represents <https://github.com/NVIDIA/DALI/issues/4578>`_ a high-level overview of our 2023 plan. You should be aware that this
 roadmap may change at any time and the order below does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
-
-.. |dali-roadmap-link| replace:: The following issue represents
-.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/4578
 
 ----
 
@@ -175,80 +150,57 @@ and `PaddlePaddle <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/paddlep
 containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_.
 
 For other installation paths (TensorFlow plugin, older CUDA version, nightly and weekly builds, etc),
-and specific requirements please refer to the |docs_install|_.
+and specific requirements please refer to the `Installation Guide <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html>`_.
 
-To build DALI from source, please refer to the |dali_compile|_.
+To build DALI from source, please refer to the `Compilation Guide <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html>`_.
 
-.. |docs_install| replace:: Installation Guide
-.. _docs_install: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html
-.. |dali_compile| replace:: Compilation Guide
-.. _dali_compile: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html
 
 ----
 
 Examples and Tutorials
 ----------------------
 
-An introduction to DALI can be found in the |dali_start|_ page.
+An introduction to DALI can be found in the `Getting Started <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting_started.html>`_ page.
 
-More advanced examples can be found in the |dali_examples|_ page.
+More advanced examples can be found in the `Examples and Tutorials <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/index.html>`_ page.
 
 For an interactive version (Jupyter notebook) of the examples, go to the `docs/examples <https://github.com/NVIDIA/DALI/blob/main/docs/examples>`_
 directory.
 
-**Note:** Select the |release-doc|_ or the |nightly-doc|_, which stays in sync with the main branch,
+**Note:** Select the `Latest Release Documentation <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html>`_
+or the `Nightly Release Documentation <https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html>`_, which stays in sync with the main branch,
 depending on your version.
-
-.. |dali_start| replace:: Getting Started
-.. _dali_start: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/getting_started.html
-.. |dali_examples| replace:: Examples and Tutorials
-.. _dali_examples: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/index.html
-.. |release-doc| replace:: Latest Release Documentation
-.. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
-.. |nightly-doc| replace:: Nightly Release Documentation
-.. _nightly-doc: https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html
 
 ----
 
 Additional Resources
 --------------------
 
-- GPU Technology Conference 2023; **Developer Breakout: Accelerating Enterprise Workflows With Triton Server and DALI**; Brandon Tuttle: |breakoutDALITRITON|_.
-- GPU Technology Conference 2023; **GPU-Accelerating End-to-End Geospatial Workflows**; Kevin Green: |talkGeospatial2023|_.
-- GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś: |talkAdvanced2022|_.
-- GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao: |talkIntro2022|_.
-- GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha: |event2021|_.
-- GPU Technology Conference 2020; **Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI)**; Albert Wolant, Joaquin Anton Guirao |recording4|_.
-- GPU Technology Conference 2019; **Fast AI data pre-preprocessing with DALI**; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
-- GPU Technology Conference 2019; **Integration of DALI with TensorRT on Xavier**; Josh Park and Anurag Dixit: |slides3|_, |recording3|_.
-- GPU Technology Conference 2018; **Fast data pipeline for deep learning training**, T. Gale, S. Layton and P. Trędak: |slides1|_, |recording1|_.
+- GPU Technology Conference 2023; **Developer Breakout: Accelerating Enterprise Workflows With Triton Server and DALI**; Brandon Tuttle:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring23-se52140/>`_.
+- GPU Technology Conference 2023; **GPU-Accelerating End-to-End Geospatial Workflows**; Kevin Green:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51796/>`_.
+- GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/>`_.
+- GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41443/>`_.
+- GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha:
+  `event <https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/>`_.
+- GPU Technology Conference 2020; **Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI)**; Albert Wolant, Joaquin Anton Guirao:
+  `recording <https://developer.nvidia.com/gtc/2020/video/s21139>`_.
+- GPU Technology Conference 2019; **Fast AI data pre-preprocessing with DALI**; Janusz Lisiecki, Michał Zientkiewicz:
+  `slides <https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9925-fast-ai-data-pre-processing-with-nvidia-dali.pdf>`_,
+   `recording <https://developer.nvidia.com/gtc/2019/video/S9925/video>`_.
+- GPU Technology Conference 2019; **Integration of DALI with TensorRT on Xavier**; Josh Park and Anurag Dixit:
+  `slides <https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9818-integration-of-tensorrt-with-dali-on-xavier.pdf>`_,
+  `recording <https://developer.nvidia.com/gtc/2019/video/S9818/video>`_.
+- GPU Technology Conference 2018; **Fast data pipeline for deep learning training**, T. Gale, S. Layton and P. Trędak:
+  `slides <http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf>`_,
+  `recording <https://www.nvidia.com/en-us/on-demand/session/gtcsiliconvalley2018-s8906/>`_.
 - `Developer Page <https://developer.nvidia.com/DALI>`_.
 - `Blog Posts <https://developer.nvidia.com/blog/tag/dali/>`_.
 
-.. |slides1| replace:: slides
-.. _slides1:  http://on-demand.gputechconf.com/gtc/2018/presentation/s8906-fast-data-pipelines-for-deep-learning-training.pdf
-.. |recording1| replace:: recording
-.. _recording1: https://www.nvidia.com/en-us/on-demand/session/gtcsiliconvalley2018-s8906/
-.. |slides2| replace:: slides
-.. _slides2:  https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9925-fast-ai-data-pre-processing-with-nvidia-dali.pdf
-.. |recording2| replace:: recording
-.. _recording2: https://developer.nvidia.com/gtc/2019/video/S9925/video
-.. |slides3| replace:: slides
-.. _slides3:  https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9818-integration-of-tensorrt-with-dali-on-xavier.pdf
-.. |recording3| replace:: recording
-.. _recording3: https://developer.nvidia.com/gtc/2019/video/S9818/video
-.. |recording4| replace:: recording
-.. _recording4: https://developer.nvidia.com/gtc/2020/video/s21139
-.. |event2021| replace:: event
-.. _event2021: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/
-.. |talkIntro2022| replace:: event
-.. _talkIntro2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41443/
-.. |talkAdvanced2022| replace:: event
-.. _talkAdvanced2022: https://www.nvidia.com/en-us/on-demand/session/gtcspring22-s41442/
-.. |talkGeospatial2023| replace:: event
-.. _talkGeospatial2023: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51796/
-.. |breakoutDALITRITON| replace:: event
-.. _breakoutDALITRITON: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-se52140/
+
 ----
 
 Contributing to DALI
@@ -265,8 +217,8 @@ Reporting Problems, Asking Questions
 ------------------------------------
 
 We appreciate feedback, questions or bug reports. When you need help
-with the code, follow the process outlined in the Stack Overflow
-`<https://stackoverflow.com/help/mcve>`_ document. Ensure that the
+with the code, follow the process outlined in the `Stack Overflow
+<https://stackoverflow.com/help/mcve>`_ document. Ensure that the
 posted examples are:
 
 - **minimal**: Use as little code as possible that still produces the same problem.

@@ -11,26 +11,23 @@ Following these steps, it is possible to recreate Python wheels in a similar fas
 Prerequisites
 ^^^^^^^^^^^^^
 
-.. |docker link| replace:: **Docker**
-.. _docker link: https://docs.docker.com/install/
-.. |nvidia_docker| replace:: **NVIDIA Container Toolkit**
-.. _nvidia_docker: https://github.com/NVIDIA/nvidia-docker
-
 .. table::
    :align: center
 
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | Linux x64                              |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |docker link|_                         | Follow installation guide and manual at the link (version 17.05 or later is required).      |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |nvidia_docker|_                       | Follow installation guide and manual at the link.                                           |
-   |                                        |                                                                                             |
-   |                                        | Using NVIDIA Container Toolkit is recommended as nvidia-docker2 is deprecated               |
-   |                                        | but both are supported.                                                                     |
-   |                                        |                                                                                             |
-   |                                        | Required for building DALI TensorFlow Plugin.                                               |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
+  +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+  | Linux x64                                                             |                                                                                        |
+  +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+  | `Docker <https://docs.docker.com/install/>`_                          | Follow installation guide and manual at the link (version 17.05 or later is required). |
+  +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
+  | `NVIDIA Container Toolkit <https://github.com/NVIDIA/nvidia-docker>`_ | Follow installation guide and manual at the link.                                      |
+  |                                                                       |                                                                                        |
+  |                                                                       |                                                                                        |
+  |                                                                       | Using NVIDIA Container Toolkit is recommended as nvidia-docker2 is deprecated          |
+  |                                                                       | but both are supported.                                                                |
+  |                                                                       |                                                                                        |
+  |                                                                       |                                                                                        |
+  |                                                                       | Required for building DALI TensorFlow Plugin.                                          |
+  +-----------------------------------------------------------------------+----------------------------------------------------------------------------------------+
 
 Building Python Wheel
 ^^^^^^^^^^^^^^^^^^^^^
@@ -62,7 +59,8 @@ set the following environment variables:
     installation of DALI TensorFlow plugin package. If is BUILD_TF_PLUGIN is set to ``NO``
     PREBUILD_TF_PLUGINS value is disregarded. The default is ``YES``.
 * | CREATE_RUNNER - Create Docker image with cuDNN, CUDA and DALI installed inside.
-  | It will create the ``Docker_run_cuda`` image, which needs to be run using |nvidia_docker|_
+  | It will create the ``Docker_run_cuda`` image, which needs to be run using
+  | `NVIDIA docker runtime <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html>`_
     and place the DALI wheel (and optionally the TensorFlow plugin if compiled) in the ``/opt/dali``
     directory.
   | The default is ``NO``.
@@ -116,71 +114,44 @@ Bare Metal build
 Prerequisites
 ^^^^^^^^^^^^^
 
-.. |cuda link| replace:: **NVIDIA CUDA 10.0**
-.. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |nvjpeg link| replace:: **nvJPEG library**
-.. _nvjpeg link: https://developer.nvidia.com/nvjpeg
-.. |jpegturbo link| replace:: **libjpeg-turbo**
-.. _jpegturbo link: https://github.com/NVIDIA/DALI_deps
-.. |libtiff link| replace:: **libtiff**
-.. _libtiff link: https://github.com/NVIDIA/DALI_deps
-.. |lmdb link| replace:: **liblmdb**
-.. _lmdb link: https://github.com/NVIDIA/DALI_deps
-.. |gcc link| replace:: **GCC**
-.. _gcc link: https://www.gnu.org/software/gcc/
-.. |dali_deps link| replace:: **DALI_deps**
-.. _dali_deps link: https://github.com/NVIDIA/DALI_deps
-.. |ffmpeg link| replace:: **FFmpeg**
-.. _ffmpeg link: https://github.com/NVIDIA/DALI_deps
-.. |libsnd link| replace:: **libsnd**
-.. _libsnd link: https://github.com/NVIDIA/DALI_deps
-.. |mxnet link| replace:: **MXNet 1.5**
-.. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **PyTorch 1.1**
-.. _pytorch link: https://pytorch.org
-.. |tf link| replace:: **TensorFlow 1.12**
-.. _tf link: https://www.tensorflow.org
-.. |clang link| replace:: **clang**
-.. _clang link: https://apt.llvm.org/
-.. |gds link| replace:: **GPU Direct Storage**
-.. _gds link: https://developer.nvidia.com/gpudirect-storage
-
 DALI has several open-source dependencies. We keep them in two locations. First of all, the `main DALI repository <https://github.com/NVIDIA/DALI>`_ contains a ``third_party`` directory, which lists the source code based dependencies. Secondly, we maintain a `separate DALI_deps repository <https://github.com/NVIDIA/DALI_deps>`_, with the links to remaining dependencies. Please refer to the `DALI_deps README file <https://github.com/NVIDIA/DALI_deps/blob/main/README.rst>`_ for instructions, how to install the dependencies from that repository.
 
 The SHA of the currently used version of DALI_deps can be found in DALI_PROJECT_ROOT/DALI_EXTRA_VERSION.
 
-|nvjpeg link|_, |gds link|_, |jpegturbo link|_ and  |libtiff link|_ have an *unofficial* option to
-disable them.
+`**nvJPEG library** <https://developer.nvidia.com/nvjpeg>`_, `**GPU Direct Storage** <https://developer.nvidia.com/gpudirect-storage>`_,
+`**libjpeg-turbo** <_jpegturbo link: https://github.com/NVIDIA/DALI_deps>`_ and  `**libtiff** <https://github.com/NVIDIA/DALI_deps>`_
+have an *unofficial* option to disable them.
 
 
 .. table::
 
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | Required Component                     | Notes                                                                                       |
-   +========================================+=============================================================================================+
-   | Linux x64                              |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |gcc link|_                            |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |clang link|_                          | clang and python-clang bindings are needed for compile time code generation. The easiest    |
-   |                                        | way to obtain them is 'pip install clang libclang'                                          |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |cuda link|_                           |                                                                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | |nvjpeg link|_                         | *This can be unofficially disabled. See below.*                                             |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | (Optional) |lmdb link|_                | The currently supported version can be check |dali_deps link|_ repository.                  |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | (Optional) |gds link|_                 | Only libcufile is required for the build process, and the installed header needs to land    |
-   |                                        | in `/usr/local/cuda/include` directory. For CUDA 11.4 it can be installed as a part of CUDA |
-   |                                        | toolkit.                                                                                    |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-   | One or more of the following Deep Learning frameworks:                                                                               |
-   |      * |mxnet link|_ ``mxnet-cu90`` or later                                                                                         |
-   |      * |pytorch link|_                                                                                                               |
-   |      * |tf link|_ or later                                                                                                           |
-   +----------------------------------------+---------------------------------------------------------------------------------------------+
-
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | Required Component                                                                | Notes                                                                                                           |
+  +===================================================================================+=================================================================================================================+
+  | Linux x64                                                                         |                                                                                                                 |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | `GCC <https://www.gnu.org/software/gcc/>`_                                        |                                                                                                                 |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | `clang <https://apt.llvm.org/>`_                                                  | clang and python-clang bindings are needed for compile time code generation.                                    |
+  |                                                                                   | The easiest way to obtain them is 'pip install clang libclang'                                                  |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | `NVIDIA CUDA <https://developer.nvidia.com/cuda-downloads>`_                      |                                                                                                                 |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | `nvJPEG library <https://developer.nvidia.com/nvjpeg>`_                           | *This can be unofficially disabled. See below.*                                                                 |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | (Optional) `liblmdb <https://github.com/NVIDIA/DALI_deps>`_                       | The currently supported version can be check `**DALI_deps** <https://github.com/NVIDIA/DALI_deps>`_ repository. |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | (Optional) `GPU Direct Storage <https://developer.nvidia.com/gpudirect-storage>`_ | Only libcufile is required for the build process, and the installed header needs to land                        |
+  |                                                                                   | in `/usr/local/cuda/include` directory. For CUDA 11.4 it can be installed as a part of CUDA                     |
+  |                                                                                   | toolkit.                                                                                                        |
+  +-----------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------+
+  | One or more of the following Deep Learning frameworks:                                                                                                                                              |
+  |     * `MXNet <http://mxnet.incubator.apache.org>`_                                                                                                                                                  |
+  |     * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`_                                                                                                                                          |
+  |     * `PyTorch <https://pytorch.org>`_                                                                                                                                                              |
+  |     * `TensorFlow <https://www.tensorflow.org>`_                                                                                                                                                    |
+  |     * `JAX <https://github.com/google/jax>`_                                                                                                                                                        |
+  +-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 .. note::
 
@@ -406,15 +377,10 @@ To run with sanitizers enabled issue:
 
 Following CMake parameters could be helpful in setting the right paths:
 
-.. |libjpeg-turbo_cmake link| replace:: **libjpeg CMake docs page**
-.. _libjpeg-turbo_cmake link: https://cmake.org/cmake/help/v3.11/module/FindJPEG.html
-.. |protobuf_cmake link| replace:: **protobuf CMake docs page**
-.. _protobuf_cmake link: https://cmake.org/cmake/help/v3.11/module/FindProtobuf.html
-
 * FFMPEG_ROOT_DIR - path to installed FFmpeg
 * NVJPEG_ROOT_DIR - where nvJPEG can be found (from CUDA 10.0 it is shipped with the CUDA toolkit so this option is not needed there)
-* libjpeg-turbo options can be obtained from |libjpeg-turbo_cmake link|_
-* protobuf options can be obtained from |protobuf_cmake link|_
+* libjpeg-turbo options can be obtained from `**libjpeg CMake docs page** <https://cmake.org/cmake/help/v3.11/module/FindJPEG.html>`_
+* protobuf options can be obtained from `**protobuf CMake docs page** <https://cmake.org/cmake/help/v3.11/module/FindProtobuf.html>`_
 
 .. _jetson build:
 
