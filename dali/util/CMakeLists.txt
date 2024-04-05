@@ -22,6 +22,7 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/thread_safe_queue.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/numpy.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.h")
 
 set(DALI_SRCS ${DALI_SRCS}

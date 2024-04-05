@@ -80,7 +80,7 @@ class SliceFlipNormalizeGPUTest : public ::testing::Test {
 
   void LoadTensor(Tensor<CPUBackend> &tensor, const std::string& path_npy) {
     auto stream = FileStream::Open(path_npy, false, false);
-    tensor = ::dali::numpy::ReadTensor(stream.get());
+    tensor = ::dali::numpy::ReadTensor(stream.get(), true);
   }
 
   template <typename T, int ndim>
