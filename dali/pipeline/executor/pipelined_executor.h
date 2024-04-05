@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/executor_impl.h"
 
 namespace dali {
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,32 +18,17 @@
 #include <memory>
 
 #include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 
 namespace dali {
 
-template <typename... Ts>
+DLL_PUBLIC
 std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool async,
-                                          Ts... args) {
-  if (async && separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new AsyncSeparatedPipelinedExecutor(args...)};
-  } else if (async && !separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new AsyncPipelinedExecutor(args...)};
-  } else if (!async && separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new SeparatedPipelinedExecutor(args...)};
-  } else if (!async && !separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new PipelinedExecutor(args...)};
-  } else if (!async && !separated && !pipelined) {
-    return std::unique_ptr<ExecutorBase>{new SimpleExecutor(args...)};
-  }
-  std::stringstream error;
-  error << std::boolalpha;
-  error << "No supported executor selected for pipelined = " << pipelined
-        << ", separated = " << separated << ", async = " << async << std::endl;
-  DALI_FAIL(error.str());
-}
+                                          int batch_size, int num_thread, int device_id,
+                                          size_t bytes_per_sample_hint, bool set_affinity = false,
+                                          int max_num_stream = -1,
+                                          int default_cuda_stream_priority = 0,
+                                          QueueSizes prefetch_queue_depth = QueueSizes{2, 2});
 
 }  // namespace dali
 

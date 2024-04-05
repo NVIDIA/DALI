@@ -21,7 +21,7 @@
 #include <unordered_set>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/executor_impl.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/source_info_propagation.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
