@@ -749,7 +749,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
 
     // This is a workaround for nvImageCodec <= 0.2
-    auto any_need_processing = [this]() {
+    auto any_need_processing = [&]() {
       for (auto &st : state_) {
         assert(ws.stream() == st->image_info.cuda_stream);  // assuming this is true
         if (st->need_processing)
