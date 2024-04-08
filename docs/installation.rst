@@ -11,11 +11,11 @@ Prerequisites
    dynamically and it is required to be installed. For CUDA 11 builds it is optional.
 4. [Optional] One or more of the following deep learning frameworks:
 
-   * `MXNet <http://mxnet.incubator.apache.org>`_
-   * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`_
-   * `PyTorch <https://pytorch.org>`_
-   * `TensorFlow <https://www.tensorflow.org>`_
-   * `JAX <https://github.com/google/jax>`_
+   * `MXNet <http://mxnet.incubator.apache.org>`__
+   * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`__
+   * `PyTorch <https://pytorch.org>`__
+   * `TensorFlow <https://www.tensorflow.org>`__
+   * `JAX <https://github.com/google/jax>`__
 
 
 DALI in NGC Containers

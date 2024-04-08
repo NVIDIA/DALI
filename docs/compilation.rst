@@ -1,8 +1,6 @@
 Compiling DALI from Source
 ==========================
 
-.. _DockerBuilderAnchor:
-
 Using Docker builder - recommended
 ----------------------------------
 
@@ -163,7 +161,7 @@ have an *unofficial* option to disable them.
 
 .. note::
 
-  This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here`__.
+  This software uses the FFmpeg licensed code under the LGPLv2.1. Its source can be downloaded `from here<https://github.com/NVIDIA/DALI_deps>`__.
 
   .. __: `ffmpeg link`_
 
@@ -214,7 +212,7 @@ have an *unofficial* option to disable them.
 
 .. note::
 
-  This software uses the libsnd licensed under the LGPLv2.1. Its source can be downloaded `from here`__.
+  This software uses the libsnd licensed under the LGPLv2.1. Its source can be downloaded `from here <https://github.com/NVIDIA/DALI_deps>`__.
 
   .. __: `libsnd link`_
 
@@ -230,29 +228,29 @@ Build DALI
 
 1. Get DALI source code:
 
-.. code-block:: bash
+    .. code-block:: bash
 
-  git clone --recursive https://github.com/NVIDIA/DALI
-  cd DALI
+      git clone --recursive https://github.com/NVIDIA/DALI
+      cd DALI
 
 2. Create a directory for CMake-generated Makefiles. This will be the directory, that DALI's built in.
 
-.. code-block:: bash
+    .. code-block:: bash
 
-  mkdir build
-  cd build
+      mkdir build
+      cd build
 
 3. Run CMake. For additional options you can pass to CMake, refer to :ref:`OptionalCmakeParamsAnchor`.
 
-.. code-block:: bash
+    .. code-block:: bash
 
-  cmake -D CMAKE_BUILD_TYPE=Release ..
+      cmake -D CMAKE_BUILD_TYPE=Release ..
 
 4. Build. You can use ``-j`` option to execute it in several threads
 
-.. code-block:: bash
+    .. code-block:: bash
 
-  make -j"$(nproc)"
+      make -j"$(nproc)"
 
 .. _PythonBindingsAnchor:
 
@@ -276,9 +274,10 @@ Verify the Build (Optional)
 Obtain Test Data
 ++++++++++++++++
 
-.. _DALI_extra_link: https://github.com/NVIDIA/DALI_extra#nvidia-dali
-
-You can verify the build by running GTest and Nose tests. To do so, you'll need DALI_extra repository, which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_. Keep in mind, that you need git-lfs to properly clone DALI_extra repo. To install git-lfs, follow `this tutorial <https://github.com/git-lfs/git-lfs/wiki/Tutorial>`_.
+You can verify the build by running GTest and Nose tests. To do so, you'll need `DALI_extra repository<https://github.com/NVIDIA/DALI_extra#nvidia-dali>`__,
+which contains test data. To download it follow `DALI_extra README <https://github.com/NVIDIA/DALI_extra#nvidia-dali>`_.
+Keep in mind, that you need git-lfs to properly clone DALI_extra repo. To install git-lfs,
+follow `this tutorial <https://github.com/git-lfs/git-lfs/wiki/Tutorial>`__.
 
 
 Set Test Data Path
@@ -288,7 +287,7 @@ DALI uses ``DALI_EXTRA_PATH`` environment variable to localize the test data. Yo
 
 .. code-block:: bash
 
-  $ export DALI_EXTRA_PATH=<path_to_DALI_extra>
+  export DALI_EXTRA_PATH=PATH_TO_YOUR_DALI_EXTRA
   e.g. export DALI_EXTRA_PATH=/home/yourname/workspace/DALI_extra
 
 Run Tests
