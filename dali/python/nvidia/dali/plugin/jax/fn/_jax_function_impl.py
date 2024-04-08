@@ -14,6 +14,8 @@
 
 from typing import Optional, Protocol, Tuple, Union
 
+from distutils.version import LooseVersion
+
 import jax
 import jax.dlpack
 import jax.sharding
@@ -111,6 +113,11 @@ def jax_function(
 
         This is experimental API and may change in future releases.
 
+    .. note::
+
+        The `jax_function` requires JAX version 0.4.16 or higher, with GPU support.
+        JAX 0.4.16 requires Python 3.9 or higher.
+
     Args
     ----
     function : JaxCallback
@@ -162,6 +169,9 @@ def jax_function(
     DaliCallback
         The transformed function that processes DALI-traced batches (DataNodes).
     """
+
+    if LooseVersion(jax.__version__) < LooseVersion("0.4.16"):
+        raise RuntimeError("DALI `jax_function` requires JAX 0.4.16 or above.")
 
     def decorator(function):
 

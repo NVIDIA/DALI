@@ -565,7 +565,16 @@ all_packages = [
     ),
     CudaPackageExtraIndex(
         "jax",  # name used in our test script
-        {"118": [PckgVer("0.4.13", python_min_ver="3.8", dependencies=["jaxlib"])]},
+        {
+            "118": [
+                PckgVer(
+                    "0.4.13", python_min_ver="3.8", python_max_ver="3.8", dependencies=["jaxlib"]
+                ),
+                # dax.fn.jax_function requires 0.4.16 which is the first one supporting
+                # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
+                PckgVer("0.4.16", python_min_ver="3.9", dependencies=["jaxlib"]),
+            ]
+        },
         # name used during installation
         name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
         links_index=("https://storage.googleapis.com/" "jax-releases/jax_cuda_releases.html"),

@@ -3,7 +3,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.ops._python_def_op_utils as _python_def_op_utils
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba.experimental
-import nvidia.dali.plugin.jax.fn._jax_function as _jax_function_module
+import nvidia.dali.plugin.jax as dax
 import sys
 
 # Dictionary with modules that can have registered Ops
@@ -20,7 +20,7 @@ module_mapping = {
 }
 
 no_schema_fns = {
-    "nvidia.dali.plugin.jax.fn.jax_function": _jax_function_module._jax_function_desc,
+    "nvidia.dali.plugin.jax.fn.jax_function": dax.fn._jax_function_impl._jax_function_desc,
 }
 
 # Remove ops not available in the fn API

@@ -22,13 +22,14 @@ import nvidia.dali.plugin.jax as dax
 
 from nose2.tools import params
 from nose_utils import assert_raises
-from test_utils import get_dali_extra_path, check_batch
+from test_utils import get_dali_extra_path, check_batch, restrict_python_version
 
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
 
 
+@restrict_python_version(3, 9)
 @params(("cpu", True), ("cpu", False), ("gpu", True), ("gpu", False))
 def test_identity(device, use_jit):
     """
@@ -74,6 +75,7 @@ def test_identity(device, use_jit):
             np.testing.assert_array_equal(sample, np.array([j, i], dtype=np.int32))
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_conditionals(device):
     """
@@ -121,6 +123,7 @@ def test_conditionals(device):
             np.testing.assert_array_equal(sample, ref)
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_pre_and_post_ops(device):
     """Check if the operator works correctly with other DALI operators"""
@@ -166,6 +169,7 @@ def test_pre_and_post_ops(device):
             np.testing.assert_array_equal(sample, ref)
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_multi_input_output(device):
 
@@ -225,6 +229,7 @@ def test_multi_input_output(device):
             assert jax_flip_channel == flip_h * flip_v
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_multi_input_different_contiguity(device):
 
@@ -268,6 +273,7 @@ def test_multi_input_different_contiguity(device):
             ), f"`{jax_sample_source_info}`!= `{dali_sample_source_info}`"
 
 
+@restrict_python_version(3, 9)
 @params(
     ("cpu", True, False),
     ("cpu", False, False),
@@ -310,6 +316,7 @@ def test_preserve(device, preserve, no_in_out):
         assert counter == 0
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_explicit_output_layouts(device):
 
@@ -342,6 +349,7 @@ def test_explicit_output_layouts(device):
         assert f_image.layout() == "FHWC", f"{f_image.layout()}"
 
 
+@restrict_python_version(3, 9)
 @params("cpu", "gpu")
 def test_non_uniform_shape(device):
 
