@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,12 +47,41 @@ std::string join_path(const std::string &dir, const std::string &path) {
     return dir + dir_sep + path;
 }
 
-inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_label_pairs,
-                               const std::string &path, const std::string &curr_entry, int label,
-                               const std::vector<std::string> &filters,
-                               const bool case_sensitive_filter) {
-  std::string curr_dir_path = join_path(path, curr_entry);
-  DIR *dir = opendir(curr_dir_path.c_str());
+bool list_subdirectories(std::vector<std::string>& subdirs, const std::string &parent_dir) {
+  // open the root
+  DIR *dir = opendir(parent_dir.c_str());
+  if (dir == nullptr)
+    return false;
+
+  struct dirent *entry;
+  subdirs.clear();
+
+  while ((entry = readdir(dir))) {
+    struct stat s;
+    std::string entry_name(entry->d_name);
+    std::string full_path = join_path(parent_dir, entry_name);
+    int ret = stat(full_path.c_str(), &s);
+    DALI_ENFORCE(ret == 0,
+        "Could not access " + full_path + " during directory traversal.");
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+    if (S_ISDIR(s.st_mode)) {
+      subdirs.push_back(entry_name);
+    }
+  }
+  // sort directories to preserve class alphabetic order, as readdir could
+  // return unordered dir list. Otherwise file reader for training and validation
+  // could return directories with the same names in completely different order
+  std::sort(subdirs.begin(), subdirs.end());
+  return true;
+}
+
+
+bool list_files(std::vector<std::string>& files, const std::string& parent_dir, 
+                std::vector<std::string> filters = {}, bool case_sensitive_filter = true) {
+
+  DIR *dir = opendir(parent_dir.c_str());
+  if (dir == nullptr)
+    return false;
 
   dirent *entry;
 
@@ -67,148 +96,67 @@ inline void assemble_file_list(std::vector<std::pair<std::string, int>> &file_la
       continue;
     }
 #endif
-    std::string rel_path = join_path(curr_entry, std::string{entry->d_name});
+    std::string fname(entry->d_name);
     for (auto &filter : filters) {
-      if (fnmatch(filter.c_str(), entry->d_name, case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-        file_label_pairs.emplace_back(rel_path, label);
+      if (fnmatch(filter.c_str(), fname.c_str(), case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
+        files.emplace_back(fname);
         break;
       }
     }
   }
   closedir(dir);
+  return true;
 }
 
 vector<std::pair<string, int>> traverse_directories(const std::string &file_root,
                                                     const std::vector<std::string> &filters,
                                                     const bool case_sensitive_filter) {
   // open the root
-  DIR *dir = opendir(file_root.c_str());
-
-  DALI_ENFORCE(dir != nullptr,
-      "Directory " + file_root + " could not be opened.");
-
-  struct dirent *entry;
+  std::vector<std::string> subdirs;
+  bool ret = list_subdirectories(subdirs, file_root);
+  DALI_ENFORCE(ret, "Directory " + file_root + " could not be opened.");
 
   std::vector<std::pair<std::string, int>> file_label_pairs;
-  std::vector<std::string> entry_name_list;
-
-  while ((entry = readdir(dir))) {
-    struct stat s;
-    std::string entry_name(entry->d_name);
-    std::string full_path = join_path(file_root, entry_name);
-    int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-    if (S_ISDIR(s.st_mode)) {
-      entry_name_list.push_back(entry_name);
+  std::vector<std::string> files;
+  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
+    files.clear();
+    auto dirpath = join_path(file_root, subdirs[dir_count]);
+    list_files(files, dirpath, filters, case_sensitive_filter);
+    for (const auto& f : files) {
+      file_label_pairs.push_back({join_path(dirpath, f), dir_count});
     }
-  }
-  // sort directories to preserve class alphabetic order, as readdir could
-  // return unordered dir list. Otherwise file reader for training and validation
-  // could return directories with the same names in completely different order
-  std::sort(entry_name_list.begin(), entry_name_list.end());
-  for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-      assemble_file_list(file_label_pairs, file_root, entry_name_list[dir_count], dir_count,
-                         filters, case_sensitive_filter);
   }
   // sort file names as well
   std::sort(file_label_pairs.begin(), file_label_pairs.end());
-  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << entry_name_list.size()
+  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << subdirs.size()
             << "directories\n";
-
-  closedir(dir);
-
   return file_label_pairs;
 }
 
 
-inline void assemble_file_list(std::vector<std::string>& file_list,
-                               const std::string &path, const std::string &curr_entry,
-                               const std::string &filter) {
-  std::string curr_dir_path = path + dir_sep + curr_entry;
-  DIR *dir = opendir(curr_dir_path.c_str());
-
-  dirent *entry;
-
-  if (filter.empty()) {
-    while ((entry = readdir(dir))) {
-#ifdef _DIRENT_HAVE_D_TYPE
-    /*
-     * we support only regular files and symlinks, if FS returns DT_UNKNOWN
-     * it doesn't mean anything and let us validate filename itself
-     */
-      if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
-         entry->d_type != DT_UNKNOWN) {
-        continue;
-      }
-#endif
-      std::string rel_path = curr_entry + dir_sep + std::string{entry->d_name};
-      if (HasKnownExtension(std::string(entry->d_name))) {
-         file_list.push_back(rel_path);
-      }
-    }
-  } else {
-    // use glob to do the file search
-    glob_t pglob;
-    std::string pattern = curr_dir_path + dir_sep + filter;
-    if (glob(pattern.c_str(), GLOB_TILDE, NULL, &pglob) == 0) {
-      // iterate through the matched files
-      for (unsigned int count = 0; count < pglob.gl_pathc; ++count) {
-        std::string match(pglob.gl_pathv[count]);
-        std::string rel_path = curr_entry + dir_sep + match.substr(match.find_last_of(dir_sep)+1);
-        file_list.push_back(rel_path);
-      }
-      // clean up
-      globfree(&pglob);
-    }
-  }
-  closedir(dir);
-}
-
-
 vector<std::string> traverse_directories(const std::string &file_root, const std::string &filter) {
+
   // open the root
-  DIR *dir = opendir(file_root.c_str());
+  std::vector<std::string> subdirs;
+  bool ret = list_subdirectories(subdirs, file_root);
+  subdirs.push_back(".");
+  DALI_ENFORCE(ret, "Directory " + file_root + " could not be opened.");
 
-  DALI_ENFORCE(dir != nullptr,
-      "Directory " + file_root + " could not be opened.");
-
-  struct dirent *entry;
-
-  std::vector<std::string> file_list;
-  std::vector<std::string> entry_name_list;
-
-  // always append the root current directory
-  entry_name_list.push_back(".");
-
-  // now traverse sub-directories
-  while ((entry = readdir(dir))) {
-    struct stat s;
-    std::string entry_name(entry->d_name);
-    std::string full_path = join_path(file_root, entry_name);
-    int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-    if (S_ISDIR(s.st_mode)) {
-      entry_name_list.push_back(entry_name);
+  std::vector<std::string> files;
+  std::vector<std::string> rel_path_files;
+  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
+    files.clear();
+    auto dirpath = join_path(file_root, subdirs[dir_count]);
+    list_files(rel_path_files, dirpath, {filter}, true);
+    for (const auto& f : rel_path_files) {
+      files.push_back(join_path(dirpath, f));
     }
-  }
-
-  // sort directories
-  std::sort(entry_name_list.begin(), entry_name_list.end());
-  for (unsigned dir_count = 0; dir_count < entry_name_list.size(); ++dir_count) {
-    assemble_file_list(file_list, file_root, entry_name_list[dir_count], filter);
   }
   // sort file names as well
-  std::sort(file_list.begin(), file_list.end());
-  LOG_LINE  << "read " << file_list.size() << " files from " << entry_name_list.size()
+  std::sort(files.begin(), files.end());
+  LOG_LINE  << "read " << files.size() << " files from " << subdirs.size()
             << "directories\n";
-
-  closedir(dir);
-
-  return file_list;
+  return files;
 }
 
 }  // namespace filesystem
