@@ -363,3 +363,119 @@ def test_non_uniform_shape(device):
     p.build()
     with assert_raises(RuntimeError, glob="*batch of samples with different shapes*"):
         p.run()
+
+
+@restrict_python_version(3, 9)
+def test_wrong_device_output():
+
+    @jax.vmap
+    def flip(image):
+        return image[::-1, ::-1, :]
+
+    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="mixed")
+        img = fn.resize(img, size=(224, 224))
+        return dax.fn.jax_function(jax.jit(flip, backend="cpu"))(img)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(
+        RuntimeError, glob="*array residing on the device of kind `cpu`, expected `gpu`*"
+    ):
+        p.run()
+
+
+@restrict_python_version(3, 9)
+def test_wrong_output_num():
+
+    @dax.fn.jax_function
+    @jax.jit
+    @jax.vmap
+    def cb(image):
+        return image, image
+
+    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="mixed")
+        img = fn.resize(img, size=(224, 224))
+        return cb(img)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(RuntimeError, glob="*(a tuple of) `num_outputs=1` outputs, but returned 2*"):
+        p.run()
+
+
+@restrict_python_version(3, 9)
+def test_wrong_num_samples():
+
+    @dax.fn.jax_function
+    @jax.jit
+    def cat(images):
+        return images[0]
+
+    @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
+    def pipeline():
+        img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
+        img = fn.decoders.image(img, device="mixed")
+        img = fn.resize(img, size=(224, 224))
+        return cat(img)
+
+    p = pipeline()
+    p.build()
+    with assert_raises(
+        RuntimeError, glob="*current batch size of 11, but the output at index 0 * 224 x 224 x 3*"
+    ):
+        p.run()
+
+
+@restrict_python_version(3, 9)
+@params("cpu", "gpu")
+def test_multi_input_source_info(device):
+
+    batch_size = 11
+    num_iters = 4
+
+    @dax.fn.jax_function
+    @jax.jit
+    @jax.vmap
+    def mixup(image0, image1):
+        return jax.numpy.array(0.5 * image0 + 0.5 * image1, dtype=jax.numpy.uint8)
+
+    @pipeline_def(
+        batch_size=batch_size, device_id=0, num_threads=4, seed=42, enable_conditionals=True
+    )
+    def pipeline():
+        img0, _ = fn.readers.file(
+            name="Reader0", file_root=images_dir, random_shuffle=True, seed=42
+        )
+        img1, _ = fn.readers.file(
+            name="Reader1", file_root=images_dir, random_shuffle=True, seed=43
+        )
+        img0 = fn.decoders.image(img0, device="cpu" if device == "cpu" else "mixed")
+        img1 = fn.decoders.image(img1, device="cpu" if device == "cpu" else "mixed")
+        img0 = fn.resize(img0, size=(224, 224))
+        img1 = fn.resize(img1, size=(224, 224))
+        mixed_up = fn.cast_like(0.5 * img0 + 0.5 * img1, img0)
+        return mixup(img0, img1), mixed_up, img0, img1
+
+    p = pipeline()
+    p.build()
+    for _ in range(num_iters):
+        jax_mixed, dali_mixed, base_0, base_1 = p.run()
+
+        check_batch(jax_mixed, dali_mixed, compare_layouts=True, max_allowed_error=1)
+        assert (
+            len(jax_mixed) == len(base_0) == len(base_1) == batch_size
+        ), f"{len(jax_mixed)} != {len(base_0)} != {len(base_1)}!= {batch_size}"
+        for jax_sample, base_0_sample, base_1_sample in zip(jax_mixed, base_0, base_1):
+            jax_sample_source_info = jax_sample.source_info()
+            base_0_source_info = base_0_sample.source_info()
+            base_1_source_info = base_1_sample.source_info()
+            expected_source_info = ";".join((base_0_source_info, base_1_source_info))
+            assert (
+                jax_sample_source_info == expected_source_info
+            ), f"`{jax_sample_source_info}`!= `{expected_source_info}`"

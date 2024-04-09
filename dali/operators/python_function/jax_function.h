@@ -143,8 +143,8 @@ inline TensorShape<> ParseValidateExternalOutput(const DLTensor &dl_batch, int e
                                                  int out_idx, bool is_gpu) {
   DALI_ENFORCE(dl_batch.device.device_type == (is_gpu ? kDLCUDA : kDLCPU),
                make_string("The Python callback running as DALI ", (is_gpu ? "gpu" : "cpu"),
-                           " must return tensors placed on the same device type. Got different "
-                           "device type for output at index ",
+                           " operator must return tensors placed on the same device type. ",
+                           "Got different device type for output at index ",
                            out_idx, "."));
   DALI_ENFORCE(dl_batch.ndim >= 1,
                make_string("The Python callback should return a tensor representing a batch of "
@@ -354,10 +354,10 @@ class JaxFunction : public StatelessOperator<Backend> {
       for (int in_idx = 0; in_idx < ws.NumInput(); ++in_idx) {
         const auto &source_info = ws.Input<Backend>(in_idx).GetMeta(sample_idx).GetSourceInfo();
         if (!source_info.empty()) {
-          out_source_info_ss << source_info;
           if (appended) {
             out_source_info_ss << ";";
           }
+          out_source_info_ss << source_info;
           appended = true;
         }
       }
