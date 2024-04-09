@@ -137,7 +137,9 @@ Installing DALI
 
 To install the latest DALI release for the latest CUDA version (12.x)::
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
+    pip install nvidia-dali-cuda120
+    # or
+    pip install --extra-index-url https://pypi.nvidia.com  --upgrade nvidia-dali-cuda120
 
 DALI requires `NVIDIA driver <https://www.nvidia.com/drivers>`__ supporting the appropriate CUDA version.
 In case of DALI based on CUDA 12, it requires `CUDA Toolkit <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`__
