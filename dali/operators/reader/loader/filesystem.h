@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,8 +29,10 @@ DLL_PUBLIC vector<string> traverse_directories(const string &path, const string 
  * @brief Finds all (file, label) pairs matching any filter from the list.
  */
 DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(
-    const string &file_root, const vector<string> &filters,
-    const bool case_sensitive_filter = false);
+    const string &file_root,
+    const vector<string> &filters,
+    bool case_sensitive_filter = false,
+    const vector<string>& dir_filters = {});
 
 /**
  * @brief Prepends dir to a relative path and keeps absolute path unchanged.

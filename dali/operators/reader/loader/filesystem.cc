@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/filesystem.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
@@ -22,13 +23,16 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
-#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
 namespace filesystem {
+
+inline bool starts_with(const std::string &str, const char *prefix) {
+  return str.rfind(prefix, 0) == 0;
+}
 
 std::string join_path(const std::string &dir, const std::string &path) {
   if (dir.empty())
@@ -41,121 +45,133 @@ std::string join_path(const std::string &dir, const std::string &path) {
   if (path[1] == ':')
     return path;
 #endif
-  if (dir[dir.length()-1] == dir_sep)
+  if (dir[dir.length() - 1] == dir_sep)
     return dir + path;
   else
     return dir + dir_sep + path;
 }
 
-bool list_subdirectories(std::vector<std::string>& subdirs, const std::string &parent_dir) {
+std::vector<std::string> list_subdirectories(const std::string &parent_dir,
+                                             const std::vector<std::string> dir_filters = {},
+                                             bool case_sensitive_filter = true) {
   // open the root
   DIR *dir = opendir(parent_dir.c_str());
-  if (dir == nullptr)
-    return false;
+  DALI_ENFORCE(dir != nullptr, make_string("Failed to open ", parent_dir));
+  auto cleanup = AtScopeExit([&dir] {
+    closedir(dir);
+  });
 
   struct dirent *entry;
-  subdirs.clear();
+  std::vector<std::string> subdirs;
 
   while ((entry = readdir(dir))) {
     struct stat s;
     std::string entry_name(entry->d_name);
     std::string full_path = join_path(parent_dir, entry_name);
     int ret = stat(full_path.c_str(), &s);
-    DALI_ENFORCE(ret == 0,
-        "Could not access " + full_path + " during directory traversal.");
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+    DALI_ENFORCE(ret == 0, "Could not access " + full_path + " during directory traversal.");
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+      continue;
     if (S_ISDIR(s.st_mode)) {
-      subdirs.push_back(entry_name);
+      if (dir_filters.empty()) {
+        subdirs.push_back(entry_name);
+      } else {
+        for (auto &filter : dir_filters) {
+          if (fnmatch(filter.c_str(), entry_name.c_str(),
+                      case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
+            subdirs.push_back(entry_name);
+          }
+        }
+      }
     }
   }
   // sort directories to preserve class alphabetic order, as readdir could
   // return unordered dir list. Otherwise file reader for training and validation
   // could return directories with the same names in completely different order
   std::sort(subdirs.begin(), subdirs.end());
-  return true;
+  return subdirs;
 }
 
-
-bool list_files(std::vector<std::string>& files, const std::string& parent_dir, 
-                std::vector<std::string> filters = {}, bool case_sensitive_filter = true) {
-
+std::vector<std::string> list_files(const std::string &parent_dir,
+                                    const std::vector<std::string> filters = {},
+                                    bool case_sensitive_filter = true) {
   DIR *dir = opendir(parent_dir.c_str());
-  if (dir == nullptr)
-    return false;
+  DALI_ENFORCE(dir != nullptr, make_string("Failed to open ", parent_dir));
+  auto cleanup = AtScopeExit([&dir] {
+    closedir(dir);
+  });
 
   dirent *entry;
-
+  std::vector<std::string> files;
   while ((entry = readdir(dir))) {
 #ifdef _DIRENT_HAVE_D_TYPE
     /*
      * we support only regular files and symlinks, if FS returns DT_UNKNOWN
      * it doesn't mean anything and let us validate filename itself
      */
-    if (entry->d_type != DT_REG && entry->d_type != DT_LNK &&
-        entry->d_type != DT_UNKNOWN) {
+    if (entry->d_type != DT_REG && entry->d_type != DT_LNK && entry->d_type != DT_UNKNOWN) {
       continue;
     }
 #endif
     std::string fname(entry->d_name);
     for (auto &filter : filters) {
       if (fnmatch(filter.c_str(), fname.c_str(), case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-        files.emplace_back(fname);
+        files.push_back(fname);
         break;
       }
     }
   }
-  closedir(dir);
-  return true;
+  std::sort(files.begin(), files.end());
+  return files;
 }
 
 vector<std::pair<string, int>> traverse_directories(const std::string &file_root,
                                                     const std::vector<std::string> &filters,
-                                                    const bool case_sensitive_filter) {
-  // open the root
+                                                    bool case_sensitive_filter,
+                                                    const std::vector<std::string> &dir_filters) {
   std::vector<std::string> subdirs;
-  bool ret = list_subdirectories(subdirs, file_root);
-  DALI_ENFORCE(ret, "Directory " + file_root + " could not be opened.");
+  bool is_s3 = starts_with(file_root, "s3://");
+  if (is_s3)
+    DALI_FAIL("This version of DALI was not built with AWS S3 storage support.")
+  subdirs = list_subdirectories(file_root, dir_filters, case_sensitive_filter);
 
   std::vector<std::pair<std::string, int>> file_label_pairs;
-  std::vector<std::string> files;
   for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
-    files.clear();
-    auto dirpath = join_path(file_root, subdirs[dir_count]);
-    list_files(files, dirpath, filters, case_sensitive_filter);
-    for (const auto& f : files) {
-      file_label_pairs.push_back({join_path(dirpath, f), dir_count});
+    std::vector<std::string> tmp_files;
+    const auto &rel_dirpath = subdirs[dir_count];
+    auto full_dirpath = join_path(file_root, rel_dirpath);
+    tmp_files = list_files(full_dirpath, filters, case_sensitive_filter);
+    for (const auto &f : tmp_files) {
+      file_label_pairs.push_back({join_path(rel_dirpath, f), dir_count});
     }
   }
-  // sort file names as well
-  std::sort(file_label_pairs.begin(), file_label_pairs.end());
-  LOG_LINE  << "read " << file_label_pairs.size() << " files from " << subdirs.size()
-            << "directories\n";
+  LOG_LINE << "read " << file_label_pairs.size() << " files from " << subdirs.size()
+           << "directories\n";
   return file_label_pairs;
 }
 
 
 vector<std::string> traverse_directories(const std::string &file_root, const std::string &filter) {
-
-  // open the root
   std::vector<std::string> subdirs;
-  bool ret = list_subdirectories(subdirs, file_root);
-  subdirs.push_back(".");
-  DALI_ENFORCE(ret, "Directory " + file_root + " could not be opened.");
+  bool is_s3 = starts_with(file_root, "s3://");
+  if (is_s3)
+    DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
+  subdirs = list_subdirectories(file_root);
 
   std::vector<std::string> files;
-  std::vector<std::string> rel_path_files;
-  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
-    files.clear();
-    auto dirpath = join_path(file_root, subdirs[dir_count]);
-    list_files(rel_path_files, dirpath, {filter}, true);
-    for (const auto& f : rel_path_files) {
-      files.push_back(join_path(dirpath, f));
+  auto process_dir = [&](const std::string &rel_dirpath) {
+    auto full_dirpath = join_path(file_root, rel_dirpath);
+    auto tmp_files = list_files(full_dirpath, {filter}, true);
+    for (const auto &f : tmp_files) {
+      files.push_back(join_path(rel_dirpath, f));
     }
-  }
-  // sort file names as well
-  std::sort(files.begin(), files.end());
-  LOG_LINE  << "read " << files.size() << " files from " << subdirs.size()
-            << "directories\n";
+  };
+
+  process_dir(".");  // process current dir as well
+  for (const auto &subdir : subdirs)
+    process_dir(subdir);
+
+  LOG_LINE << "read " << files.size() << " files from " << subdirs.size() << "directories\n";
   return files;
 }
 
