@@ -238,7 +238,7 @@ inline void AssertClose(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> 
 }
 
 inline Tensor<CPUBackend> ReadReference(InputStream *src, TensorLayout layout = "HWC") {
-  auto tensor = numpy::ReadTensor(src);
+  auto tensor = numpy::ReadTensor(src, false);
   tensor.SetLayout(layout);
   return tensor;
 }

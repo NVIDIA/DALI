@@ -294,12 +294,13 @@ size_t HeaderData::nbytes() const {
   return type_info ? type_info->size() * size() : 0_uz;
 }
 
-Tensor<CPUBackend> ReadTensor(InputStream *src) {
+  Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned) {
   numpy::HeaderData header;
   numpy::ParseHeader(header, src);
   src->SeekRead(header.data_offset, SEEK_SET);
 
   Tensor<CPUBackend> data;
+  data.set_pinned(pinned);
   data.Resize(header.shape, header.type());
   auto ret = src->Read(static_cast<uint8_t*>(data.raw_mutable_data()), header.nbytes());
   DALI_ENFORCE(ret == header.nbytes(), "Failed to read numpy file");

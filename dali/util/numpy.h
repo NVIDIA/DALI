@@ -55,7 +55,7 @@ DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<
 
 DLL_PUBLIC void ParseHeaderContents(HeaderData& target, const std::string &header);
 
-DLL_PUBLIC Tensor<CPUBackend> ReadTensor(InputStream *src);
+DLL_PUBLIC Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned);
 
 }  // namespace numpy
 }  // namespace dali
