@@ -31,6 +31,8 @@ namespace dali {
 namespace filesystem {
 
 inline bool starts_with(const std::string &str, const char *prefix) {
+  // TODO(janton): this is a substitute for C++20's string::starts_with
+  // trick: this only matches if the prefix is found at the beginning of the string
   return str.rfind(prefix, 0) == 0;
 }
 
