@@ -284,7 +284,8 @@ which was used in the pipeline definition with the following traceback:
 
 encountered:
 
-Error for argument 'probability'. Named arguments inputs to operators must be CPU data nodes.*"""
+Error while specifying argument 'probability'. Named argument inputs to operators must be CPU data nodes.*
+"""  # noqa(E501)
         ),
     ):
         p = pipe()

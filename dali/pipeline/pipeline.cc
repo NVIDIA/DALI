@@ -365,7 +365,7 @@ int Pipeline::AddOperatorImpl(const OpSpec &const_spec, const std::string &inst_
     if (!it->second.has_cpu) {
       assert(it->second.has_gpu);
       DALI_FAIL(make_string("Error while specifying ", FormatArgument(spec, arg_name),
-                            ". Named arguments inputs to operators must be CPU data nodes. "
+                            ". Named argument inputs to operators must be CPU data nodes. "
                             "However, a GPU data node was provided."));
     }
 
