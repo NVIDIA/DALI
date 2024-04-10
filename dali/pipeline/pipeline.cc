@@ -22,13 +22,10 @@
 #include <functional>
 #include <memory>
 
-#include "dali/pipeline/executor/executor_factory.h"
-#include "dali/pipeline/operator/argument.h"
-#include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/error_reporting.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/default_resources.h"
 #include "dali/pipeline/dali.pb.h"
+#include "dali/pipeline/executor/executor_factory.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/error_reporting.h"
