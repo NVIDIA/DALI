@@ -519,6 +519,8 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
             has_floats = False
             has_ints = False
             has_bools = False
+            has_enums = False
+            enum_type = None
             for x in v:
                 if isinstance(x, float):
                     has_floats = True
@@ -526,8 +528,35 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
                     has_bools = True
                 elif isinstance(x, int):
                     has_ints = True
+                elif isinstance(x, (DALIDataType, DALIImageType, DALIInterpType)):
+                    has_enums = True
+                    enum_type = type(x)
+                    break
                 else:
                     raise TypeError("Unexpected type: " + str(type(x)))
+
+            if has_enums:
+                for x in v:
+                    if not isinstance(x, enum_type):
+                        raise TypeError(
+                            f"Expected all elements of the input to be the "
+                            f"same enum type: `{enum_type.__name__}` but got `{type(x).__name__}` "
+                            f"for one of the elements."
+                        )
+
+            if has_enums:
+                if issubclass(enum_type, DALIDataType):
+                    return DALIDataType.DATA_TYPE
+                elif issubclass(enum_type, DALIImageType):
+                    return DALIDataType.IMAGE_TYPE
+                elif issubclass(enum_type, DALIInterpType):
+                    return DALIDataType.INTERP_TYPE
+                else:
+                    raise TypeError(
+                        f"Unexpected enum type: `{enum_type.__name__}`, expected one of: "
+                        "`nvidia.dali.types.DALIDataType`, `nvidia.dali.types.DALIImageType`, "
+                        "or `nvidia.dali.types.DALIInterpType`."
+                    )
 
             if has_floats:
                 return DALIDataType.FLOAT
@@ -582,7 +611,8 @@ def Constant(value, dtype=None, shape=None, layout=None, device=None, **kwargs):
 
     Args
     ----
-    value: `bool`, `int`, `float`, a `list` or `tuple` thereof or a `numpy.ndarray`
+    value: `bool`, `int`, `float`, `DALIDataType` `DALIImageType`, `DALIInterpType`,
+           a `list` or `tuple` thereof or a `numpy.ndarray`
         The constant value to wrap. If it is a scalar, it can be used as scalar
         value in mathematical expressions. Otherwise, it will produce a constant
         tensor node (optionally reshaped according to `shape` argument).

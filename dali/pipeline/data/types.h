@@ -277,6 +277,18 @@ constexpr bool IsUnsigned(DALIDataType type) {
   }
 }
 
+
+constexpr bool IsEnum(DALIDataType type) {
+  switch (type) {
+    case DALI_DATA_TYPE:
+    case DALI_IMAGE_TYPE:
+    case DALI_INTERP_TYPE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 template <DALIDataType id>
 struct id2type_helper;
 

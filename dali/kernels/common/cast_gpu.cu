@@ -19,6 +19,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 namespace kernels {
@@ -102,32 +103,38 @@ void CastGPU<Out, In>::Run(KernelContext &ctx,
 
 #define INSTANTIATE_IMPL(Out, In) template struct DLL_PUBLIC CastGPU<Out, In>;
 
-#define INSTANTIATE_FOREACH_INTYPE(Out)  \
-  INSTANTIATE_IMPL(Out, bool);  \
-  INSTANTIATE_IMPL(Out, uint8_t);  \
-  INSTANTIATE_IMPL(Out, uint16_t); \
-  INSTANTIATE_IMPL(Out, uint32_t);  \
-  INSTANTIATE_IMPL(Out, uint64_t);  \
-  INSTANTIATE_IMPL(Out, int8_t);  \
-  INSTANTIATE_IMPL(Out, int16_t);  \
-  INSTANTIATE_IMPL(Out, int32_t);  \
-  INSTANTIATE_IMPL(Out, int64_t);  \
-  INSTANTIATE_IMPL(Out, float);    \
-  INSTANTIATE_IMPL(Out, double);    \
-  INSTANTIATE_IMPL(Out, dali::float16);
+#define INSTANTIATE_FOREACH_INTYPE(Out) \
+  INSTANTIATE_IMPL(Out, bool);          \
+  INSTANTIATE_IMPL(Out, uint8_t);       \
+  INSTANTIATE_IMPL(Out, uint16_t);      \
+  INSTANTIATE_IMPL(Out, uint32_t);      \
+  INSTANTIATE_IMPL(Out, uint64_t);      \
+  INSTANTIATE_IMPL(Out, int8_t);        \
+  INSTANTIATE_IMPL(Out, int16_t);       \
+  INSTANTIATE_IMPL(Out, int32_t);       \
+  INSTANTIATE_IMPL(Out, int64_t);       \
+  INSTANTIATE_IMPL(Out, float);         \
+  INSTANTIATE_IMPL(Out, double);        \
+  INSTANTIATE_IMPL(Out, dali::float16); \
+  INSTANTIATE_IMPL(Out, DALIDataType);  \
+  INSTANTIATE_IMPL(Out, DALIImageType); \
+  INSTANTIATE_IMPL(Out, DALIInterpType);
 
-INSTANTIATE_FOREACH_INTYPE(bool);  \
-INSTANTIATE_FOREACH_INTYPE(uint8_t);  \
-INSTANTIATE_FOREACH_INTYPE(uint16_t); \
-INSTANTIATE_FOREACH_INTYPE(uint32_t);  \
-INSTANTIATE_FOREACH_INTYPE(uint64_t);  \
-INSTANTIATE_FOREACH_INTYPE(int8_t);  \
-INSTANTIATE_FOREACH_INTYPE(int16_t);  \
-INSTANTIATE_FOREACH_INTYPE(int32_t);  \
-INSTANTIATE_FOREACH_INTYPE(int64_t);  \
-INSTANTIATE_FOREACH_INTYPE(float);    \
-INSTANTIATE_FOREACH_INTYPE(double);    \
+INSTANTIATE_FOREACH_INTYPE(bool);
+INSTANTIATE_FOREACH_INTYPE(uint8_t);
+INSTANTIATE_FOREACH_INTYPE(uint16_t);
+INSTANTIATE_FOREACH_INTYPE(uint32_t);
+INSTANTIATE_FOREACH_INTYPE(uint64_t);
+INSTANTIATE_FOREACH_INTYPE(int8_t);
+INSTANTIATE_FOREACH_INTYPE(int16_t);
+INSTANTIATE_FOREACH_INTYPE(int32_t);
+INSTANTIATE_FOREACH_INTYPE(int64_t);
+INSTANTIATE_FOREACH_INTYPE(float);
+INSTANTIATE_FOREACH_INTYPE(double);
 INSTANTIATE_FOREACH_INTYPE(dali::float16);
+INSTANTIATE_FOREACH_INTYPE(DALIDataType);
+INSTANTIATE_FOREACH_INTYPE(DALIImageType);
+INSTANTIATE_FOREACH_INTYPE(DALIInterpType);
 
 }  // namespace cast
 }  // namespace kernels

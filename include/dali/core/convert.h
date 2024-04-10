@@ -233,19 +233,23 @@ inline __device__ unsigned long cuda_round_helper(double f, unsigned long) {  //
 
 template <typename Out, typename In,
   bool OutIsFP = is_fp_or_half<Out>::value,
-  bool InIsFP = is_fp_or_half<In>::value>
+  bool InIsFP = is_fp_or_half<In>::value,
+  bool OutIsEnum = std::is_enum<Out>::value,
+  bool InIsEnum = std::is_enum<In>::value>
 struct ConverterBase;
 
 template <typename Out, typename In>
 struct Converter : ConverterBase<Out, In> {
-  static_assert(is_arithmetic_or_half<Out>::value && is_arithmetic_or_half<In>::value,
-    "Default ConverterBase can only be used with arithmetic types. For custom types, "
-    "specialize or overload dali::Convert");
+  static_assert(
+      (is_arithmetic_or_half<Out>::value || std::is_enum<Out>::value) &&
+          (is_arithmetic_or_half<In>::value || std::is_enum<In>::value),
+      "Default ConverterBase can only be used with arithmetic or enum types. For custom types, "
+      "specialize or overload dali::Convert");
 };
 
 /// Converts between two FP types
 template <typename Out, typename In>
-struct ConverterBase<Out, In, true, true> {
+struct ConverterBase<Out, In, true, true, false, false> {
   DALI_HOST_DEV
   static constexpr Out Convert(In value) { return value; }
   DALI_HOST_DEV
@@ -258,7 +262,7 @@ struct ConverterBase<Out, In, true, true> {
 
 /// Converts integral to FP type
 template <typename Out, typename In>
-struct ConverterBase<Out, In, true, false> {
+struct ConverterBase<Out, In, true, false, false, false> {
   DALI_HOST_DEV
   static constexpr Out Convert(In value) { return value; }
   DALI_HOST_DEV
@@ -272,7 +276,7 @@ struct ConverterBase<Out, In, true, false> {
 
 /// Converts integral to float16 special case
 template <typename In>
-struct ConverterBase<float16, In, true, false> {
+struct ConverterBase<float16, In, true, false, false, false> {
   DALI_HOST_DEV
   static constexpr float16 Convert(In value) {
     auto out = ConverterBase<float, In, true, false>::Convert(value);
@@ -300,7 +304,7 @@ struct ConverterBase<float16, In, true, false> {
 
 /// Converts FP to integral type
 template <typename Out, typename In>
-struct ConverterBase<Out, In, false, true> {
+struct ConverterBase<Out, In, false, true, false, false> {
   DALI_HOST_DEV
   static constexpr Out Convert(In value) {
 #ifdef __CUDA_ARCH__
@@ -383,9 +387,87 @@ struct ConvertIntInt<Out, In, false, true> {
 
 /// Converts between integral types
 template <typename Out, typename In>
-struct ConverterBase<Out, In, false, false> : ConvertIntInt<Out, In> {
+struct ConverterBase<Out, In, false, false, false, false> : ConvertIntInt<Out, In> {
   static_assert(std::is_arithmetic<Out>::value && std::is_arithmetic<In>::value,
-    "Default ConverterBase can only be used with arithmetic types. For custom types, "
+    "Default ConverterBase can only be used with arithmetic or enum types. For custom types, "
+    "specialize or overload dali::Convert");
+};
+
+template <typename T, typename = void>
+struct UnderlyingOrType;
+
+template <typename T>
+struct UnderlyingOrType<T, std::enable_if_t<std::is_enum<T>::value>> {
+  using type = typename std::underlying_type<T>::type;
+};
+
+template <typename T>
+struct UnderlyingOrType<T, std::enable_if_t<!std::is_enum<T>::value>> {
+  using type = T;
+};
+
+
+template <typename T>
+using underlying_or_type_t = typename UnderlyingOrType<T>::type;
+
+
+/// Convert between arithmetic and enum types
+template <typename Out, typename In>
+struct ConverterEnum {
+  using UnderlyingOut = underlying_or_type_t<Out>;
+  using UnderlyingIn = underlying_or_type_t<In>;
+  using Conv = Converter<UnderlyingOut, UnderlyingIn>;
+
+  DALI_HOST_DEV
+  static constexpr UnderlyingIn to_underlying(In value) noexcept {
+    return static_cast<UnderlyingIn>(value);
+  }
+
+  DALI_HOST_DEV
+  static constexpr Out from_underlying(UnderlyingOut value) noexcept {
+    return static_cast<Out>(value);
+  }
+
+  DALI_HOST_DEV
+  static constexpr Out Convert(In value) {
+    return from_underlying(Conv::Convert(to_underlying(value)));
+  }
+
+  DALI_HOST_DEV
+  static constexpr Out ConvertNorm(In value) {
+    return from_underlying(Conv::ConvertNorm(to_underlying(value)));
+  }
+
+  DALI_HOST_DEV
+  static constexpr Out ConvertSat(In value) {
+    return from_underlying(Conv::ConvertSat(to_underlying(value)));
+  }
+
+  DALI_HOST_DEV
+  static constexpr Out ConvertSatNorm(In value) {
+    return from_underlying(Conv::ConvertSatNorm(to_underlying(value)));
+  }
+};
+
+/// Convert from integral to enum type
+template <typename Out, typename In, bool OutIsFP, bool InIsFP>
+struct ConverterBase<Out, In, OutIsFP, InIsFP, true, false> : ConverterEnum<Out, In> {
+  static_assert(std::is_enum<Out>::value && is_arithmetic_or_half<In>::value,
+    "Default ConverterBase can only be used with arithmetic or enum types. For custom types, "
+    "specialize or overload dali::Convert");
+};
+
+template <typename Out, typename In, bool OutIsFP, bool InIsFP>
+struct ConverterBase<Out, In, OutIsFP, InIsFP, false, true> : ConverterEnum<Out, In> {
+  static_assert(is_arithmetic_or_half<Out>::value && std::is_enum<In>::value,
+    "Default ConverterBase can only be used with arithmetic or enum types. For custom types, "
+    "specialize or overload dali::Convert");
+};
+
+template <typename Out, typename In, bool OutIsFP, bool InIsFP>
+struct ConverterBase<Out, In, OutIsFP, InIsFP, true, true> : ConverterEnum<Out, In> {
+  static_assert(std::is_enum<Out>::value && std::is_enum<In>::value,
+    "Default ConverterBase can only be used with arithmetic or enum types. For custom types, "
     "specialize or overload dali::Convert");
 };
 
