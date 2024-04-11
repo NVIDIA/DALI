@@ -34,15 +34,15 @@ if (NOT LINK_DRIVER)
   set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
   add_custom_command(
       OUTPUT ${CUDA_GENERATED_STUB}
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
-                  "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
+                  "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
                   "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   ${DEFAULT_COMPILER_INCLUDE}
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
               "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda.h"
-              "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cuda.json"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json"
       COMMENT "Running cuda.h stub generator"
       VERBATIM)
 
@@ -58,15 +58,15 @@ if (BUILD_CUFILE)
   set(CUFILE_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cufile_gen.cc")
   add_custom_command(
       OUTPUT ${CUFILE_GENERATED_STUB}
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
-                  "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
+                  "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
                   "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   ${DEFAULT_COMPILER_INCLUDE}
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
               "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cufile.h"
-              "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/cufile.json"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json"
       COMMENT "Running cufile.h stub generator"
       VERBATIM)
 

@@ -33,7 +33,7 @@ from pathlib import Path
 import tempfile
 from stubgen import stubgen
 from multiprocessing import Process
-import subprocess
+import subprocess  # nosec B404
 
 
 def plugin_load_and_test(dali_tf_path):
@@ -341,22 +341,19 @@ class InstallerHelper:
             dali_lflags = "-L" + tmpdir + " -ldali"
             dali_cflags = "-I" + os.path.join(self.src_path, "include")
 
-            cmd = (
-                compiler
-                + " -Wl,-R,'$ORIGIN/..' -std=c++14 -DNDEBUG -shared "
-                + dali_stub_src
-                + " -o "
-                + dali_stub_lib
-                + " -fPIC "
-                + dali_cflags
-                + " "
-                + cuda_cflags
-                + " "
-                + cuda_lflags
-                + " -O2"
-            )
-            print("Building DALI stub lib:\n\n " + cmd + "\n\n")
-            subprocess.check_call(cmd, cwd=self.src_path, shell=True)
+            cmd = [compiler, "-Wl,-R,'$ORIGIN/..'", "-std=c++14", "-DNDEBUG", "-shared"]
+            cmd += dali_stub_src.split()
+            cmd += ["-o"]
+            cmd += dali_stub_lib.split()
+            cmd += ["-fPIC"]
+            cmd += dali_cflags.split()
+            cmd += cuda_cflags.split()
+            cmd += cuda_lflags.split()
+            cmd += ["-O2"]
+
+            cmd = list(filter(lambda x: len(x) != 0, cmd))
+            print("Building DALI stub lib:\n\n " + " ".join(cmd) + "\n\n")
+            subprocess.check_call(cmd, cwd=self.src_path, shell=False)  # nosec B603
 
             tf_cflags, tf_lflags = get_tf_build_flags()
 
@@ -375,32 +372,30 @@ class InstallerHelper:
             # Do not remove it.
             # the latest TF in conda needs to include /PREFIX/include
             root_include = "-I" + os.getenv("PREFIX", default="/usr") + "/include"
-            cmd = (
-                compiler
-                + " -Wl,-R,'$ORIGIN/..' -Wl,-rpath,'$ORIGIN' "
-                + cpp_ver
-                + " -DNDEBUG -shared "
-                + plugin_src
-                + " -o "
-                + lib_path
-                + " -fPIC "
-                + dali_cflags
-                + " "
-                + tf_cflags
-                + " "
-                + root_include
-                + " "
-                + cuda_cflags
-                + " "
-                + dali_lflags
-                + " "
-                + tf_lflags
-                + " "
-                + cuda_lflags
-                + " -O2"
-            )
-            print("Build DALI TF library:\n\n " + cmd + "\n\n")
-            subprocess.check_call(cmd, cwd=self.src_path, shell=True)
+            cmd = [
+                compiler,
+                "-Wl,-R,'$ORIGIN/..'",
+                "-Wl,-rpath,'$ORIGIN'",
+                cpp_ver,
+                "-DNDEBUG",
+                "-shared",
+            ]
+            cmd += plugin_src.split()
+            cmd += ["-o"]
+            cmd += lib_path.split()
+            cmd += ["-fPIC"]
+            cmd += dali_cflags.split()
+            cmd += tf_cflags.split()
+            cmd += root_include.split()
+            cmd += cuda_cflags.split()
+            cmd += dali_lflags.split()
+            cmd += tf_lflags.split()
+            cmd += cuda_lflags.split()
+            cmd += ["-O2"]
+
+            cmd = list(filter(lambda x: len(x) != 0, cmd))
+            print("Build DALI TF library:\n\n " + " ".join(cmd) + "\n\n")
+            subprocess.check_call(cmd, cwd=self.src_path, shell=False)  # nosec B603
 
             if not self.check_plugin(lib_path, dali_stub_lib):
                 raise ImportError(

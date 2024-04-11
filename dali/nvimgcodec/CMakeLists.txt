@@ -27,16 +27,16 @@ if(WITH_DYNAMIC_NVIMGCODEC)
   set(NVIMGCODEC_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvimgcodec_gen.cc")
   add_custom_command(
     OUTPUT ${NVIMGCODEC_GENERATED_STUB}
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py --unique_prefix=Nvimgcodec --
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/nvimgcodec.json" ${NVIMGCODEC_GENERATED_STUB}
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvimgcodec --
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvimgcodec.json" ${NVIMGCODEC_GENERATED_STUB}
     "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}" "-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
 
     # for some reason QNX fails with 'too many errors emitted' if this is not set
     "-ferror-limit=0"
     ${DEFAULT_COMPILER_INCLUDE}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/stub_codegen.py
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
     "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/stub_generator/nvimgcodec.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvimgcodec.json"
     COMMENT "Running nvimgcodec.h stub generator"
     VERBATIM)
 
