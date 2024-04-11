@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1191,7 +1191,7 @@ def test_wrong_backend_named_args():
         return sliced
 
     with assert_raises(
-        RuntimeError, glob="Named arguments inputs to operators must be CPU data nodes"
+        RuntimeError, glob="Named argument inputs to operators must be CPU data nodes"
     ):
         p = make_pipe()
         p.build()

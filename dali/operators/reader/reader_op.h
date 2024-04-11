@@ -29,6 +29,7 @@
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/parser/parser.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -104,7 +105,7 @@ class DataReader : public Operator<Backend> {
 
   void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
     if constexpr (!supports_checkpointing) {
-      DALI_FAIL("The reader ", spec_.SchemaName(), " does not support checkpointing.");
+      DALI_FAIL("The reader `", GetOpDisplayName(spec_, true), "` does not support checkpointing.");
     } else {
       DALI_ENFORCE(checkpointing_,
                    "Cannot save the checkpoint, because "
@@ -116,7 +117,7 @@ class DataReader : public Operator<Backend> {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     if constexpr (!supports_checkpointing) {
-      DALI_FAIL("The reader ", spec_.SchemaName(), " does not support checkpointing.");
+      DALI_FAIL("The reader `", GetOpDisplayName(spec_, true), "` does not support checkpointing.");
     } else {
       DALI_ENFORCE(checkpointing_,
                    "Cannot restore the checkpoint, because "

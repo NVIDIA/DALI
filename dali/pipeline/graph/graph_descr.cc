@@ -13,12 +13,14 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <exception>
 #include <string>
 
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operator/error_reporting.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/op_schema.h"
 
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
@@ -55,19 +57,20 @@ void CheckOpConstraints(const OpSpec &spec) {
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 
   DALI_ENFORCE(schema.SupportsInPlace(spec) || !spec.GetArgument<bool>("inplace"),
-      "Op '" + spec.SchemaName() + "' does not support in-place execution.");
-  DALI_ENFORCE(spec.NumRegularInput() <= schema.MaxNumInput(),
-      "Operator '" + spec.SchemaName() +
-      "' supports a maximum of " + std::to_string(schema.MaxNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
-  DALI_ENFORCE(spec.NumRegularInput() >= schema.MinNumInput(),
-      "Operator '" + spec.SchemaName() +
-      "' supports a minimum of " + std::to_string(schema.MinNumInput()) + " inputs, "
-      "but was passed " + std::to_string(spec.NumRegularInput()) + ".");
+               make_string("Operator `", GetOpDisplayName(spec, true),
+                           "` does not support in-place execution."));
+  DALI_ENFORCE(
+      spec.NumRegularInput() <= schema.MaxNumInput(),
+      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a maximum of ",
+                  schema.MaxNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
+  DALI_ENFORCE(
+      spec.NumRegularInput() >= schema.MinNumInput(),
+      make_string("Operator `", GetOpDisplayName(spec, true), "` supports a minimum of ",
+                  schema.MinNumInput(), " inputs, but was passed ", spec.NumRegularInput(), "."));
   DALI_ENFORCE(spec.NumOutput() == schema.CalculateOutputs(spec) + additional_outputs,
-      "Operator '" + spec.SchemaName() + "' supports "
-      + std::to_string(schema.CalculateOutputs(spec) + additional_outputs)
-      + " outputs, but was passed " + std::to_string(spec.NumOutput()) + ".");
+               make_string("Operator `", GetOpDisplayName(spec, true), "` supports ",
+                           schema.CalculateOutputs(spec) + additional_outputs,
+                           " outputs, but was passed ", spec.NumOutput(), "."));
 }
 
 OpType ParseOpType(const std::string &device) {
@@ -207,17 +210,14 @@ void OpGraph::InstantiateOperators() {
 
   for (auto op_type : order) {
     for (auto op_id : op_partitions_[static_cast<int>(op_type)]) {
-      std::exception_ptr eptr;
       try {
         op_nodes_[op_id].InstantiateOperator();
       } catch (...) {
-        eptr = std::current_exception();
+        PropagateError({std::current_exception(),
+                        "Critical error when building pipeline:\n" +
+                            GetErrorContextMessage(op_nodes_[op_id].spec),
+                        "\nCurrent pipeline object is no longer valid."});
       }
-
-      PropagateError({eptr,
-                      "Critical error when building pipeline:\n" +
-                          GetErrorContextMessage(op_nodes_[op_id].spec),
-                      "\nCurrent pipeline object is no longer valid."});
     }
   }
 }

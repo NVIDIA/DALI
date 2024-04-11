@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -983,7 +983,7 @@ def test_error_condition():
     with assert_raises(
         RuntimeError,
         glob=(
-            "Named arguments inputs to operators must be CPU data nodes."
+            "Named argument inputs to operators must be CPU data nodes."
             " However, a GPU data node was provided"
         ),
     ):
