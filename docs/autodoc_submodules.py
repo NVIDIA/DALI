@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
+import nvidia.dali.plugin.jax
 import inspect
 import sys
 
@@ -32,9 +33,9 @@ exclude_ops_members = {"nvidia.dali.ops": ["PythonFunctionBase"]}
 fn_modules = {
     "nvidia.dali.fn": nvidia.dali.fn,
     "nvidia.dali.plugin.pytorch.fn": nvidia.dali.plugin.pytorch.fn,
+    "nvidia.dali.plugin.jax.fn": nvidia.dali.plugin.jax.fn,
     "nvidia.dali.plugin.numba.fn.experimental": nvidia.dali.plugin.numba.fn.experimental,
 }
-
 
 exclude_fn_members = {}
 
@@ -81,7 +82,14 @@ def get_functions(module):
 
 
 def get_schema_names(module, functions):
-    return [getattr(sys.modules[module], fun)._schema_name for fun in functions]
+    def get_schema_name_or_dummy_schema(fun):
+        obj = getattr(sys.modules[module], fun)
+        if hasattr(obj, "_schema_name"):
+            return obj._schema_name
+        else:
+            return operations_table.no_schema_fns[f"{module}.{fun}"]
+
+    return [get_schema_name_or_dummy_schema(fun) for fun in functions]
 
 
 def op_autodoc(out_filename):

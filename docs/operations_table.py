@@ -1,7 +1,9 @@
 from nvidia.dali import backend as b
 import nvidia.dali.ops as ops
+import nvidia.dali.ops._python_def_op_utils as _python_def_op_utils
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba.experimental
+import nvidia.dali.plugin.jax as dax
 import sys
 
 # Dictionary with modules that can have registered Ops
@@ -15,6 +17,10 @@ ops_modules = {
 module_mapping = {
     "nvidia.dali.plugin.pytorch": "nvidia.dali.plugin.pytorch.fn",
     "nvidia.dali.plugin.numba.experimental": "nvidia.dali.plugin.numba.fn.experimental",
+}
+
+no_schema_fns = {
+    "nvidia.dali.plugin.jax.fn.jax_function": dax.fn._jax_function_impl._jax_function_desc,
 }
 
 # Remove ops not available in the fn API
@@ -35,6 +41,8 @@ def to_fn_module(module_name):
 
 
 def name_sort(op_name):
+    if isinstance(op_name, _python_def_op_utils.PyOpDesc):
+        return f"{op_name.module}.{op_name.name.upper()}"
     _, module, name = ops._process_op_name(op_name)
     return ".".join(module + [name.upper()])
 
@@ -105,35 +113,42 @@ def operations_table_str(ops_to_process):
     )
     doc_table += formater.format("", "", "", op_name_max_len=op_name_max_len, c="=")
     for op in sorted(ops_to_process, key=name_sort):
-        _, submodule, op_name = ops._process_op_name(op, api="ops")
-        fn_full_name = ops._op_name(op, api="fn")
-        if op_name in removed_ops:
-            continue
-        schema = b.TryGetSchema(op)
-        short_descr = ""
-        devices = []
-        if op in cpu_ops:
-            devices += ["CPU"]
-        if op in mix_ops:
-            devices += ["Mixed"]
-        if op in gpu_ops:
-            devices += ["GPU"]
-        devices_str = ", ".join(devices)
-        if schema:
-            if schema.IsDocHidden():
-                continue
-            full_doc = schema.Dox()
+        if isinstance(op, _python_def_op_utils.PyOpDesc):
+            fn_string = link_formatter.format(op=op.name, module=op.module)
+            devices_str = ", ".join(op.devices)
+            short_descr = op.short_desc
         else:
-            full_doc = eval("ops." + op).__doc__
-        short_descr = full_doc.split("\n\n")[0].replace("\n", " ").replace("::", ".")
-        for module_name, module in ops_modules.items():
-            m = module
-            for part in submodule:
-                m = getattr(m, part, None)
-                if m is None:
-                    break
-            if m is not None and hasattr(m, op_name):
-                fn_string = link_formatter.format(op=fn_full_name, module=to_fn_module(module_name))
+            _, submodule, op_name = ops._process_op_name(op, api="ops")
+            fn_full_name = ops._op_name(op, api="fn")
+            if op_name in removed_ops:
+                continue
+            schema = b.TryGetSchema(op)
+            short_descr = ""
+            devices = []
+            if op in cpu_ops:
+                devices += ["CPU"]
+            if op in mix_ops:
+                devices += ["Mixed"]
+            if op in gpu_ops:
+                devices += ["GPU"]
+            devices_str = ", ".join(devices)
+            if schema:
+                if schema.IsDocHidden():
+                    continue
+                full_doc = schema.Dox()
+            else:
+                full_doc = eval("ops." + op).__doc__
+            short_descr = full_doc.split("\n\n")[0].replace("\n", " ").replace("::", ".")
+            for module_name, module in ops_modules.items():
+                m = module
+                for part in submodule:
+                    m = getattr(m, part, None)
+                    if m is None:
+                        break
+                if m is not None and hasattr(m, op_name):
+                    fn_string = link_formatter.format(
+                        op=fn_full_name, module=to_fn_module(module_name)
+                    )
         op_doc = formater.format(
             fn_string, devices_str, short_descr, op_name_max_len=op_name_max_len, c=" "
         )

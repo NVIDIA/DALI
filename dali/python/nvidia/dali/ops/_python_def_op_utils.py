@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,22 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
-import jax
 
-from . import fn  # noqa: F401
-
-from distutils.version import LooseVersion
-from .iterator import DALIGenericIterator, data_iterator
-
-assert (
-    sys.version_info.major == 3 and sys.version_info.minor >= 8
-), "DALI JAX support requires Python 3.8 or above"
+from dataclasses import dataclass
 
 
-assert LooseVersion(jax.__version__) >= LooseVersion(
-    "0.4.11"
-), "DALI JAX support requires JAX 0.4.11 or above"
+@dataclass
+class PyOpDesc:
+    module: str
+    name: str
+    devices: list
+    short_desc: str
 
 
-__all__ = ["DALIGenericIterator", "data_iterator", "fn"]
+def get_py_op_desc(module, fun_name):
+    return getattr(module, f"_{fun_name}_desc")

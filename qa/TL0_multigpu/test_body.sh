@@ -57,6 +57,9 @@ test_jax() {
 
       CUDA_VISIBLE_DEVICES="1" python jax_plugin/jax_client.py &
       CUDA_VISIBLE_DEVICES="0" python jax_plugin/jax_server.py
+
+      CUDA_VISIBLE_DEVICES="1" python jax_plugin/jax_op_multi_gpu_sharding.py --id 1 &
+      CUDA_VISIBLE_DEVICES="0" python jax_plugin/jax_op_multi_gpu_sharding.py --id 0
     fi
 }
 

@@ -7,3 +7,4 @@ JAX
 
    jax_plugin_api
    ../examples/frameworks/jax/index
+   jax_fn
