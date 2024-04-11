@@ -208,7 +208,7 @@ some particular system properties (file system type) can require adjusting them 
   :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
   It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
   than 16MB. The minimal value depends on the file system. See more in
-  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`_
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`__
 
 - ``DALI_ODIRECT_LEN_ALIGNMENT`` - adjusts the O_DIRECT read length alignment.
 
@@ -216,7 +216,7 @@ some particular system properties (file system type) can require adjusting them 
   :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
   It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
   than 16MB. The minimal value depends on the file system. See more in
-  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`_
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`__
 
 - ``DALI_ODIRECT_CHUNK_SIZE`` - adjust the size of single O_DIRECT read request.
 

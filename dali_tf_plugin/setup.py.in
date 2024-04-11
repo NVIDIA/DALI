@@ -62,15 +62,14 @@ resulting in challenges such as portability of training and inference workflows,
 maintainability. Data processing pipelines implemented using DALI are portable because they
 can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
 
-For more details please check the |release-doc|_.
+For more details please check the
+`latest DALI Documentation <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html>`_.
 
 .. image:: https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png
     :width: 800
     :align: center
     :alt: DALI Diagram
 
-.. |release-doc| replace:: latest DALI Documentation
-.. _release-doc: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
 ''',
       long_description_content_type="text/x-rst",
       url='https://github.com/NVIDIA/dali',

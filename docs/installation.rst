@@ -4,37 +4,18 @@ Installation
 Prerequisites
 -------------
 
-.. |driver link| replace:: **NVIDIA Driver**
-.. _driver link: https://www.nvidia.com/drivers
-.. |cuda link| replace:: **NVIDIA CUDA 11.0**
-.. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |cuda toolkit link| replace:: **CUDA Toolkit**
-.. _cuda toolkit link: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
-.. |cuda link| replace:: **NVIDIA CUDA 11.0**
-.. _cuda link: https://developer.nvidia.com/cuda-downloads
-.. |mxnet link| replace:: **MXNet**
-.. _mxnet link: http://mxnet.incubator.apache.org
-.. |pytorch link| replace:: **PyTorch**
-.. _pytorch link: https://pytorch.org
-.. |tf link| replace:: **TensorFlow**
-.. _tf link: https://www.tensorflow.org
-.. |pddl link| replace:: **PaddlePaddle**
-.. _pddl link: https://www.paddlepaddle.org.cn
-.. |jax link| replace:: **JAX**
-.. _jax link: https://jax.readthedocs.io/en/latest/index.html
-.. |compatibility link| replace:: enhanced CUDA compatibility guide
-.. _compatibility link : https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases
-
 1. Linux x64.
-2. |driver link|_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__ or later (i.e. 450.80.02 or later driver releases).
-3. |cuda toolkit link|_ - for DALI based on CUDA 12, the toolkit is linked dynamically and it is required to be installed. For CUDA 11 builds it is optional.
+2. `**NVIDIA Driver** <https://www.nvidia.com/drivers>`_ supporting `CUDA 11.0 <https://developer.nvidia.com/cuda-downloads>`__
+   or later (i.e. 450.80.02 or later driver releases).
+3. `**CUDA Toolkit** <https://developer.nvidia.com/cuda-downloads>`_ - for DALI based on CUDA 12, the toolkit is linked
+   dynamically and it is required to be installed. For CUDA 11 builds it is optional.
 4. [Optional] One or more of the following deep learning frameworks:
 
-  - |mxnet link|_
-  - |pytorch link|_
-  - |tf link|_
-  - |pddl link|_
-  - |jax link|_
+   * `MXNet <http://mxnet.incubator.apache.org>`__
+   * `PaddlePaddle <https://www.paddlepaddle.org.cn/en>`__
+   * `PyTorch <https://pytorch.org>`__
+   * `TensorFlow <https://www.tensorflow.org>`__
+   * `JAX <https://github.com/google/jax>`__
 
 
 DALI in NGC Containers
@@ -89,7 +70,7 @@ or just
   CUDA 11.0 and CUDA 12.0 build uses CUDA toolkit enhanced compatibility. It is built with the latest CUDA 11.x/12.x respectively
   toolkit while it can run on the latest, stable CUDA 11.0 and CUDA 12.0 capable drivers (450.80 or later and 525.60 or later respectively).
   Using the latest driver may enable additional functionality. More details can be found in
-  |compatibility link|_.
+  `enhanced CUDA compatibility guide <https://docs.nvidia.com/deploy/cuda-compatibility/index.html#enhanced-compat-minor-releases>`_.
 
 .. note::
 
@@ -216,13 +197,10 @@ CUDA 9 build is provided up to DALI 0.22.0.
 Open Cognitive Environment (Open-CE)
 ------------------------------------
 
-.. |oce link| replace:: **external organizations**
-.. _oce link: https://github.com/open-ce/open-ce#community-builds
-
 DALI is also available as a part of the Open Cognitive Environment - a project that contains everything
 that is needed to build conda packages for a collection of machine learning and deep learning frameworks.
 
 This effort is community-driven and the DALI version available there may not be up to date.
 
-Prebuild packages (including DALI) are hosted by |oce link|_.
+Prebuild packages (including DALI) are hosted by `**external organizations** <https://github.com/open-ce/open-ce#community-builds>`_.
 
