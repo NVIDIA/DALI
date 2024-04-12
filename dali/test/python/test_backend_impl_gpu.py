@@ -168,6 +168,20 @@ def test_cuda_array_interface_tensor_list_gpu_direct_creation_list():
     assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
 
 
+def test_cuda_array_interface_v3_stream():
+    import pycuda.gpuarray as gpuarray
+    import pycuda.driver as cuda
+    from pycuda.tools import clear_context_caches, make_default_context
+
+    cuda.init()
+    context = make_default_context()
+    test_input = np.random.randn(4, 4).astype(np.float32)
+    g = gpuarray.to_gpu(test_input)
+    TensorGPU(g)
+    context.pop()
+    clear_context_caches()
+
+
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
     tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
