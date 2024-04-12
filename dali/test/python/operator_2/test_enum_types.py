@@ -74,4 +74,23 @@ def test_enum_constant_capture(converter):
 
 
 def test_scalar_constant():
-    print(types.ScalarConstant(types.DALIDataType.INT16))
+    with assert_raises(
+        TypeError, glob="Expected scalar value of type 'bool', 'int' or 'float', got *.DALIDataType"
+    ):
+        types.ScalarConstant(types.DALIDataType.INT16)
+
+
+@params(*[(1.0, types.DALIDataType.DATA_TYPE), (types.DALIImageType.RGB, types.DALIDataType.FLOAT)])
+def test_prohibited_cast(param, dtype):
+    @pipeline_def(batch_size=2, device_id=0, num_threads=4)
+    def pipeline():
+        return fn.cast(param, dtype=dtype)
+
+    with assert_raises(
+        RuntimeError,
+        glob="Cannot cast from *float*. Enums can only participate "
+        "in casts with integral types, but not floating point types.",
+    ):
+        p = pipeline()
+        p.build()
+        p.run()
