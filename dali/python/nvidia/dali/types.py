@@ -647,8 +647,7 @@ def Constant(value, dtype=None, shape=None, layout=None, device=None, **kwargs):
             DALIDataType.INTERP_TYPE,
         }:
             return True
-        else:
-            False
+        return False
 
     if (
         device is not None
