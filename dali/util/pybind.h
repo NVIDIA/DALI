@@ -60,7 +60,7 @@ static std::string FormatStrFromType(DALIDataType type) {
     case DALI_INTERP_TYPE:
      throw DaliTypeError(
          "DALI enum types cannot be used with buffer protocol "
-         "when they are returned as Tensors or TensorLists from DALI pipeline."
+         "when they are returned as Tensors or TensorLists from DALI pipeline. "
          "You can use `nvidia.dali.fn.cast` to convert those values to an integral type.");
      // As an alternative, to allow the usage of tensors containing DALI enums (printing, use with
      // buffer protocol, numpy conversion etc), we can return format specifier for the underlying

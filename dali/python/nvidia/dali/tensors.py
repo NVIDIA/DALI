@@ -50,35 +50,56 @@ def import_numpy():
             )
 
 
-def _tensor_to_string(self):
-    """Returns string representation of Tensor."""
+def _tensor_to_string(self, show_data=True):
+    """Returns string representation of Tensor.
+
+    Parameters
+    ----------
+    show_data : bool, optional
+        Access and format the underlying data, by default True
+    """
     import_numpy()
 
     type_name = type(self).__name__
     indent = " " * 4
     layout = self.layout()
-    data = np.array(_transfer_to_cpu(self, type_name[-3:]))
-    data_str = np.array2string(data, prefix=indent, edgeitems=2)
+    if show_data:
+        data = np.array(_transfer_to_cpu(self, type_name[-3:]))
+        data_str = np.array2string(data, prefix=indent, edgeitems=2)
 
     params = (
-        [f"{type_name}(\n{indent}{data_str}", f"dtype={self.dtype}"]
+        ([f"{data_str}"] if show_data else [])
+        + [f"dtype={self.dtype}"]
         + ([f"layout={layout}"] if layout else [])
         + [f"shape={self.shape()})"]
     )
 
-    return _join_string(params, False, 0, ",\n" + indent)
+    return f"{type_name}(\n{indent}" + _join_string(params, False, 0, ",\n" + indent)
 
 
-def _tensorlist_to_string(self, indent=""):
-    """Returns string representation of TensorList."""
+def _tensorlist_to_string(self, show_data=True, indent=""):
+    """Returns string representation of TensorList.
+
+    Parameters
+    ----------
+    show_data : bool, optional
+        Access and format the underlying data, by default True
+    indent : str, optional
+        optional indentation used in formatting, by default ""
+    """
     import_numpy()
 
     edgeitems = 2
     spaces_indent = indent + " " * 4
     type_name = type(self).__name__
     layout = self.layout()
-    data = _transfer_to_cpu(self, type_name[-3:])
-    data_str = "[]"
+    if show_data:
+        data = _transfer_to_cpu(self, type_name[-3:])
+        data_str = "[]"
+    else:
+        data = None
+        data_str = ""
+
     crop = False
 
     if data:
@@ -120,9 +141,10 @@ def _tensorlist_to_string(self, indent=""):
         )
 
     params = (
-        [f"{type_name}(\n{spaces_indent}{data_str}", f"dtype={self.dtype}"]
+        ([f"{data_str}"] if show_data else [])
+        + [f"dtype={self.dtype}"]
         + ([f'layout="{layout}"'] if layout else [])
         + [f"num_samples={len(self)}", f"{shape_prefix}{shape_str}])"]
     )
 
-    return _join_string(params, False, 0, ",\n" + spaces_indent)
+    return f"{type_name}(\n{spaces_indent}" + _join_string(params, False, 0, ",\n" + spaces_indent)

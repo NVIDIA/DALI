@@ -45,7 +45,7 @@ class DataNodeDebug(_DataNode):
         indent = " " * 4
         return (
             f'DataNodeDebug(\n{indent}name="{self.name}",\n{indent}data='
-            + f'{_tensors._tensorlist_to_string(self._data, indent + " " * 5)})'
+            + f'{_tensors._tensorlist_to_string(self._data, indent=indent + " " * 5)})'
         )
 
     __repr__ = __str__

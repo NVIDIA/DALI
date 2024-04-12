@@ -43,6 +43,7 @@ def test_enum_constant_capture():
     assert scalar.dtype == types.DALIDataType.DATA_TYPE
     assert scalar.shape() == [()] * batch_size, f"{scalar.shape}"
     assert tensor.dtype == types.DALIDataType.INTERP_TYPE
+    print(tensor.shape)
     assert tensor.shape() == [(3,)] * batch_size
     for i in range(batch_size):
         assert np.array_equal(np.array(scalar_as_int[i]), np.array(scalar_v.value))
