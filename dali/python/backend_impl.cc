@@ -281,8 +281,17 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   batch->Reset();
 
   if (cu_a_interface.contains("stream")) {
-     auto order = AccessOrder(cudaStream_t(PyLong_AsVoidPtr(cu_a_interface["stream"].ptr())));
-     batch->set_order(order);
+    const auto &stream_obj = cu_a_interface["stream"];
+    if (!stream_obj.is_none()) {
+      auto stream_long_value = cu_a_interface["stream"].cast<int64>();
+      auto stream_value = PyLong_AsVoidPtr(cu_a_interface["stream"].ptr());
+      DALI_ENFORCE(stream_value != 0, make_string("Provided stream is not a valid CUDA stream ",
+                   "based on CUDA Array Interface v3. `0` value is ambiguous and disallowed"));
+      if (stream_long_value == 1) stream_value = 0;
+      if (stream_long_value == 2) stream_value = CU_STREAM_PER_THREAD;
+      auto order = AccessOrder(cudaStream_t(stream_value));
+      batch->set_order(order);
+    }
   }
 
   // Keep a copy of the input object ref in the deleter, so its refcount is increased

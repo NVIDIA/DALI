@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy cupy'
+pip_packages='${python_test_runner_package} numpy cupy pycuda'
 target_dir=./dali/test/python
 
 test_body() {
