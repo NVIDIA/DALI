@@ -640,6 +640,9 @@ def Constant(value, dtype=None, shape=None, layout=None, device=None, **kwargs):
         device is not None
         or (_is_compatible_array_type(value) and not _is_true_scalar(value))
         or isinstance(value, (list, tuple))
+        # we force true scalar enums through a Constant node rather than using ScalarConstant
+        # as they do not support any arithmetic operations
+        or isinstance(value, (DALIDataType, DALIImageType, DALIInterpType))
         or not _is_scalar_shape(shape)
         or kwargs
         or layout is not None

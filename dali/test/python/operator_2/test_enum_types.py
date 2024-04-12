@@ -15,9 +15,27 @@
 from nvidia.dali import fn, pipeline_def, types
 
 import numpy as np
+import tree
+
+from nose_utils import assert_raises
+from nose2.tools import params
 
 
-def test_enum_constant_capture():
+@params(
+    *[
+        # Automatic promotion
+        lambda value, dtype: fn.copy(value),
+        # Explicit conversion to constant op
+        lambda value, dtype: types.Constant(value=value, dtype=dtype),
+        # Detection of type from value
+        lambda value, dtype: types.Constant(value=value),
+        # Explicit type when passed the underlying numeric value of the enum
+        lambda value, dtype: types.Constant(
+            value=tree.map_structure(lambda v: v.value, value), dtype=dtype
+        ),
+    ]
+)
+def test_enum_constant_capture(converter):
     batch_size = 2
 
     scalar_v = types.DALIDataType.INT16
@@ -29,8 +47,8 @@ def test_enum_constant_capture():
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
     def enum_constant_pipe():
-        scalar = fn.copy(scalar_v)
-        tensor = fn.copy(list_v)
+        scalar = converter(scalar_v, types.DALIDataType.DATA_TYPE)
+        tensor = converter(list_v, types.DALIDataType.INTERP_TYPE)
 
         scalar_as_int = fn.cast(scalar, dtype=types.DALIDataType.INT32)
         tensor_as_int = fn.cast(tensor, dtype=types.DALIDataType.INT32)
@@ -38,15 +56,22 @@ def test_enum_constant_capture():
 
     pipe = enum_constant_pipe()
     pipe.build()
-    # Compare the cast values with Python values
     scalar, tensor, scalar_as_int, tensor_as_int = pipe.run()
     assert scalar.dtype == types.DALIDataType.DATA_TYPE
     assert scalar.shape() == [()] * batch_size, f"{scalar.shape}"
     assert tensor.dtype == types.DALIDataType.INTERP_TYPE
-    print(tensor.shape)
     assert tensor.shape() == [(3,)] * batch_size
+    # Compare the cast values with Python values
     for i in range(batch_size):
         assert np.array_equal(np.array(scalar_as_int[i]), np.array(scalar_v.value))
-        assert np.array_equal(
-            np.array(tensor_as_int[i]), np.array([elem.value for elem in list_v], dtype=np.int32)
-        )
+        assert np.array_equal(np.array(tensor_as_int[i]), np.array([elem.value for elem in list_v]))
+    with assert_raises(
+        TypeError,
+        glob="DALI enum types cannot be used with buffer protocol*"
+        "use `nvidia.dali.fn.cast` to convert",
+    ):
+        print(scalar)
+
+
+def test_scalar_constant():
+    print(types.ScalarConstant(types.DALIDataType.INT16))
