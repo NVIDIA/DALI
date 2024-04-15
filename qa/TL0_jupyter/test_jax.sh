@@ -5,7 +5,8 @@ target_dir=./docs/examples
 
 test_body() {
     test_files=(
-        "frameworks/jax/jax-basic_example.ipynb"
+        "frameworks/jax/jax-basic_example.ipynb",
+        "custom_operations/jax_operator_basic.ipynb",
     )
     for f in ${test_files[@]}; do
         jupyter nbconvert --to notebook --inplace --execute \
