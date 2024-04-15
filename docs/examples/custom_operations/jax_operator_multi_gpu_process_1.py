@@ -15,7 +15,6 @@ from nvidia.dali.plugin.jax import data_iterator
 from nvidia.dali.plugin.jax.fn import jax_function
 
 
-
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 jax.distributed.initialize(
@@ -62,6 +61,7 @@ def global_mixup(sample):
     mixed_up = 0.5 * sample + 0.5 * jax.lax.pshuffle(sample, "batch", [1, 0])
     mixed_up = jax.numpy.clip(mixed_up, 0, 255)
     return jax.numpy.array(mixed_up, dtype=jax.numpy.uint8)
+
 
 local_batch_size = 8
 num_shards = 2
