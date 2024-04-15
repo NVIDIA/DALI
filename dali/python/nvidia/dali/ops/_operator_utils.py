@@ -92,7 +92,7 @@ def _build_input_sets(inputs, op_name):
                 if len(input) != arg_list_len:
                     raise ValueError(
                         f"All argument lists for Multiple Input Sets used "
-                        f"with operator {op_name} must have "
+                        f"with operator `{op_name}` must have "
                         f"the same length"
                     )
         return arg_list_len
