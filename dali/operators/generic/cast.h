@@ -55,8 +55,8 @@ class Cast : public StatelessOperator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;
-    DALI_ENFORCE(!(IsEnum(input.type()) && IsFloatingPoint(out_type) ||
-                   IsEnum(out_type) && IsFloatingPoint(input.type())),
+    DALI_ENFORCE(!((IsEnum(input.type()) && IsFloatingPoint(out_type)) ||
+                   (IsEnum(out_type) && IsFloatingPoint(input.type()))),
                  make_string("Cannot cast from ", input.type(), " to ", out_type,
                              ". Enums can only participate in casts with integral types, "
                              "but not floating point types."));
