@@ -565,7 +565,7 @@ all_packages = [
                 PckgVer(
                     "0.4.13", python_min_ver="3.8", python_max_ver="3.8", dependencies=["jaxlib"]
                 ),
-                # dax.fn.jax_function requires 0.4.16 which is the first one supporting
+                # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
                 # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
                 PckgVer("0.4.16", python_min_ver="3.9", dependencies=["jaxlib"]),
             ]
