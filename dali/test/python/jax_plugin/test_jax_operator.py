@@ -366,7 +366,10 @@ def test_non_uniform_shape(device):
 
 
 @restrict_python_version(3, 9)
-def test_wrong_device_output():
+@params("cpu", "gpu")
+def test_wrong_device_output(device):
+
+    other_device = "gpu" if device == "cpu" else "cpu"
 
     @jax.vmap
     def flip(image):
@@ -375,14 +378,15 @@ def test_wrong_device_output():
     @pipeline_def(batch_size=11, device_id=0, num_threads=4, seed=42, enable_conditionals=True)
     def pipeline():
         img, _ = fn.readers.file(name="Reader", file_root=images_dir, random_shuffle=True, seed=42)
-        img = fn.decoders.image(img, device="mixed")
+        img = fn.decoders.image(img, device="cpu" if device == "cpu" else "mixed")
         img = fn.resize(img, size=(224, 224))
-        return dax.fn.jax_function(jax.jit(flip, backend="cpu"))(img)
+        return dax.fn.jax_function(jax.jit(flip, backend=other_device), device=device)(img)
 
     p = pipeline()
     p.build()
     with assert_raises(
-        RuntimeError, glob="*array residing on the device of kind `cpu`, expected `gpu`*"
+        RuntimeError,
+        glob=f"*array residing on the device of kind `{other_device}`, expected `{device}`*",
     ):
         p.run()
 
