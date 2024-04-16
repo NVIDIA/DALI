@@ -42,7 +42,7 @@ def cpu_to_dlpack(tensor: jax.Array):
     if devices[0].platform != "cpu":
         raise ValueError(
             f"The function returned array residing on the device of "
-            f"kind `{devices[0].platform}`, expected `gpu`."
+            f"kind `{devices[0].platform}`, expected `cpu`."
         )
     return jax.dlpack.to_dlpack(tensor)
 
