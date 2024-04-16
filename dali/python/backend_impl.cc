@@ -636,7 +636,7 @@ void ExposeTensor(py::module &m) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
     })
     .def("__repr__", [](Tensor<CPUBackend> &t) {
-      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t, false);
     })
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
@@ -786,7 +786,7 @@ void ExposeTensor(py::module &m) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
     })
     .def("__repr__", [](Tensor<GPUBackend> &t) {
-      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t, false);
     })
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
@@ -1202,7 +1202,11 @@ void ExposeTensorList(py::module &m) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
     })
     .def("__repr__", [](TensorList<CPUBackend> &t) {
-      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+      // Repr might be used in exceptions and the data might not be possible to be represented
+      // (DALI enums do not support buffer protocol due to difference between C++ numeric
+      // representation and Python "O" - object/pointer-based representation).
+      // That why we skip the data part.
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t, false);
     })
     .def_property_readonly("dtype", [](TensorList<CPUBackend> &tl) {
           return tl.type();
@@ -1402,7 +1406,7 @@ void ExposeTensorList(py::module &m) {
       return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
     })
     .def("__repr__", [](TensorList<GPUBackend> &t) {
-      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t, false);
     })
     .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
           return tl.type();

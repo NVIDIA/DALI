@@ -19,13 +19,14 @@
 
 #include "dali/core/convert.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 #define CAST_ALLOWED_TYPES                                                                         \
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
-  double)
+  double, DALIDataType, DALIImageType, DALIInterpType)
 
 template <typename Backend>
 class Cast : public StatelessOperator<Backend> {
@@ -54,6 +55,11 @@ class Cast : public StatelessOperator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;
+    DALI_ENFORCE(!((IsEnum(input.type()) && IsFloatingPoint(out_type)) ||
+                   (IsEnum(out_type) && IsFloatingPoint(input.type()))),
+                 make_string("Cannot cast from ", input.type(), " to ", out_type,
+                             ". Enums can only participate in casts with integral types, "
+                             "but not floating point types."));
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = out_type;

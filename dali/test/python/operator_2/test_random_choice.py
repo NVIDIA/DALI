@@ -253,6 +253,12 @@ def test_layout(input, input_layout, expected_layout, shape):
         "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
     ),
     (
+        (types.DALIInterpType.INTERP_CUBIC,),
+        {},
+        "Data type DALIInterpType is not supported for 0D inputs. Supported types are: "
+        "uint8, uint16, uint32, uint64, int8, int16, int32, int64",
+    ),
+    (
         (5,),
         {"p": np.array([0.25, 0.5, 0.25])},
         'Unexpected shape for argument "p". Expected {5}, but got {3}',
@@ -270,3 +276,33 @@ def test_choice_validation(args, kwargs, expected_error):
         pipe = choice_pipe()
         pipe.build()
         pipe.run()
+
+
+def test_enum_choice():
+    batch_size = 8
+
+    interps_to_sample = [types.DALIInterpType.INTERP_LINEAR, types.DALIInterpType.INTERP_CUBIC]
+
+    @pipeline_def(batch_size=batch_size, device_id=0, num_threads=4)
+    def choice_pipeline():
+        interp = fn.random.choice(interps_to_sample, shape=[100])
+        interp_as_int = fn.cast(interp, dtype=types.INT32)
+        imgs = fn.resize(
+            fn.random.uniform(range=[0, 255], dtype=types.UINT8, shape=(100, 100, 3)),
+            size=(25, 25),
+            interp_type=interp[0],
+        )
+        return interp, interp_as_int, imgs
+
+    pipe = choice_pipeline()
+    pipe.build()
+    (interp, interp_as_int, imgs) = pipe.run()
+    assert interp.dtype == types.DALIDataType.INTERP_TYPE
+    for i in range(batch_size):
+        check_sample(
+            np.array(interp_as_int[i]),
+            size=(100,),
+            a=np.array([v.value for v in interps_to_sample]),
+            p=None,
+            idx=i,
+        )

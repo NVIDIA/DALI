@@ -97,9 +97,10 @@ DALIDataType
    :member-order: bysource
    :exclude-members: name
 
+.. autofunction:: to_numpy_type
+
 DALIIterpType
 ^^^^^^^^^^^^^
-.. autofunction:: to_numpy_type
 .. autoenum:: DALIInterpType
    :members:
    :undoc-members:

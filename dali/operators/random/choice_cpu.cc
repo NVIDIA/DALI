@@ -31,6 +31,9 @@ a single value per sample is generated.
 
 The type of the output matches the type of the input.
 For scalar inputs, only integral types are supported, otherwise any type can be used.
+The operator supports selection from an input containing elements of one of DALI enum types,
+that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIImageType`, or
+:meth:`nvidia.dali.types.DALIInterpType`.
 )code")
     .NumInput(1, 2)
     .InputDox(0, "a", "scalar or TensorList",

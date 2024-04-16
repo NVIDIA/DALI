@@ -29,7 +29,7 @@
   uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
 #define DALI_CHOICE_1D_TYPES                                                                      \
   bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
-      double
+      double, DALIDataType, DALIImageType, DALIInterpType
 
 namespace dali {
 
