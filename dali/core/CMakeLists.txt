@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ project(dali_core CUDA CXX C)
 
 add_subdirectory(mm)
 add_subdirectory(os)
+add_subdirectory(exec)
 
 # Get all the source files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
