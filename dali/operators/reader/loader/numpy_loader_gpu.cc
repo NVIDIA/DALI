@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include <dirent.h>
 #include <errno.h>
 #include <memory>
 #include <set>
-
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#include "dali/operators/reader/loader/filesystem.h"
 
 namespace dali {
 

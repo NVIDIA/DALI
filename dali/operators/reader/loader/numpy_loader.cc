@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/numpy_loader.h"
 #include <dirent.h>
 #include <errno.h>
 #include <cstdlib>
 #include <memory>
-
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/numpy_loader.h"
-#include "dali/util/file.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
+#include "dali/util/file.h"
 
 namespace dali {
 namespace detail {

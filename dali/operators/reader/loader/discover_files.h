@@ -37,7 +37,7 @@ struct FileLabelEntry {
   std::optional<std::size_t> size = {};
 };
 
-struct TraverseDirectoriesOptions {
+struct FileDiscoveryOptions {
   bool label_from_subdir = true;  // if true, the directory is expected to contain a subdirectory
                                   // for each category. The traversal will assign ascending integers
                                   // as labels for each of those
@@ -50,20 +50,7 @@ struct TraverseDirectoriesOptions {
  * @brief Finds all (file, label, size) information, following the criteria given by opts.
  */
 DLL_PUBLIC vector<FileLabelEntry> discover_files(const std::string &file_root,
-                                                       const TraverseDirectoriesOptions &opts);
-
-/**
- * @brief Prepends dir to a relative path and keeps absolute path unchanged.
- */
-DLL_PUBLIC string join_path(const string &dir, const string &path);
-
-DLL_PUBLIC string dir_path(const string &path);
-
-#ifdef WINVER
-constexpr char dir_sep = '\\';
-#else
-constexpr char dir_sep = '/';
-#endif
+                                                       const FileDiscoveryOptions &opts);
 
 }  // namespace dali
 

@@ -141,7 +141,7 @@ void SaveToFile(const std::vector<std::vector<T> > &input, const std::string pat
 }
 
 template <>
-void SaveToFile(const std::vector<filesystem::FileLabelEntry> &entries, const std::string path) {
+void SaveToFile(const std::vector<FileLabelEntry> &entries, const std::string path) {
   if (entries.empty())
     return;
   std::ofstream file(path);
@@ -203,7 +203,7 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
 }
 
 template <>
-void LoadFromFile(std::vector<filesystem::FileLabelEntry> &entries, const std::string path) {
+void LoadFromFile(std::vector<FileLabelEntry> &entries, const std::string path) {
   std::ifstream file(path);
   entries.clear();
   if (!file.good())
@@ -418,7 +418,7 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
 }  // namespace detail
 
 void CocoLoader::SavePreprocessedAnnotations(
-  const std::string &path, const std::vector<filesystem::FileLabelEntry> &entries) {
+  const std::string &path, const std::vector<FileLabelEntry> &entries) {
   using detail::SaveToFile;
   SaveToFile(offsets_, path + "/offsets.dat");
   SaveToFile(boxes_, path + "/boxes.dat");

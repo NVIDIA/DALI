@@ -24,7 +24,7 @@
 
 namespace dali {
 
-class DLL_PUBLIC URI {
+class URI {
  private:
   std::string uri_;  // the original URI string
   std::ptrdiff_t scheme_start_ = 0, scheme_end_ = 0;
@@ -32,7 +32,7 @@ class DLL_PUBLIC URI {
   std::ptrdiff_t path_start_ = 0, path_end_ = 0;
   std::ptrdiff_t query_start_ = 0, query_end_ = 0;
   std::ptrdiff_t fragment_start_ = 0, fragment_end_ = 0;
-  bool valid_ = true;
+  bool valid_ = false;
   std::string err_msg_;
 
   void enforce_valid() const {
@@ -47,7 +47,7 @@ class DLL_PUBLIC URI {
   }
 
  public:
-  static URI Parse(std::string uri);
+  static DLL_PUBLIC URI Parse(std::string uri);
 
   bool valid() const {
     return valid_;

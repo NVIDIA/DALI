@@ -202,7 +202,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   void ParseJsonAnnotations();
 
   void SavePreprocessedAnnotations(
-    const std::string &path, const std::vector<filesystem::FileLabelEntry> &image_id_pairs);
+    const std::string &path, const std::vector<FileLabelEntry> &image_id_pairs);
 
  private:
   const OpSpec spec_;

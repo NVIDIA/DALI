@@ -37,6 +37,35 @@ inline bool allowed_char(char c) {
     || unreserved.find(c) != std::string::npos);
 }
 
+std::string display_char(char c) {
+  switch (c) {
+    case '\a':
+      return "\\a";
+    case '\b':
+      return "\\b";
+    case '\t':
+      return "\\t";
+    case '\n':
+      return "\\n";
+    case '\v':
+      return "\\v";
+    case '\f':
+      return "\\f";
+    case '\r':
+      return "\\r";
+    case '\"':
+      return "\\\"";
+    case '\'':
+      return "\\\'";
+    case '\?':
+      return "\\\?";
+    case '\\':
+      return "\\\\";
+    default:
+      return {c};
+  }
+}
+
 URI URI::Parse(std::string uri) {
   // See https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
   URI parsed;
@@ -52,13 +81,13 @@ URI URI::Parse(std::string uri) {
 
   if (!std::isalpha(*p)) {
     parsed.valid_ = false;
-    parsed.err_msg_ = "First character should be a an alpha character";
+    parsed.err_msg_ = "First character should be a letter";
     return parsed;
   }
   while (*p != '\0' && *p !=  ':') {
     if (!allowed_scheme_char(*p)) {
       parsed.valid_ = false;
-      parsed.err_msg_ = "Invalid character found (" + std::to_string(*p) + ") in scheme";
+      parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in scheme";
       return parsed;
     }
     p++;
@@ -84,7 +113,7 @@ URI URI::Parse(std::string uri) {
     while (*p != '\0' && *p !=  '/') {
       if (!allowed_char(*p)) {
         parsed.valid_ = false;
-        parsed.err_msg_ = "Invalid character found (" + std::to_string(*p) + ") in authority";
+        parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in authority";
         return parsed;
       }
       p++;
@@ -100,7 +129,7 @@ URI URI::Parse(std::string uri) {
   while (*p != '\0' && *p !=  '?') {
     if (!allowed_char(*p)) {
       parsed.valid_ = false;
-      parsed.err_msg_ = "Invalid character found (" + std::to_string(*p) + ") in path";
+      parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in path";
       return parsed;
     }
     p++;
@@ -115,7 +144,7 @@ URI URI::Parse(std::string uri) {
   while (*p != '\0' && *p !=  '#') {
     if (!allowed_char(*p)) {
       parsed.valid_ = false;
-      parsed.err_msg_ = "Invalid character found (" + std::to_string(*p) + ") in query";
+      parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in query";
       return parsed;
     }
     p++;
@@ -130,7 +159,7 @@ URI URI::Parse(std::string uri) {
   while (*p != '\0') {
     if (!allowed_char(*p)) {
       parsed.valid_ = false;
-      parsed.err_msg_ = "Invalid character found (" + std::to_string(*p) + ") in fragment";
+      parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in fragment";
       return parsed;
     }
     p++;

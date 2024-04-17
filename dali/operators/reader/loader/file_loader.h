@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "dali/core/common.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/discover_files.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -184,9 +185,9 @@ class FileLoader : public Loader<Backend, Target, true> {
   using Loader<Backend, Target, true>::IsCheckpointingEnabled;
 
   string file_list_, file_root_, file_filter_;
-  filesystem::TraverseDirectoriesOptions traverse_opts_;
-  vector<filesystem::FileLabelEntry> file_entries_;
-  vector<filesystem::FileLabelEntry> backup_file_entries_;
+  FileDiscoveryOptions traverse_opts_;
+  vector<FileLabelEntry> file_entries_;
+  vector<FileLabelEntry> backup_file_entries_;
 
   bool has_files_arg_ = false;
   bool has_file_list_arg_ = false;

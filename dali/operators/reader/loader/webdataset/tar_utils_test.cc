@@ -24,6 +24,7 @@
 #include <vector>
 #include "dali/core/util.h"
 #include "dali/operators/reader/loader/discover_files.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/file.h"
 

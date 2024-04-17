@@ -23,6 +23,7 @@
 
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/discover_files.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/test/dali_test_config.h"

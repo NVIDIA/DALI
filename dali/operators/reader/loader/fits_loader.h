@@ -19,13 +19,12 @@
 #include <errno.h>
 #include <fitsio.h>
 #include <sys/stat.h>
-
 #include <string>
 #include <utility>
 #include <vector>
-
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/util/file.h"
 #include "dali/util/fits.h"

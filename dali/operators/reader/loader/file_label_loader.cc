@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
-
-#include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
-#include "dali/util/file.h"
+#include <memory>
+#include "dali/core/common.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
+#include "dali/util/file.h"
 
 namespace dali {
 

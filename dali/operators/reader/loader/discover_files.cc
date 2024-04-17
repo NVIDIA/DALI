@@ -28,26 +28,10 @@
 #include <vector>
 #include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
-
-std::string join_path(const std::string &dir, const std::string &path) {
-  if (dir.empty())
-    return path;
-  if (path.empty())
-    return dir;
-  if (path[0] == dir_sep)  // absolute path
-    return path;
-#ifdef WINVER
-  if (path[1] == ':')
-    return path;
-#endif
-  if (dir[dir.length() - 1] == dir_sep)
-    return dir + path;
-  else
-    return dir + dir_sep + path;
-}
 
 std::vector<std::string> list_subdirectories(const std::string &parent_dir,
                                              const std::vector<std::string> dir_filters = {},
@@ -65,7 +49,7 @@ std::vector<std::string> list_subdirectories(const std::string &parent_dir,
   while ((entry = readdir(dir))) {
     struct stat s;
     std::string entry_name(entry->d_name);
-    std::string full_path = join_path(parent_dir, entry_name);
+    std::string full_path = filesystem::join_path(parent_dir, entry_name);
     int ret = stat(full_path.c_str(), &s);
     DALI_ENFORCE(ret == 0, "Could not access " + full_path + " during directory traversal.");
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -124,7 +108,7 @@ std::vector<std::string> list_files(const std::string &parent_dir,
 }
 
 vector<FileLabelEntry> discover_files(const std::string &file_root,
-                                            const TraverseDirectoriesOptions &opts) {
+                                            const FileDiscoveryOptions &opts) {
   bool is_s3 = starts_with(file_root, "s3://");
   if (is_s3) {
     DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
@@ -134,10 +118,10 @@ vector<FileLabelEntry> discover_files(const std::string &file_root,
   subdirs = list_subdirectories(file_root, opts.dir_filters, opts.case_sensitive_filter);
   std::vector<FileLabelEntry> entries;
   auto process_dir = [&](const std::string &rel_dirpath, std::optional<int> label = {}) {
-    auto full_dirpath = join_path(file_root, rel_dirpath);
+    auto full_dirpath = filesystem::join_path(file_root, rel_dirpath);
     auto tmp_files = list_files(full_dirpath, opts.file_filters, opts.case_sensitive_filter);
     for (const auto &f : tmp_files) {
-      entries.push_back({join_path(rel_dirpath, f), label});
+      entries.push_back({filesystem::join_path(rel_dirpath, f), label});
     }
   };
 
