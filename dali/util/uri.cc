@@ -53,14 +53,8 @@ std::string display_char(char c) {
       return "\\f";
     case '\r':
       return "\\r";
-    case '\"':
-      return "\\\"";
-    case '\'':
-      return "\\\'";
     case '\?':
       return "\\\?";
-    case '\\':
-      return "\\\\";
     default:
       return {c};
   }
