@@ -10,7 +10,8 @@ FROM ${FROM_IMAGE_NAME}
 # Install yum Dependencies
 RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip \
                    devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
-                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel
+                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel \
+                   perl perl-IPC-Cmd
 
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
