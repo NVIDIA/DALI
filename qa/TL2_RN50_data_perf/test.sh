@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='opencv-python'
+pip_packages='opencv-python nose'
 target_dir=./dali/test/python
 
 do_once() {
