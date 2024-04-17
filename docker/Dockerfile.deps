@@ -17,7 +17,7 @@ ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
 
-RUN CMAKE_VERSION=3.18.6 && CMAKE_ARCH=$(uname -m) && \
+RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
     wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
     test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
     chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
