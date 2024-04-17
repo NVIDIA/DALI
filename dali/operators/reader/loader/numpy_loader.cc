@@ -49,7 +49,8 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::HeaderD
 }  // namespace detail
 
 void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
-  auto filename = files_[current_index_++];
+  auto &entry = file_entries_[current_index_++];
+  const auto &filename = entry.filename;
 
   // handle wrap-around
   MoveToNextShard(current_index_);
@@ -69,15 +70,18 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     return;
   }
 
-  auto path = filesystem::join_path(file_root_, filename);
-  auto current_file = FileStream::Open(path, read_ahead_, !copy_read_data_, use_o_direct_);
+  auto uri = filesystem::join_path(file_root_, filename);
+  bool is_s3 = uri.rfind("s3://", 0) == 0;
+  bool use_mmap = !is_s3 && !copy_read_data_;
+  bool use_o_direct = !is_s3 && use_o_direct_;
+  auto current_file = FileStream::Open(uri, {read_ahead_, use_mmap, use_o_direct}, entry.size);
 
   // read the header
   numpy::HeaderData header;
   auto ret = header_cache_.GetFromCache(filename, header);
   try {
     if (!ret) {
-      if (use_o_direct_) {
+      if (use_o_direct) {
         numpy::ParseODirectHeader(header, current_file.get(), o_direct_alignm_,
                                   o_direct_read_len_alignm_);
       } else {
@@ -96,9 +100,9 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   target.meta = meta;
   target.data_offset = header.data_offset;
   target.nbytes = nbytes;
-  target.filename = std::move(path);
+  target.filename = std::move(uri);
 
-  if (copy_read_data_) {
+  if (!use_mmap || !current_file->CanMemoryMap()) {
     target.current_file = std::move(current_file);
   } else {
     auto p = current_file->Get(nbytes);

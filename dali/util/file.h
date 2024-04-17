@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@
 #include <cstdio>
 #include <memory>
 #include <string>
-
+#include <optional>
 #include "dali/core/api_helper.h"
 #include "dali/core/common.h"
 #include "dali/core/stream.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -69,11 +70,30 @@ class DLL_PUBLIC FileStream : public InputStream {
    private:
     unsigned int reserved;
   };
-  static std::unique_ptr<FileStream> Open(const std::string &uri, bool read_ahead, bool use_mmap,
-                                          bool use_odirect = false);
+
+  /**
+   * @brief Opens file stream
+   *
+   * @param uri URI to open
+   * @param opts options
+   * @param size If provided, we can defer the actual reading of the stream until it needs to be
+   * read (e.g. especially useful for remote storage)
+   * @return std::unique_ptr<FileStream>
+   */
+  struct Options {
+    bool read_ahead;
+    bool use_mmap;
+    bool use_odirect;
+  };
+  static std::unique_ptr<FileStream> Open(const std::string &uri, Options opts = {},
+                                          std::optional<size_t> size = std::nullopt);
 
   virtual void Close() = 0;
-  virtual shared_ptr<void> Get(size_t n_bytes) = 0;
+  virtual bool CanMemoryMap() { return false; }
+  virtual shared_ptr<void> Get(size_t n_bytes) {
+    throw std::logic_error(
+        make_string("memory mapping is not supported for this stream type. uri=", path_));
+  }
   virtual ~FileStream() {}
 
  protected:

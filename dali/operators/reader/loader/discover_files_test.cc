@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "dali/core/error_handling.h"
-#include "dali/operators/reader/loader/filesystem.h"
+#include "dali/operators/reader/loader/discover_files.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/test/dali_test_config.h"
 
@@ -96,42 +96,44 @@ class FilesystemTest : public ::testing::Test {
 
 TEST_F(FilesystemTest, MatchAllFilter) {
   auto file_label_pairs_filtered =
-      filesystem::traverse_directories(file_root, kKnownExtensionsGlob);
+      discover_files(file_root, {true, false, kKnownExtensionsGlob, {}});
   ASSERT_EQ(this->file_label_pairs.size(), file_label_pairs_filtered.size());
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
-    ASSERT_EQ(this->file_label_pairs[i].first, file_label_pairs_filtered[i].first);
+    ASSERT_EQ(this->file_label_pairs[i].first, file_label_pairs_filtered[i].filename);
   }
 }
 
 TEST_F(FilesystemTest, SingleFilter) {
   std::vector<std::string> filters{"dog*.jpg"};
-  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
+  auto file_label_pairs_filtered =
+      discover_files(file_root, {true, false, filters});
   std::vector<std::string> correct_match = globMatch(filters, file_root);
 
 
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
-    ASSERT_EQ(correct_match[i], file_label_pairs_filtered[i].first);
+    ASSERT_EQ(correct_match[i], file_label_pairs_filtered[i].filename);
   }
 }
 
 TEST_F(FilesystemTest, MultipleOverlappingFilters) {
   std::vector<std::string> filters{"dog*.jpg", "snail*.jpg", "*_1280.jpg"};
-  auto file_label_pairs_filtered = filesystem::traverse_directories(file_root, filters);
+  auto file_label_pairs_filtered =
+      discover_files(file_root, {true, false, filters});
   std::vector<std::string> correct_match = globMatch(filters, file_root);
 
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
-    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].first);
+    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].filename);
   }
 }
 
 TEST_F(FilesystemTest, CaseSensitiveFilters) {
   std::vector<std::string> filters{"*.jPg"};
   std::string root = (testing::dali_extra_path() + "/db/single/case_sensitive");
-  auto file_label_pairs_filtered = filesystem::traverse_directories(root, filters, true);
+  auto file_label_pairs_filtered = discover_files(root, {true, true, filters});
   std::vector<std::string> correct_match = globMatch(filters, root);
 
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
-    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].first);
+    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].filename);
   }
 }
 
@@ -140,11 +142,12 @@ TEST_F(FilesystemTest, CaseInsensitiveFilters) {
   std::vector<std::string> glob_filters{"*.jpg", "*.jpG", "*.jPg", "*.jPG",
                                         "*.Jpg", "*.JpG", "*.JPg", "*.JPG"};
   std::string root = (testing::dali_extra_path() + "/db/single/case_sensitive");
-  auto file_label_pairs_filtered = filesystem::traverse_directories(root, filters);
+  auto file_label_pairs_filtered = discover_files(root, {true, false, filters});
   std::vector<std::string> correct_match = globMatch(glob_filters, root);
 
   for (size_t i = 0; i < file_label_pairs_filtered.size(); ++i) {
-    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].first);
+    EXPECT_EQ(correct_match[i], file_label_pairs_filtered[i].filename);
   }
 }
+
 }  // namespace dali

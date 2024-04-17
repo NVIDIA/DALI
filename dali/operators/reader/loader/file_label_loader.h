@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/filesystem.h"
+#include "dali/operators/reader/loader/discover_files.h"
 #include "dali/util/file.h"
 
 namespace dali {
@@ -58,11 +58,14 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
     has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
     has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
-    bool has_file_filters_arg = spec.TryGetRepeatedArgument(filters_, "file_filters");
+    bool has_file_filters_arg =
+      spec.TryGetRepeatedArgument(traverse_opts_.file_filters, "file_filters");
+    bool has_dir_filters_arg =
+      spec.TryGetRepeatedArgument(traverse_opts_.dir_filters, "dir_filters");
 
     // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
     // GetArgument.
-    spec.TryGetArgument(case_sensitive_filter_, "case_sensitive_filter");
+    spec.TryGetArgument(traverse_opts_.case_sensitive_filter, "case_sensitive_filter");
 
     DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
       "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -74,8 +77,10 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       "The argument ``labels`` is valid only when file paths "
       "are provided as ``files`` argument.");
 
-    DALI_ENFORCE(!has_file_filters_arg || filters_.size() > 0,
-                  "``file_filters`` list cannot be empty.");
+    DALI_ENFORCE(!has_file_filters_arg || traverse_opts_.file_filters.size() > 0,
+                 "``file_filters`` list cannot be empty.");
+    DALI_ENFORCE(!has_dir_filters_arg || traverse_opts_.dir_filters.size() > 0,
+                 "``dir_filters`` list cannot be empty.");
 
     if (has_file_list_arg_) {
       DALI_ENFORCE(!file_list_.empty(), "``file_list`` argument cannot be empty");
@@ -94,10 +99,10 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
           " labels for ", files.size(), " files."));
 
         for (int i = 0, n = files.size(); i < n; i++)
-          image_label_pairs_.emplace_back(std::move(files[i]), labels[i]);
+          file_label_entries_.push_back({std::move(files[i]), labels[i]});
       } else {
           for (int i = 0, n = files.size(); i < n; i++)
-            image_label_pairs_.emplace_back(std::move(files[i]), i);
+            file_label_entries_.push_back({std::move(files[i]), i});
       }
     }
 
@@ -131,10 +136,9 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   Index SizeImpl() override;
 
   void PrepareMetadataImpl() override {
-    if (image_label_pairs_.empty()) {
+    if (file_label_entries_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
-        image_label_pairs_ =
-            filesystem::traverse_directories(file_root_, filters_, case_sensitive_filter_);
+        file_label_entries_ = discover_files(file_root_, traverse_opts_);
       } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
@@ -171,7 +175,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
           line[label_end] = 0;
           line[name_end] = 0;
 
-          image_label_pairs_.emplace_back(line, std::atoi(line + label_start));
+          file_label_entries_.push_back({std::string(line), std::atoi(line + label_start)});
         }
 
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
@@ -183,14 +187,14 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+      std::shuffle(file_label_entries_.begin(), file_label_entries_.end(), g);
     }
 
     if (IsCheckpointingEnabled() && shuffle_after_epoch_) {
       // save initial order
-      // DO not call std::move on image_label_pairs_, even though it is restored in Reset
+      // DO not call std::move on file_label_entries_, even though it is restored in Reset
       // it may be needed if SizeImpl is called!
-      backup_image_label_pairs_ = image_label_pairs_;
+      backup_file_label_entries_ = file_label_entries_;
     }
 
     Reset(true);
@@ -213,10 +217,10 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
         // With checkpointing enabled, dataset order must be easy to restore.
         // The shuffling is run with different seed every epoch, so this doesn't impact
         // the random distribution.
-        image_label_pairs_ = backup_image_label_pairs_;
+        file_label_entries_ = backup_file_label_entries_;
       }
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
-      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+      std::shuffle(file_label_entries_.begin(), file_label_entries_.end(), g);
     }
   }
 
@@ -239,15 +243,14 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   using Base::ShouldSkipImage;
 
   string file_root_, file_list_;
-  vector<std::pair<string, int>> image_label_pairs_;
-  vector<std::pair<string, int>> backup_image_label_pairs_;
-  vector<string> filters_;
+  vector<filesystem::FileLabelEntry> file_label_entries_;
+  vector<filesystem::FileLabelEntry> backup_file_label_entries_;
+  filesystem::TraverseDirectoriesOptions traverse_opts_;
 
   bool has_files_arg_ = false;
   bool has_labels_arg_ = false;
   bool has_file_list_arg_ = false;
   bool has_file_root_arg_ = false;
-  bool case_sensitive_filter_ = false;
 
   bool shuffle_after_epoch_;
   Index current_index_;

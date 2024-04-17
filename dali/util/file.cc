@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,24 +16,29 @@
 
 #include "dali/util/file.h"
 #include "dali/util/mmaped_file.h"
-#include "dali/util/std_file.h"
 #include "dali/util/odirect_file.h"
+#include "dali/util/std_file.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
-std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, bool read_ahead,
-                                             bool use_mmap, bool use_odirect) {
-  std::string processed_uri;
+std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, FileStream::Options opts,
+                                             std::optional<size_t> size) {
+  bool is_s3 = uri.rfind("s3://", 0) == 0;
+  if (is_s3) {
+    throw std::runtime_error("This version of DALI was not built with AWS S3 storage support.");
+  }
 
+  std::string processed_uri;
   if (uri.find("file://") == 0) {
     processed_uri = uri.substr(std::string("file://").size());
   } else {
     processed_uri = uri;
   }
 
-  if (use_mmap) {
-    return std::unique_ptr<FileStream>(new MmapedFileStream(processed_uri, read_ahead));
-  } else if (use_odirect) {
+  if (opts.use_mmap) {
+    return std::unique_ptr<FileStream>(new MmapedFileStream(processed_uri, opts.read_ahead));
+  } else if (opts.use_odirect) {
     return std::unique_ptr<FileStream>(new ODirectFileStream(processed_uri));
   } else {
     return std::unique_ptr<FileStream>(new StdFileStream(processed_uri));

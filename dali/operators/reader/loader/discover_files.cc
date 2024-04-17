@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/filesystem.h"
+#include "dali/operators/reader/loader/discover_files.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fnmatch.h>
@@ -20,7 +20,10 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "dali/core/call_at_exit.h"
@@ -28,13 +31,6 @@
 #include "dali/operators/reader/loader/utils.h"
 
 namespace dali {
-namespace filesystem {
-
-inline bool starts_with(const std::string &str, const char *prefix) {
-  // TODO(janton): this is a substitute for C++20's string::starts_with
-  // trick: this only matches if the prefix is found at the beginning of the string
-  return str.rfind(prefix, 0) == 0;
-}
 
 std::string join_path(const std::string &dir, const std::string &path) {
   if (dir.empty())
@@ -127,55 +123,34 @@ std::vector<std::string> list_files(const std::string &parent_dir,
   return files;
 }
 
-vector<std::pair<string, int>> traverse_directories(const std::string &file_root,
-                                                    const std::vector<std::string> &filters,
-                                                    bool case_sensitive_filter,
-                                                    const std::vector<std::string> &dir_filters) {
-  std::vector<std::string> subdirs;
+vector<FileLabelEntry> discover_files(const std::string &file_root,
+                                            const TraverseDirectoriesOptions &opts) {
   bool is_s3 = starts_with(file_root, "s3://");
-  if (is_s3)
-    DALI_FAIL("This version of DALI was not built with AWS S3 storage support.")
-  subdirs = list_subdirectories(file_root, dir_filters, case_sensitive_filter);
-
-  std::vector<std::pair<std::string, int>> file_label_pairs;
-  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
-    std::vector<std::string> tmp_files;
-    const auto &rel_dirpath = subdirs[dir_count];
-    auto full_dirpath = join_path(file_root, rel_dirpath);
-    tmp_files = list_files(full_dirpath, filters, case_sensitive_filter);
-    for (const auto &f : tmp_files) {
-      file_label_pairs.push_back({join_path(rel_dirpath, f), dir_count});
-    }
-  }
-  LOG_LINE << "read " << file_label_pairs.size() << " files from " << subdirs.size()
-           << "directories\n";
-  return file_label_pairs;
-}
-
-
-vector<std::string> traverse_directories(const std::string &file_root, const std::string &filter) {
-  std::vector<std::string> subdirs;
-  bool is_s3 = starts_with(file_root, "s3://");
-  if (is_s3)
+  if (is_s3) {
     DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
-  subdirs = list_subdirectories(file_root);
+  }
 
-  std::vector<std::string> files;
-  auto process_dir = [&](const std::string &rel_dirpath) {
+  std::vector<std::string> subdirs;
+  subdirs = list_subdirectories(file_root, opts.dir_filters, opts.case_sensitive_filter);
+  std::vector<FileLabelEntry> entries;
+  auto process_dir = [&](const std::string &rel_dirpath, std::optional<int> label = {}) {
     auto full_dirpath = join_path(file_root, rel_dirpath);
-    auto tmp_files = list_files(full_dirpath, {filter}, true);
+    auto tmp_files = list_files(full_dirpath, opts.file_filters, opts.case_sensitive_filter);
     for (const auto &f : tmp_files) {
-      files.push_back(join_path(rel_dirpath, f));
+      entries.push_back({join_path(rel_dirpath, f), label});
     }
   };
 
-  process_dir(".");  // process current dir as well
-  for (const auto &subdir : subdirs)
-    process_dir(subdir);
-
-  LOG_LINE << "read " << files.size() << " files from " << subdirs.size() << "directories\n";
-  return files;
+  if (!opts.label_from_subdir) {
+    process_dir(".");
+  }
+  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
+    process_dir(subdirs[dir_count],
+                opts.label_from_subdir ? std::optional<int>{dir_count} : std::nullopt);
+  }
+  size_t total_dir_count = opts.label_from_subdir ? subdirs.size() : subdirs.size() + 1;
+  LOG_LINE << "read " << entries.size() << " files from " << total_dir_count << "directories\n";
+  return entries;
 }
 
-}  // namespace filesystem
 }  // namespace dali

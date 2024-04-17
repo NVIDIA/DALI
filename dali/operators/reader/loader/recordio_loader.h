@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ class RecordIOLoader : public IndexedFileLoader {
     std::vector<size_t> file_offsets;
     file_offsets.push_back(0);
     for (std::string& path : uris_) {
-      auto tmp = FileStream::Open(path, read_ahead_, !copy_read_data_);
+      auto tmp = FileStream::Open(path, {read_ahead_, !copy_read_data_, false});
       file_offsets.push_back(tmp->Size() + file_offsets.back());
       tmp->Close();
     }
@@ -110,7 +110,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
     shared_ptr<void> p = nullptr;
     int64 n_read = 0;
-    bool use_read = copy_read_data_;
+    bool use_read = copy_read_data_ || !current_file_->CanMemoryMap();
     if (use_read) {
       tensor.Resize({size});
     }
@@ -140,8 +140,8 @@ class RecordIOLoader : public IndexedFileLoader {
         DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
           "Incomplete or corrupted record files");
         // Release previously opened file
-        current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_,
-                                         !copy_read_data_);
+        current_file_ =
+            FileStream::Open(uris_[++current_file_index_], {read_ahead_, !copy_read_data_, false});
         next_seek_pos_ = 0;
         continue;
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,11 +39,11 @@ struct test_sample {
               std::string ref_tile_sizes_path)
       : path(img_path),
         ref_undecoded_data(
-            ReadVector<uint8_t>(FileStream::Open(ref_data_path, false, false).get())),
+            ReadVector<uint8_t>(FileStream::Open(ref_data_path).get())),
         ref_offset_sizes(
-            ReadVector<int64_t>(FileStream::Open(ref_offset_sizes_path, false, false).get())),
+            ReadVector<int64_t>(FileStream::Open(ref_offset_sizes_path).get())),
         ref_tile_sizes(
-            ReadVector<int64_t>(FileStream::Open(ref_tile_sizes_path, false, false).get())) {}
+            ReadVector<int64_t>(FileStream::Open(ref_tile_sizes_path).get())) {}
 
   std::string path;
   vector<uint8_t> ref_undecoded_data;

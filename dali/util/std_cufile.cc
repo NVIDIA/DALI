@@ -182,13 +182,6 @@ size_t StdCUFileStream::Read(void *cpu_buffer, size_t n_bytes) {
   return n_bytes;
 }
 
-// disable this function
-shared_ptr<void> StdCUFileStream::Get(size_t n_bytes) {
-  // this function should return a pointer inside mmaped file
-  // it doesn't make sense in case of StdCUFileStream
-  return {};
-}
-
 size_t StdCUFileStream::Size() const {
   return length_;
 }

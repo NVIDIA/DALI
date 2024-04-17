@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,12 +108,6 @@ size_t ODirectFileStream::ReadAt(void * buffer, size_t n_bytes, off_t offset) {
 size_t ODirectFileStream::Read(void *buffer, size_t n_bytes) {
   size_t n_read = read(fd_, buffer, n_bytes);
   return n_read;
-}
-
-shared_ptr<void> ODirectFileStream::Get(size_t /*n_bytes*/) {
-  // this unction should return a pointer inside mmaped file
-  // it doesn't make sense in case of StdFileStream
-  return {};
 }
 
 size_t ODirectFileStream::Size() const {
