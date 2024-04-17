@@ -26,7 +26,7 @@
 
 namespace dali {
 
-class FilesystemTest : public ::testing::Test {
+class DiscoverFilesTest : public ::testing::Test {
   std::vector<std::pair<std::string, int>> readFileLabelFile() {
     std::vector<std::pair<std::string, int>> image_label_pairs;
     std::string file_list = file_root + "/image_list.txt";
@@ -69,7 +69,7 @@ class FilesystemTest : public ::testing::Test {
   }
 
  protected:
-  FilesystemTest()
+  DiscoverFilesTest()
       : file_root(testing::dali_extra_path() + "/db/single/jpeg"),
         file_label_pairs(readFileLabelFile()) {}
 
@@ -95,7 +95,7 @@ class FilesystemTest : public ::testing::Test {
   std::vector<std::pair<std::string, int>> file_label_pairs;
 };
 
-TEST_F(FilesystemTest, MatchAllFilter) {
+TEST_F(DiscoverFilesTest, MatchAllFilter) {
   auto file_label_pairs_filtered =
       discover_files(file_root, {true, false, kKnownExtensionsGlob, {}});
   ASSERT_EQ(this->file_label_pairs.size(), file_label_pairs_filtered.size());
@@ -104,7 +104,7 @@ TEST_F(FilesystemTest, MatchAllFilter) {
   }
 }
 
-TEST_F(FilesystemTest, SingleFilter) {
+TEST_F(DiscoverFilesTest, SingleFilter) {
   std::vector<std::string> filters{"dog*.jpg"};
   auto file_label_pairs_filtered =
       discover_files(file_root, {true, false, filters});
@@ -116,7 +116,7 @@ TEST_F(FilesystemTest, SingleFilter) {
   }
 }
 
-TEST_F(FilesystemTest, MultipleOverlappingFilters) {
+TEST_F(DiscoverFilesTest, MultipleOverlappingFilters) {
   std::vector<std::string> filters{"dog*.jpg", "snail*.jpg", "*_1280.jpg"};
   auto file_label_pairs_filtered =
       discover_files(file_root, {true, false, filters});
@@ -127,7 +127,7 @@ TEST_F(FilesystemTest, MultipleOverlappingFilters) {
   }
 }
 
-TEST_F(FilesystemTest, CaseSensitiveFilters) {
+TEST_F(DiscoverFilesTest, CaseSensitiveFilters) {
   std::vector<std::string> filters{"*.jPg"};
   std::string root = (testing::dali_extra_path() + "/db/single/case_sensitive");
   auto file_label_pairs_filtered = discover_files(root, {true, true, filters});
@@ -138,7 +138,7 @@ TEST_F(FilesystemTest, CaseSensitiveFilters) {
   }
 }
 
-TEST_F(FilesystemTest, CaseInsensitiveFilters) {
+TEST_F(DiscoverFilesTest, CaseInsensitiveFilters) {
   std::vector<std::string> filters{"*.jPg"};
   std::vector<std::string> glob_filters{"*.jpg", "*.jpG", "*.jPg", "*.jPG",
                                         "*.Jpg", "*.JpG", "*.JPg", "*.JPG"};

@@ -58,6 +58,7 @@ endif()
 set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/filesystem_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/discover_files_test.cc")
 
 if (BUILD_LIBSND)

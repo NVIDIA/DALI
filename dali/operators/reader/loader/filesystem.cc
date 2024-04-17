@@ -13,6 +13,10 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/filesystem.h"
+#include <cstring>
+#include <string>
+#include <filesystem>
+#include "dali/util/uri.h"
 
 namespace dali {
 namespace filesystem {
@@ -23,23 +27,22 @@ std::string join_path(const std::string &dir, const std::string &path) {
   if (path.empty())
     return dir;
 
-  char separator = dir_sep;
-#ifdef WINVER
-  // If an URI, use slash as a separator
-  if (URI::Parse(dir).valid)
-    separator = '/';
+  auto uri = URI::Parse(dir);
+  if (uri.valid()) {
+    const char *separators = "/";
+#ifdef _WINVER
+    if (uri.scheme == "file:")
+      separators = "/\\";
 #endif
 
-  if (path[0] == separator)  // absolute path
-    return path;
-#ifdef WINVER
-  if (path[1] == ':')
-    return path;
-#endif
-  if (dir[dir.length() - 1] == separator)
-    return dir + path;
-  else
-    return dir + separator + path;
+    if (strchr(separators, path[0]))  // absolute path
+      return std::string(uri.scheme_authority()) + path;
+    else if (strchr(separators, dir[dir.length() - 1]))  // dir ends with a separator
+      return dir + path;
+    else  // basic case
+      return dir + '/' + path;
+  }
+  return std::filesystem::path(dir) / std::filesystem::path(path);
 }
 
 }  // namespace filesystem

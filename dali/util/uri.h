@@ -61,8 +61,16 @@ class URI {
     return uri_part(authority_start_, authority_end_);
   }
 
+  std::string_view scheme_authority() const {
+    return uri_part(scheme_start_, authority_end_);
+  }
+
   std::string_view path() const {
     return uri_part(path_start_, path_end_);
+  }
+
+  std::string_view scheme_authority_path() const {
+    return uri_part(scheme_start_, path_end_);
   }
 
   std::string_view query() const {
