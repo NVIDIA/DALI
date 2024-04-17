@@ -71,6 +71,12 @@ class DLL_PUBLIC FileStream : public InputStream {
     unsigned int reserved;
   };
 
+  struct Options {
+    bool read_ahead;
+    bool use_mmap;
+    bool use_odirect;
+  };
+
   /**
    * @brief Opens file stream
    *
@@ -80,11 +86,6 @@ class DLL_PUBLIC FileStream : public InputStream {
    * read (e.g. especially useful for remote storage)
    * @return std::unique_ptr<FileStream>
    */
-  struct Options {
-    bool read_ahead;
-    bool use_mmap;
-    bool use_odirect;
-  };
   static std::unique_ptr<FileStream> Open(const std::string &uri, Options opts = {},
                                           std::optional<size_t> size = std::nullopt);
 

@@ -107,8 +107,8 @@ std::vector<std::string> list_files(const std::string &parent_dir,
   return files;
 }
 
-vector<FileLabelEntry> discover_files(const std::string &file_root,
-                                            const FileDiscoveryOptions &opts) {
+std::vector<FileLabelEntry> discover_files(const std::string &file_root,
+                                           const FileDiscoveryOptions &opts) {
   bool is_s3 = starts_with(file_root, "s3://");
   if (is_s3) {
     DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
@@ -125,12 +125,14 @@ vector<FileLabelEntry> discover_files(const std::string &file_root,
     }
   };
 
+  // if we are in "label_from_subdir" mode, we need a subdir to infer the label, therefore we don't
+  // visit the current directory
   if (!opts.label_from_subdir) {
     process_dir(".");
   }
-  for (unsigned dir_count = 0; dir_count < subdirs.size(); ++dir_count) {
-    process_dir(subdirs[dir_count],
-                opts.label_from_subdir ? std::optional<int>{dir_count} : std::nullopt);
+  for (unsigned dir_idx = 0; dir_idx < subdirs.size(); ++dir_idx) {
+    process_dir(subdirs[dir_idx],
+                opts.label_from_subdir ? std::optional<int>{dir_idx} : std::nullopt);
   }
   size_t total_dir_count = opts.label_from_subdir ? subdirs.size() : subdirs.size() + 1;
   LOG_LINE << "read " << entries.size() << " files from " << total_dir_count << "directories\n";

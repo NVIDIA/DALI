@@ -79,9 +79,10 @@ class FileLoader : public Loader<Backend, Target, true> {
     if (has_files_arg_) {
       DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
       for (auto& f : files) {
-        file_entries_.push_back({f});
+        file_entries_.push_back({std::move(f)});
       }
     }
+    files.clear();  // we moved the elements
 
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks

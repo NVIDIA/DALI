@@ -27,7 +27,7 @@ void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
 }
 
 void NumpyFileWrapperGPU::Reopen() {
-  file_stream_ = CUFileStream::Open(filename, read_ahead, false);
+  file_stream_ = CUFileStream::Open(filename, {read_ahead, false});
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
@@ -61,7 +61,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   DeviceGuard g(device_id_);
 
   // extract image file
-  auto filename = files_[current_index_++];
+  auto filename = file_entries_[current_index_++].filename;
 
   // handle wrap-around
   MoveToNextShard(current_index_);
