@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <random>
+#include <vector>
 #include "dali/core/exec/tasking.h"
 
 namespace dali::tasking::test {
@@ -273,5 +275,93 @@ TEST(TaskingTest, MultiOutputLifespan) {
   // Both consumers are gone - the 2nd output should be gone now.
   EXPECT_EQ(InstanceCounter<int>::num_instances, 0);
 }
+
+namespace {
+
+template <typename RNG>
+std::vector<int> subset(int n, int m, RNG &rng) {
+  std::vector<int> selected;
+  for (int i = 0; i < m; i++) {
+    std::uniform_int_distribution<> dist(0, n - i - 1);
+    int k = dist(rng);
+    int j = 0;
+    for (; j < static_cast<int>(selected.size()); j++) {
+      if (selected[j] <= k)
+        k++;
+      else
+        break;
+    }
+    selected.insert(selected.begin() + j, k);
+  }
+  return selected;
+}
+
+double slowfunc(double x) {
+  return std::sqrt(x + std::sqrt(x) + std::sqrt(x + std::sqrt(x)));
+}
+
+void GraphConsumeTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn) {
+  std::vector<SharedTask> tasks;
+  std::set<Task *> has_successor;
+  std::mt19937_64 rng;
+  tasks.reserve(num_layers * layer_size);
+  std::vector<int> values(num_layers * layer_size);
+  std::uniform_int_distribution<> vdist(0, 10000);
+  for (auto &v : values)
+    v = vdist(rng);
+  for (int l = 0; l < num_layers; l++) {
+    int prev_layer_start = l ? tasks.size() - layer_size : 0;
+    int layer_start = tasks.size();
+    int prev_layer_size = layer_start - prev_layer_start;
+    for (int i = 0; i < layer_size; i++) {
+      int conn = std::min<int>(prev_layer_size, prev_layer_conn);
+      auto deps = subset(prev_layer_size, conn, rng);
+      for (auto &dep : deps)
+        dep += prev_layer_start;
+      int initial = values[tasks.size()];
+      double ref = initial;
+      for (auto &dep : deps)
+        ref += slowfunc(values[dep]);
+      values[tasks.size()] = ref;
+      auto task = Task::Create([initial, conn, ref](Task *t) {
+        double sum = initial;
+        for (int i = 0; i < conn; i++) {
+          int inp = t->GetInputValue<int>(i);
+          sum += slowfunc(inp);
+        }
+        if (sum != ref)
+          throw std::runtime_error("Unexpected result.");
+        return static_cast<int>(sum);
+      });
+      for (auto &dep : deps) {
+        task->Consume(tasks[dep]);
+        has_successor.insert(tasks[dep].get());
+      }
+      tasks.push_back(std::move(task));
+    }
+  }
+
+  std::vector<TaskFuture> futures;
+  futures.reserve(tasks.size() - has_successor.size());
+  for (auto &t : tasks) {
+    if (!has_successor.count(t.get()))
+      futures.push_back(ex.AddTask(t));
+    else
+      ex.AddSilentTask(t);
+  }
+
+  for (auto &f : futures)
+    (void)f.Value(ex);
+}
+
+}  // namespace
+
+TEST(TaskingTest, HighLoad) {
+  Executor ex(4);
+  ex.Start();
+  for (int i = 0; i < 10; i++)
+    GraphConsumeTest(ex, 3, 1500, 50);
+}
+
 
 }  // namespace dali::tasking::test
