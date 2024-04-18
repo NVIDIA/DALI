@@ -50,8 +50,9 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::HeaderD
 }  // namespace detail
 
 void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
-  auto &entry = file_entries_[current_index_++];
-  const auto &filename = entry.filename;
+  const auto& entry = file_entries_[current_index_++];
+  auto filename = entry.filename;
+  auto size = entry.size;
 
   // handle wrap-around
   MoveToNextShard(current_index_);
@@ -81,7 +82,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     opts.use_mmap = false;
     opts.use_odirect = false;
   }
-  auto current_file = FileStream::Open(path, opts, entry.size);
+  auto current_file = FileStream::Open(path, opts, size);
 
   // read the header
   numpy::HeaderData header;

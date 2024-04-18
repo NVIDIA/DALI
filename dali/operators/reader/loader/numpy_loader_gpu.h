@@ -77,10 +77,6 @@ struct NumpyFileWrapperGPU {
 class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
  public:
   using CUFileLoader<NumpyFileWrapperGPU>::CUFileLoader;
-
-  NumpyLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch)
-      : CUFileLoader<NumpyFileWrapperGPU>(spec, shuffle_after_epoch) {
-  }
   void PrepareEmpty(NumpyFileWrapperGPU& tensor) override;
   void ReadSample(NumpyFileWrapperGPU& tensor) override;
 };
