@@ -22,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #include "dali/core/exec/tasking/sync.h"
@@ -43,6 +44,15 @@ struct is_iterable<T, std::void_t<
 
 template <typename T>
 constexpr bool is_iterable_v = is_iterable<T>::value;
+
+template <typename T>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_tuple_v = is_tuple<T>::value;
 
 }  // namespace detail
 
@@ -164,6 +174,40 @@ enum class TaskState {
   Destroyed
 };
 
+/** Describes a single task, considered as a unit by the Scheduler
+ *
+ * A Task is a function-like object that can carry some dependencies and preconditions
+ * (via Succeed) and subscribe for results of other tasks (via Consume).
+ *
+ * A task function can produce no result (void), a scalar result (any type) or multiple results
+ * (iterable object or a tuple).
+ *
+ * Task lifecycle:
+ * 1. New
+ *    - the task is created
+ *    - the data dependencies are added
+ * 2. Pending
+ *    - the task has been submitted to a Scheduler via AddTask or AddSilentTask
+ * 3. Ready
+ *    - the task has been submitted and all its preconditions are met
+ * 4. Running
+ *    - the task has been Popped from the scheduler and is being run
+ * 5. Complete
+ *    - the task's payload has finished running
+ *
+ * A Task also manages its output values. The output values are managed via shared pointers.
+ * When a task subscribes to another task's results, it gets a copy of the shared pointer to the
+ * respective result. The producer task uses the shared pointer to populate the values and
+ * clears the outputs and inputs once done. This guarantees that the outputs don't live longer
+ * than necessary.
+ *
+ *
+ * Succeed vs Consume
+ * Succeed simply sets a dependency. It can take any Waitable (not just Task) and, importantly,
+ * it can take tasks that have been already submitted or even completed.
+ * Consume, by contrast, requires that the producer task is not yet submitted for execution. This
+ * limitation is necessary because of the output lifecycle.
+ */
 class Task : public CompletionEvent {
   template <typename F, typename... Args>
   void SetResult(F &&f, Args &&...args) {
@@ -172,11 +216,20 @@ class Task : public CompletionEvent {
     results_[0]->SetResultOf([&]() { return f(std::forward<Args>(args)...); });
   }
 
+  template <int i, typename... T>
+  static void UnpackResults(TaskResults &r, std::tuple<T...> &&t) {
+    if constexpr (i < sizeof...(T)) {
+      r[i]->Set(std::move(std::get<i>(t)));
+      UnpackResults<i + 1>(r, std::move(t));
+    }
+  }
+
   template <typename F, typename... Args>
   auto SetResults(F &&f, Args &&...args) {
     assert(state == TaskState::Running);
     try {
-      if constexpr (detail::is_iterable_v<decltype(f(std::forward<Args>(args)...))>) {
+      using result_t = std::remove_reference_t<decltype(f(std::forward<Args>(args)...))>;
+      if constexpr (detail::is_iterable_v<result_t>) {
         auto &&results = f(std::forward<Args>(args)...);
         size_t n = 0;
         for (auto &&r : results) {
@@ -191,9 +244,13 @@ class Task : public CompletionEvent {
         if (n < results_.size())
           throw std::logic_error("The function provided fewer results than "
                                   "the task was declared to have.");
+      } else if constexpr (detail::is_tuple_v<result_t>) {  // NOLINT
+        assert(std::tuple_size_v<result_t> == results_.size() &&
+               "Internal error - incorrect tuple size should have been detected earlier.");
+        auto &&results = f(std::forward<Args>(args)...);
+        UnpackResults<0>(results_, std::move(results));
       } else {
-        throw std::invalid_argument("The result of the function is not iterable and cannot be "
-                                    "used to obtain multiple output values.");
+        assert(!"Internal error - the output type should have been rejected earlier.");
       }
     } catch (...) {
       auto ex = std::current_exception();
@@ -209,23 +266,35 @@ class Task : public CompletionEvent {
       r = std::make_shared<TaskResult>();
   }
 
- public:
-  /*template <typename F>
-  explicit Task(F &&function, double priority = 0) {
-    priority_ = priority;
-    results_.Init(ScalarResult);
+  template <typename R>
+  void CheckResultType(int num_results) {
+    using Result = std::remove_reference_t<R>;
+    if constexpr (detail::is_iterable_v<Result>) {
+      return;
+    } else if constexpr (detail::is_tuple_v<Result>) {
+      if (std::tuple_size_v<Result> != num_results)
+        throw std::logic_error("The output tuple has a different size than "
+                               "the declared number of task's ouputs.");
+    } else {
+      throw std::invalid_argument("The result of the function is neither iterable nor a tuple "
+                                  "and cannot be used to obtain multiple output values.");
+    }
+  }
 
-    wrapped_ = [f = std::forward<F>(function)](Task *t) {
-      using Func = std::remove_reference_t<F>;
-      if constexpr (std::is_invocable_v<Func, Task *>)
-        t->SetResult(f, t);
-      else if constexpr (std::is_invocable_v<Func>)
-        t->SetResult(f);
-    };
-  }*/
 
   template <typename F>
-  explicit Task(int num_results, F &&function, double priority = 0) {
+  void CheckFuncResultType(int num_results, F &&function) {
+    using Func = std::remove_reference_t<F>;
+    if constexpr (std::is_invocable_v<Func, Task *>)
+      CheckResultType<decltype(function(this))>(num_results);
+    else
+      CheckResultType<decltype(function())>(num_results);
+  }
+
+ public:
+  template <typename F>
+  Task(int num_results, F &&function, double priority = 0) {
+    using Func = std::remove_reference_t<F>;
     priority_ = priority;
     results_.Init(num_results);
 
@@ -238,7 +307,7 @@ class Task : public CompletionEvent {
           t->SetResult(f);
       };
     } else {
-      using Func = std::remove_reference_t<F>;
+      CheckFuncResultType(num_results, std::forward<F>(function));
       wrapped_ = [f = std::forward<F>(function)](Task *t) {
         if constexpr (std::is_invocable_v<Func, Task *>)
           t->SetResults(f, t);
@@ -248,12 +317,31 @@ class Task : public CompletionEvent {
     }
   }
 
+  template <typename F>
+  explicit Task(F &&function, double priority = 0)
+  : Task(ScalarResult, std::forward<F>(function), priority) {}
 
+  /** Creates a task with a scalar result
+   *
+   * @param function    the callable object that defines the task; it can return any type
+   * @param priority    the priority with which the task will be popped by the scheduler, once ready
+   */
   template <typename F>
   static SharedTask Create(F &&function, double priority = 0) {
-    return std::make_shared<Task>(ScalarResult, std::forward<F>(function), priority);
+    return std::make_shared<Task>(std::forward<F>(function), priority);
   }
 
+  /** Creates a task with a multiple results
+   *
+   * @param num_results the number of results produced by the task function;
+   *                    the special value `ScalarResult` changes the interpretation of the result.
+   * @param function    the callable object that defines the task;
+   *                    if num_result != ScalarValue, then the function can return
+   *                    - an iterable type (one on which std::begin and std::end can be called)
+   *                    - a tuple
+   *                    if num_result == ScalarValue, the function can return anything
+   * @param priority    the priority with which the task will be popped by the scheduler, once ready
+   */
   template <typename F>
   static SharedTask Create(int num_results, F &&function, double priority = 0) {
     return std::make_shared<Task>(num_results, std::forward<F>(function), priority);
@@ -268,22 +356,40 @@ class Task : public CompletionEvent {
 
   TaskState state = TaskState::New;
 
+  /** The priorirt of the task; the higher, ths sooner a task is picked */
   double Priority() const {
     return priority_;
   }
 
+  /** If true, the task can be immediately moved to execution */
   bool Ready() {
     return preconditions_.empty();
   }
 
+  /** Adds a precondition
+   *
+   * Calling Succeed adds the waitable `w` to the task's list of preconditions.
+   * Duplicates are detected and ignored.
+   *
+   * The Waitable can be a Task that's already submitted, running or even complete.
+   */
   Task *Succeed(const std::shared_ptr<Waitable> &w) {
     if (state != TaskState::New)
       throw std::logic_error(
           "Cannot add a new dependency to a task that has been submitted for execution.\n");
-    preconditions_.push_back(w);
+    if (std::find(preconditions_.begin(), preconditions_.end(), w) == preconditions_.end())
+      preconditions_.push_back(w);
     return this;
   }
 
+  /** Subscribes to other task's output value
+   *
+   * This function does two things:
+   * - adds a dependency (Succeed) on the producer task
+   * - creates a shared pointer to the producer task's output
+   *
+   * The producer must not have been submitted to the scheruler when Consume is called.
+   */
   Task *Consume(const SharedTask &producer, int output_index = 0) {
     if (producer->state != TaskState::New)
       throw std::logic_error(
@@ -294,6 +400,15 @@ class Task : public CompletionEvent {
     return this;
   }
 
+  /** Returns a value returned by one of the producers.
+   *
+   * @param index   The index of the corresponding call to Consume; NOT the output index.
+   *                consumer->Consume(producer, 1);
+   *                consumer->Consume(producer, 42);
+   *
+   *                GetInputValue(0)  // gets producer's output 1
+   *                GetInputValue(1)  // gets producer's output 42
+   */
   const std::any &GetInputValue(int index) const {
     if (state != TaskState::Running)
       throw std::logic_error(
@@ -303,6 +418,8 @@ class Task : public CompletionEvent {
     return inputs_[index]->Value();
   }
 
+  /** Returns a value returns by one of the producers and casts it to the specified type.
+   */
   template <typename T>
   T GetInputValue(int index) const {
     const std::any &result = GetInputValue(index);
@@ -310,8 +427,11 @@ class Task : public CompletionEvent {
       return std::any_cast<T>(inputs_[index]->Value());
   }
 
-  void Run(Scheduler &sched);
-
+  /** Ensures that the releasable object is released after the task completes.
+   *
+   * The releasable object will be released once the task is complete - even if it fails with
+   * an exception.
+   */
   Task *ReleaseAfterRun(std::shared_ptr<Releasable> releasable) {
     if (state != TaskState::New)
       throw std::logic_error(
@@ -322,25 +442,35 @@ class Task : public CompletionEvent {
     return this;
   }
 
+  /**  Guards the execution of the task with a waitable/releasable object.
+   *
+   * Equivalent to Succeed + ReleaseAfterRun
+   */
   Task *GuardWith(std::shared_ptr<Releasable> releasable) {
     Succeed(releasable);
     ReleaseAfterRun(std::move(releasable));
     return this;
   }
 
- protected:
+  /**  Executes the task. The task must have been submitted to the specified scheduler.
+   */
+  void Run(Scheduler &sched);
+
+
+ private:
+  SharedTask next;        // pointer to the next task in an intrusive list
+  Task *prev = nullptr;   // pointer to the previous task in an intrusive list
+
+  friend class detail::TaskList;
+  friend class Scheduler;
+
+  TaskResults results_;
+
   double priority_ = 0;
   std::function<void(Task *)> wrapped_;
   SmallVector<std::shared_ptr<Waitable>, 4> preconditions_;
   SmallVector<SharedTaskResult, 4> inputs_;
   SmallVector<std::shared_ptr<Releasable>, 4> release_;
-
-  friend class detail::TaskList;
-  friend class Scheduler;
-
-  SharedTask next;        // pointer to the next task in an intrusive list
-  Task *prev = nullptr;   // pointer to the previous task in an intrusive list
-  TaskResults results_;
 };
 
 namespace detail {

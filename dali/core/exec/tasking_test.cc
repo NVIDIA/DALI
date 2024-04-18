@@ -128,7 +128,7 @@ TEST(TaskingTest, ArgumentPassing) {
   EXPECT_EQ(ret, 84.5);
 }
 
-TEST(TaskingTest, MultiOutput) {
+TEST(TaskingTest, MultiOutputIterable) {
   Executor ex(4);
   ex.Start();
   auto producer = Task::Create(2, []() {
@@ -154,6 +154,35 @@ TEST(TaskingTest, MultiOutput) {
   ex.AddSilentTask(consumer1);
   ex.AddSilentTask(consumer2);
   int ret = ex.AddTask(apex).Value<int>(ex);
+  EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
+}
+
+TEST(TaskingTest, MultiOutputTuple) {
+  Executor ex(4);
+  ex.Start();
+  auto producer = Task::Create(2, []() {
+    return std::make_tuple(1.0, 42);
+  });
+
+  auto consumer1 = Task::Create([](Task *t) {
+    return t->GetInputValue<double>(0) + 3;
+  });
+  consumer1->Consume(producer, 0);
+
+  auto consumer2 = Task::Create([](Task *t) {
+    return t->GetInputValue<int>(0) + 5;
+  });
+  consumer2->Consume(producer, 1);
+
+  auto apex = Task::Create([](Task *t) {
+    return t->GetInputValue<double>(0) + t->GetInputValue<int>(1) + 10;
+  });
+  apex->Consume(consumer1)->Consume(consumer2);
+
+  ex.AddSilentTask(producer);
+  ex.AddSilentTask(consumer1);
+  ex.AddSilentTask(consumer2);
+  double ret = ex.AddTask(apex).Value<double>(ex);
   EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
 }
 

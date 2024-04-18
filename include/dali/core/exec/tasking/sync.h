@@ -42,10 +42,15 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
   friend class Task;
 
  protected:
+  // A list of tasks waiting for this waitable object
   SmallVector<WeakTask, 8> waiting_;
 
+  /** Checks whether the Waitable is ready to be acquired */
   virtual bool CheckComplete() const = 0;
 
+  /** Changes the state of the object to acquired (if necessary) and returns whether the operation
+   *  was successful.
+   */
   virtual bool AcquireImpl() = 0;
 
   void Notify(Scheduler &sched);
@@ -60,6 +65,12 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
     return it != waiting_.end();
   }
 
+  /** Tries to acquire the waitable object on behalf of a task
+   *
+   * This function can fail for two reasons:
+   * - the task is not waiting for this waitable
+   * - AcquireImpl fails
+   */
   bool TryAcquire(const SharedTask &task) {
     auto it = std::find_if(waiting_.begin(), waiting_.end(),
                            [&](auto &t) { return task_owner_equal(t, task); });
@@ -83,6 +94,11 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
   virtual ~Waitable() = default;
 };
 
+/** A waitable object that changes the state at most once, from incomplete to complete.
+ *
+ * A completion event is any Waitable which cannot become "unsignalled" - for example, once
+ * a task is complete it will ever remain so, it cannot go back to the incomplete state.
+ */
 class CompletionEvent : public Waitable {
  protected:
   bool AcquireImpl() override {
@@ -102,6 +118,8 @@ class CompletionEvent : public Waitable {
   bool completed_ = false;
 };
 
+/** A waitable object which has a Release method, which can be called from outside any task.
+ */
 class Releasable : public Waitable {
  public:
   bool Release(Scheduler &sched) {
@@ -112,9 +130,15 @@ class Releasable : public Waitable {
   }
 
  protected:
+  /** Changes the internal state of the object.
+   *
+   * If CheckComplete is called atomically after ReleaseImpl, it must return true.
+   */
   virtual bool ReleaseImpl() = 0;
 };
 
+/** A releasable object which counts how many times it can be acquired.
+ */
 class Semaphore : public Releasable {
  public:
   explicit Semaphore(int max_count) : Semaphore(max_count, max_count) {}

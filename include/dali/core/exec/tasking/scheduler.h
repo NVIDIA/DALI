@@ -133,21 +133,33 @@ class TaskFuture {
 
 /** Determines the readiness and execution order of tasks.
  *
- * Task lifecycle:
- * 1. New
- *    - the task is created
- *    - the data dependencies are added
- * 2. Pending
- *    - the task has been submitted to a Scheduler via AddTask or AddSilentTask
- * 3. Ready
- *    - the task has been submitted and all its preconditions are met
- * 4. Running
- *    - the task has been Popped from the scheduler and is being run
- * 5. Complete
- *    - the task's payload has finished running
+ * The scheduler manages tasks by identifying ready tasks and moving them from Pending to Ready
+ * state. The ready tasks can be Popped (at which point they tranition to Running) and executed
+ * by an external entity (e.g. Executor).
  *
- * The Scheduler steps in at stage 2 and drives the lifecycle of a task until completion.
+ * The scheduler is also the central entity that participates in notifications about the change
+ * of state of the objects. Whenever an object is signalled and may affect the readiness of
+ * tasks, Scheduler is involved.
+ * Finally, scheduler is also used in determining task completion.
  *
+ * In a typical scenario, it's used in the following calls:
+ * `AddTask`
+ * `AddSilentTask`
+ * `Wait`
+ * and in `Releasable::Release`.
+ *
+ * The scheduler implements deadlock mitigation by ensuring that objects are acquired only
+ * when all preconditions of a task can be met.
+ *
+ * Once a task is submitted to the scheduler, its shared pointer reference is increased and the
+ * caller doesn't need to maintain a copy of the task pointer.
+ *
+ * AddTask vs AddSilentTask
+ * AddTask produces a TaskFuture object. This object can be used to wait for the task and get its
+ * result. In case of tasks that do not produce final results, this future is not needed. In that
+ * case the overhead of creating a future object can be avoided by using AddSilentTask.
+ * The user can still Wait for tasks without a future object. The only difference is that
+ * the results of silent tasks are only accessible by the registered consumers of its outputs.
  */
 class Scheduler {
   struct TaskPriorityLess {
@@ -157,6 +169,9 @@ class Scheduler {
   };
 
  public:
+  /** Removes a ready task with the highest priorty or waits for one to appear or
+   *  for a shutdown notification.
+   */
   SharedTask Pop() {
     std::unique_lock lock(mtx_);
     task_ready_.wait(lock, [&]() { return !ready_.empty() || shutdown_requested_; });
@@ -171,12 +186,16 @@ class Scheduler {
     return ret;
   }
 
+  /** Submits a task for execution
+   */
   void AddSilentTask(SharedTask task) {
     if (task->state != TaskState::New)
       throw std::logic_error("A task can be submitted only once.");
     AddTaskImpl(std::move(task));
   }
 
+  /** Submits a task for execution and gets a Future which can be used to get the output value
+   */
   [[nodiscard("Use AddSilentTask if the result is not needed")]] TaskFuture AddTask(
       SharedTask task) {
     if (task->state != TaskState::New)
@@ -186,14 +205,20 @@ class Scheduler {
     return {std::move(task), std::move(res)};
   }
 
+  /** Notifies the scheduler that a Waitable's state has changed and tasks waiting for it
+   *  may become ready.
+   */
   void DLL_PUBLIC Notify(Waitable *w);
 
+  /** Waits for a task to become complete.
+   */
   void Wait(Task *task);
 
   void Wait(const SharedTask &task) {
     Wait(task.get());
   }
 
+  /** Makes all Pop functions return with an error value */
   void Shutdown() {
     std::lock_guard g(mtx_);
     shutdown_requested_ = true;
@@ -201,6 +226,7 @@ class Scheduler {
   }
 
  private:
+  /** Checks if the task is ready and moves it from pending_ to ready_ list */
   bool DLL_PUBLIC CheckTaskReady(SharedTask &task) noexcept;
 
   void AddTaskImpl(SharedTask task) {
@@ -264,6 +290,8 @@ void Scheduler::Wait(Task *task) {
   if (task->state < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");
   task_done_.wait(lock, [&]() { return task->CheckComplete() || shutdown_requested_; });
+  if (!task->CheckComplete())
+    throw std::runtime_error("The scheduler was shut down before the task was completed.");
 }
 
 }  // namespace dali::tasking
