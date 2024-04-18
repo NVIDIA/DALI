@@ -85,7 +85,7 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
 
 class CompletionEvent : public Waitable {
  protected:
-  virtual bool AcquireImpl() {
+  bool AcquireImpl() override {
     // Nothing to acquire - just return true if the event is completed.
     return CheckComplete();
   }
@@ -118,7 +118,7 @@ class Releasable : public Waitable {
 class Semaphore : public Releasable {
  public:
   explicit Semaphore(int max_count) : Semaphore(max_count, max_count) {}
-  Semaphore(int max_count, int initial_count) : max_count(max_count), count(initial_count) {}
+  Semaphore(int max_count, int initial_count) : count(initial_count), max_count(max_count) {}
 
  protected:
   mutable spinlock lock_;
