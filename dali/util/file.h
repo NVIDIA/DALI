@@ -86,7 +86,8 @@ class DLL_PUBLIC FileStream : public InputStream {
    * read (e.g. especially useful for remote storage)
    * @return std::unique_ptr<FileStream>
    */
-  static std::unique_ptr<FileStream> Open(const std::string &uri, Options opts = {},
+  static std::unique_ptr<FileStream> Open(const std::string &uri,
+                                          Options opts = {false, false, false},
                                           std::optional<size_t> size = std::nullopt);
 
   virtual void Close() = 0;

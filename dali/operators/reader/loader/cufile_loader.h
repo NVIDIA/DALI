@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,8 +38,7 @@ namespace dali {
 template <typename Target>
 class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
-  explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
-                        bool shuffle_after_epoch = false)
+  CUFileLoader(const OpSpec& spec, bool shuffle_after_epoch)
       : FileLoader<GPUBackend, Target, CUFileStream>(spec, shuffle_after_epoch) {
   }
 

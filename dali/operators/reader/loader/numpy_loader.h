@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ class NumpyLoader : public FileLoader<CPUBackend, NumpyFileWrapper> {
  public:
   explicit inline NumpyLoader(
     const OpSpec& spec,
-    bool shuffle_after_epoch = false,
+    bool shuffle_after_epoch,
     bool use_o_direct = false,
     size_t o_direct_alignm = 512,
     size_t o_direct_read_len_alignm = 512)

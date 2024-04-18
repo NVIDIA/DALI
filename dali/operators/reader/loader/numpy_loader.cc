@@ -21,6 +21,7 @@
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/util/file.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 namespace detail {
@@ -70,18 +71,24 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     return;
   }
 
-  auto uri = filesystem::join_path(file_root_, filename);
-  bool is_s3 = uri.rfind("s3://", 0) == 0;
-  bool use_mmap = !is_s3 && !copy_read_data_;
-  bool use_o_direct = !is_s3 && use_o_direct_;
-  auto current_file = FileStream::Open(uri, {read_ahead_, use_mmap, use_o_direct}, entry.size);
+  FileStream::Options opts;
+  opts.read_ahead = read_ahead_;
+  opts.use_mmap = !copy_read_data_;
+  opts.use_odirect = use_o_direct_;
+  auto path = filesystem::join_path(file_root_, filename);
+  auto uri = URI::Parse(path);
+  if (uri.valid()) {
+    opts.use_mmap = false;
+    opts.use_odirect = false;
+  }
+  auto current_file = FileStream::Open(path, opts, entry.size);
 
   // read the header
   numpy::HeaderData header;
   auto ret = header_cache_.GetFromCache(filename, header);
   try {
     if (!ret) {
-      if (use_o_direct) {
+      if (opts.use_odirect) {
         numpy::ParseODirectHeader(header, current_file.get(), o_direct_alignm_,
                                   o_direct_read_len_alignm_);
       } else {
@@ -100,9 +107,9 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   target.meta = meta;
   target.data_offset = header.data_offset;
   target.nbytes = nbytes;
-  target.filename = std::move(uri);
+  target.filename = std::move(path);
 
-  if (!use_mmap || !current_file->CanMemoryMap()) {
+  if (!opts.use_mmap || !current_file->CanMemoryMap()) {
     target.current_file = std::move(current_file);
   } else {
     auto p = current_file->Get(nbytes);
