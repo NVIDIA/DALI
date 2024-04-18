@@ -631,10 +631,17 @@ Keyword Args
 
         self._init_args, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
+        if "_module" not in self._init_args:
+            self._init_args.update({"_module": "nvidia.dali.ops"})
+        if "_display_name" not in self._init_args:
+            self._init_args.update({"_display_name": "ExternalSource"})
+
+        operator_name = self._operator_name()
+
         callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
 
         if name is not None and num_outputs is not None:
-            raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
+            raise ValueError(f"`num_outputs` is not compatible with named `{operator_name}`")
 
         self._name = name
         self._num_outputs = num_outputs
@@ -649,11 +656,6 @@ Keyword Args
         self._repeat_last = repeat_last
         if _dali_trace.is_tracing_enabled():
             self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
-
-        if "_module" not in self._init_args:
-            self._init_args.update({"_module": "nvidia.dali.ops"})
-        if "_display_name" not in self._init_args:
-            self._init_args.update({"_display_name": "ExternalSource"})
 
         self._spec.AddArg("device", device)
         self._spec.AddArg("repeat_last", repeat_last)
@@ -730,8 +732,8 @@ Keyword Args
 
         if callback is not None and repeat_last:
             raise ValueError(
-                "``repeat_last`` must not be set when using the ``source`` argument "
-                "It's usable only with manually fed ``external_source``."
+                f"``repeat_last`` must not be set when using the ``source`` argument "
+                f"It's usable only with manually fed `{self._operator_name()}`."
             )
 
         if parallel is None:
@@ -875,7 +877,9 @@ Keyword Args
             self._definition_frame_end = _dali_trace.get_stack_depth() - 1
 
         if name is not None and self._num_outputs is not None:
-            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
+            raise RuntimeError(
+                f"``num_outputs`` is not compatible with named `{self._operator_name()}`."
+            )
 
         group_common_kwargs = {
             "cuda_stream": cuda_stream,
@@ -946,6 +950,14 @@ Keyword Args
             op_instance._batch = batch
 
             return op_instance.unwrapped_outputs
+
+    def _operator_name(self):
+        """
+        Return a proper display name of operator based on the API it was instantiated in.
+
+        Only valid after `__init__` kwargs were split into `_init_args` and `_call_args`.
+        """
+        return f"{self._init_args['_module']}.{self._init_args['_display_name']}"
 
     __doc__ += _args_doc
     __call__.__doc__ += _args_doc
@@ -1032,7 +1044,7 @@ def external_source(
                 raise ValueError(
                     "The parameter ``num_outputs`` is only valid when using ``source`` to "
                     "provide data. To feed multiple external sources in ``feed_input``, "
-                    "use multiple ``external_source`` nodes."
+                    "use multiple `nvidia.dali.external_source` nodes."
                 )
 
         op = ExternalSource(

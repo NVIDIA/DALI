@@ -110,8 +110,8 @@ def _handle_constant(value, device, input_name, op_name):
         value = _Constant(value, device=device)
     except Exception as e:
         raise TypeError(
-            f"when calling operator {op_name}: "
-            f"expected inputs of type `DataNode` or convertible to "
+            f"when calling operator `{op_name}`: "
+            f"expected inputs of type 'DataNode'` or convertible to "
             f"constant nodes. Received input `{input_name}` of type "
             f"'{type(value).__name__}'."
         ) from e
@@ -194,7 +194,7 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
         if new_name:
             if new_name in kwargs:
                 raise TypeError(
-                    f"Operator {op_name} got an unexpected '{arg_name}' deprecated"
+                    f"Operator `{op_name}` got an unexpected '{arg_name}' deprecated"
                     f" argument when '{new_name}' was already provided"
                 )
             kwargs[new_name] = kwargs[arg_name]
@@ -315,7 +315,7 @@ def _process_inputs(schema, spec, inputs, operator_name):
         return []
     for inp in inputs:
         if not isinstance(inp, _DataNode):
-            raise TypeError(f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
+            raise TypeError(f"Expected inputs of type 'DataNode'. Received input of type '{inp}'.")
         spec.AddInput(inp.name, inp.device)
     return list(inputs)
 
@@ -375,19 +375,17 @@ class _OperatorInstance(object):
         self._spec = op.spec.copy()
         self._relation_id = self._counter.id
 
-        # TODO(klecki): Replace "type(op).__name__" with proper name formatting based on backend
-
         if _conditionals.conditionals_enabled():
             inputs, arg_inputs = _conditionals.apply_conditional_split_to_args(inputs, arg_inputs)
             _conditionals.inject_implicit_scope_argument(op._schema, arg_inputs)
 
         self._process_instance_name(arguments)
         self._process_trace(arguments)
-        _process_arguments(op._schema, self._spec, arguments, type(op).__name__)
+        _process_arguments(op._schema, self._spec, arguments, op._operator_name())
 
-        self._inputs = _process_inputs(op._schema, self._spec, inputs, type(op).__name__)
+        self._inputs = _process_inputs(op._schema, self._spec, inputs, op._operator_name())
         self._inputs += _process_argument_inputs(
-            op._schema, self._spec, arg_inputs, type(op).__name__
+            op._schema, self._spec, arg_inputs, op._operator_name()
         )
 
         _handle_op_deprecation(
@@ -514,8 +512,8 @@ def _check_arg_input(schema, op_name, name):
     if not schema.IsTensorArgument(name):
         expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
         raise TypeError(
-            f"The argument `{name}` for operator `{op_name}` should not be a `DataNode` but a "
-            f"{expected_type_name}"
+            f"The argument `{name}` for operator `{op_name}` should not be a 'DataNode' but a "
+            f"'{expected_type_name}'."
         )
 
 
@@ -553,8 +551,16 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
 
             self._init_args, self._call_args = _separate_kwargs(kwargs)
 
+            # Capture the ops API display name if it didn't arrive from fn API.
+            if "_module" not in self._init_args:
+                self._init_args.update({"_module": Operator.__module__.replace(".hidden", "")})
+            if "_display_name" not in self._init_args:
+                self._init_args.update({"_display_name": type(self).__name__})
+
+            operator_name = self._operator_name()
+
             for k in self._call_args.keys():
-                _check_arg_input(self._schema, type(self).__name__, k)
+                _check_arg_input(self._schema, operator_name, k)
 
             self._preserve = self._init_args.get("preserve", False)
 
@@ -568,17 +574,12 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             # before it is validated against Schema.
             if _dali_trace.is_tracing_enabled():
                 self._definition_frame_end = self._init_args.pop("_definition_frame_end", None)
-            # Capture the ops API display name if it didn't arrive from fn API.
-            if "_module" not in self._init_args:
-                self._init_args.update({"_module": Operator.__module__.replace(".hidden", "")})
-            if "_display_name" not in self._init_args:
-                self._init_args.update({"_display_name": type(self).__name__})
             # Make sure that the internal name arguments are added first in case backend
             # needs them to report errors.
             name_internal_keys = ["_display_name", "_module"]
             name_args = {key: self._init_args.pop(key) for key in name_internal_keys}
-            _process_arguments(self._schema, self._spec, name_args, type(self).__name__)
-            _process_arguments(self._schema, self._spec, self._init_args, type(self).__name__)
+            _process_arguments(self._schema, self._spec, name_args, operator_name)
+            _process_arguments(self._schema, self._spec, self._init_args, operator_name)
             self._init_args.update(name_args)
 
         @property
@@ -598,8 +599,8 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             return self._preserve
 
         def __call__(self, *inputs, **kwargs):
-            inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
-            input_sets = _build_input_sets(inputs, self.__class__.__name__)
+            inputs = _preprocess_inputs(inputs, self._operator_name(), self._device, self._schema)
+            input_sets = _build_input_sets(inputs, self._operator_name())
 
             args, arg_inputs = _separate_kwargs(kwargs)
 
@@ -641,6 +642,14 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
                     outputs.append(op.outputs)
                 result = _repack_output_sets(outputs)
             return result
+
+        def _operator_name(self):
+            """
+            Return a proper display name of operator based on the API it was instantiated in.
+
+            Only valid after `__init__` kwargs were split into `_init_args` and `_call_args`.
+            """
+            return f"{self._init_args['_module']}.{self._init_args['_display_name']}"
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name
@@ -769,8 +778,8 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
                 inp = _Constant(inp, device=get_input_device(schema, idx))
             except Exception as ex:
                 raise TypeError(
-                    f"when calling operator {op_name}: "
-                    f"expected inputs of type `DataNode`, list of `DataNode` "
+                    f"when calling operator `{op_name}`: "
+                    f"expected inputs of type 'DataNode', list of 'DataNode' "
                     f"or convertible to constant nodes. Received "
                     f"input `{idx}` of type '{type(inp).__name__}'."
                 ) from ex
