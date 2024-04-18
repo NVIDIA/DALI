@@ -50,7 +50,7 @@ struct FileDiscoveryOptions {
  * @brief Finds all (file, label, size) information, following the criteria given by opts.
  */
 DLL_PUBLIC vector<FileLabelEntry> discover_files(const std::string &file_root,
-                                                       const FileDiscoveryOptions &opts);
+                                                 const FileDiscoveryOptions &opts);
 
 }  // namespace dali
 
