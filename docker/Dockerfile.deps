@@ -8,13 +8,22 @@ FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl openssl-devel libcurl-devel autogen zip \
+RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip \
                    devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
-                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel
+                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel \
+                   perl perl-IPC-Cmd
+
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
 # Don't want the short-unicode version for Python 2.7
 RUN rm -f /opt/python/cp27-cp27m
+
+RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
+    wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
+    chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
+    rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
 
 # Clang, build it before deps as deps changes more frequently
 RUN CLANG_VERSION=15.0.2                                                                           && \
