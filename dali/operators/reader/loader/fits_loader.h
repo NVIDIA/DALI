@@ -40,7 +40,7 @@ struct FitsFileWrapper {
 template <typename Backend, typename Target>
 class FitsLoader : public FileLoader<Backend, Target> {
  public:
-  explicit FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit FitsLoader(const OpSpec& spec, bool shuffle_after_epoch)
       : FileLoader<Backend, Target>(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
     // default to DALI_UINT8, if argument dtypes not provided
@@ -130,7 +130,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
 
 class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
  public:
-  explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch)
       : FitsLoader<CPUBackend, FitsFileWrapper>(spec, shuffle_after_epoch) {}
 
  protected:
