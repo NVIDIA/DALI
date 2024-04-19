@@ -28,6 +28,7 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/filesystem.h"
+#include "dali/operators/reader/loader/discover_files.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/util/file.h"
@@ -51,6 +52,10 @@ class FileLoader : public Loader<Backend, Target, true> {
         current_epoch_(0) {
     vector<string> files;
 
+    traverse_opts_.label_from_subdir = false;
+    traverse_opts_.case_sensitive_filter = true;
+    traverse_opts_.file_filters.push_back(file_filter_);
+
     has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
     has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
     has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
@@ -73,8 +78,11 @@ class FileLoader : public Loader<Backend, Target, true> {
 
     if (has_files_arg_) {
       DALI_ENFORCE(files.size() > 0, "``files`` specified an empty list.");
-      files_ = std::move(files);
+      for (auto& f : files) {
+        file_entries_.push_back({std::move(f)});
+      }
     }
+    files.clear();  // we moved the elements
 
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
@@ -102,13 +110,13 @@ class FileLoader : public Loader<Backend, Target, true> {
 
  protected:
   Index SizeImpl() override {
-    return static_cast<Index>(files_.size());
+    return static_cast<Index>(file_entries_.size());
   }
 
   void PrepareMetadataImpl() override {
-    if (files_.empty()) {
+    if (file_entries_.empty()) {
       if (!has_files_arg_ && !has_file_list_arg_) {
-        files_ = filesystem::traverse_directories(file_root_, file_filter_);
+        file_entries_ = discover_files(file_root_, traverse_opts_);
       } else if (has_file_list_arg_) {
         // load paths from list
         std::ifstream s(file_list_);
@@ -118,7 +126,7 @@ class FileLoader : public Loader<Backend, Target, true> {
         char *line = line_buf.data();
         while (s.getline(line, line_buf.size())) {
           if (line[0])  // skip empty lines
-            files_.emplace_back(line);
+            file_entries_.push_back({std::string(line)});
         }
         DALI_ENFORCE(s.eof(), "Wrong format of file_list: " + file_list_);
       }
@@ -126,13 +134,13 @@ class FileLoader : public Loader<Backend, Target, true> {
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
 
     if (IsCheckpointingEnabled()) {
-      backup_files_ = files_;
+      backup_file_entries_ = file_entries_;
     }
     if (shuffle_) {
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(files_.begin(), files_.end(), g);
+      std::shuffle(file_entries_.begin(), file_entries_.end(), g);
     }
     Reset(true);
   }
@@ -151,10 +159,10 @@ class FileLoader : public Loader<Backend, Target, true> {
         // With checkpointing enabled dataset order must be easy to restore.
         // Shuffling is run with different seed every epoch, so this doesn't
         // reduce the randomness.
-        files_ = backup_files_;
+        file_entries_ = backup_file_entries_;
       }
       std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
-      std::shuffle(files_.begin(), files_.end(), g);
+      std::shuffle(file_entries_.begin(), file_entries_.end(), g);
     }
   }
 
@@ -178,8 +186,9 @@ class FileLoader : public Loader<Backend, Target, true> {
   using Loader<Backend, Target, true>::IsCheckpointingEnabled;
 
   string file_list_, file_root_, file_filter_;
-  vector<std::string> files_;
-  vector<std::string> backup_files_;
+  FileDiscoveryOptions traverse_opts_;
+  vector<FileLabelEntry> file_entries_;
+  vector<FileLabelEntry> backup_file_entries_;
 
   bool has_files_arg_ = false;
   bool has_file_list_arg_ = false;

@@ -137,10 +137,10 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     return;
   }
 
-  auto frame = FileStream::Open(frame_filename, read_ahead_, !copy_read_data_);
+  auto frame = FileStream::Open(frame_filename, {read_ahead_, !copy_read_data_, false});
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call
-  if (copy_read_data_) {
+  if (copy_read_data_ || !frame->CanMemoryMap()) {
     if (target->shares_data()) {
       target->Reset();
     }

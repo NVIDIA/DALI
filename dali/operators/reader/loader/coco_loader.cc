@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,13 +141,13 @@ void SaveToFile(const std::vector<std::vector<T> > &input, const std::string pat
 }
 
 template <>
-void SaveToFile(const ImageIdPairs &image_id_pairs, const std::string path) {
-  if (image_id_pairs.empty())
+void SaveToFile(const std::vector<FileLabelEntry> &entries, const std::string path) {
+  if (entries.empty())
     return;
   std::ofstream file(path);
   DALI_ENFORCE(file, "CocoReader meta file error while saving: " + path);
-  for (const auto &p : image_id_pairs) {
-    file << p.first << std::endl;
+  for (const auto &p : entries) {
+    file << p.filename << std::endl;
   }
   DALI_ENFORCE(file.good(), make_string("Error writing to path: ", path));
 }
@@ -203,16 +203,16 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
 }
 
 template <>
-void LoadFromFile(ImageIdPairs &image_id_pairs, const std::string path) {
+void LoadFromFile(std::vector<FileLabelEntry> &entries, const std::string path) {
   std::ifstream file(path);
-  image_id_pairs.clear();
+  entries.clear();
   if (!file.good())
     return;
 
   int id = 0;
   std::string filename;
   while (file >> filename) {
-    image_id_pairs.emplace_back(std::move(filename), int{id});
+    entries.push_back({std::move(filename), id});
     ++id;
   }
 }
@@ -417,14 +417,14 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
 
 }  // namespace detail
 
-void CocoLoader::SavePreprocessedAnnotations(const std::string &path,
-                                             const ImageIdPairs &image_id_pairs) {
+void CocoLoader::SavePreprocessedAnnotations(
+  const std::string &path, const std::vector<FileLabelEntry> &entries) {
   using detail::SaveToFile;
   SaveToFile(offsets_, path + "/offsets.dat");
   SaveToFile(boxes_, path + "/boxes.dat");
   SaveToFile(labels_, path + "/labels.dat");
   SaveToFile(counts_, path + "/counts.dat");
-  SaveToFile(image_id_pairs, path + "/filenames.dat");
+  SaveToFile(entries, path + "/filenames.dat");
 
   if (output_polygon_masks_ || output_pixelwise_masks_) {
     SaveToFile(polygon_data_, path + "/polygon_data.dat");
@@ -459,7 +459,7 @@ void CocoLoader::ParsePreprocessedAnnotations() {
   LoadFromFile(boxes_, path + "/boxes.dat");
   LoadFromFile(labels_, path + "/labels.dat");
   LoadFromFile(counts_, path + "/counts.dat");
-  LoadFromFile(image_label_pairs_, path + "/filenames.dat");
+  LoadFromFile(file_label_entries_, path + "/filenames.dat");
 
   if (output_polygon_masks_ || output_pixelwise_masks_) {
     LoadFromFile(polygon_data_, path + "/polygon_data.dat");
@@ -628,7 +628,7 @@ void CocoLoader::ParseJsonAnnotations() {
         }
       }
 
-      image_label_pairs_.emplace_back(std::move(image_info.filename_), new_image_id);
+      file_label_entries_.push_back({std::move(image_info.filename_), new_image_id});
       new_image_id++;
     }
   }
@@ -639,7 +639,7 @@ void CocoLoader::ParseJsonAnnotations() {
   if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
     SavePreprocessedAnnotations(
       spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"),
-      image_label_pairs_);
+      file_label_entries_);
   }
 }
 

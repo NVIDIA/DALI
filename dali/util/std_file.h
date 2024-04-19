@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ class StdFileStream : public FileStream {
  public:
   explicit StdFileStream(const std::string& path);
   void Close() override;
-  shared_ptr<void> Get(size_t n_bytes) override;
   size_t Read(void * buffer, size_t n_bytes) override;
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
   ptrdiff_t TellRead() const override;

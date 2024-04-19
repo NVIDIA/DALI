@@ -248,7 +248,7 @@ inline Tensor<CPUBackend> ReadReference(InputStream *src, TensorLayout layout = 
  */
 inline Tensor<CPUBackend> ReadReferenceFrom(const std::string &reference_path,
                                             TensorLayout layout = "HWC") {
-  auto src = FileStream::Open(reference_path, false, false);
+  auto src = FileStream::Open(reference_path);
   return ReadReference(src.get(), layout);
 }
 

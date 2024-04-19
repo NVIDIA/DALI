@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -183,8 +183,9 @@ TarArchive::EntryType TarArchive::GetFileType() const {
 
 std::shared_ptr<void> TarArchive::ReadFile() {
   stream_->SeekRead(stream_->TellRead() - readoffset_);
-
-  auto out = stream_->Get(filesize_);
+  std::shared_ptr<void> out;
+  if (stream_->CanMemoryMap())
+    out = stream_->Get(filesize_);
   if (out != nullptr) {
     readoffset_ = filesize_;
   }

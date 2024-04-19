@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,12 @@
 #include <errno.h>
 #include <fitsio.h>
 #include <sys/stat.h>
-
 #include <string>
 #include <utility>
 #include <vector>
-
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/file_loader.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/util/file.h"
 #include "dali/util/fits.h"
@@ -41,7 +40,7 @@ struct FitsFileWrapper {
 template <typename Backend, typename Target>
 class FitsLoader : public FileLoader<Backend, Target> {
  public:
-  explicit FitsLoader(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit FitsLoader(const OpSpec& spec, bool shuffle_after_epoch)
       : FileLoader<Backend, Target>(spec, shuffle_after_epoch),
         hdu_indices_(spec.GetRepeatedArgument<int>("hdu_indices")) {
     // default to DALI_UINT8, if argument dtypes not provided
@@ -65,7 +64,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
   }
 
   void ReadSample(Target& target) override {
-    auto filename = files_[current_index_++];
+    auto filename = file_entries_[current_index_++].filename;
     int status = 0, num_hdus = 0;
 
     // handle wrap-around
@@ -77,6 +76,8 @@ class FitsLoader : public FileLoader<Backend, Target> {
     meta.SetSkipSample(false);
 
     auto path = filesystem::join_path(file_root_, filename);
+    bool is_s3 = path.rfind("s3://", 0) == 0;
+    DALI_ENFORCE(!is_s3, "S3 storage not supported for FITS reader");
     auto current_file = fits::FitsHandle::OpenFile(path.c_str(), READONLY);
     FITS_CALL(fits_get_num_hdus(current_file, &num_hdus, &status));
 
@@ -120,7 +121,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
 
  private:
   using FileLoader<Backend, Target>::MoveToNextShard;
-  using FileLoader<Backend, Target>::files_;
+  using FileLoader<Backend, Target>::file_entries_;
   using FileLoader<Backend, Target>::current_index_;
   using FileLoader<Backend, Target>::file_root_;
   std::vector<int> hdu_indices_;
@@ -129,7 +130,7 @@ class FitsLoader : public FileLoader<Backend, Target> {
 
 class FitsLoaderCPU : public FitsLoader<CPUBackend, FitsFileWrapper> {
  public:
-  explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit FitsLoaderCPU(const OpSpec& spec, bool shuffle_after_epoch)
       : FitsLoader<CPUBackend, FitsFileWrapper>(spec, shuffle_after_epoch) {}
 
  protected:

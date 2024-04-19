@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ class DLL_PUBLIC ODirectFileStream : public FileStream {
  public:
   explicit ODirectFileStream(const std::string& path);
   void Close() override;
-  shared_ptr<void> Get(size_t n_bytes) override;
   size_t Read(void * buffer, size_t n_bytes) override;
   size_t ReadAt(void * buffer, size_t n_bytes, off_t offset);
   static size_t GetAlignment();

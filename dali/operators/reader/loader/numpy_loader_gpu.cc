@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include <dirent.h>
 #include <errno.h>
 #include <memory>
 #include <set>
-
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#include "dali/operators/reader/loader/filesystem.h"
 
 namespace dali {
 
@@ -27,7 +27,7 @@ void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
 }
 
 void NumpyFileWrapperGPU::Reopen() {
-  file_stream_ = CUFileStream::Open(filename, read_ahead, false);
+  file_stream_ = CUFileStream::Open(filename, {read_ahead, false, false});
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
@@ -61,7 +61,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   DeviceGuard g(device_id_);
 
   // extract image file
-  auto filename = files_[current_index_++];
+  auto filename = file_entries_[current_index_++].filename;
 
   // handle wrap-around
   MoveToNextShard(current_index_);

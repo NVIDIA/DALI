@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/filesystem.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/discover_files.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/file_label_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/coco_loader.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/loader.cc"
@@ -57,7 +58,8 @@ endif()
 set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/filesystem_test.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/filesystem_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/discover_files_test.cc")
 
 if (BUILD_LIBSND)
   set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}

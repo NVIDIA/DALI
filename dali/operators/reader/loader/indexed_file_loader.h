@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,10 +62,13 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
 
+    bool is_s3 = uris_[file_index].rfind("s3://", 0) == 0;
+    bool use_o_direct = !is_s3 && use_o_direct_;
+    bool use_mmap = !is_s3 && !copy_read_data_;
+
     if (file_index != current_file_index_) {
       current_file_.reset();
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_,
-                                       use_o_direct_);
+      current_file_ = FileStream::Open(uris_[file_index], {read_ahead_, use_mmap, use_o_direct});
       current_file_index_ = file_index;
       // invalidate the buffer
       if (use_o_direct_) read_buffer_.reset();
@@ -87,7 +90,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     }
     next_seek_pos_ = seek_pos + size;
 
-    if (!copy_read_data_) {
+    if (use_mmap && current_file_->CanMemoryMap()) {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
@@ -96,7 +99,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
       if (tensor.shares_data()) {
         tensor.Reset();
       }
-      if (use_o_direct_) {
+      if (use_o_direct) {
         /*
          *   ** - sample data
          *   XX - buffer padding, data of other samples
@@ -224,8 +227,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_.reset();
-      current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_,
-                                       use_o_direct_);
+      current_file_ =
+          FileStream::Open(uris_[file_index], {read_ahead_, !copy_read_data_, use_o_direct_});
       current_file_index_ = file_index;
       // invalidate the buffer
       if (use_o_direct_) read_buffer_.reset();

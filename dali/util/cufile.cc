@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@
 
 namespace dali {
 
-std::unique_ptr<CUFileStream> CUFileStream::Open(const std::string& uri, bool read_ahead,
-                                                 bool use_mmap) {
+std::unique_ptr<CUFileStream> CUFileStream::Open(const std::string& uri, FileStream::Options opts) {
   std::string processed_uri;
 
   const char prefix[] = "file://";
@@ -30,7 +29,7 @@ std::unique_ptr<CUFileStream> CUFileStream::Open(const std::string& uri, bool re
     processed_uri = uri;
   }
 
-  DALI_ENFORCE(!use_mmap, "mmap not implemented with cuFile yet.");
+  DALI_ENFORCE(!opts.use_mmap, "mmap not implemented with cuFile yet.");
   return std::make_unique<StdCUFileStream>(processed_uri);
 }
 

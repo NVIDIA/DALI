@@ -1,4 +1,4 @@
-// Copyright (c) 2017, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ TYPED_TEST(DataLoadStoreTest, LMDBTest) {
 #endif
 
 TYPED_TEST(DataLoadStoreTest, FileLabelLoaderMmmap) {
+  bool shuffle_after_epoch = false;
   for (bool dont_use_mmap : {true, false}) {
     shared_ptr<dali::FileLabelLoader> reader(
         new FileLabelLoader(
@@ -72,7 +73,7 @@ TYPED_TEST(DataLoadStoreTest, FileLabelLoaderMmmap) {
             .AddArg("file_root", loader_test_image_folder)
             .AddArg("max_batch_size", 32)
             .AddArg("device_id", 0)
-            .AddArg("dont_use_mmap", dont_use_mmap)));
+            .AddArg("dont_use_mmap", dont_use_mmap), shuffle_after_epoch));
 
     reader->PrepareMetadata();
     auto sample = reader->ReadOne(false, false);
@@ -136,12 +137,13 @@ TYPED_TEST(DataLoadStoreTest, CocoLoaderMmmap) {
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTest) {
+  bool shuffle_after_epoch = false;
   shared_ptr<dali::FileLabelLoader> reader(
       new FileLabelLoader(
           OpSpec("FileReader")
           .AddArg("file_root", loader_test_image_folder)
           .AddArg("max_batch_size", 32)
-          .AddArg("device_id", 0)));
+          .AddArg("device_id", 0), shuffle_after_epoch));
 
   reader->PrepareMetadata();
 
@@ -154,11 +156,12 @@ TYPED_TEST(DataLoadStoreTest, LoaderTest) {
 }
 
 TYPED_TEST(DataLoadStoreTest, LoaderTestFail) {
+  bool shuffle_after_epoch = false;
   shared_ptr<dali::FileLabelLoader> reader(
       new FileLabelLoader(OpSpec("FileReader")
                          .AddArg("file_root", loader_test_image_folder + "/does_not_exist")
                          .AddArg("max_batch_size", 32)
-                         .AddArg("device_id", 0)));
+                         .AddArg("device_id", 0), shuffle_after_epoch));
   ASSERT_THROW(reader->PrepareMetadata(), std::runtime_error);
 }
 

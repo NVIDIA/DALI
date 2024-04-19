@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,6 +114,10 @@ list of files in the sub-directories of the ``file_root``.
 
 This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
       kKnownExtensionsGlob)
+  .AddOptionalArg<std::vector<string>>("dir_filters", R"(A list of glob strings to filter the
+list of sub-directories under ``file_root``.
+
+This argument is ignored when file paths are taken from ``file_list`` or ``files``.)", nullptr)
   .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
 case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");

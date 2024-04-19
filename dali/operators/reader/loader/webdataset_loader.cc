@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -314,11 +314,12 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       continue;
     }
     // Reading Data
-    if (copy_read_data_) {
+    if (copy_read_data_ || !current_wds_shard->CanMemoryMap()) {
       uint8_t* shared_tensor_data = nullptr;
       bool shared_tensor_is_pinned = false;
       int device_id = CPU_ONLY_DEVICE_ID;
       for (auto& output : component.outputs) {
+        sample[output].SetMeta(meta);
         if (!shared_tensor_data) {
           if (sample[output].shares_data()) {
             sample[output].Reset();
@@ -380,7 +381,7 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
   for (auto& uri : paths_) {
-    wds_shards_.emplace_back(FileStream::Open(uri, read_ahead_, !copy_read_data_));
+    wds_shards_.emplace_back(FileStream::Open(uri, {read_ahead_, !copy_read_data_, false}));
   }
 
   // preparing the map from extensions to outputs

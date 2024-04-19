@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ struct FitsFileWrapperGPU {
 
 class FitsLoaderGPU : public FitsLoader<GPUBackend, FitsFileWrapperGPU> {
  public:
-  explicit FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch = false)
+  explicit FitsLoaderGPU(const OpSpec& spec, bool shuffle_after_epoch)
       : FitsLoader<GPUBackend, FitsFileWrapperGPU>(spec, shuffle_after_epoch) {}
 
  protected:

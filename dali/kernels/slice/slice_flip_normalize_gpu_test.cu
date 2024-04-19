@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ class SliceFlipNormalizeGPUTest : public ::testing::Test {
   }
 
   void LoadTensor(Tensor<CPUBackend> &tensor, const std::string& path_npy) {
-    auto stream = FileStream::Open(path_npy, false, false);
+    auto stream = FileStream::Open(path_npy);
     tensor = ::dali::numpy::ReadTensor(stream.get(), true);
   }
 
