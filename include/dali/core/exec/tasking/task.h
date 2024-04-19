@@ -98,10 +98,10 @@ class TaskResult {
   T Value() const {
     if (exception_)
       std::rethrow_exception(exception_);
-    if constexpr (std::is_void_v<T>) {
-      (void)std::any_cast<void_result>(value_);
-    }
-    return std::any_cast<T>(value_);
+    if constexpr (std::is_void_v<T>)
+      return (void)std::any_cast<void_result>(value_);
+    else
+      return std::any_cast<T>(value_);
   }
 
   const bool HasException() const {
@@ -116,6 +116,8 @@ class TaskResult {
 
 using SharedTaskResult = std::shared_ptr<TaskResult>;
 
+/** A special value that indicates that the Task's return value is NOT a collection or tuple.
+ */
 static constexpr int ScalarResult = -1;
 
 class TaskResults : public SmallVector<SharedTaskResult, 4> {
@@ -177,7 +179,7 @@ enum class TaskState {
 /** Describes a single task, considered as a unit by the Scheduler
  *
  * A Task is a function-like object that can carry some dependencies and preconditions
- * (via Succeed) and subscribe for results of other tasks (via Consume).
+ * (via Succeed) and subscribe for results of other tasks (via Subscribe).
  *
  * A task function can produce no result (void), a scalar result (any type) or multiple results
  * (iterable object or a tuple).
@@ -202,16 +204,18 @@ enum class TaskState {
  * than necessary.
  *
  *
- * Succeed vs Consume
+ * Succeed vs Subscribe
  * Succeed simply sets a dependency. It can take any Waitable (not just Task) and, importantly,
  * it can take tasks that have been already submitted or even completed.
- * Consume, by contrast, requires that the producer task is not yet submitted for execution. This
+ * Subscribe, by contrast, requires that the producer task is not yet submitted for execution. This
  * limitation is necessary because of the output lifecycle.
  */
 class Task : public CompletionEvent {
+  /** Sets a single (scalar) result of a task function.
+   */
   template <typename F, typename... Args>
   void SetResult(F &&f, Args &&...args) {
-    assert(state == TaskState::Running);
+    assert(state_ == TaskState::Running);
     assert(results_.size() == 1 && results_[0]);
     results_[0]->SetResultOf([&]() { return f(std::forward<Args>(args)...); });
   }
@@ -224,9 +228,13 @@ class Task : public CompletionEvent {
     }
   }
 
+  /** Sets mutliple results of a task function
+   *
+   * The task result must be a collection or a tuple.
+   */
   template <typename F, typename... Args>
   auto SetResults(F &&f, Args &&...args) {
-    assert(state == TaskState::Running);
+    assert(state_ == TaskState::Running);
     try {
       using result_t = std::remove_reference_t<decltype(f(std::forward<Args>(args)...))>;
       if constexpr (detail::is_iterable_v<result_t>) {
@@ -348,13 +356,13 @@ class Task : public CompletionEvent {
   }
 
   ~Task() {
-    assert(prev == nullptr);
-    assert(next == nullptr);
-    assert(state != TaskState::Running && state != TaskState::Destroyed);
-    state = TaskState::Destroyed;
+    assert(prev_ == nullptr);
+    assert(next_ == nullptr);
+    assert(state_ != TaskState::Running && state_ != TaskState::Destroyed);
+    state_ = TaskState::Destroyed;
   }
 
-  TaskState state = TaskState::New;
+  TaskState state_ = TaskState::New;
 
   /** The priorirt of the task; the higher, ths sooner a task is picked */
   double Priority() const {
@@ -374,7 +382,7 @@ class Task : public CompletionEvent {
    * The Waitable can be a Task that's already submitted, running or even complete.
    */
   Task *Succeed(const std::shared_ptr<Waitable> &w) {
-    if (state != TaskState::New)
+    if (state_ != TaskState::New)
       throw std::logic_error(
           "Cannot add a new dependency to a task that has been submitted for execution.\n");
     if (std::find(preconditions_.begin(), preconditions_.end(), w) == preconditions_.end())
@@ -388,10 +396,10 @@ class Task : public CompletionEvent {
    * - adds a dependency (Succeed) on the producer task
    * - creates a shared pointer to the producer task's output
    *
-   * The producer must not have been submitted to the scheruler when Consume is called.
+   * The producer must not have been submitted to the scheruler when Subscribe is called.
    */
-  Task *Consume(const SharedTask &producer, int output_index = 0) {
-    if (producer->state != TaskState::New)
+  Task *Subscribe(const SharedTask &producer, int output_index = 0) {
+    if (producer->state_ != TaskState::New)
       throw std::logic_error(
           "Cannot subscribe to a result of a task that's been already submitted for execution.\n"
           "If only ordering is required, use Succeed instead.");
@@ -402,15 +410,15 @@ class Task : public CompletionEvent {
 
   /** Returns a value returned by one of the producers.
    *
-   * @param index   The index of the corresponding call to Consume; NOT the output index.
-   *                consumer->Consume(producer, 1);
-   *                consumer->Consume(producer, 42);
+   * @param index   The index of the corresponding call to Subscribe; NOT the output index.
+   *                consumer->Subscribe(producer, 1);
+   *                consumer->Subscribe(producer, 42);
    *
    *                GetInputValue(0)  // gets producer's output 1
    *                GetInputValue(1)  // gets producer's output 42
    */
   const std::any &GetInputValue(int index) const {
-    if (state != TaskState::Running)
+    if (state_ != TaskState::Running)
       throw std::logic_error(
           "Obtaining a value of a task's input is only valid inside a task's payload function.");
     if (index < 0 || static_cast<size_t>(index) >= inputs_.size())
@@ -433,7 +441,7 @@ class Task : public CompletionEvent {
    * an exception.
    */
   Task *ReleaseAfterRun(std::shared_ptr<Releasable> releasable) {
-    if (state != TaskState::New)
+    if (state_ != TaskState::New)
       throw std::logic_error(
           "Cannot add a new postcondition to a task that's been submitted to execution.\n"
           "If you need to Release a releasable object after completion of an already "
@@ -458,8 +466,8 @@ class Task : public CompletionEvent {
 
 
  private:
-  SharedTask next;        // pointer to the next task in an intrusive list
-  Task *prev = nullptr;   // pointer to the previous task in an intrusive list
+  SharedTask next_;       // pointer to the next task in an intrusive list
+  Task *prev_ = nullptr;  // pointer to the previous task in an intrusive list
 
   friend class detail::TaskList;
   friend class Scheduler;
@@ -475,46 +483,69 @@ class Task : public CompletionEvent {
 
 namespace detail {
 
-/** An intrusive list of tasks
+/** An intrusive doubly-linked list of tasks
  *
- * This list uses tasks' built-in next and prev fields.
+ * This list uses tasks' built-in next_ and prev_ fields for maintaining a doubly-link list.
  */
 class TaskList {
  public:
+  ~TaskList() {
+    // remove iteratively to prevent long recursion and possible stack overflow
+    while (head_) {
+      assert(!head_->prev_);
+      head_ = std::move(head_->next_);
+    }
+    tail_ = nullptr;
+  }
+
+  /** Places the task as the new head of the list.
+   *
+   * The task's prev/next pointers must be null.
+   */
   void PushFront(SharedTask task) {
-    assert(!task->next && !task->prev);
-    if (!head) {
-      assert(!tail);
-      head = std::move(task);
-      tail = head.get();
+    assert(!task->next_ && !task->prev_);
+    if (!head_) {
+      assert(!tail_);
+      head_ = std::move(task);
+      tail_ = head_.get();
     } else {
-      head->prev = task.get();
-      task->next = std::move(head);
-      head = std::move(task);
+      head_->prev_ = task.get();
+      task->next_ = std::move(head_);
+      head_ = std::move(task);
     }
   }
 
+  /** Removes an element from the list.
+   *
+   * This function removes the element from the list by detaching it and reconnecting the
+   * previous and next elements. If the task coincides with head or tail, then the respecitve
+   * end is updated accordingly.
+   */
   void Remove(const SharedTask &task) {
-    if (task == head)
-      head = task->next;
-    if (task.get() == tail)
-      tail = task->prev;
+    if (task == head_)
+      head_ = task->next_;
+    if (task.get() == tail_)
+      tail_ = task->prev_;
 
-    Task *p = task->prev;
-    if (task->next)
-      task->next->prev = p;
+    Task *p = task->prev_;
+    if (task->next_)
+      task->next_->prev_ = p;
     if (p)
-      p->next = std::move(task->next);
+      p->next_ = std::move(task->next_);
     else
-      task->next.reset();
-    assert(!task->next);
-    task->prev = nullptr;
+      task->next_.reset();
+    assert(!task->next_);
+    task->prev_ = nullptr;
   }
 
+  SharedTask head() const { return head_; }
+  Task *tail() const { return tail_; }
+
  private:
-  SharedTask head;
-  Task *tail = nullptr;
+  SharedTask head_;
+  Task *tail_ = nullptr;
 };
+
 }  // namespace detail
 
 }  // namespace dali::tasking

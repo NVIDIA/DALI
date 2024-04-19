@@ -85,6 +85,8 @@ class TaskFuture {
    *
    * If the task throws, the exception rethrown here.
    * If the task returns a value of a different type, std::bad_any_cast is thrown.
+   *
+   * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   template <typename T>
   T Value(Scheduler &sched, int index) & {
@@ -96,6 +98,8 @@ class TaskFuture {
    *
    * If the task throws, the exception rethrown here.
    * If the task returns a value of a different type, std::bad_any_cast is thrown.
+   *
+   * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   template <typename T>
   T Value(Scheduler &sched, int index) && {
@@ -108,6 +112,8 @@ class TaskFuture {
    *
    * If the task throws, the exception rethrown here.
    * If the task returns `void`, the returned `any` is empty.
+   *
+   * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   decltype(auto) Value(Scheduler &sched, int index) & {
     Wait(sched);
@@ -118,6 +124,8 @@ class TaskFuture {
    *
    * If the task throws, the exception rethrown here.
    * If the task returns `void`, the returned `any` is empty.
+   *
+   * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   auto Value(Scheduler &sched, int index) && {
     Wait(sched);
@@ -129,17 +137,18 @@ class TaskFuture {
   void Wait(Scheduler &sched);
   SharedTask task_;
   TaskResults results_;
+  bool complete_ = false;  // optimize multiple calls to Wait / Value
 };
 
 /** Determines the readiness and execution order of tasks.
  *
  * The scheduler manages tasks by identifying ready tasks and moving them from Pending to Ready
- * state. The ready tasks can be Popped (at which point they tranition to Running) and executed
+ * state. The ready tasks can be Popped (at which point they transition to Running) and executed
  * by an external entity (e.g. Executor).
  *
  * The scheduler is also the central entity that participates in notifications about the change
  * of state of the objects. Whenever an object is signalled and may affect the readiness of
- * tasks, Scheduler is involved.
+ * tasks, scheduler is involved.
  * Finally, scheduler is also used in determining task completion.
  *
  * In a typical scenario, it's used in the following calls:
@@ -180,25 +189,25 @@ class Scheduler {
       return nullptr;
     }
     auto ret = std::move(ready_.top());
-    assert(ret->state == TaskState::Ready);
+    assert(ret->state_ == TaskState::Ready);
     ready_.pop();
-    ret->state = TaskState::Running;
+    ret->state_ = TaskState::Running;
     return ret;
   }
 
   /** Submits a task for execution
    */
   void AddSilentTask(SharedTask task) {
-    if (task->state != TaskState::New)
+    if (task->state_ != TaskState::New)
       throw std::logic_error("A task can be submitted only once.");
     AddTaskImpl(std::move(task));
   }
 
   /** Submits a task for execution and gets a Future which can be used to get the output value
    */
-  [[nodiscard("Use AddSilentTask if the result is not needed")]] TaskFuture AddTask(
-      SharedTask task) {
-    if (task->state != TaskState::New)
+  [[nodiscard("Use AddSilentTask if the result is not needed")]]
+  TaskFuture AddTask(SharedTask task) {
+    if (task->state_ != TaskState::New)
       throw std::logic_error("A task can be submitted only once.");
     auto res = task->results_;
     AddTaskImpl(task);
@@ -223,6 +232,7 @@ class Scheduler {
     std::lock_guard g(mtx_);
     shutdown_requested_ = true;
     task_ready_.notify_all();
+    task_done_.notify_all();
   }
 
  private:
@@ -230,26 +240,26 @@ class Scheduler {
   bool DLL_PUBLIC CheckTaskReady(SharedTask &task) noexcept;
 
   void AddTaskImpl(SharedTask task) {
-    if (task->state != TaskState::New)
-      throw std::logic_error("A task can be submitted only once.");
+    assert(task->state_ == TaskState::New);
     if (task->Ready()) {
-      std::lock_guard lock(mtx_);
       {
-        task->state = TaskState::Ready;
+        std::lock_guard lock(mtx_);
+        task->state_ = TaskState::Ready;
         ready_.push(task);
       }
+      task_ready_.notify_one();
     } else {
       std::lock_guard lock(mtx_);
-      task->state = TaskState::Pending;
+      task->state_ = TaskState::Pending;
       for (auto &pre : task->preconditions_) {
         bool added = pre->AddToWaiting(task);
         (void)added;
         assert(added);
       }
       pending_.PushFront(task);
-      CheckTaskReady(task);
+      if (CheckTaskReady(task))
+        task_ready_.notify_one();
     }
-    task_ready_.notify_one();
   }
 
   friend class Task;
@@ -267,27 +277,31 @@ inline void Waitable::Notify(Scheduler &sched) {
 }
 
 inline void Task::Run(Scheduler &sched) {
-  assert(state == TaskState::Running);
+  assert(state_ == TaskState::Running);
   wrapped_(this);
   results_.clear();
   inputs_.clear();
+  wrapped_ = {};
   MarkAsComplete();
   Notify(sched);
   for (auto &r : release_) {
     r->Release(sched);
   }
   release_.clear();
-  state = TaskState::Complete;
+  state_ = TaskState::Complete;
 }
 
 inline void TaskFuture::Wait(Scheduler &sched) {
-  sched.Wait(task_.get());
+  if (!complete_) {
+    sched.Wait(task_.get());
+    complete_ = true;
+  }
 }
 
 
 void Scheduler::Wait(Task *task) {
   std::unique_lock lock(mtx_);
-  if (task->state < TaskState::Pending)
+  if (task->state_ < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");
   task_done_.wait(lock, [&]() { return task->CheckComplete() || shutdown_requested_; });
   if (!task->CheckComplete())

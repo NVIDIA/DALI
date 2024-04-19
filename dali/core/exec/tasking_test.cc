@@ -123,7 +123,7 @@ TEST(TaskingTest, ArgumentPassing) {
     return 2 * task->GetInputValue<int>(0) + task->GetInputValue<double>(1);
   });
 
-  consumer->Consume(producer1)->Consume(producer2);
+  consumer->Subscribe(producer1)->Subscribe(producer2);
   ex.AddSilentTask(producer1);
   ex.AddSilentTask(producer2);
   double ret = ex.AddTask(consumer).Value<double>(ex);
@@ -140,17 +140,17 @@ TEST(TaskingTest, MultiOutputIterable) {
   auto consumer1 = Task::Create([](Task *t) {
     return t->GetInputValue<int>(0) + 3;
   });
-  consumer1->Consume(producer, 0);
+  consumer1->Subscribe(producer, 0);
 
   auto consumer2 = Task::Create([](Task *t) {
     return t->GetInputValue<int>(0) + 5;
   });
-  consumer2->Consume(producer, 1);
+  consumer2->Subscribe(producer, 1);
 
   auto apex = Task::Create([](Task *t) {
     return t->GetInputValue<int>(0) + t->GetInputValue<int>(1) + 10;
   });
-  apex->Consume(consumer1)->Consume(consumer2);
+  apex->Subscribe(consumer1)->Subscribe(consumer2);
 
   ex.AddSilentTask(producer);
   ex.AddSilentTask(consumer1);
@@ -169,17 +169,17 @@ TEST(TaskingTest, MultiOutputTuple) {
   auto consumer1 = Task::Create([](Task *t) {
     return t->GetInputValue<double>(0) + 3;
   });
-  consumer1->Consume(producer, 0);
+  consumer1->Subscribe(producer, 0);
 
   auto consumer2 = Task::Create([](Task *t) {
     return t->GetInputValue<int>(0) + 5;
   });
-  consumer2->Consume(producer, 1);
+  consumer2->Subscribe(producer, 1);
 
   auto apex = Task::Create([](Task *t) {
     return t->GetInputValue<double>(0) + t->GetInputValue<int>(1) + 10;
   });
-  apex->Consume(consumer1)->Consume(consumer2);
+  apex->Subscribe(consumer1)->Subscribe(consumer2);
 
   ex.AddSilentTask(producer);
   ex.AddSilentTask(consumer1);
@@ -235,19 +235,19 @@ TEST(TaskingTest, MultiOutputLifespan) {
     return t->GetInputValue<InstanceCounter<int>>(0).payload;
   });
   // This task consumes the 1st output of producer
-  consumer1->Consume(producer, 0)->Succeed(sem1);
+  consumer1->Subscribe(producer, 0)->Succeed(sem1);
 
   auto consumer2 = Task::Create([](Task *t) {
     return t->GetInputValue<InstanceCounter<int>>(0).payload;
   });
   // This task consumes the 2nd output of producer
-  consumer2->Consume(producer, 1)->Succeed(sem2);
+  consumer2->Subscribe(producer, 1)->Succeed(sem2);
 
   auto consumer3 = Task::Create([](Task *t) {
     return t->GetInputValue<InstanceCounter<int>>(0).payload;
   });
   // This task consumes the (again) 2nd output of producer
-  consumer3->Consume(producer, 1)->Succeed(sem3);
+  consumer3->Subscribe(producer, 1)->Succeed(sem3);
 
 
   ex.AddSilentTask(producer);
@@ -300,7 +300,7 @@ double slowfunc(double x) {
   return std::sqrt(x + std::sqrt(x) + std::sqrt(x + std::sqrt(x)));
 }
 
-void GraphConsumeTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn) {
+void GraphSubscribeTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn) {
   std::vector<SharedTask> tasks;
   std::set<Task *> has_successor;
   std::mt19937_64 rng;
@@ -334,7 +334,7 @@ void GraphConsumeTest(Executor &ex, int num_layers, int layer_size, int prev_lay
         return static_cast<int>(sum);
       });
       for (auto &dep : deps) {
-        task->Consume(tasks[dep]);
+        task->Subscribe(tasks[dep]);
         has_successor.insert(tasks[dep].get());
       }
       tasks.push_back(std::move(task));
@@ -360,7 +360,7 @@ TEST(TaskingTest, HighLoad) {
   Executor ex(4);
   ex.Start();
   for (int i = 0; i < 10; i++)
-    GraphConsumeTest(ex, 3, 1500, 50);
+    GraphSubscribeTest(ex, 3, 1500, 50);
 }
 
 

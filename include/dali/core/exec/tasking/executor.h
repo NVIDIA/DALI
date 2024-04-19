@@ -36,7 +36,8 @@ class Executor : public Scheduler {
       return;
     assert(workers_.empty());
     for (int i = 0; i < num_threads_; i++)
-      workers_.emplace_back([this, i]() { RunWorker(i); });
+      workers_.emplace_back([this]() { RunWorker(); });
+    started_ = true;
   }
 
   void Shutdown() {
@@ -49,7 +50,7 @@ class Executor : public Scheduler {
  private:
   bool started_ = false;
 
-  void RunWorker(int worker_idx) {
+  void RunWorker() {
     while (SharedTask task = Pop()) {
       task->Run(*this);
     }

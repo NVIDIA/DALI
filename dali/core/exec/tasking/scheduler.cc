@@ -20,7 +20,7 @@
 namespace dali::tasking {
 
 bool Scheduler::CheckTaskReady(SharedTask &task) noexcept {
-  assert(task->state <= TaskState::Pending);
+  assert(task->state_ <= TaskState::Pending);
 
   for (auto &w : task->preconditions_)
     if (!w->CheckComplete())
@@ -35,7 +35,7 @@ bool Scheduler::CheckTaskReady(SharedTask &task) noexcept {
     }
 
   task->preconditions_.clear();
-  task->state = TaskState::Ready;
+  task->state_ = TaskState::Ready;
   pending_.Remove(task);
   ready_.push(std::move(task));
   return true;
@@ -77,7 +77,7 @@ void Scheduler::Notify(Waitable *w) {
         task->preconditions_.erase(it);
         if (task->Ready()) {
           pending_.Remove(task);
-          task->state = TaskState::Ready;
+          task->state_ = TaskState::Ready;
           ready_.push(std::move(task));
           new_ready++;
           // OK, the task is ready, we're done with it
