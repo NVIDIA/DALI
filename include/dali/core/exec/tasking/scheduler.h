@@ -236,8 +236,8 @@ class Scheduler {
   }
 
  private:
-  /** Checks if the task is ready and moves it from pending_ to ready_ list */
-  bool DLL_PUBLIC CheckTaskReady(SharedTask &task) noexcept;
+  /** Acquires all preconditions if they are ready or none if at least one isn't ready */
+  bool DLL_PUBLIC AcquireAllPreconditions(SharedTask &task) noexcept;
 
   void AddTaskImpl(SharedTask task) {
     assert(task->state_ == TaskState::New);
@@ -257,7 +257,7 @@ class Scheduler {
         assert(added);
       }
       pending_.PushFront(task);
-      if (CheckTaskReady(task))
+      if (AcquireAllPreconditions(task))
         task_ready_.notify_one();
     }
   }

@@ -19,12 +19,14 @@
 
 namespace dali::tasking {
 
-bool Scheduler::CheckTaskReady(SharedTask &task) noexcept {
+bool Scheduler::AcquireAllPreconditions(SharedTask &task) noexcept {
   assert(task->state_ <= TaskState::Pending);
 
+  // All or nothing - first we check that all preconditions are met
   for (auto &w : task->preconditions_)
     if (!w->CheckComplete())
-      return false;
+      return false;  // at least one unmet
+  // If they are, we acquire them - this must succeed
   for (auto &w : task->preconditions_)
     if (!w->TryAcquire(task)) {
       // this should be a fatal error, but terminate and abort don't have messages
@@ -63,6 +65,9 @@ void Scheduler::Notify(Waitable *w) {
 
       // If the task has only one precondition or the waitable is a completion event,
       // then we can just try to acquire that waitable on behalf of the task.
+      // A completion event, once complete, is never un-completed and all waiting threads
+      // will be able to acquire it. This menas that we can eagerly acquire it without risking
+      // deadlocks. This imposes less overhead than re-checking all preconditions each time.
       if (is_completion_event ||
           (task->preconditions_.size() == 1 && task->preconditions_.begin()->get() == w)) {
         // try acquire - the only way this can fail is that the task was
@@ -85,7 +90,7 @@ void Scheduler::Notify(Waitable *w) {
         }
       }
 
-      if (CheckTaskReady(task))
+      if (AcquireAllPreconditions(task))
         new_ready++;
     }
   }

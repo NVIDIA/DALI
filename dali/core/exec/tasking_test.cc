@@ -47,7 +47,7 @@ TEST(TaskingTest, IndependentTasksAreParallel) {
   auto complete = Task::Create([](){});
   for (int i = 0; i < num_threads; i++) {
     auto task = Task::Create([&]() {
-      if (++parallel)
+      if (++parallel == num_threads)
         done = true;
       while (!done && std::chrono::high_resolution_clock::now() < timeout) {}
       parallel--;
@@ -58,6 +58,7 @@ TEST(TaskingTest, IndependentTasksAreParallel) {
   ex.AddSilentTask(complete);
   ex.Wait(complete);
   EXPECT_TRUE(done);
+  EXPECT_EQ(parallel, 0) << "The tasks didn't finish cleanly";
 }
 
 TEST(TaskingTest, DependentTasksAreSequential) {
@@ -87,6 +88,7 @@ TEST(TaskingTest, DependentTasksAreSequential) {
   ex.Wait(last_task);
   EXPECT_EQ(max_parallel, 1)
       << "The parallelism counter should not exceed 1 for a sequence of dependent tasks.";
+  EXPECT_EQ(parallel, 0) << "The tasks didn't finish cleanly";
 }
 
 TEST(TaskingTest, TaskArgumentValid) {
