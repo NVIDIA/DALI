@@ -92,6 +92,11 @@ if (BUILD_CUFILE)
   target_link_libraries(dali PRIVATE dynlink_cufile)
 endif()
 
+if (BUILD_AWSSDK)
+  target_include_directories(dali PRIVATE ${AWSSDK_INCLUDE_DIR})
+  target_link_libraries(dali PRIVATE ${AWSSDK_LIBRARIES})
+endif()
+
 # Build test suite
 ################################################
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)
