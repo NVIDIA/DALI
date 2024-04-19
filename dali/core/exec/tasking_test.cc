@@ -41,7 +41,7 @@ TEST(TaskingTest, IndependentTasksAreParallel) {
   Executor ex(num_threads);
   ex.Start();
 
-  std::atomic_int parallel;
+  std::atomic_int parallel = 0;
   std::atomic_bool done = false;
   auto timeout = std::chrono::high_resolution_clock::now() + std::chrono::seconds(1);
   auto complete = Task::Create([](){});
@@ -50,7 +50,7 @@ TEST(TaskingTest, IndependentTasksAreParallel) {
       if (++parallel == num_threads)
         done = true;
       while (!done && std::chrono::high_resolution_clock::now() < timeout) {}
-      parallel--;
+      --parallel;
     });
     complete->Succeed(task);
     ex.AddSilentTask(task);
