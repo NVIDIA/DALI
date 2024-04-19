@@ -19,10 +19,8 @@
 #include <aws/s3/S3Client.h>
 #include <cstdio>
 #include <functional>
-#include <memory>
 #include <string>
-#include <vector>
-#include "dali/core/common.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 

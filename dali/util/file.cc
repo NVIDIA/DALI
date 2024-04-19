@@ -32,8 +32,7 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, FileStream:
   bool is_s3 = uri.rfind("s3://", 0) == 0;
   if (is_s3) {
 #if AWSSDK_ENABLED
-    return std::unique_ptr<FileStream>(
-        new S3FileStream(S3ClientManager::Instance().client(), uri, size));
+    return std::make_unique<S3FileStream>(S3ClientManager::Instance().client(), uri, size);
 #else
     throw std::runtime_error("This version of DALI was not built with AWS S3 storage support.");
 #endif

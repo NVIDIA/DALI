@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <utility>
 #include "dali/core/common.h"
 #include "dali/pipeline/util/thread_pool.h"
 
@@ -38,10 +39,12 @@ struct S3ClientManager {
 
  private:
   // Documentation says:
-  // 1) Please call this from the same thread from which InitAPI() has been called (use a dedicated thread
-  //    if necessary). This avoids problems in initializing the dependent Common RunTime C libraries.
+  // 1) Please call this from the same thread from which InitAPI() has been called (use a dedicated
+  // thread
+  //    if necessary). This avoids problems in initializing the dependent Common RunTime C
+  //    libraries.
   static void RunInitOrShutdown(std::function<void(int)> work) {
-    static ThreadPool s_thread_pool_(1, 0, false, "SClientManager");
+    static ThreadPool s_thread_pool_(1, 0, false, "S3ClientManager");
     s_thread_pool_.AddWork(std::move(work));
     s_thread_pool_.RunAll();
   }

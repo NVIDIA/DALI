@@ -21,6 +21,7 @@
 #include <aws/s3/model/HeadBucketRequest.h>
 #include <aws/s3/model/HeadObjectRequest.h>
 #include <aws/s3/model/ListObjectsV2Request.h>
+#include <vector>
 #include "dali/core/format.h"
 #include "dali/core/nvtx.h"
 #include "dali/util/uri.h"

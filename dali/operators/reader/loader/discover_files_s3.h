@@ -20,8 +20,9 @@
 #include "dali/operators/reader/loader/discover_files.h"
 
 namespace dali {
-DLL_PUBLIC std::vector<FileLabelEntry> s3_discover_files(
-    const std::string &file_root, const FileDiscoveryOptions &opts);
+
+std::vector<FileLabelEntry> s3_discover_files(const std::string &file_root,
+                                              const FileDiscoveryOptions &opts);
 
 }  // namespace dali
 

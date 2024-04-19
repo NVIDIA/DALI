@@ -21,7 +21,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include "dali/core/common.h"
 #include "dali/util/file.h"
 #include "dali/util/s3_filesystem.h"
 #include "dali/util/uri.h"

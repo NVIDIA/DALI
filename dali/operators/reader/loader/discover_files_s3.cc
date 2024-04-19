@@ -24,6 +24,12 @@
 
 namespace dali {
 
+// We are using std::filesystem to analyze URI relative paths, which wouldn't be OK in non-UNIX
+// based systems
+#ifndef __unix__
+#error This code works only in UNIX-based systems
+#endif
+
 std::vector<FileLabelEntry> s3_discover_files(const std::string &file_root,
                                               const FileDiscoveryOptions &opts) {
   assert(starts_with(file_root, "s3://"));
