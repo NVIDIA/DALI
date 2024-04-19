@@ -13,12 +13,13 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <memory>
 #include "dali/c_api.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
+
 
 namespace dali::test {
 
@@ -206,18 +207,10 @@ class OperatorTraceTestExternalInput : public OperatorTraceTest {
 namespace {
 
 template<typename T>
-thrust::host_vector<T> random_vector_cpu(std::mt19937 &mt, size_t size) {
-  std::vector<T> ret(size);
-  std::uniform_int_distribution<T> dist{0, 255};
-  auto gen = [&]() { return dist(mt); };
-  std::generate(ret.begin(), ret.end(), gen);
-  return ret;
-}
-
-
-template<typename T>
-thrust::device_vector<T> random_vector_gpu(std::mt19937 &mt, size_t size) {
-  thrust::device_vector<T> ret = random_vector_cpu<T>(mt, size);
+kernels::TestTensorList<T> random_vector(std::mt19937 &mt, size_t size) {
+  kernels::TestTensorList<T> ret;
+  ret.reshape(uniform_list_shape(1, {size}));
+  UniformRandomFill(ret.cpu(), mt, 0, 255);
   return ret;
 }
 
@@ -238,9 +231,9 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     ASSERT_GE(feed_count_cpu, 1);
     for (int i = 0; i < feed_count_cpu; i++) {
       size_t sample_size = 42;
-      auto in_data = random_vector_cpu<uint8_t>(rng, sample_size * batch_size_);
+      auto in_data = random_vector<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
-      daliSetExternalInput(&h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.data(),
+      daliSetExternalInput(&h, "OP_TRACE_IN_CPU", device_type_t::CPU, in_data.cpu().tensor_data(0),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_default);
     }
@@ -250,10 +243,10 @@ TEST_P(OperatorTraceTestExternalInput, OperatorTraceTestExternalInput) {
     ASSERT_GE(feed_count_gpu, 1);
     for (int i = 0; i < feed_count_gpu; i++) {
       int sample_size = 42;
-      auto in_data = random_vector_gpu<uint8_t>(rng, sample_size * batch_size_);
+      auto in_data = random_vector<uint8_t>(rng, sample_size * batch_size_);
       std::vector<int64_t> shapes(batch_size_, sample_size);
       daliSetExternalInput(&h, "OP_TRACE_IN_GPU", device_type_t::GPU,
-                           thrust::raw_pointer_cast(in_data.data()), dali_data_type_t::DALI_UINT8,
+                           in_data.gpu().tensor_data(0), dali_data_type_t::DALI_UINT8,
                            shapes.data(), 1, nullptr, DALI_ext_default);
     }
 

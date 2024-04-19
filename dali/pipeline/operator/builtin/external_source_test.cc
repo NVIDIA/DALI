@@ -13,8 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <fstream>
 #include <memory>
 #include <tuple>
@@ -25,7 +23,8 @@
 #include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/c_api.h"
-
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 namespace dali {
 
 
@@ -61,17 +60,17 @@ class ExternalSourceBasicTest : public ::testing::Test {
     daliSetExternalInputBatchSize(h, input_name_.c_str(), batch_size_);
     int bytes_per_sample = 10;
     std::vector<int64_t> shapes(batch_size_, bytes_per_sample);
-    thrust::host_vector<uint8_t> data_cpu(batch_size_ * bytes_per_sample);
+    kernels::TestTensorList<uint8_t> data;
+    data.reshape(uniform_list_shape(batch_size_, {bytes_per_sample}));
     assert(bytes_per_sample * batch_size_ < 255);
-    std::iota(data_cpu.begin(), data_cpu.end(), 1);
+    SequentialFill(data.cpu(), 1);
     if constexpr (is_cpu) {
-      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data_cpu.data(),
+      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data.cpu().tensor_data(0),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_force_copy);
     } else {
-      thrust::device_vector<uint8_t> data_gpu = data_cpu;
       daliSetExternalInput(h, input_name_.c_str(), device_type_t::GPU,
-                           thrust::raw_pointer_cast(data_gpu.data()),
+                           data.gpu().tensor_data(0),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_force_copy);
     }
