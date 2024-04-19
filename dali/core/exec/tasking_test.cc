@@ -302,7 +302,12 @@ double slowfunc(double x) {
   return std::sqrt(x + std::sqrt(x) + std::sqrt(x + std::sqrt(x)));
 }
 
-void GraphSubscribeTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn) {
+// This test creates a large graph with several layers and randomly placed connections
+// between nodes in the layers.
+// Each node produces a value that is then consumed by the dependent tasks.
+// Each task compares the value vs a reference computed at task creation.
+// In the event of failure, obtaining the future throws an exception.
+void GraphTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn) {
   std::vector<SharedTask> tasks;
   std::set<Task *> has_successor;
   std::mt19937_64 rng;
@@ -362,7 +367,7 @@ TEST(TaskingTest, HighLoad) {
   Executor ex(4);
   ex.Start();
   for (int i = 0; i < 10; i++)
-    GraphSubscribeTest(ex, 3, 1500, 50);
+    GraphTest(ex, 3, 1500, 50);
 }
 
 
