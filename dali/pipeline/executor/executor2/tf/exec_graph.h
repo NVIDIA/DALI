@@ -25,7 +25,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
-#include "third_party/taskflow/taskflow/taskflow.hpp"  // TODO(michalz): Add it to cmake
+#include "dali/core/exec/tasking.h"
 
 namespace dali {
 namespace exec2 {
