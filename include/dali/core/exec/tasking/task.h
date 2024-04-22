@@ -420,7 +420,7 @@ class Task : public CompletionEvent {
   Task *Succeed(const std::shared_ptr<Waitable> &w) {
     if (state_ != TaskState::New)
       throw std::logic_error(
-          "Cannot add a new dependency to a task that has been submitted for execution.\n");
+          "Cannot add a new dependency to a task that has been submitted for execution.");
     if (std::find(preconditions_.begin(), preconditions_.end(), w) == preconditions_.end())
       preconditions_.push_back(w);
     return this;
