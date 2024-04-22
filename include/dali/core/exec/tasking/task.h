@@ -275,7 +275,7 @@ class Task : public CompletionEvent {
         for (auto &&r : results) {
           if (n >= results_.size())
             throw std::logic_error("The function provided more results than "
-                                  "the task was declared to have.");
+                                   "the task was declared to have.");
           using T = std::remove_reference_t<decltype(r)>;
           results_[n]->Set(std::forward<T>(r));
           n++;
@@ -283,7 +283,7 @@ class Task : public CompletionEvent {
 
         if (n < results_.size())
           throw std::logic_error("The function provided fewer results than "
-                                  "the task was declared to have.");
+                                 "the task was declared to have.");
       } else if constexpr (detail::is_tuple_v<result_t>) {  // NOLINT
         assert(std::tuple_size_v<result_t> == results_.size() &&
                "Internal error - incorrect tuple size should have been detected earlier.");
@@ -314,8 +314,8 @@ class Task : public CompletionEvent {
       return;
     } else if constexpr (detail::is_tuple_v<Result>) {
       if (std::tuple_size_v<Result> != num_results)
-        throw std::logic_error("The output tuple has a different size than "
-                               "the declared number of task's ouputs.");
+        throw std::invalid_argument("The output tuple has a different size than "
+                                    "the declared number of task's ouputs.");
     } else {
       throw std::invalid_argument("The result of the function is neither iterable nor a tuple "
                                   "and cannot be used to obtain multiple output values.");

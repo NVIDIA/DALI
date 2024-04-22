@@ -370,5 +370,130 @@ TEST(TaskingTest, HighLoad) {
     GraphTest(ex, 3, 1500, 50);
 }
 
+TEST(TaskingTest, Priority) {
+  Scheduler sched;
+  // add 4 tasks with shuffled order
+  auto t1 = Task::Create([]() {}, 1);
+  sched.AddSilentTask(t1);
+
+  auto t4 = Task::Create([]() {}, 4);
+  sched.AddSilentTask(t4);
+
+  auto t3 = Task::Create([]() {}, 3);
+  sched.AddSilentTask(t3);
+
+  auto t2 = Task::Create([]() {}, 2);
+  sched.AddSilentTask(t2);
+
+  SharedTask t;
+  EXPECT_EQ(t = sched.Pop(), t4) << "Expected task t4, got t" << t->Priority();
+  EXPECT_EQ(t = sched.Pop(), t3) << "Expected task t3, got t" << t->Priority();
+  EXPECT_EQ(t = sched.Pop(), t2) << "Expected task t2, got t" << t->Priority();
+  EXPECT_EQ(t = sched.Pop(), t1) << "Expected task t1, got t" << t->Priority();
+  // we need to run the tasks to avoid asserts
+  t4->Run(sched);
+  t3->Run(sched);
+  t2->Run(sched);
+  t1->Run(sched);
+}
+
+TEST(TaskingErrorTest, DoubleSubmit) {
+  Scheduler sched;
+  auto t1 = Task::Create([]() {});
+  sched.AddSilentTask(t1);
+  EXPECT_THROW(sched.AddSilentTask(t1), std::logic_error);
+}
+
+TEST(TaskingErrorTest, SuceedAfterSubmit) {
+  Scheduler sched;
+  auto t1 = Task::Create([]() {});
+  auto t2 = Task::Create([]() {});
+  sched.AddSilentTask(t1);
+  EXPECT_THROW(t1->Succeed(t2), std::logic_error);
+}
+
+TEST(TaskingErrorTest, SubscribeToPending) {
+  Scheduler sched;
+  auto t1 = Task::Create([]() { return 0; });
+  sched.AddSilentTask(t1);
+  auto t2 = Task::Create([]() {});
+  EXPECT_THROW(t2->Subscribe(t1), std::logic_error);
+}
+
+TEST(TaskingErrorTest, SubscribeInvalidIndex) {
+  Scheduler sched;
+  auto t1 = Task::Create(2, []() { return std::make_tuple(1, 2.0); });
+  auto t2 = Task::Create([]() {});
+  t2->Subscribe(t1, 0);
+  t2->Subscribe(t1, 1);
+  EXPECT_THROW(t2->Subscribe(t1, 2), std::out_of_range);
+}
+
+TEST(TaskingErrorTest, ScalarResult2Outputs) {
+  Scheduler sched;
+  EXPECT_THROW(Task::Create(2, []() { return 0; }), std::invalid_argument);
+}
+
+TEST(TaskingErrorTest, IncorrectTupleSize) {
+  Scheduler sched;
+  EXPECT_NO_THROW(Task::Create(3, []() { return std::make_tuple(1, 2, 3); }));
+  EXPECT_THROW(Task::Create(2, []() { return std::make_tuple(1, 2, 3); }), std::invalid_argument);
+}
+
+TEST(TaskingErrorTest, TaskRun_IncorrectResultCountAtRunTime) {
+  Scheduler sched;
+  SharedTask task;
+  EXPECT_NO_THROW(task = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; }));
+  auto fut = sched.AddTask(task);
+  sched.Pop()->Run(sched);
+  EXPECT_THROW(fut.Value<int>(sched, 0), std::logic_error);
+}
+
+TEST(TaskFutureTest, IndexChecking) {
+  Scheduler sched;
+  SharedTask task;
+  task = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
+  auto fut = sched.AddTask(task);
+  sched.Pop()->Run(sched);
+  EXPECT_NO_THROW(fut.Value<int>(sched, 0));
+  EXPECT_NO_THROW(fut.Value<int>(sched, 1));
+  EXPECT_NO_THROW(fut.Value<int>(sched, 2));
+  EXPECT_THROW(fut.Value<int>(sched, -1), std::out_of_range);
+  EXPECT_THROW(fut.Value<int>(sched, 3), std::out_of_range);
+}
+
+TEST(TaskFutureTest, TypeChecking) {
+  Scheduler sched;
+  SharedTask task;
+  task = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; });
+  auto fut = sched.AddTask(task);
+  sched.Pop()->Run(sched);
+  EXPECT_NO_THROW(fut.Value<int>(sched, 0));
+  EXPECT_THROW(fut.Value<double>(sched, 0), std::bad_any_cast);
+}
+
+TEST(TaskInputTest, InvalidResultIndex) {
+  Executor ex(4);
+  ex.Start();
+  auto t1 = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; });
+  auto t2 = Task::Create([](Task *t) { t->GetInputValue<int>(3); });
+  t2->Subscribe(t1, 0);
+  t2->Subscribe(t1, 1);
+  t2->Subscribe(t1, 2);
+  ex.AddSilentTask(t1);
+  auto fut = ex.AddTask(t2);
+  EXPECT_THROW(fut.Value<void>(ex), std::out_of_range);
+}
+
+TEST(TaskInputTest, InvalidResultType) {
+  Executor ex(4);
+  ex.Start();
+  auto t1 = Task::Create([]() { return 42; });
+  auto t2 = Task::Create([](Task *t) { t->GetInputValue<double>(1); });
+  t2->Subscribe(t1);
+  ex.AddSilentTask(t1);
+  auto fut = ex.AddTask(t2);
+  EXPECT_THROW(fut.Value<void>(ex), std::out_of_range);
+}
 
 }  // namespace dali::tasking::test
