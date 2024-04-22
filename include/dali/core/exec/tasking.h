@@ -24,7 +24,7 @@
  * @brief DALI tasking module
  *
  * The tasking module provides an abstraction for scheduling dependent tasks and a simple
- * thread-pool basd executor.
+ * thread-pool based executor.
  *
  * The tasks can have temporal dependencies (for side-effects) and data dependencies.
  * The tasks are single-use objects, passed around via shared pointer.

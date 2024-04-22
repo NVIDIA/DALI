@@ -520,7 +520,7 @@ class TaskList {
   /** Removes an element from the list.
    *
    * This function removes the element from the list by detaching it and reconnecting the
-   * previous and next elements. If the task coincides with head or tail, then the respecitve
+   * previous and next elements. If the task coincides with head or tail, then the respective
    * end is updated accordingly.
    */
   void Remove(const SharedTask &task) {

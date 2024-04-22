@@ -29,7 +29,6 @@ bool Scheduler::AcquireAllAndMoveToReady(SharedTask &task) noexcept {
   // If they are, we acquire them - this must succeed
   for (auto &w : task->preconditions_)
     if (!w->TryAcquire(task)) {
-      // this should be a fatal error, but terminate and abort don't have messages
       std::cerr
           << "Internal error - resource acquisition failed for a resource known to be available"
           << std::endl;

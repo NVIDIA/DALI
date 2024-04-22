@@ -129,11 +129,9 @@ class CompletionEvent : public Waitable {
  */
 class Releasable : public Waitable {
  public:
-  bool Release(Scheduler &sched) {
-    if (!ReleaseImpl())
-      return false;
+  void Release(Scheduler &sched) {
+    ReleaseImpl();
     Notify(sched);
-    return true;
   }
 
  protected:
@@ -141,7 +139,7 @@ class Releasable : public Waitable {
    *
    * If IsAcquirable is called atomically after a successful ReleaseImpl, then it must return true.
    */
-  virtual bool ReleaseImpl() = 0;
+  virtual void ReleaseImpl() = 0;
 };
 
 /** A releasable object which counts how many times it can be acquired.
@@ -175,12 +173,11 @@ class Semaphore : public Releasable {
     return false;
   }
 
-  bool ReleaseImpl() override {
+  void ReleaseImpl() override {
     std::lock_guard g(lock_);
     if (count >= max_count)
-      return false;
+      throw std::out_of_range("The semaphore exceeded its maximum count.");
     count++;
-    return true;
   }
 
  private:
