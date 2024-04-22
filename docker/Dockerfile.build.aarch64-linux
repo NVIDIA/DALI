@@ -59,6 +59,13 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     PYTHON_V=$(python3 -c "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')") && \
     ln -s /usr/bin/python${PYTHON_V}-config /usr/bin/python3-config
 
+RUN CMAKE_VERSION=3.20.1 && CMAKE_ARCH=$(uname -m) && \
+    wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
+    chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
+    rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
+
 ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
 COPY DALI_DEPS_VERSION /tmp
