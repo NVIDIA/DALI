@@ -19,6 +19,7 @@
 #include <aws/s3/S3Client.h>
 #include <cstdio>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include "dali/core/common.h"
@@ -29,6 +30,11 @@ namespace dali {
 struct S3ClientManager {
  public:
   static S3ClientManager& Instance() {
+    static std::once_flag once;
+    std::call_once(once, []() {
+      RunInitOrShutdown([&](int) { Aws::InitAPI(Aws::SDKOptions{}); });
+    });
+    // We want RunInitOrShutdown s_thread_pool_ to outlive s_manager_
     static S3ClientManager s_manager_;
     return s_manager_;
   }
@@ -50,16 +56,14 @@ struct S3ClientManager {
   }
 
   S3ClientManager() {
-    RunInitOrShutdown([&](int) { Aws::InitAPI(options_); });
     client_ = std::make_unique<Aws::S3::S3Client>();
   }
 
   ~S3ClientManager() {
     client_.reset();
-    RunInitOrShutdown([&](int) { Aws::ShutdownAPI(options_); });
+    RunInitOrShutdown([&](int) { Aws::ShutdownAPI(Aws::SDKOptions{}); });
   }
 
-  Aws::SDKOptions options_;
   std::unique_ptr<Aws::S3::S3Client> client_;
 };
 
