@@ -45,10 +45,9 @@ struct S3ClientManager {
 
  private:
   // Documentation says:
-  // 1) Please call this from the same thread from which InitAPI() has been called (use a dedicated
-  // thread
-  //    if necessary). This avoids problems in initializing the dependent Common RunTime C
-  //    libraries.
+  // Please call this from the same thread from which InitAPI() has been called (use a dedicated
+  // thread if necessary). This avoids problems in initializing the dependent Common RunTime C
+  // libraries.
   static void RunInitOrShutdown(std::function<void(int)> work) {
     static ThreadPool s_thread_pool_(1, 0, false, "S3ClientManager");
     s_thread_pool_.AddWork(std::move(work));

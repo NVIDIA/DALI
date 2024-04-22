@@ -54,8 +54,8 @@ std::vector<FileLabelEntry> s3_discover_files(const std::string &file_root,
         assert(path_elems >= 2);
         if (path_elems > 2)
           return;  // we only look at one subdir level
-        auto subdir = *(p.begin());
-        auto fname = *(++p.begin());
+        const auto& subdir = p.begin()->native();
+        const auto& fname = (++p.begin())->native();
         bool subdir_ok = opts.dir_filters.empty();
         bool fname_ok = opts.file_filters.empty();
         for (auto &filter : opts.dir_filters) {
