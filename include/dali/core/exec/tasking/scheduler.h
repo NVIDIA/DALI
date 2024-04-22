@@ -294,12 +294,14 @@ inline void Waitable::Notify(Scheduler &sched) {
 }
 
 inline void Task::Wait() {
+  Scheduler *sched = sched_;  // Store a copy of sched_ first.
+  std::atomic_thread_fence(std::memory_order_acquire);
   if (state_ >= TaskState::Complete)
     return;
-  if (sched_ == nullptr)
+  if (sched == nullptr)
     throw std::logic_error("The task is not associated with any scheduler.");
   // if by some magic we get sched_, then we don't care if the state_ is New
-  sched_->Wait(this);
+  sched->Wait(this);
 }
 
 inline void Task::Run() {
@@ -315,6 +317,7 @@ inline void Task::Run() {
     r->Release(*sched_);
   }
   release_.clear();
+  std::atomic_thread_fence(std::memory_order_release);
   sched_ = nullptr;
 }
 
