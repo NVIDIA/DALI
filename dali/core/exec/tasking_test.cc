@@ -99,9 +99,9 @@ TEST(TaskingTest, TaskArgumentValid) {
   std::atomic_int tested = 0, valid = 0;
   for (int i = 0; i < N; i++) {
     tasks[i] = Task::Create([&, i](Task *task) {
-      ++tested;
       if (task == tasks[i].get())
         ++valid;
+      ++tested;
     });
     ex.AddSilentTask(tasks[i]);
   }
@@ -128,7 +128,7 @@ TEST(TaskingTest, ArgumentPassing) {
   consumer->Subscribe(producer1)->Subscribe(producer2);
   ex.AddSilentTask(producer1);
   ex.AddSilentTask(producer2);
-  double ret = ex.AddTask(consumer).Value<double>(ex);
+  double ret = ex.AddTask(consumer).Value<double>();
   EXPECT_EQ(ret, 84.5);
 }
 
@@ -157,7 +157,7 @@ TEST(TaskingTest, MultiOutputIterable) {
   ex.AddSilentTask(producer);
   ex.AddSilentTask(consumer1);
   ex.AddSilentTask(consumer2);
-  int ret = ex.AddTask(apex).Value<int>(ex);
+  int ret = ex.AddTask(apex).Value<int>();
   EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
 }
 
@@ -186,7 +186,7 @@ TEST(TaskingTest, MultiOutputTuple) {
   ex.AddSilentTask(producer);
   ex.AddSilentTask(consumer1);
   ex.AddSilentTask(consumer2);
-  double ret = ex.AddTask(apex).Value<double>(ex);
+  double ret = ex.AddTask(apex).Value<double>();
   EXPECT_EQ(ret, 1 + 3 + 42 + 5 + 10);
 }
 
@@ -256,7 +256,7 @@ TEST(TaskingTest, MultiOutputLifespan) {
   ex.AddSilentTask(consumer1);
   ex.AddSilentTask(consumer2);
   ex.AddSilentTask(consumer3);
-  ex.Wait(producer);
+  producer->Wait();
 
   // Once producer is finished we should still see both instances - they should be in the inputs
   // of the consumers.
@@ -264,16 +264,16 @@ TEST(TaskingTest, MultiOutputLifespan) {
 
   // We trigger 1st consumer
   sem1->Release(ex);
-  ex.Wait(consumer1);
+  consumer1->Wait();
   // After it's done, the 1st output of producer is no longer needed - it should be destroyed
   EXPECT_EQ(InstanceCounter<int>::num_instances, 1);
   sem2->Release(ex);
-  ex.Wait(consumer2);
+  consumer2->Wait();
   // 2nd output is different - it has 2 consumers
   EXPECT_EQ(InstanceCounter<int>::num_instances, 1);
 
   sem3->Release(ex);
-  ex.Wait(consumer3);
+  consumer3->Wait();
   // Both consumers are gone - the 2nd output should be gone now.
   EXPECT_EQ(InstanceCounter<int>::num_instances, 0);
 }
@@ -358,7 +358,7 @@ void GraphTest(Executor &ex, int num_layers, int layer_size, int prev_layer_conn
   }
 
   for (auto &f : futures)
-    (void)f.Value(ex);
+    (void)f.Value();
 }
 
 }  // namespace
@@ -391,10 +391,10 @@ TEST(TaskingTest, Priority) {
   EXPECT_EQ(t = sched.Pop(), t2) << "Expected task t2, got t" << t->Priority();
   EXPECT_EQ(t = sched.Pop(), t1) << "Expected task t1, got t" << t->Priority();
   // we need to run the tasks to avoid asserts
-  t4->Run(sched);
-  t3->Run(sched);
-  t2->Run(sched);
-  t1->Run(sched);
+  t4->Run();
+  t3->Run();
+  t2->Run();
+  t1->Run();
 }
 
 TEST(TaskingErrorTest, DoubleSubmit) {
@@ -445,8 +445,8 @@ TEST(TaskingErrorTest, TaskRun_IncorrectResultCountAtRunTime) {
   SharedTask task;
   EXPECT_NO_THROW(task = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; }));
   auto fut = sched.AddTask(task);
-  sched.Pop()->Run(sched);
-  EXPECT_THROW(fut.Value<int>(sched, 0), std::logic_error);
+  sched.Pop()->Run();
+  EXPECT_THROW(fut.Value<int>(0), std::logic_error);
 }
 
 TEST(TaskFutureTest, IndexChecking) {
@@ -454,12 +454,12 @@ TEST(TaskFutureTest, IndexChecking) {
   SharedTask task;
   task = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
   auto fut = sched.AddTask(task);
-  sched.Pop()->Run(sched);
-  EXPECT_NO_THROW(fut.Value<int>(sched, 0));
-  EXPECT_NO_THROW(fut.Value<int>(sched, 1));
-  EXPECT_NO_THROW(fut.Value<int>(sched, 2));
-  EXPECT_THROW(fut.Value<int>(sched, -1), std::out_of_range);
-  EXPECT_THROW(fut.Value<int>(sched, 3), std::out_of_range);
+  sched.Pop()->Run();
+  EXPECT_NO_THROW(fut.Value<int>(0));
+  EXPECT_NO_THROW(fut.Value<int>(1));
+  EXPECT_NO_THROW(fut.Value<int>(2));
+  EXPECT_THROW(fut.Value<int>(-1), std::out_of_range);
+  EXPECT_THROW(fut.Value<int>(3), std::out_of_range);
 }
 
 TEST(TaskFutureTest, TypeChecking) {
@@ -467,9 +467,9 @@ TEST(TaskFutureTest, TypeChecking) {
   SharedTask task;
   task = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
   auto fut = sched.AddTask(task);
-  sched.Pop()->Run(sched);
-  EXPECT_NO_THROW(fut.Value<int>(sched, 0));
-  EXPECT_THROW(fut.Value<double>(sched, 0), std::bad_any_cast);
+  sched.Pop()->Run();
+  EXPECT_NO_THROW(fut.Value<int>(0));
+  EXPECT_THROW(fut.Value<double>(0), std::bad_any_cast);
 }
 
 TEST(TaskInputTest, InvalidResultIndex) {
@@ -482,7 +482,7 @@ TEST(TaskInputTest, InvalidResultIndex) {
   t2->Subscribe(t1, 2);
   ex.AddSilentTask(t1);
   auto fut = ex.AddTask(t2);
-  EXPECT_THROW(fut.Value<void>(ex), std::out_of_range);
+  EXPECT_THROW(fut.Value<void>(), std::out_of_range);
 }
 
 TEST(TaskInputTest, InvalidResultType) {
@@ -493,7 +493,7 @@ TEST(TaskInputTest, InvalidResultType) {
   t2->Subscribe(t1);
   ex.AddSilentTask(t1);
   auto fut = ex.AddTask(t2);
-  EXPECT_THROW(fut.Value<void>(ex), std::out_of_range);
+  EXPECT_THROW(fut.Value<void>(), std::out_of_range);
 }
 
 }  // namespace dali::tasking::test

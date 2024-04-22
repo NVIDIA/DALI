@@ -67,7 +67,7 @@ class Executor : public Scheduler {
 
   void RunWorker() {
     while (SharedTask task = Pop()) {
-      task->Run(*this);
+      task->Run();
     }
   }
 

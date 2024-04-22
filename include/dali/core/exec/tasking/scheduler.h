@@ -44,8 +44,8 @@ class TaskFuture {
    * If the task returns a value of a different type, std::bad_any_cast is thrown.
    */
   template <typename T>
-  T Value(Scheduler &sched) & {
-    Wait(sched);
+  T Value() & {
+    Wait();
     return results_.Value<T>();
   }
 
@@ -55,9 +55,9 @@ class TaskFuture {
    * If the task returns a value of a different type, std::bad_any_cast is thrown.
    */
   template <typename T>
-  T Value(Scheduler &sched) && {
+  T Value() && {
     static_assert(!std::is_reference_v<T>, "Returning a reference to a temporary");
-    Wait(sched);
+    Wait();
     return results_.Value<T>();
   }
 
@@ -66,8 +66,8 @@ class TaskFuture {
    * If the task throws, the exception rethrown here.
    * If the task returns `void`, the returned `any` is empty.
    */
-  decltype(auto) Value(Scheduler &sched) & {
-    Wait(sched);
+  decltype(auto) Value() & {
+    Wait();
     return results_.Value();
   }
 
@@ -76,8 +76,8 @@ class TaskFuture {
    * If the task throws, the exception rethrown here.
    * If the task returns `void`, the returned `any` is empty.
    */
-  auto Value(Scheduler &sched) && {
-    Wait(sched);
+  auto Value() && {
+    Wait();
     return results_.Value();
   }
 
@@ -89,8 +89,8 @@ class TaskFuture {
    * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   template <typename T>
-  T Value(Scheduler &sched, int index) & {
-    Wait(sched);
+  T Value(int index) & {
+    Wait();
     return results_.Value<T>(index);
   }
 
@@ -102,9 +102,9 @@ class TaskFuture {
    * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
   template <typename T>
-  T Value(Scheduler &sched, int index) && {
+  T Value(int index) && {
     static_assert(!std::is_reference_v<T>, "Returning a reference to a temporary");
-    Wait(sched);
+    Wait();
     return results_.Value<T>(index);
   }
 
@@ -115,8 +115,8 @@ class TaskFuture {
    *
    * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
-  decltype(auto) Value(Scheduler &sched, int index) & {
-    Wait(sched);
+  decltype(auto) Value(int index) & {
+    Wait();
     return results_.Value(index);
   }
 
@@ -127,14 +127,14 @@ class TaskFuture {
    *
    * @param index The index of the return value of the task. See `num_results` in `Task::Create`
    */
-  auto Value(Scheduler &sched, int index) && {
-    Wait(sched);
+  auto Value(int index) && {
+    Wait();
     return results_.Value(index);
   }
 
 
  private:
-  void Wait(Scheduler &sched);
+  void Wait();
   SharedTask task_;
   TaskResults results_;
   bool complete_ = false;  // optimize multiple calls to Wait / Value
@@ -250,6 +250,7 @@ class Scheduler {
 
   void AddTaskImpl(SharedTask task) {
     assert(task->state_ == TaskState::New);
+    task->Submit(*this);
     if (task->Ready()) {  // if the task has no preconditions...
       {
         // ...then we add it directly to the read_ queue.
@@ -292,24 +293,34 @@ inline void Waitable::Notify(Scheduler &sched) {
   sched.Notify(this);
 }
 
-inline void Task::Run(Scheduler &sched) {
+inline void Task::Wait() {
+  if (state_ >= TaskState::Complete)
+    return;
+  if (sched_ == nullptr)
+    throw std::logic_error("The task is not associated with any scheduler.");
+  // if by some magic we get sched_, then we don't care if the state_ is New
+  sched_->Wait(this);
+}
+
+inline void Task::Run() {
   assert(state_ == TaskState::Running);
   wrapped_(this);
   results_.clear();
   inputs_.clear();
   wrapped_ = {};
   MarkAsComplete();
-  Notify(sched);
+  state_ = TaskState::Complete;
+  Notify(*sched_);
   for (auto &r : release_) {
-    r->Release(sched);
+    r->Release(*sched_);
   }
   release_.clear();
-  state_ = TaskState::Complete;
+  sched_ = nullptr;
 }
 
-inline void TaskFuture::Wait(Scheduler &sched) {
+inline void TaskFuture::Wait() {
   if (!complete_) {
-    sched.Wait(task_.get());
+    task_->Wait();
     complete_ = true;
   }
 }
@@ -320,8 +331,10 @@ void Scheduler::Wait(Task *task) {
   if (task->state_ < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");
   task_done_.wait(lock, [&]() { return task->IsAcquirable() || shutdown_requested_; });
-  if (!task->IsAcquirable())
+  if (!task->IsAcquirable()) {
+    assert(shutdown_requested_);
     throw std::runtime_error("The scheduler was shut down before the task was completed.");
+  }
 }
 
 }  // namespace dali::tasking

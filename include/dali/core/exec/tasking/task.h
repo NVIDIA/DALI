@@ -496,16 +496,28 @@ class Task : public CompletionEvent {
     return this;
   }
 
-  /** Executes the task.
-   *
-   * The task must have been submitted to and popped from the specified scheduler.
-   */
-  void Run(Scheduler &sched);
+  /** Associates the task with a scheduler and sets the state to Pending. */
+  void Submit(Scheduler &sched) {
+    if (state_ != TaskState::New)
+      throw std::logic_error("The has already been submitted for execution.");
+    sched_ = &sched;
+    state_ = TaskState::Pending;
+  }
 
+  /** Executes the task. */
+  void Run();
+
+  /** Waits for the task to complete.
+   *
+   * The task must be already submitted for execution.
+   */
+  void Wait();
 
  private:
   SharedTask next_;       // pointer to the next task in an intrusive list
   Task *prev_ = nullptr;  // pointer to the previous task in an intrusive list
+
+  Scheduler *sched_ = nullptr;  // the scheduler to which the task was submitted
 
   friend class detail::TaskList;
   friend class Scheduler;
