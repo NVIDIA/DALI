@@ -68,6 +68,8 @@ DLL_PUBLIC size_t read_object_contents(Aws::S3::S3Client* s3_client,
                                        const S3ObjectLocation& object_location, void* buf, size_t n,
                                        size_t offset = 0);
 
+using PerObjectCallable = std::function<void(const std::string&, size_t)>;
+
 /**
  * @brief Visits all objects under a given object location
  *
@@ -75,7 +77,6 @@ DLL_PUBLIC size_t read_object_contents(Aws::S3::S3Client* s3_client,
  * @param object_location S3 object location
  * @param per_object_call callable to run on each object listed
  */
-using PerObjectCallable = std::function<void(const std::string&, size_t)>;
 DLL_PUBLIC void list_objects_f(Aws::S3::S3Client* s3_client,
                                const S3ObjectLocation& object_location,
                                PerObjectCallable per_object_call);

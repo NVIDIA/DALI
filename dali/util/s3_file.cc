@@ -28,9 +28,6 @@ S3FileStream::S3FileStream(Aws::S3::S3Client* s3_client, const std::string& uri,
     object_stats_.size = size.value();
   } else {
     object_stats_ = s3_filesystem::get_stats(s3_client, object_location_);
-    if (!object_stats_.exists)
-      throw std::runtime_error("S3 Object not found. bucket=" + object_location_.bucket +
-                               " object=" + object_location_.object);
   }
 }
 

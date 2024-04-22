@@ -56,7 +56,13 @@ S3ObjectStats get_stats(Aws::S3::S3Client* s3_client, const S3ObjectLocation& ob
   head_object_req.SetResponseStreamFactory(
       []() { return Aws::New<Aws::StringStream>(kAllocationTag); });
   auto head_object_outcome = s3_client->HeadObject(head_object_req);
-  stats.exists = head_object_outcome.IsSuccess();
+  if (!head_object_outcome.IsSuccess()) {
+    const Aws::S3::S3Error& err = head_object_outcome.GetError();
+    throw std::runtime_error("S3 Object not found. bucket=" + object_location.bucket +
+                             " object=" + object_location.object + ":\n" + err.GetExceptionName() +
+                             ": " + err.GetMessage());
+  }
+  stats.exists = true;
   stats.size = stats.exists ? head_object_outcome.GetResult().GetContentLength() : 0;
   return stats;
 }
@@ -82,12 +88,12 @@ size_t read_object_contents(Aws::S3::S3Client* s3_client, const S3ObjectLocation
       [&streambuf]() { return Aws::New<Aws::IOStream>(kAllocationTag, &streambuf); });
 
   size_t bytes_read = 0;
-  auto getObjectOutcome = s3_client->GetObject(getObjectRequest);
-  if (!getObjectOutcome.IsSuccess()) {
-    const Aws::S3::S3Error& err = getObjectOutcome.GetError();
+  auto get_object_outcome = s3_client->GetObject(getObjectRequest);
+  if (!get_object_outcome.IsSuccess()) {
+    const Aws::S3::S3Error& err = get_object_outcome.GetError();
     throw std::runtime_error(err.GetExceptionName() + ": " + err.GetMessage());
   } else {
-    bytes_read = getObjectOutcome.GetResult().GetContentLength();
+    bytes_read = get_object_outcome.GetResult().GetContentLength();
   }
   return bytes_read;
 }
