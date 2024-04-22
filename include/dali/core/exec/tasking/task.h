@@ -432,7 +432,7 @@ class Task : public CompletionEvent {
    * - adds a dependency (Succeed) on the producer task
    * - creates a shared pointer to the producer task's output
    *
-   * The producer must not have been submitted to the scheruler when Subscribe is called.
+   * The producer must not have been submitted to the scheduler when Subscribe is called.
    */
   Task *Subscribe(const SharedTask &producer, int output_index = 0) {
     if (producer->state_ != TaskState::New)
@@ -496,14 +496,6 @@ class Task : public CompletionEvent {
     return this;
   }
 
-  /** Associates the task with a scheduler and sets the state to Pending. */
-  void Submit(Scheduler &sched) {
-    if (state_ != TaskState::New)
-      throw std::logic_error("The has already been submitted for execution.");
-    sched_ = &sched;
-    state_ = TaskState::Pending;
-  }
-
   /** Executes the task. */
   void Run();
 
@@ -518,6 +510,14 @@ class Task : public CompletionEvent {
   Task *prev_ = nullptr;  // pointer to the previous task in an intrusive list
 
   Scheduler *sched_ = nullptr;  // the scheduler to which the task was submitted
+
+  /** Associates the task with a scheduler and sets the state to Pending. */
+  void Submit(Scheduler &sched) {
+    if (state_ != TaskState::New)
+      throw std::logic_error("The has already been submitted for execution.");
+    sched_ = &sched;
+    state_ = TaskState::Pending;
+  }
 
   friend class detail::TaskList;
   friend class Scheduler;
