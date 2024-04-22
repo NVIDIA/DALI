@@ -58,9 +58,15 @@ constexpr bool is_tuple_v = is_tuple<T>::value;
 
 class Scheduler;
 
-
+/** A result of a task.
+ *
+ * This class describes a single result of a task. A task can produce multiple results.
+ * The result can store a value or an exception - attempting to access the value when an exception
+ * is present will result in the exception being rethrown.
+ */
 class TaskResult {
  public:
+  /** Sets the value (or exception) being a result of calling a parameterless function. */
   template <typename F>
   void SetResultOf(F &&f) {
     try {
@@ -75,25 +81,38 @@ class TaskResult {
     }
   }
 
+  /** Sets the value. */
   template <typename T>
   void Set(T &&t) {
     value_ = std::forward<T>(t);
   }
 
+  /** Sets an exception. */
   void SetException(std::exception_ptr e) {
     exception_ = std::move(e);
   }
 
+  /** Checks whether there's a value or an exception. */
   bool Empty() {
-    return !value_.has_value();
+    return !value_.has_value() && !HasException();
   }
 
+  /** Gets the value as `std::any`.
+   *
+   * If an exception is stored, it's rethrown.
+   */
   const std::any &Value() const {
     if (exception_)
       std::rethrow_exception(exception_);
     return value_;
   }
 
+  /** Gets the value and casts it to the requested type.
+   *
+   * If an exception is stored, it's rethrown.
+   * This function may additionally throw std::bad_any_cast if the value does not contain a value
+   * of the requested type.
+   */
   template <typename T>
   T Value() const {
     if (exception_)
@@ -104,7 +123,8 @@ class TaskResult {
       return std::any_cast<T>(value_);
   }
 
-  const bool HasException() const {
+  /** Checks whether the object stores an exception. */
+  bool HasException() const {
     return exception_ != nullptr;
   }
 
@@ -116,10 +136,10 @@ class TaskResult {
 
 using SharedTaskResult = std::shared_ptr<TaskResult>;
 
-/** A special value that indicates that the Task's return value is NOT a collection or tuple.
- */
+/** A special value that indicates that the Task's return value is NOT a collection or tuple. */
 static constexpr int ScalarResult = -1;
 
+/** Represents all results of a task. */
 class TaskResults : public SmallVector<SharedTaskResult, 4> {
  public:
   void Init(int num_results = ScalarResult) {
@@ -130,8 +150,10 @@ class TaskResults : public SmallVector<SharedTaskResult, 4> {
       r = std::make_shared<TaskResult>();
   }
 
+  /** If true, the object represents a single, scalar result. */
   bool IsScalar() const noexcept { return is_scalar_; }
 
+  /** Returns the scalar return value of a task. */
   template <typename T>
   decltype(auto) Value() const {
     if (!is_scalar_)
@@ -139,21 +161,31 @@ class TaskResults : public SmallVector<SharedTaskResult, 4> {
     return Value<T>(0);
   }
 
+  /** Returns one of the return values of a task.
+   *
+   * @param index The index of the value in the collection or tuple returned by the task.
+   */
   template <typename T>
   decltype(auto) Value(int index) const {
     return GetChecked(index)->Value<T>();
   }
 
+  /** Returns the scalar return value of a task. */
   decltype(auto) Value() const {
     if (!is_scalar_)
       throw std::logic_error("Cannot use argumentless Value to get a non-scalar value");
     return GetChecked(0)->Value();
   }
 
+  /** Returns one of the return values of a task.
+   *
+   * @param index The index of the value in the collection or tuple returned by the task.
+   */
   decltype(auto) Value(int index) const {
     return GetChecked(index)->Value();
   }
 
+  /** Returns the SharedTaskResult at the specified index or throws std::out_of_range. */
   const SharedTaskResult &GetChecked(int index) const & {
     if (index < 0 || static_cast<size_t>(index) >= size())
       throw std::out_of_range(
@@ -278,6 +310,7 @@ class Task : public CompletionEvent {
   void CheckResultType(int num_results) {
     using Result = std::remove_reference_t<R>;
     if constexpr (detail::is_iterable_v<Result>) {
+      // We don't know how many values the task will produce, so that is deferred until run-time.
       return;
     } else if constexpr (detail::is_tuple_v<Result>) {
       if (std::tuple_size_v<Result> != num_results)
@@ -307,6 +340,7 @@ class Task : public CompletionEvent {
     results_.Init(num_results);
 
     if (num_results == ScalarResult) {
+      // A task with a scalar return value can return anything
       wrapped_ = [f = std::forward<F>(function)](Task *t) {
         using Func = std::remove_reference_t<F>;
         if constexpr (std::is_invocable_v<Func, Task *>)
@@ -315,6 +349,8 @@ class Task : public CompletionEvent {
           t->SetResult(f);
       };
     } else {
+      // A task with a non-scalar return value must return a collection or a tuple.
+      // We can check the return type early (i.e. now) to aid debugging.
       CheckFuncResultType(num_results, std::forward<F>(function));
       wrapped_ = [f = std::forward<F>(function)](Task *t) {
         if constexpr (std::is_invocable_v<Func, Task *>)
