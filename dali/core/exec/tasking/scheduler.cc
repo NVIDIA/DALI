@@ -24,7 +24,7 @@ bool Scheduler::AcquireAllPreconditions(SharedTask &task) noexcept {
 
   // All or nothing - first we check that all preconditions are met
   for (auto &w : task->preconditions_)
-    if (!w->CheckComplete())
+    if (!w->IsAcquirable())
       return false;  // at least one unmet
   // If they are, we acquire them - this must succeed
   for (auto &w : task->preconditions_)

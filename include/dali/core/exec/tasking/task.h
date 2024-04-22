@@ -403,8 +403,8 @@ class Task : public CompletionEvent {
       throw std::logic_error(
           "Cannot subscribe to a result of a task that's been already submitted for execution.\n"
           "If only ordering is required, use Succeed instead.");
-    inputs_.push_back(producer->results_.GetChecked(output_index));
     Succeed(producer);
+    inputs_.push_back(producer->results_.GetChecked(output_index));
     return this;
   }
 
@@ -538,7 +538,9 @@ class TaskList {
     task->prev_ = nullptr;
   }
 
+  /** Returns the head (front) of the list or null, if empty */
   SharedTask head() const { return head_; }
+  /** Returns the tail (back) of the list or nullptr, if empty */
   Task *tail() const { return tail_; }
 
  private:

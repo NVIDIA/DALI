@@ -303,8 +303,8 @@ void Scheduler::Wait(Task *task) {
   std::unique_lock lock(mtx_);
   if (task->state_ < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");
-  task_done_.wait(lock, [&]() { return task->CheckComplete() || shutdown_requested_; });
-  if (!task->CheckComplete())
+  task_done_.wait(lock, [&]() { return task->IsAcquirable() || shutdown_requested_; });
+  if (!task->IsAcquirable())
     throw std::runtime_error("The scheduler was shut down before the task was completed.");
 }
 

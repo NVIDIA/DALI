@@ -46,7 +46,7 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
   SmallVector<WeakTask, 8> waiting_;
 
   /** Checks whether the Waitable is ready to be acquired */
-  virtual bool CheckComplete() const = 0;
+  virtual bool IsAcquirable() const = 0;
 
   /** Changes the state of the object to acquired (if necessary) and returns whether the operation
    *  was successful.
@@ -103,14 +103,14 @@ class CompletionEvent : public Waitable {
  protected:
   bool AcquireImpl() override {
     // Nothing to acquire - just return true if the event is completed.
-    return CheckComplete();
+    return IsAcquirable();
   }
 
   void MarkAsComplete() {
     completed_ = true;
   }
 
-  bool CheckComplete() const override {
+  bool IsAcquirable() const override {
     return completed_;
   }
 
@@ -132,7 +132,7 @@ class Releasable : public Waitable {
  protected:
   /** Changes the internal state of the object.
    *
-   * If CheckComplete is called atomically after ReleaseImpl, it must return true.
+   * If IsAcquirable is called atomically after ReleaseImpl, it must return true.
    */
   virtual bool ReleaseImpl() = 0;
 };
@@ -147,7 +147,7 @@ class Semaphore : public Releasable {
  protected:
   mutable spinlock lock_;
 
-  bool CheckComplete() const override {
+  bool IsAcquirable() const override {
     std::lock_guard g(lock_);
     return count > 0;
   }

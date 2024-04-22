@@ -20,4 +20,55 @@
 #include "dali/core/exec/tasking/sync.h"
 #include "dali/core/exec/tasking/executor.h"
 
+/**
+ * @brief DALI tasking module
+ *
+ * The tasking module provides an abstraction for scheduling dependent tasks and a simple
+ * thread-pool basd executor.
+ *
+ * The tasks can have temporal dependencies (for side-effects) and data dependencies.
+ * The tasks are single-use objects, passed around via shared pointer.
+ *
+ * Simple usage:
+ * ```
+ * Executor ex;
+ * ex.Start();
+ * auto task1 = Task::Create([]() {
+ *     cout << "Foo" << endl;
+ * });
+ * auto task2 = Task::Create([]() {
+ *     cout << "Bar" << endl;
+ * });
+ * auto task3 = Task::Create([]() {
+ *     cout << "Baz" << endl;
+ * });
+ * ex.AddSilentTask(task1);  // we're not interested in the result
+ * ex.AddSilentTask(task2);
+ * task3->Succeed(task1)->Succeed(task2);
+ * auto future = ex.AddTask(task3);
+ * future.Value<void>(ex);
+ * ```
+ *
+ * Data dependencies
+ * ```
+ * Executor ex;
+ * ex.Start();
+ * auto task1 = Task::Create([]() {
+ *     return 12;
+ * });
+ * auto task2 = Task::Create([]() {
+ *     return 30;
+ * });
+ * auto task3 = Task::Create([](Task *t) {
+ *     return t->GetInputValue<int>(0) + t->GetInputValue<int>(1);
+ * });
+ * task3->Subscribe(task1)->Subscribe(task2);
+ * ex.AddSilentTask(task1);
+ * ex.AddSilentTask(task2);
+ * auto future = ex.AddTask(task3);
+ * cout << future.Value<int>(ex) << endl;  // prints 42
+ * ```
+ */
+namespace dali::tasking {}
+
 #endif  // DALI_CORE_EXEC_TASKING_H_
