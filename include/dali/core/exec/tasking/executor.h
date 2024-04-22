@@ -22,6 +22,10 @@
 
 namespace dali::tasking {
 
+/** A simple thread-pool-based executor based on the `Scheduler` class.
+ *
+ * The executor maintains a thread pool which `Pop` and `Run` tasks in a loop.
+ */
 class Executor : public Scheduler {
  public:
   explicit Executor(int num_threads = std::thread::hardware_concurrency())
@@ -31,6 +35,10 @@ class Executor : public Scheduler {
     Shutdown();
   }
 
+  /** Launches the worker threads.
+   *
+   * Multiple calls to Start have no effect. The function is not thread safe.
+   */
   void Start() {
     if (started_)
       return;
@@ -40,11 +48,18 @@ class Executor : public Scheduler {
     started_ = true;
   }
 
+  /** @brief Notifies the scheduler of the imminent shutdown and waits for the worker threads
+   *         to terminate.
+   */
   void Shutdown() {
     Scheduler::Shutdown();
     for (auto &w : workers_)
       w.join();
     workers_.clear();
+  }
+
+  bool IsRunning() const {
+    return started_ && !ShutdownRequested();
   }
 
  private:

@@ -329,7 +329,7 @@ class Task : public CompletionEvent {
   explicit Task(F &&function, double priority = 0)
   : Task(ScalarResult, std::forward<F>(function), priority) {}
 
-  /** Creates a task with a scalar result
+  /** Creates a task with a scalar result.
    *
    * @param function    the callable object that defines the task; it can return any type
    * @param priority    the priority with which the task will be popped by the scheduler, once ready
@@ -339,7 +339,7 @@ class Task : public CompletionEvent {
     return std::make_shared<Task>(std::forward<F>(function), priority);
   }
 
-  /** Creates a task with a multiple results
+  /** Creates a task with a multiple results.
    *
    * @param num_results the number of results produced by the task function;
    *                    the special value `ScalarResult` changes the interpretation of the result.
@@ -364,17 +364,17 @@ class Task : public CompletionEvent {
 
   TaskState state_ = TaskState::New;
 
-  /** The priorirt of the task; the higher, ths sooner a task is picked */
+  /** The priority of the task; the higher, the sooner a task is picked. */
   double Priority() const {
     return priority_;
   }
 
-  /** If true, the task can be immediately moved to execution */
+  /** If true, the task can be immediately moved to execution. */
   bool Ready() {
     return preconditions_.empty();
   }
 
-  /** Adds a precondition
+  /** Adds a precondition.
    *
    * Calling Succeed adds the waitable `w` to the task's list of preconditions.
    * Duplicates are detected and ignored.
@@ -390,7 +390,7 @@ class Task : public CompletionEvent {
     return this;
   }
 
-  /** Subscribes to other task's output value
+  /** Subscribes to other task's output value.
    *
    * This function does two things:
    * - adds a dependency (Succeed) on the producer task
@@ -450,9 +450,9 @@ class Task : public CompletionEvent {
     return this;
   }
 
-  /**  Guards the execution of the task with a waitable/releasable object.
+  /** Guards the execution of the task with a waitable/releasable object.
    *
-   * Equivalent to Succeed + ReleaseAfterRun
+   * Equivalent to Succeed + ReleaseAfterRun.
    */
   Task *GuardWith(std::shared_ptr<Releasable> releasable) {
     Succeed(releasable);
@@ -460,7 +460,9 @@ class Task : public CompletionEvent {
     return this;
   }
 
-  /**  Executes the task. The task must have been submitted to the specified scheduler.
+  /** Executes the task.
+   *
+   * The task must have been submitted to and popped from the specified scheduler.
    */
   void Run(Scheduler &sched);
 

@@ -219,15 +219,15 @@ class Scheduler {
    */
   void DLL_PUBLIC Notify(Waitable *w);
 
-  /** Waits for a task to become complete.
-   */
+  /** Waits for a task to complete. */
   void Wait(Task *task);
 
+  /** Waits for a task to complete. */
   void Wait(const SharedTask &task) {
     Wait(task.get());
   }
 
-  /** Makes all Pop functions return with an error value */
+  /** Makes all Pop functions return with an error value. */
   void Shutdown() {
     std::lock_guard g(mtx_);
     shutdown_requested_ = true;
@@ -235,20 +235,31 @@ class Scheduler {
     task_done_.notify_all();
   }
 
+  /** Checks whether a shutdown was requested. */
+  bool ShutdownRequested() const {
+    return shutdown_requested_;
+  }
+
  private:
-  /** Acquires all preconditions if they are ready or none if at least one isn't ready */
-  bool DLL_PUBLIC AcquireAllPreconditions(SharedTask &task) noexcept;
+  /** Moves the task to the ready queue if all of its preconditions can be acquired.
+   *
+   * This function atomically checks that all preconditions can be met and if so, acquires them.
+   * If the preconditions where met, the task is moved from the pending list to the ready queue.
+   */
+  bool DLL_PUBLIC AcquireAllAndMoveToReady(SharedTask &task) noexcept;
 
   void AddTaskImpl(SharedTask task) {
     assert(task->state_ == TaskState::New);
-    if (task->Ready()) {
+    if (task->Ready()) {  // if the task has no preconditions...
       {
+        // ...then we add it directly to the read_ queue.
         std::lock_guard lock(mtx_);
         task->state_ = TaskState::Ready;
         ready_.push(task);
       }
       task_ready_.notify_one();
     } else {
+      // Otherwise, the task is added to the pending list
       std::lock_guard lock(mtx_);
       task->state_ = TaskState::Pending;
       for (auto &pre : task->preconditions_) {
@@ -257,7 +268,8 @@ class Scheduler {
         assert(added);
       }
       pending_.PushFront(task);
-      if (AcquireAllPreconditions(task))
+      // ...and we check whether its preconditions are, in fact, met.
+      if (AcquireAllAndMoveToReady(task))
         task_ready_.notify_one();
     }
   }

@@ -29,7 +29,7 @@ class Task;
 using SharedTask = std::shared_ptr<Task>;
 using WeakTask = std::weak_ptr<Task>;
 
-/** @brief Represents any object in the tasking framework that a task can wait for.
+/** Represents any object in the tasking framework that a task can wait for.
  *
  * A waitable object may be passed to Task::Succeed. This causes the execution of the task to
  * be deferred until all of its preceding conditions are ready.
@@ -42,30 +42,33 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
   friend class Task;
 
  protected:
-  // A list of tasks waiting for this waitable object
+  /** A list of tasks waiting for this waitable object. */
   SmallVector<WeakTask, 8> waiting_;
 
-  /** Checks whether the Waitable is ready to be acquired */
+  /** Checks whether the Waitable is ready to be acquired. */
   virtual bool IsAcquirable() const = 0;
 
-  /** Changes the state of the object to acquired (if necessary) and returns whether the operation
-   *  was successful.
+  /** @brief Changes the state of the object to acquired (if necessary) and returns whether the
+   *         operation was successful.
    */
   virtual bool AcquireImpl() = 0;
 
+  /** Informs the scheduler that this Waitable is signalled and some tasks may become unblocked. */
   void Notify(Scheduler &sched);
 
+  /** Fast comparison of weak pointers without calling `lock`. */
   static bool task_owner_equal(const WeakTask &w, const SharedTask &t) {
     return !w.owner_before(t) && !t.owner_before(w);
   }
 
+  /** Checks wheter the task is waiting for this waitiable object. */
   bool IsWaitedForBy(const SharedTask &task) const {
     auto it = std::find_if(waiting_.begin(), waiting_.end(),
                            [&](auto &t) { return task_owner_equal(t, task); });
     return it != waiting_.end();
   }
 
-  /** Tries to acquire the waitable object on behalf of a task
+  /** Tries to acquire the waitable object on behalf of a task.
    *
    * This function can fail for two reasons:
    * - the task is not waiting for this waitable
@@ -83,6 +86,10 @@ class Waitable : public std::enable_shared_from_this<Waitable> {
     return false;
   }
 
+  /** Adds a task to the waiting list if it's not already there.
+   *
+   * @return `true`, if the task was added; `false` if it was already on the list.
+   */
   bool AddToWaiting(const SharedTask &task) {
     if (IsWaitedForBy(task))
       return false;
@@ -132,12 +139,19 @@ class Releasable : public Waitable {
  protected:
   /** Changes the internal state of the object.
    *
-   * If IsAcquirable is called atomically after ReleaseImpl, it must return true.
+   * If IsAcquirable is called atomically after a successful ReleaseImpl, then it must return true.
    */
   virtual bool ReleaseImpl() = 0;
 };
 
 /** A releasable object which counts how many times it can be acquired.
+ *
+ * The object follows the semantics of Dijkstra's semaphore.
+ * The TryAcquire is the P function and Release is the V function.
+ * Unlike a mutex, a semaphore can be released by a task/thread other than one which acquired it.
+ *
+ * The maximum count is capped by `max_count` and `Release` will fail if it would result in
+ * the semaphore exceeding the maximum count.
  */
 class Semaphore : public Releasable {
  public:

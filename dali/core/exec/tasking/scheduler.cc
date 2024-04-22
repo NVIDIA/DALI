@@ -19,7 +19,7 @@
 
 namespace dali::tasking {
 
-bool Scheduler::AcquireAllPreconditions(SharedTask &task) noexcept {
+bool Scheduler::AcquireAllAndMoveToReady(SharedTask &task) noexcept {
   assert(task->state_ <= TaskState::Pending);
 
   // All or nothing - first we check that all preconditions are met
@@ -90,7 +90,7 @@ void Scheduler::Notify(Waitable *w) {
         }
       }
 
-      if (AcquireAllPreconditions(task))
+      if (AcquireAllAndMoveToReady(task))
         new_ready++;
     }
   }
