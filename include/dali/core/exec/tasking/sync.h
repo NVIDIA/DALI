@@ -129,6 +129,7 @@ class CompletionEvent : public Waitable {
  */
 class Releasable : public Waitable {
  public:
+  /** Releases the object (see ReleaseImpl) and notifies the scheduler about the change. */
   void Release(Scheduler &sched) {
     ReleaseImpl();
     Notify(sched);
@@ -137,7 +138,7 @@ class Releasable : public Waitable {
  protected:
   /** Changes the internal state of the object.
    *
-   * If IsAcquirable is called atomically after a successful ReleaseImpl, then it must return true.
+   * The state of the object is changed such that the next call to TryAcquire must suceed.
    */
   virtual void ReleaseImpl() = 0;
 };
