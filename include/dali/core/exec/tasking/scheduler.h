@@ -260,16 +260,20 @@ class Scheduler {
       task_ready_.notify_one();
     } else {
       // Otherwise, the task is added to the pending list
-      std::lock_guard lock(mtx_);
-      task->state_ = TaskState::Pending;
-      for (auto &pre : task->preconditions_) {
-        bool added = pre->AddToWaiting(task);
-        (void)added;
-        assert(added);
+      bool ready = false;
+      {
+        std::lock_guard lock(mtx_);
+        task->state_ = TaskState::Pending;
+        for (auto &pre : task->preconditions_) {
+          bool added = pre->AddToWaiting(task);
+          (void)added;
+          assert(added);
+        }
+        pending_.PushFront(task);
+        // ...and we check whether its preconditions are, in fact, met.
+        ready = AcquireAllAndMoveToReady(task);
       }
-      pending_.PushFront(task);
-      // ...and we check whether its preconditions are, in fact, met.
-      if (AcquireAllAndMoveToReady(task))
+      if (ready)
         task_ready_.notify_one();
     }
   }

@@ -465,7 +465,7 @@ TEST(TaskFutureTest, IndexChecking) {
 TEST(TaskFutureTest, TypeChecking) {
   Scheduler sched;
   SharedTask task;
-  task = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; });
+  task = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
   auto fut = sched.AddTask(task);
   sched.Pop()->Run(sched);
   EXPECT_NO_THROW(fut.Value<int>(sched, 0));
@@ -475,7 +475,7 @@ TEST(TaskFutureTest, TypeChecking) {
 TEST(TaskInputTest, InvalidResultIndex) {
   Executor ex(4);
   ex.Start();
-  auto t1 = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; });
+  auto t1 = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
   auto t2 = Task::Create([](Task *t) { t->GetInputValue<int>(3); });
   t2->Subscribe(t1, 0);
   t2->Subscribe(t1, 1);
