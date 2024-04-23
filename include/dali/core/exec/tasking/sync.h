@@ -16,6 +16,7 @@
 #define DALI_CORE_EXEC_TASKING_SYNC_H_
 
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include "dali/core/small_vector.h"
@@ -114,15 +115,15 @@ class CompletionEvent : public Waitable {
   }
 
   void MarkAsComplete() {
-    completed_ = true;
+    completed_.store(true, std::memory_order_release);
   }
 
   bool IsAcquirable() const override {
-    return completed_;
+    return completed_.load(std::memory_order_acquire);
   }
 
  private:
-  bool completed_ = false;
+  std::atomic_bool completed_{false};
 };
 
 /** A waitable object which has a Release method, which can be called from outside any task.

@@ -370,6 +370,46 @@ TEST(TaskingTest, HighLoad) {
     GraphTest(ex, 3, 1500, 50);
 }
 
+TEST(TaskingTest, HighLoadWithSemaphore) {
+  Executor ex(4);
+  ex.Start();
+  for (int i = 0; i < 100000; i++) {
+    SharedTask goo, foo, bar, baz;
+    goo = Task::Create([]() {
+      return 42;
+    });
+
+    foo = Task::Create([](Task *t) {
+      return t->GetInputValue<int>(0) + 0.5f;
+    });
+
+    bar = Task::Create([](Task *t) {
+      return t->GetInputValue<int>(0) * 2;
+    });
+
+    baz = Task::Create([](Task *t) {
+      float a = t->GetInputValue<float>(0);
+      int b = t->GetInputValue<int>(1);
+      if (a != 42.5 || b != 84)
+        throw std::runtime_error("Invalid value");
+    });
+
+    auto sem = std::make_shared<Semaphore>(1, 0);
+
+    foo->Subscribe(goo);
+    bar->Subscribe(goo);
+    baz->Subscribe(foo)->Subscribe(bar);
+    bar->Succeed(sem);
+    ex.AddSilentTask(std::move(foo));
+    ex.AddSilentTask(std::move(bar));
+    ex.AddSilentTask(baz);
+    auto baz_future = ex.AddTask(std::move(goo));
+    sem->Release(ex);
+
+    baz_future.Value();
+  }
+}
+
 TEST(TaskingTest, Priority) {
   Scheduler sched;
   // add 4 tasks with shuffled order

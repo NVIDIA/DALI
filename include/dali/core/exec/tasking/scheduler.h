@@ -294,10 +294,13 @@ inline void Waitable::Notify(Scheduler &sched) {
 }
 
 inline void Task::Wait() {
-  Scheduler *sched = sched_;  // Store a copy of sched_ first.
-  std::atomic_thread_fence(std::memory_order_acquire);
-  if (state_ >= TaskState::Complete)
-    return;
+  // Load the value of sched_ first....
+  Scheduler *sched = sched_;
+  // IsAcquirable prevents read reordering.
+  if (IsAcquirable())
+    return;  // If the task is complete, the wait can exit immediately
+  // If state_ is not complete, then the only way we may land with null sched is if the task was
+  // never submitted for execution. See Run.
   if (sched == nullptr)
     throw std::logic_error("The task is not associated with any scheduler.");
   // if by some magic we get sched_, then we don't care if the state_ is New
@@ -305,19 +308,28 @@ inline void Task::Wait() {
 }
 
 inline void Task::Run() {
+  // This function runs the payload, notifies the scheduler and clears the task object.
+  // After Run, the task can be used of only two things: it can be waited for and it can be
+  // suceeded.
   assert(state_ == TaskState::Running);
+  assert(sched_ != nullptr);
+  // Run the payload
   wrapped_(this);
-  results_.clear();
-  inputs_.clear();
+  // ... and get rid of it - it may be heavy
   wrapped_ = {};
-  MarkAsComplete();
+  // Clear the results - all interested parties must have a shared pointer to the results.
+  results_.clear();
+  // We're done, the inputs are no longer necessary.
+  inputs_.clear();
+  // The task is complete - mark it as such and notify the scheduler
   state_ = TaskState::Complete;
+  MarkAsComplete();
   Notify(*sched_);
+  // If we have any waitables to release after run - now is the time
   for (auto &r : release_) {
     r->Release(*sched_);
   }
   release_.clear();
-  std::atomic_thread_fence(std::memory_order_release);
   sched_ = nullptr;
 }
 
