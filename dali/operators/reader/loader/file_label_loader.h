@@ -19,12 +19,14 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#include <algorithm>
 #include <fstream>
+#include <functional>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <algorithm>
 
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/discover_files.h"
@@ -37,7 +39,12 @@ namespace dali {
 struct ImageLabelWrapper {
   Tensor<CPUBackend> image;
   int label;
+
+  // Deferred file read: If not null, means image was not read yet
+  std::unique_ptr<FileStream> file_stream;
 };
+
+
 
 template<bool supports_checkpointing>
 class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapper,
@@ -60,13 +67,13 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
     has_file_root_arg_ = spec.TryGetArgument(file_root_, "file_root");
     bool has_file_filters_arg =
-      spec.TryGetRepeatedArgument(traverse_opts_.file_filters, "file_filters");
+      spec.TryGetRepeatedArgument(file_discovery_opts_.file_filters, "file_filters");
     bool has_dir_filters_arg =
-      spec.TryGetRepeatedArgument(traverse_opts_.dir_filters, "dir_filters");
+      spec.TryGetRepeatedArgument(file_discovery_opts_.dir_filters, "dir_filters");
 
     // TODO(ksztenderski): CocoLoader inherits after FileLabelLoader and it doesn't work with
     // GetArgument.
-    spec.TryGetArgument(traverse_opts_.case_sensitive_filter, "case_sensitive_filter");
+    spec.TryGetArgument(file_discovery_opts_.case_sensitive_filter, "case_sensitive_filter");
 
     DALI_ENFORCE(has_file_root_arg_ || has_files_arg_ || has_file_list_arg_,
       "``file_root`` argument is required when not using ``files`` or ``file_list``.");
@@ -78,9 +85,9 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       "The argument ``labels`` is valid only when file paths "
       "are provided as ``files`` argument.");
 
-    DALI_ENFORCE(!has_file_filters_arg || traverse_opts_.file_filters.size() > 0,
+    DALI_ENFORCE(!has_file_filters_arg || file_discovery_opts_.file_filters.size() > 0,
                  "``file_filters`` list cannot be empty.");
-    DALI_ENFORCE(!has_dir_filters_arg || traverse_opts_.dir_filters.size() > 0,
+    DALI_ENFORCE(!has_dir_filters_arg || file_discovery_opts_.dir_filters.size() > 0,
                  "``dir_filters`` list cannot be empty.");
 
     if (has_file_list_arg_) {
@@ -139,7 +146,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   void PrepareMetadataImpl() override {
     if (file_label_entries_.empty()) {
       if (!has_file_list_arg_ && !has_files_arg_) {
-        file_label_entries_ = discover_files(file_root_, traverse_opts_);
+        file_label_entries_ = discover_files(file_root_, file_discovery_opts_);
       } else if (has_file_list_arg_) {
         // load (path, label) pairs from list
         std::ifstream s(file_list_);
@@ -246,7 +253,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   string file_root_, file_list_;
   vector<FileLabelEntry> file_label_entries_;
   vector<FileLabelEntry> backup_file_label_entries_;
-  FileDiscoveryOptions traverse_opts_;
+  FileDiscoveryOptions file_discovery_opts_;
 
   bool has_files_arg_ = false;
   bool has_labels_arg_ = false;

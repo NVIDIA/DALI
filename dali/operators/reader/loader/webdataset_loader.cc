@@ -24,6 +24,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
@@ -378,10 +379,18 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     DALI_WARN("Index file not provided, it may take some time to infer it from the tar file");
   }
 
+  FileStream::Options opts;
+  opts.read_ahead = read_ahead_;
+  opts.use_mmap = copy_read_data_;
+  opts.use_odirect = false;
+
   // initializing all the readers
   wds_shards_.reserve(paths_.size());
-  for (auto& uri : paths_) {
-    wds_shards_.emplace_back(FileStream::Open(uri, {read_ahead_, !copy_read_data_, false}));
+  for (auto& path : paths_) {
+    // If an actual URI, disable mmap
+    auto uri = URI::Parse(path);
+    opts.use_mmap = uri.valid() ? false : copy_read_data_;
+    wds_shards_.emplace_back(FileStream::Open(path, opts));
   }
 
   // preparing the map from extensions to outputs

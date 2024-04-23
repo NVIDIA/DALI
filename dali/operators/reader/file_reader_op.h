@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,26 +33,61 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     this->SetInitialSnapshot();
   }
 
-  void RunImpl(SampleWorkspace &ws) override {
-    const int idx = ws.data_idx();
+  bool CanInferOutputs() const override {
+    return true;
+  }
 
-    const auto& image_label = GetSample(idx);
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
+    // If necessary start prefetching thread and wait for a consumable batch
+    DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>::SetupImpl(output_desc, ws);
+    auto samples = GetCurrBatch();
+    int batch_size = samples.size();
 
-    // copy from raw_data -> outputs directly
+    output_desc.resize(2);
+    output_desc[0].shape.resize(batch_size, 1);
+    output_desc[0].type = DALI_UINT8;
+    output_desc[1].shape = uniform_list_shape<1>(batch_size, {1});
+    output_desc[1].type = DALI_INT32;
+
+    TensorListShape<1> out_shape(batch_size);
+    for (int sample_idx = 0; sample_idx < batch_size; ++sample_idx) {
+      auto& sample = *samples[sample_idx];
+      int64_t image_size =
+          sample.file_stream != nullptr ? sample.file_stream->Size() : sample.image.size();
+      output_desc[0].shape.tensor_shape_span(sample_idx)[0] = image_size;
+      output_desc[1].shape.tensor_shape_span(sample_idx)[0] = 1;
+    }
+    return true;
+  }
+
+  void RunImpl(Workspace &ws) override {
     auto &image_output = ws.Output<CPUBackend>(0);
     auto &label_output = ws.Output<CPUBackend>(1);
+    auto samples = GetCurrBatch();
+    int batch_size = samples.size();
 
-    Index image_size = image_label.image.size();
-
-    image_output.Resize({image_size}, DALI_UINT8);
-    label_output.Resize({1}, DALI_INT32);
-
-    std::memcpy(image_output.raw_mutable_data(),
-                image_label.image.raw_data(),
-                image_size);
-    image_output.SetSourceInfo(image_label.image.GetSourceInfo());
-
-    label_output.mutable_data<int>()[0] = image_label.label;
+    auto &thread_pool = ws.GetThreadPool();
+    for (int sample_idx = 0; sample_idx < batch_size; ++sample_idx) {
+      thread_pool.AddWork([&, sample_idx](int tid) {
+        auto &sample = *samples[sample_idx];
+        if (sample.file_stream != nullptr) {
+          sample.file_stream->SeekRead(0, SEEK_SET);
+          int64_t sz = sample.file_stream->Size();
+          int64_t read_nbytes =
+              sample.file_stream->Read(image_output.raw_mutable_tensor(sample_idx), sz);
+          sample.file_stream->Close();
+          sample.file_stream.reset();
+          DALI_ENFORCE(read_nbytes == sz,
+                       make_string("Failed to read file: ", sample.file_stream->path()));
+        } else {
+          std::memcpy(image_output.raw_mutable_tensor(sample_idx), sample.image.raw_data(),
+                      sample.image.size());
+        }
+        image_output.SetSourceInfo(sample_idx, sample.image.GetSourceInfo());
+        label_output.mutable_tensor<int>(sample_idx)[0] = sample.label;
+      }, image_output.shape().tensor_size(sample_idx));
+    }
+    thread_pool.RunAll();
   }
 
  protected:

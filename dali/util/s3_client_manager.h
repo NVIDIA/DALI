@@ -55,7 +55,12 @@ struct S3ClientManager {
   }
 
   S3ClientManager() {
-    client_ = std::make_unique<Aws::S3::S3Client>();
+    Aws::S3::S3ClientConfiguration config;
+    auto endpoint_url_ptr = std::getenv("AWS_ENDPOINT_URL");
+    if (endpoint_url_ptr) {
+      config.endpointOverride = std::string(endpoint_url_ptr);
+    }
+    client_ = std::make_unique<Aws::S3::S3Client>(std::move(config));
   }
 
   ~S3ClientManager() {

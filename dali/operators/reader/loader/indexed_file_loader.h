@@ -27,6 +27,7 @@
 #include "dali/core/common.h"
 #include "dali/core/mm/memory.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/util/uri.h"
 #include "dali/util/file.h"
 #include "dali/util/odirect_file.h"
 
@@ -36,8 +37,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
  public:
   explicit IndexedFileLoader(const OpSpec& spec)
     : Loader(spec),
-      uris_(spec.GetRepeatedArgument<std::string>("path")),
-      index_uris_(spec.GetRepeatedArgument<std::string>("index_path")),
+      paths_(spec.GetRepeatedArgument<std::string>("path")),
+      index_paths_(spec.GetRepeatedArgument<std::string>("index_path")),
       current_index_(0), current_file_index_(0), current_file_(nullptr),
       use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")) {
         DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
@@ -57,18 +58,21 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     ++current_index_;
 
-    std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
+    const auto& path = paths_[file_index];
+    std::string image_key = path + " at index " + to_string(seek_pos);
     DALIMeta meta;
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
 
-    bool is_s3 = uris_[file_index].rfind("s3://", 0) == 0;
-    bool use_o_direct = !is_s3 && use_o_direct_;
-    bool use_mmap = !is_s3 && !copy_read_data_;
+    auto uri = URI::Parse(path);
+    FileStream::Options opts;
+    opts.read_ahead = read_ahead_;
+    opts.use_mmap = !copy_read_data_ && !uri.valid();
+    opts.use_odirect = use_o_direct_ && !uri.valid();
 
     if (file_index != current_file_index_) {
       current_file_.reset();
-      current_file_ = FileStream::Open(uris_[file_index], {read_ahead_, use_mmap, use_o_direct});
+      current_file_ = FileStream::Open(path, opts);
       current_file_index_ = file_index;
       // invalidate the buffer
       if (use_o_direct_) read_buffer_.reset();
@@ -90,16 +94,16 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     }
     next_seek_pos_ = seek_pos + size;
 
-    if (use_mmap && current_file_->CanMemoryMap()) {
+    if (opts.use_mmap && current_file_->CanMemoryMap()) {
       auto p = current_file_->Get(size);
-      DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
+      DALI_ENFORCE(p != nullptr, "Error reading from a file " + paths_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
       tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
     } else {
       if (tensor.shares_data()) {
         tensor.Reset();
       }
-      if (use_o_direct) {
+      if (opts.use_odirect) {
         /*
          *   ** - sample data
          *   XX - buffer padding, data of other samples
@@ -133,7 +137,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
                                                                            o_direct_alignm_);
           read_buffer_pos_ = block_start;
           read_buffer_data_size_ = aligned_len;
-          auto file_name = uris_[file_index];
+          auto file_name = paths_[file_index];
           auto file = dynamic_cast<ODirectFileStream*>(current_file_.get());
           auto o_direct_chunk_size_tmp = o_direct_chunk_size_;
           // capture shared ptr to file in lambda to make sure it is alive as long as we want to
@@ -167,7 +171,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
 
         int64 n_read = current_file_->Read(reinterpret_cast<uint8_t*>(tensor.raw_mutable_data()),
                             size);
-        DALI_ENFORCE(n_read == size, "Error reading from a file " + uris_[current_file_index_]);
+        DALI_ENFORCE(n_read == size, "Error reading from a file " + paths_[current_file_index_]);
       }
     }
 
@@ -184,7 +188,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
   }
 
   virtual void ReadIndexFile(const std::vector<std::string>& index_uris) {
-    DALI_ENFORCE(index_uris.size() == uris_.size(),
+    DALI_ENFORCE(index_uris.size() == paths_.size(),
         "Number of index files needs to match the number of data files");
     for (size_t i = 0; i < index_uris.size(); ++i) {
       std::ifstream fin(index_uris[i]);
@@ -209,8 +213,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     }
     copy_read_data_ = dont_use_mmap_ || !mmap_reserver_.CanShareMappedData();
 
-    DALI_ENFORCE(!uris_.empty(), "No files specified.");
-    ReadIndexFile(index_uris_);
+    DALI_ENFORCE(!paths_.empty(), "No files specified.");
+    ReadIndexFile(index_paths_);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
     current_file_index_ = INVALID_INDEX;
     Reset(true);
@@ -227,8 +231,13 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
     if (file_index != current_file_index_) {
       current_file_.reset();
-      current_file_ =
-          FileStream::Open(uris_[file_index], {read_ahead_, !copy_read_data_, use_o_direct_});
+      const auto& path = paths_[file_index];
+      auto uri = URI::Parse(path);
+      FileStream::Options opts;
+      opts.read_ahead = read_ahead_;
+      opts.use_mmap = !copy_read_data_ && !uri.valid();
+      opts.use_odirect = use_o_direct_ && !uri.valid();
+      current_file_ = FileStream::Open(path, opts);
       current_file_index_ = file_index;
       // invalidate the buffer
       if (use_o_direct_) read_buffer_.reset();
@@ -236,8 +245,8 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     current_file_->SeekRead(seek_pos);
   }
 
-  std::vector<std::string> uris_;
-  std::vector<std::string> index_uris_;
+  std::vector<std::string> paths_;
+  std::vector<std::string> index_paths_;
   std::vector<std::tuple<int64, int64, size_t>> indices_;
   size_t current_index_;
   size_t current_file_index_;
