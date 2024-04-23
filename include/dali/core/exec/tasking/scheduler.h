@@ -220,7 +220,7 @@ class Scheduler {
   void DLL_PUBLIC Notify(Waitable *w);
 
   /** Waits for a task to complete. */
-  void Wait(Task *task);
+  void Wait(const Task *task);
 
   /** Waits for a task to complete. */
   void Wait(const SharedTask &task) {
@@ -293,7 +293,7 @@ inline void Waitable::Notify(Scheduler &sched) {
   sched.Notify(this);
 }
 
-inline void Task::Wait() {
+inline void Task::Wait() const {
   // Load the value of sched_ first....
   Scheduler *sched = sched_;
   // ...prevent the read of sched_ from being reordered
@@ -345,7 +345,7 @@ inline void TaskFuture::Wait() {
 }
 
 
-void Scheduler::Wait(Task *task) {
+void Scheduler::Wait(const Task *task) {
   std::unique_lock lock(mtx_);
   if (task->state_ < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");

@@ -343,20 +343,26 @@ class Task : public CompletionEvent {
       // A task with a scalar return value can return anything
       wrapped_ = [f = std::forward<F>(function)](Task *t) {
         using Func = std::remove_reference_t<F>;
-        if constexpr (std::is_invocable_v<Func, Task *>)
+        if constexpr (std::is_invocable_v<Func, Task *>) {
           t->SetResult(f, t);
-        else if constexpr (std::is_invocable_v<Func>)
+        } else {
+          static_assert(std::is_invocable_v<Func>,
+                        "The task function must take no arguments or a single Task * pointer.");
           t->SetResult(f);
+        }
       };
     } else {
       // A task with a non-scalar return value must return a collection or a tuple.
       // We can check the return type early (i.e. now) to aid debugging.
       CheckFuncResultType(num_results, std::forward<F>(function));
       wrapped_ = [f = std::forward<F>(function)](Task *t) {
-        if constexpr (std::is_invocable_v<Func, Task *>)
+        if constexpr (std::is_invocable_v<Func, Task *>) {
           t->SetResults(f, t);
-        else if constexpr (std::is_invocable_v<Func>)
+        } else {
+          static_assert(std::is_invocable_v<Func>,
+                        "The task function must take no arguments or a single Task * pointer.");
           t->SetResults(f);
+        }
       };
     }
   }
@@ -367,7 +373,10 @@ class Task : public CompletionEvent {
 
   /** Creates a task with a scalar result.
    *
-   * @param function    the callable object that defines the task; it can return any type
+   * @param function    The callable object that defines the task; it can return any type.
+   *                    The function can take either no arguments or a single argument
+   *                    of type `Task *` which will point to the current task (the very pointer
+   *                    that will be returned by the call to Create).
    * @param priority    the priority with which the task will be popped by the scheduler, once ready
    */
   template <typename F>
@@ -384,6 +393,9 @@ class Task : public CompletionEvent {
    *                    - an iterable type (one on which std::begin and std::end can be called)
    *                    - a tuple
    *                    if num_result == ScalarValue, the function can return anything
+   *                    The function can take either no arguments or a single argument
+   *                    of type `Task *` which will point to the current task (the very pointer
+   *                    that will be returned by the call to Create).   *
    * @param priority    the priority with which the task will be popped by the scheduler, once ready
    */
   template <typename F>
@@ -503,7 +515,7 @@ class Task : public CompletionEvent {
    *
    * The task must be already submitted for execution.
    */
-  void Wait();
+  void Wait() const;
 
  private:
   SharedTask next_;       // pointer to the next task in an intrusive list

@@ -46,7 +46,7 @@
  * ex.AddSilentTask(task2);
  * task3->Succeed(task1)->Succeed(task2);
  * auto future = ex.AddTask(task3);
- * future.Value<void>(ex);
+ * future.Value<void>();
  * ```
  *
  * Data dependencies
@@ -66,7 +66,7 @@
  * ex.AddSilentTask(task1);
  * ex.AddSilentTask(task2);
  * auto future = ex.AddTask(task3);
- * cout << future.Value<int>(ex) << endl;  // prints 42
+ * cout << future.Value<int>() << endl;  // prints 42
  * ```
  */
 namespace dali::tasking {}
