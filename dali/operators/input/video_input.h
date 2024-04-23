@@ -15,8 +15,6 @@
 #ifndef DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 #define DALI_OPERATORS_INPUT_VIDEO_INPUT_H_
 
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <deque>
 #include <string>
 #include <utility>
@@ -84,10 +82,6 @@ inline auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int b
 template<typename OutBackend, typename PadType>
 struct PadFrameCreator {
   static constexpr bool is_cpu = std::is_same_v<OutBackend, CPUBackend>;
-
-  template<typename T>
-  using container_type =
-          std::conditional_t<is_cpu, thrust::host_vector<T>, thrust::device_vector<T>>;
 
   PadFrameCreator() = default;
 
