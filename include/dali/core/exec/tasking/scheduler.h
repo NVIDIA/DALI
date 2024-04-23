@@ -296,14 +296,14 @@ inline void Waitable::Notify(Scheduler &sched) {
 inline void Task::Wait() {
   // Load the value of sched_ first....
   Scheduler *sched = sched_;
-  // IsAcquirable prevents read reordering.
+  // ...prevent the read of sched_ from being reordered
+  std::atomic_thread_fence(std::memory_order_acquire);
   if (IsAcquirable())
     return;  // If the task is complete, the wait can exit immediately
-  // If state_ is not complete, then the only way we may land with null sched is if the task was
-  // never submitted for execution. See Run.
+  // If the task is not complete, then the only way we may land with null sched is if the task was
+  // never submitted for execution.
   if (sched == nullptr)
     throw std::logic_error("The task is not associated with any scheduler.");
-  // if by some magic we get sched_, then we don't care if the state_ is New
   sched->Wait(this);
 }
 
@@ -330,6 +330,10 @@ inline void Task::Run() {
     r->Release(*sched_);
   }
   release_.clear();
+  // Prevent clearing sched_ before everything above happens
+  std::atomic_thread_fence(std::memory_order_acq_rel);
+  // Finally, we should clear the scheduler pointer - the task object, after it's complete,
+  // may outlive its scheduler.
   sched_ = nullptr;
 }
 
