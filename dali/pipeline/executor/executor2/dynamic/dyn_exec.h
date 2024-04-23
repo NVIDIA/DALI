@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
-#define DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
+#ifndef DALI_PIPELINE_EXECUTOR2_DYNAMIC_DYN_EXEC_H_
+#define DALI_PIPELINE_EXECUTOR2_DYNAMIC_DYN_EXEC_H_
 
 #include "../graph.h"
 #include "../executor2.h"
 #include "exec_graph.h"
 
-#include "third_party/taskflow/taskflow/taskflow.hpp"  // TODO(michalz): Add it to cmake
-
 namespace dali {
 namespace exec2 {
 
-class TFExec : public Executor {
+class DynExec : public Executor {
  public:
   void Initialize(std::shared_ptr<Graph> graph) override
   {
@@ -47,5 +45,5 @@ class TFExec : public Executor {
 }  // namespace dali
 
 
-#endif  // DALI_PIPELINE_EXECUTOR2_TF_TF_EXEC_H_
+#endif  // DALI_PIPELINE_EXECUTOR2_DYNAMIC_DYN_EXEC_H_
 

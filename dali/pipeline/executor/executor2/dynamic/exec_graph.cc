@@ -17,6 +17,10 @@
 namespace dali {
 namespace exec2 {
 
+using tasking::Task;
+using tasking::Semaphore;
+using tasking::Scheduler;
+
 template <typename Case>
 auto backend_switch(StorageDevice device, Case &&callable)
 {
@@ -25,6 +29,35 @@ auto backend_switch(StorageDevice device, Case &&callable)
   else
     return callable(GPUBackend());
 }
+
+void ExecNode::CreateMainTask(const WorkspaceParams &params) {
+  TaskContext ctx;
+  ctx.ws = GetWorkspace(params);
+  main_task = Task::Create([ctx = std::move(ctx), this](Task *t) mutable {
+    ctx.task = t;
+    Task_SetInputs(ctx);
+    Task_Setup(ctx);
+    Task_Run(ctx);
+    task_ResetInputs(ctx);  // no more need for inputs after Run
+    return Task_ReturnOutputs(ctx);
+  });
+}
+
+void ExecNode::Task_SetInputs(Workspace *ws, const Task *t) {
+  int ti = 0;
+  for (int i = 0; i < ws->NumInput(); i++, ti++) {
+    if (ws->InputIsType<CPUBackend>(i)) {
+      ws->SetInput(i, t->GetInputValue<std::shared_ptr<TensorList<CPUBackend>>>(ti));
+    } else if (ws->InputIsType<GPUBackend>(i)) {
+      ws->SetInput(i, t->GetInputValue<std::shared_ptr<TensorList<GPUBackend>>>(ti));
+    }
+  }
+}
+
+void AddDataDeps();
+void CreateAuxTasks();
+void Launch(Scheduler &sched);
+
 
 void SchedNode::task_setup() {
   int nout = definition->op->GetSpec().NumOutput();
