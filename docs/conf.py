@@ -27,6 +27,8 @@ from datetime import date
 
 # -- Project information -----------------------------------------------------
 
+# remove sphinx footer
+html_show_sphinx = False
 project = "NVIDIA DALI"
 copyright = "2018-{}, NVIDIA Corporation".format(date.today().year)
 author = "NVIDIA Corporation"
