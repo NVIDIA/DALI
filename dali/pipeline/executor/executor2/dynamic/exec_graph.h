@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_TF_EXEC_GRAPH_H_
-#define DALI_PIPELINE_EXECUTOR2_TF_EXEC_GRAPH_H_
+#ifndef DALI_PIPELINE_EXECUTOR2_EXEC_DYNAMIC_GRAPH_H_
+#define DALI_PIPELINE_EXECUTOR2_EXEC_DYNAMIC_GRAPH_H_
 
 #include <cassert>
 #include <functional>
+#include <list>
 #include <memory>
 #include <variant>
 
@@ -89,21 +90,28 @@ class ExecNode {
 
   std::vector<const ExecEdge *> inputs, outputs;
 
-  tf::Semaphore concurrency{1};
-  std::optional<tf::Semaphore> output_queue;
+  std::shared_ptr<tasking::Semaphore> concurrency;
+  std::shared_ptr<tasking::Semaphore> output_queue;
 
   OperatorBase *op = nullptr;
   bool essential = false;
 
+  std::mutex workspace_lock;
   std::queue<std::unique_ptr<Workspace>> workspaces;
+
+  tasking::SharedTask prev, main_task, release_outputs;
 
   std::unique_ptr<Workspace> GetWorkspace(const WorkspaceParams &params) {
     std::unique_ptr<Workspace> ret;
-    if (!workspaces.empty()) {
-      ret = std::move(workspaces.front());
-      workspaces.pop();
-    } else {
-      ret = CreateWorkspace();
+    {
+      std::unique_lock g(workspace_lock);
+      if (!workspaces.empty()) {
+        ret = std::move(workspaces.front());
+        workspaces.pop();
+      } else {
+        g.unlock();
+        ret = CreateWorkspace();
+      }
     }
     ApplyWorkspaceParams(*ret, params);
     return ret;
@@ -137,8 +145,27 @@ class ExecNode {
   }
 
   void PutWorkspace(std::unique_ptr<Workspace> ws) {
+    std::lock_guard g(workspace_lock);
     workspaces.push(std::move(ws));
   }
+
+  void NextIter() {
+    prev = std::move(main_task);
+    release_outputs.reset();
+  }
+
+  void CreateMainTask(const WorkspaceParams &params);
+  void AddDataDeps();
+  void CreateAuxTasks();
+  void Launch(tasking::Scheduler &sched);
+
+  struct TaskContext {
+    tasking::Task *task = nullptr;
+    std::unique_ptr<Workspace> ws;
+  };
+
+  void Task_SetInputs(TaskContext &ctx);
+  void Task_ReturnOutputs(Task
 
   mutable bool visited = false;
 };
@@ -150,11 +177,11 @@ struct ExecGraph {
   std::vector<ExecEdge *> inputs, outputs;
 
   template <typename... Args>
-  ExecNode *add_node(Args &&...args) {
+  ExecNode *AddNode(Args &&...args) {
     return &nodes.emplace_back(std::forward<Args>(args)...);
   }
 
-  void link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
+  void Link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
     auto &edge = edges.emplace_back();
     edge.producer = producer;
     edge.producer_output_idx = out_idx;
@@ -168,7 +195,7 @@ struct ExecGraph {
   }
 
 
-  void mark_essential_nodes() {
+  void MarkEssentialNodes() {
     for (auto &node : nodes)
       node.essential = false;
 
@@ -190,121 +217,44 @@ struct ExecGraph {
   /**
    * @brief Runs a depth-first search to topologiclaly sort and prune the graph
    */
-  void sort_and_prune(std::vector<ExecNode *> &sorted) {
+  void SortAndPrune(std::vector<ExecNode *> &sorted) {
     for (auto &n : nodes)
       n.visited = false;
 
-    mark_essential_nodes();
+    MarkEssentialNodes();
 
     sorted.clear();
     sorted.reserve(nodes.size());
 
     for (auto &node : nodes) {
       if (node.essential)
-        sort_subgraph(sorted, &node);
+        SortSubgraph(sorted, &node);
     }
   }
 
   template <typename NodePtrs>
-  void sort_subgraph(NodePtrs &sorted, ExecNode *node) {
+  void SortSubgraph(NodePtrs &sorted, ExecNode *node) {
     if (node->visited)
       return;
     node->visited = true;
     for (auto e : node->inputs)
-      sort_subgraph(sorted, e->producer);
+      SortSubgraph(sorted, e->producer);
 
     sorted.push_back(node);
   };
 
+  std::vector<ExecNode *> essential;
 };
 
-
-class SchedNode;
-
-struct SchedEdge : public DataEdge<SchedNode> {
-  bool pipeline_output = false;
-};
-
-struct SchedGraph;
-
-class DLL_PUBLIC SchedNode {
+class Iteration {
  public:
-  ExecNode *definition;
-  span<const SchedEdge> inputs, outputs;
-
-  std::unique_ptr<Workspace> ws;
-
-  tf::Task main_task, release_outputs;
-  // TODO(michalz): sync with GPU ops - we only need it when the following op needs to access the
-  // results on host; GPU-side dependencies can be scheduled on the stream without a need to engage
-  // the CPU part of the executor.
-  // tf::Semaphore gpu_dependency;
-
-  void schedule(std::shared_ptr<SchedGraph> eg, tf::Taskflow &flow);
-
-  /// Runs operator's `Setup` and resizes the outputs
-  void task_setup();
-  /// Runs the operator's `Run` method and
-  void task_run();
-  void task_reset_inputs();
-  void task_propagate_outputs();
-  void task_reset_outputs();
-};
 
 
-struct DLL_PUBLIC SchedGraph : public std::enable_shared_from_this<SchedGraph> {
-  SchedGraph() = default;
-  SchedGraph(SchedGraph &&other) = default;
-  SchedGraph(const SchedGraph &other) {
-    *this = other;
-  }
-
-  explicit SchedGraph(ExecGraph &def, const WorkspaceParams &params) {
-    init(def, params);
-  }
-
-  std::vector<SchedNode> nodes;
-  std::vector<SchedEdge> edges;
-  std::vector<SchedEdge *> outputs;
-
-  SchedGraph &operator=(const SchedGraph &g);
-
-  void init(ExecGraph &exec, const WorkspaceParams &params);
-
-  static auto from_exec(ExecGraph &exec, const WorkspaceParams &params) {
-    return std::make_shared<SchedGraph>(exec, params);
-  }
-
-
-  void schedule(tf::Taskflow &flow) {
-    clear_tasks();
-    for (auto &node : nodes)
-      schedule_node(flow, node);
-  }
-
-  void schedule_node(tf::Taskflow &flow, SchedNode &node) {
-    if (!node.main_task.empty())
-      return;  // already scheduled
-    for (auto &in : node.inputs) {
-      assert(!in.producer->main_task.empty() && "Graph not sorted");
-    }
-    node.schedule(shared_from_this(), flow);
-  }
-
-  void clear_tasks() {
-    for (auto &node : nodes) {
-      node.main_task.reset();
-      node.release_outputs.reset();
-    }
-  }
-
-  auto clone() const {
-    return std::make_shared<SchedGraph>(*this);
-  }
+  tasking::TaskFuture outputs;
 };
 
 
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR2_EXEC_TF_GRAPH_H_
+#endif  // DALI_PIPELINE_EXECUTOR2_EXEC_DYNAMIC_GRAPH_H_
