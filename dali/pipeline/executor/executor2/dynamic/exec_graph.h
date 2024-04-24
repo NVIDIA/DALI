@@ -91,7 +91,7 @@ class ExecNode {
   std::vector<const ExecEdge *> inputs, outputs;
 
   std::shared_ptr<tasking::Semaphore> concurrency;
-  std::shared_ptr<tasking::Semaphore> output_queue;
+  std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
   OperatorBase *op = nullptr;
   bool essential = false;
@@ -154,7 +154,8 @@ class ExecNode {
   void CreateMainTask(const WorkspaceParams &params);
   void AddDataDeps();
   void CreateAuxTasks();
-  void Launch(tasking::Scheduler &sched);
+  void LaunchSilent(tasking::Scheduler &sched);
+  tasking::TaskFuture Launch(tasking::Scheduler &sched);
 
   mutable bool visited = false;
 };
