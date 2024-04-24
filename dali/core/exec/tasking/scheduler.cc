@@ -59,6 +59,8 @@ void Scheduler::Notify(Waitable *w) {
       waiting.emplace_back(w->waiting_[i]);
 
     for (auto &task : waiting) {
+      // If the waitable is a completion event, it will never become unacquirable again.
+      // Otherwise, we have to re-check it.
       if (!is_completion_event && !w->IsAcquirable())
         break;
       if (task->Ready())
