@@ -30,6 +30,9 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
+#if AWSSDK_ENABLED
+#include "dali/operators/reader/loader/discover_files_s3.h"
+#endif
 
 namespace dali {
 
@@ -111,7 +114,11 @@ std::vector<FileLabelEntry> discover_files(const std::string &file_root,
                                            const FileDiscoveryOptions &opts) {
   bool is_s3 = starts_with(file_root, "s3://");
   if (is_s3) {
+#if AWSSDK_ENABLED
+    return s3_discover_files(file_root, opts);
+#else
     DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
+#endif
   }
 
   std::vector<std::string> subdirs;

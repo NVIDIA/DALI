@@ -19,6 +19,7 @@
 #include "dali/operators/decoder/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/loader/utils.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
@@ -137,7 +138,13 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     return;
   }
 
-  auto frame = FileStream::Open(frame_filename, {read_ahead_, !copy_read_data_, false});
+  auto uri = URI::Parse(frame_filename);
+  bool local_file = !uri.valid() || uri.scheme() == "file";
+  FileStream::Options opts;
+  opts.read_ahead = read_ahead_;
+  opts.use_mmap = local_file && !copy_read_data_;
+  opts.use_odirect = false;
+  auto frame = FileStream::Open(frame_filename, opts);
   Index frame_size = frame->Size();
   // Release and unmap memory previously obtained by Get call
   if (copy_read_data_ || !frame->CanMemoryMap()) {

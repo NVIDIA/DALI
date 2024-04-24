@@ -96,6 +96,7 @@ class DLL_PUBLIC FileStream : public InputStream {
     throw std::logic_error(
         make_string("memory mapping is not supported for this stream type. uri=", path_));
   }
+  const std::string& path() const { return path_; }
   virtual ~FileStream() {}
 
  protected:

@@ -23,6 +23,7 @@
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
@@ -33,17 +34,23 @@ class RecordIOLoader : public IndexedFileLoader {
   }
   ~RecordIOLoader() override {}
 
-  void ReadIndexFile(const std::vector<std::string>& index_uris) override {
+  void ReadIndexFile(const std::vector<std::string>& index_paths) override {
     std::vector<size_t> file_offsets;
     file_offsets.push_back(0);
-    for (std::string& path : uris_) {
-      auto tmp = FileStream::Open(path, {read_ahead_, !copy_read_data_, false});
+    for (std::string& path : paths_) {
+      auto uri = URI::Parse(path);
+      bool local_file = !uri.valid() || uri.scheme() == "file";
+      FileStream::Options opts;
+      opts.read_ahead = read_ahead_;
+      opts.use_mmap = local_file && !copy_read_data_;
+      opts.use_odirect = false;
+      auto tmp = FileStream::Open(path, opts);
       file_offsets.push_back(tmp->Size() + file_offsets.back());
       tmp->Close();
     }
-    DALI_ENFORCE(index_uris.size() == 1,
+    DALI_ENFORCE(index_paths.size() == 1,
         "RecordIOReader supports only a single index file");
-    const std::string& path = index_uris[0];
+    const std::string& path = index_paths[0];
     std::ifstream index_file(path);
     DALI_ENFORCE(index_file.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
@@ -88,7 +95,7 @@ class RecordIOLoader : public IndexedFileLoader {
 
     ++current_index_;
 
-    std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
+    std::string image_key = paths_[file_index] + " at index " + to_string(seek_pos);
     DALIMeta meta;
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
@@ -137,11 +144,17 @@ class RecordIOLoader : public IndexedFileLoader {
         next_seek_pos_ = seek_pos + n_read;
       }
       if (p == nullptr && n_read < size) {
-        DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
+        DALI_ENFORCE(current_file_index_ + 1 < paths_.size(),
           "Incomplete or corrupted record files");
+        const auto& path = paths_[++current_file_index_];
+        auto uri = URI::Parse(path);
+        bool local_file = !uri.valid() || uri.scheme() == "file";
+        FileStream::Options opts;
+        opts.read_ahead = read_ahead_;
+        opts.use_mmap = local_file && !copy_read_data_;
+        opts.use_odirect = false;
         // Release previously opened file
-        current_file_ =
-            FileStream::Open(uris_[++current_file_index_], {read_ahead_, !copy_read_data_, false});
+        current_file_ = FileStream::Open(path, opts);
         next_seek_pos_ = 0;
         continue;
       }

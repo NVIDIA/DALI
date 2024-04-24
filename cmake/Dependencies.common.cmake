@@ -380,3 +380,25 @@ if(BUILD_NVIMAGECODEC)
       endif()
   endif()
 endif()
+
+
+##################################################################
+# AWS SDK
+##################################################################
+if(BUILD_AWSSDK)
+  find_path(AWSSDK_INCLUDE_DIR aws/core/Aws.h)
+  find_library(AWS_CPP_SDK_CORE_LIB NAMES aws-cpp-sdk-core)
+  find_library(AWS_CPP_SDK_S3_LIB NAMES aws-cpp-sdk-s3)
+  if ("${AWSSDK_INCLUDE_DIR}" STREQUAL "AWSSDK_INCLUDE_DIR-NOTFOUND" OR
+      "${AWS_CPP_SDK_CORE_LIB}" STREQUAL "AWS_CPP_SDK_CORE_LIB-NOTFOUND" OR
+      "${AWS_CPP_SDK_S3_LIB}" STREQUAL "AWS_CPP_SDK_S3_LIB-NOTFOUND")
+      message(WARNING "AWS SDK not found. Disabling AWS SDK support.")
+      set(BUILD_AWSSDK OFF)
+  else()
+    set(AWSSDK_LIBRARIES "")
+    list(APPEND AWSSDK_LIBRARIES ${AWS_CPP_SDK_S3_LIB})
+    list(APPEND AWSSDK_LIBRARIES ${AWS_CPP_SDK_CORE_LIB})
+    message(STATUS "AWSSDK_INCLUDE_DIR=${AWSSDK_INCLUDE_DIR}")
+    message(STATUS "AWSSDK_LIBRARIES=${AWSSDK_LIBRARIES}")
+  endif()
+endif()

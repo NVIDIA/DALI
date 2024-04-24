@@ -52,9 +52,9 @@ class FileLoader : public Loader<Backend, Target, true> {
         current_epoch_(0) {
     vector<string> files;
 
-    traverse_opts_.label_from_subdir = false;
-    traverse_opts_.case_sensitive_filter = true;
-    traverse_opts_.file_filters.push_back(file_filter_);
+    file_discovery_opts_.label_from_subdir = false;
+    file_discovery_opts_.case_sensitive_filter = true;
+    file_discovery_opts_.file_filters.push_back(file_filter_);
 
     has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
     has_file_list_arg_ = spec.TryGetArgument(file_list_, "file_list");
@@ -116,7 +116,7 @@ class FileLoader : public Loader<Backend, Target, true> {
   void PrepareMetadataImpl() override {
     if (file_entries_.empty()) {
       if (!has_files_arg_ && !has_file_list_arg_) {
-        file_entries_ = discover_files(file_root_, traverse_opts_);
+        file_entries_ = discover_files(file_root_, file_discovery_opts_);
       } else if (has_file_list_arg_) {
         // load paths from list
         std::ifstream s(file_list_);
@@ -186,7 +186,7 @@ class FileLoader : public Loader<Backend, Target, true> {
   using Loader<Backend, Target, true>::IsCheckpointingEnabled;
 
   string file_list_, file_root_, file_filter_;
-  FileDiscoveryOptions traverse_opts_;
+  FileDiscoveryOptions file_discovery_opts_;
   vector<FileLabelEntry> file_entries_;
   vector<FileLabelEntry> backup_file_entries_;
 

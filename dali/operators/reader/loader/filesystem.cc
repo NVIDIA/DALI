@@ -32,7 +32,7 @@ std::string join_path(const std::string &dir, const std::string &path) {
     const char *separators = "/";
     // TODO(janton): In case we ever support Windows
 #ifdef _WINVER
-    if (uri.scheme() == "file:")
+    if (uri.scheme() == "file")
       separators = "/\\";
 #endif
 

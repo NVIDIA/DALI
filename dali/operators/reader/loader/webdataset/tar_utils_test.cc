@@ -89,7 +89,11 @@ TEST(LibTarUtilsTestSimple, Types) {
       TarArchive::ENTRY_DIR,      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,
       TarArchive::ENTRY_SYMLINK,  TarArchive::ENTRY_HARDLINK};
 
-  TarArchive archive(FileStream::Open(filepath, {false, true, false}));
+  FileStream::Options opts;
+  opts.read_ahead = false;
+  opts.use_mmap = true;
+  opts.use_odirect = false;
+  TarArchive archive(FileStream::Open(filepath, opts));
   for (size_t i = 0; i < types.size(); i++) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
@@ -104,7 +108,11 @@ TEST(LibTarUtilsTestSimple, Offset) {
   std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/types.tar"));
 
-  TarArchive archive(FileStream::Open(filepath, {false, true, false}));
+  FileStream::Options opts;
+  opts.read_ahead = false;
+  opts.use_mmap = true;
+  opts.use_odirect = false;
+  TarArchive archive(FileStream::Open(filepath, opts));
   archive.SeekArchive(7 * T_BLOCKSIZE);
   ASSERT_EQ(archive.TellArchive(), 7 * T_BLOCKSIZE);
   for (int i = 7; i < 14; i++) {
