@@ -507,7 +507,7 @@ TEST(TaskingErrorTest, IncorrectTupleSize) {
   EXPECT_THROW(Task::Create(2, []() { return std::make_tuple(1, 2, 3); }), std::invalid_argument);
 }
 
-TEST(TaskingErrorTest, TaskRun_IncorrectResultCountAtRunTime) {
+TEST(TaskingErrorTest, IncorrectResultCountAtRunTime) {
   Scheduler sched;
   SharedTask task;
   EXPECT_NO_THROW(task = Task::Create(2, []() { return std::vector<int>{1, 2, 3 }; }));
@@ -539,7 +539,7 @@ TEST(TaskFutureTest, TypeChecking) {
   EXPECT_THROW(fut.Value<double>(0), std::bad_any_cast);
 }
 
-TEST(TaskInputTest, InvalidResultIndex) {
+TEST(TaskInputTest, InvalidInputIndex) {
   Executor ex(4);
   ex.Start();
   auto t1 = Task::Create(3, []() { return std::vector<int>{1, 2, 3 }; });
@@ -552,15 +552,15 @@ TEST(TaskInputTest, InvalidResultIndex) {
   EXPECT_THROW(fut.Value<void>(), std::out_of_range);
 }
 
-TEST(TaskInputTest, InvalidResultType) {
+TEST(TaskInputTest, InvalidInputType) {
   Executor ex(4);
   ex.Start();
   auto t1 = Task::Create([]() { return 42; });
-  auto t2 = Task::Create([](Task *t) { t->GetInputValue<double>(1); });
+  auto t2 = Task::Create([](Task *t) { t->GetInputValue<double>(0); });
   t2->Subscribe(t1);
   ex.AddSilentTask(t1);
   auto fut = ex.AddTask(t2);
-  EXPECT_THROW(fut.Value<void>(), std::out_of_range);
+  EXPECT_THROW(fut.Value<void>(), std::bad_any_cast);
 }
 
 }  // namespace dali::tasking::test
