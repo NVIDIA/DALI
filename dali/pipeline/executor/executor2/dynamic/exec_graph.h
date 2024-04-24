@@ -204,7 +204,7 @@ class OpTaskFunc {
   void SetupOp();
   void RunOp();
   void ResetWorkspaceInputs();
-  OpTaskOutputs MoveOutWorkspaceOutputs();
+  OpTaskOutputs GetWorkspaceOutputs();
 };
 
 struct ExecGraph {

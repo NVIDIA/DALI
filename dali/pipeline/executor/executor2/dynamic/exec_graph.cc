@@ -37,6 +37,16 @@ void ClearWorkspacePayload(Workspace &ws) {
     else if (ws.InputIsType<GPUBackend>(i))
       ws.SetInput<GPUBackend>(i, nullptr);
   }
+
+  for (int i = 0; i < ws.NumArgumentInput(); i++)
+    ws.SetArgumentInput(i, nullptr);
+
+  for (int o = 0; o < ws.NumOutput(); o++){
+    if (ws.OutputIsType<CPUBackend>(o))
+      ws.SetOutput<CPUBackend>(o, nullptr);
+    else if (ws.OutputIsType<GPUBackend>(o))
+      ws.SetOutput<GPUBackend>(o, nullptr);
+  }
 }
 
 void ExecNode::PutWorkspace(std::unique_ptr<Workspace> ws) {
@@ -53,9 +63,44 @@ OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
   SetWorkspaceInputs();
   SetupOp();
   RunOp();
-  auto &&ret = MoveOutWorkspaceOutputs();
+  auto &&ret = GetWorkspaceOutputs();
   node_->PutWorkspace(std::move(ws_));
   return ret;
+}
+
+void OpTaskFunc::SetupOp() {
+  auto &ws = *ws_;
+  int nout = node_->op->GetSpec().NumOutput();
+  std::vector<OutputDesc> output_descs;
+  assert(ws.NumOutput() == nout);
+  output_descs.resize(nout);
+  // Run the operator setup
+  if (node_->op->Setup(output_descs, ws)) {
+    // If it returns true, then we can (and must!) resize the output arrays
+    for (int i = 0; i < nout; i++) {
+      if (ws.OutputIsType<CPUBackend>(i)) {
+        if (!ws.OutputPtr<CPUBackend>(i)) {
+          auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
+          ws.SetOutput(i, tl);
+        }
+        ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+      } else if (ws.OutputIsType<GPUBackend>(i)) {
+        if (!ws.OutputPtr<GPUBackend>(i)) {
+          auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
+          ws.SetOutput(i, tl);
+        }
+        ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
+      } else {
+        assert(!"Unreachable code - uknonw backend.");
+      }
+    }
+  }
+}
+
+void OpTaskFunc::RunOp() {
+  node_->op->Run(*ws_);
+  if (ws_->has_event() && ws_->has_stream())
+    CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
 }
 
 void OpTaskFunc::SetWorkspaceInputs() {
@@ -74,7 +119,7 @@ void OpTaskFunc::SetWorkspaceInputs() {
   }
 }
 
-OpTaskFunc::OpTaskOutputs OpTaskFunc::MoveOutWorkspaceOutputs() {
+OpTaskFunc::OpTaskOutputs OpTaskFunc::GetWorkspaceOutputs() {
   OpTaskOutputs ret;
   int nout = ws_->NumOutput();
   ret.reserve(nout);
@@ -90,9 +135,19 @@ OpTaskFunc::OpTaskOutputs OpTaskFunc::MoveOutWorkspaceOutputs() {
 }
 
 void ExecNode::AddDataDeps() {
+  for (auto &edge : inputs) {
+    assert(edge->producer->main_task);
+    main_task->Subscribe(edge->producer->main_task, edge->producer_output_idx);
+  }
 }
 
 void ExecNode::CreateAuxTasks() {
+  if (concurrency)
+    main_task->GuardWith(concurrency);
+  if (output_queue_limit) {
+    release_outputs = Task::Create([]() {})->ReleaseAfterRun(release_outputs);
+    main_task->Succeed(output_queue_limit);
+  }
 }
 
 void ExecNode::Launch(Scheduler &sched) {
