@@ -345,7 +345,7 @@ inline void TaskFuture::Wait() {
 }
 
 
-void Scheduler::Wait(const Task *task) {
+inline void Scheduler::Wait(const Task *task) {
   std::unique_lock lock(mtx_);
   if (task->state_ < TaskState::Pending)
     throw std::logic_error("Cannot wait for a task that has not been submitted");

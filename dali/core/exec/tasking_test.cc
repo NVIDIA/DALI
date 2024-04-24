@@ -91,6 +91,33 @@ TEST(TaskingTest, DependentTasksAreSequential) {
   EXPECT_EQ(parallel, 0) << "The tasks didn't finish cleanly";
 }
 
+namespace {
+
+struct NoCopyAtRunTime {
+  NoCopyAtRunTime() = default;
+  NoCopyAtRunTime(NoCopyAtRunTime &&) = default;
+  NoCopyAtRunTime(const NoCopyAtRunTime &) {
+    throw std::logic_error("This object must not be copied.");
+  }
+};
+
+}  // namespace
+
+// Check that the target function is never actually copied.
+// It must be copy-constructible because std::function requires that, but we never actually
+// need nor want that to happen. C++23 std::move_only_function would be helpful here.
+TEST(TaskingTest, NonCopyableTarget) {
+  Scheduler s;
+  NoCopyAtRunTime noncopyable;
+  auto f = s.AddTask(Task::Create([x = std::move(noncopyable)]() mutable {
+    return 42;
+  }));
+  EXPECT_NO_THROW(s.Pop()->Run());
+  int v = 0;
+  EXPECT_NO_THROW(v = f.Value<int>());
+  EXPECT_EQ(v, 42);
+}
+
 TEST(TaskingTest, TaskArgumentValid) {
   Executor ex(4);
   ex.Start();

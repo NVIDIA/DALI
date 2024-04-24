@@ -249,7 +249,7 @@ class Task : public CompletionEvent {
   void SetResult(F &&f, Args &&...args) {
     assert(state_ == TaskState::Running);
     assert(results_.size() == 1 && results_[0]);
-    results_[0]->SetResultOf([&]() { return f(std::forward<Args>(args)...); });
+    results_[0]->SetResultOf([&]() { return std::forward<F>(f)(std::forward<Args>(args)...); });
   }
 
   template <int i, typename... T>
@@ -268,7 +268,8 @@ class Task : public CompletionEvent {
   auto SetResults(F &&f, Args &&...args) {
     assert(state_ == TaskState::Running);
     try {
-      using result_t = std::remove_reference_t<decltype(f(std::forward<Args>(args)...))>;
+      using result_t = std::remove_reference_t<decltype(std::forward<F>(f)(
+        std::forward<Args>(args)...))>;
       if constexpr (detail::is_iterable_v<result_t>) {
         auto &&results = f(std::forward<Args>(args)...);
         size_t n = 0;
@@ -341,27 +342,27 @@ class Task : public CompletionEvent {
 
     if (num_results == ScalarResult) {
       // A task with a scalar return value can return anything
-      wrapped_ = [f = std::forward<F>(function)](Task *t) {
+      wrapped_ = [f = std::forward<F>(function)](Task *t) mutable {
         using Func = std::remove_reference_t<F>;
         if constexpr (std::is_invocable_v<Func, Task *>) {
-          t->SetResult(f, t);
+          t->SetResult(std::forward<F>(f), t);
         } else {
           static_assert(std::is_invocable_v<Func>,
                         "The task function must take no arguments or a single Task * pointer.");
-          t->SetResult(f);
+          t->SetResult(std::forward<F>(f));
         }
       };
     } else {
       // A task with a non-scalar return value must return a collection or a tuple.
       // We can check the return type early (i.e. now) to aid debugging.
       CheckFuncResultType(num_results, std::forward<F>(function));
-      wrapped_ = [f = std::forward<F>(function)](Task *t) {
+      wrapped_ = [f = std::forward<F>(function)](Task *t) mutable {
         if constexpr (std::is_invocable_v<Func, Task *>) {
-          t->SetResults(f, t);
+          t->SetResults(std::forward<F>(f), t);
         } else {
           static_assert(std::is_invocable_v<Func>,
                         "The task function must take no arguments or a single Task * pointer.");
-          t->SetResults(f);
+          t->SetResults(std::forward<F>(f));
         }
       };
     }
