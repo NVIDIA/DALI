@@ -142,15 +142,41 @@ void ExecNode::AddDataDeps() {
 }
 
 void ExecNode::CreateAuxTasks() {
+  // The concurrency of the operator may be limited within a group of operators sharing
+  // one concurrency semaphore.
+  // Note that operator cannot run parallel to its previous iterations and we add a temporal
+  // dependency between the previous and current iteration.
   if (concurrency)
     main_task->GuardWith(concurrency);
+
+  // The output queue depth may be limited - this is guarded by a semaphore with initial count
+  // equal to the queue depth.
+  // The task will acquire this semaphore prior to running (potentially delaying the start).
+  // The semaphore is released when all consumers of the current task's outputs are complete.
+  // This means that nobody is accessing those outputs and they've been disposed of (unless
+  // forwarded down the pipeline, but we're ok with that).
   if (output_queue_limit) {
-    release_outputs = Task::Create([]() {})->ReleaseAfterRun(release_outputs);
+    release_outputs = Task::Create([]() {});
+    release_outputs->ReleaseAfterRun(output_queue_limit);
+    release_outputs->Succeed(main_task);
+    for (auto &edge : outputs) {
+      if (edge->consumer->main_task)
+        release_outputs->Succeed(edge->consumer->main_task);
+    }
     main_task->Succeed(output_queue_limit);
   }
 }
 
-void ExecNode::Launch(Scheduler &sched) {
+void ExecNode::LaunchSilent(Scheduler &sched) {
+  if (release_outputs)
+    sched.AddSilentTask(release_outputs);
+  sched.AddSilentTask(main_task);
+}
+
+tasking::TaskFuture ExecNode::Launch(Scheduler &sched) {
+  if (release_outputs)
+    sched.AddSilentTask(release_outputs);
+  return sched.AddTask(main_task);
 }
 
 /*
