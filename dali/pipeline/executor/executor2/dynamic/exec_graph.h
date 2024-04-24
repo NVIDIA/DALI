@@ -144,10 +144,7 @@ class ExecNode {
     return ws;
   }
 
-  void PutWorkspace(std::unique_ptr<Workspace> ws) {
-    std::lock_guard g(workspace_lock);
-    workspaces.push(std::move(ws));
-  }
+  void PutWorkspace(std::unique_ptr<Workspace> ws);
 
   void NextIter() {
     prev = std::move(main_task);
@@ -159,15 +156,55 @@ class ExecNode {
   void CreateAuxTasks();
   void Launch(tasking::Scheduler &sched);
 
-  struct TaskContext {
-    tasking::Task *task = nullptr;
-    std::unique_ptr<Workspace> ws;
-  };
-
-  void Task_SetInputs(TaskContext &ctx);
-  void Task_ReturnOutputs(Task
-
   mutable bool visited = false;
+};
+
+class OpTaskFunc {
+ private:
+  OpTaskFunc(ExecNode *node, std::unique_ptr<Workspace> ws)
+  : node_(node), ws_(std::move(ws)) {}
+
+  auto GetTaskRunnable() && {
+    return [self = std::move(*this)](tasking::Task *t) mutable {
+      self.task_ = t;
+      return self.Run();
+    };
+  }
+
+ public:
+  OpTaskFunc(OpTaskFunc &&) = default;
+  OpTaskFunc(const OpTaskFunc &) {
+    std::cerr << "This constructor is here only because std::function requires "
+                 "the functor to be copy-constructible. We never actually copy the target.\n"
+                 "See C++23 std::move_only_function." << std::endl;
+    std::abort();
+  }
+
+  static tasking::SharedTask CreateTask(ExecNode *node, std::unique_ptr<Workspace> ws) {
+    return tasking::Task::Create(
+      ws->NumOutput(),
+      OpTaskFunc(node, std::move(ws)).GetTaskRunnable());
+  }
+
+ private:
+  using OpTaskOutputs = SmallVector<std::any, 8>;
+
+  OpTaskOutputs Run();
+
+  tasking::Task *task_ = nullptr;
+  ExecNode *node_ = nullptr;
+  std::unique_ptr<Workspace> ws_;
+
+  template <typename Backend>
+  const auto &TaskInput(int i) const {
+    return task_->GetInputValue<const std::shared_ptr<TensorList<Backend>> &>(i);
+  }
+
+  void SetWorkspaceInputs();
+  void SetupOp();
+  void RunOp();
+  void ResetWorkspaceInputs();
+  OpTaskOutputs MoveOutWorkspaceOutputs();
 };
 
 struct ExecGraph {

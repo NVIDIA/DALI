@@ -30,35 +30,75 @@ auto backend_switch(StorageDevice device, Case &&callable)
     return callable(GPUBackend());
 }
 
-void ExecNode::CreateMainTask(const WorkspaceParams &params) {
-  TaskContext ctx;
-  ctx.ws = GetWorkspace(params);
-  main_task = Task::Create([ctx = std::move(ctx), this](Task *t) mutable {
-    ctx.task = t;
-    Task_SetInputs(ctx);
-    Task_Setup(ctx);
-    Task_Run(ctx);
-    task_ResetInputs(ctx);  // no more need for inputs after Run
-    return Task_ReturnOutputs(ctx);
-  });
-}
-
-void ExecNode::Task_SetInputs(Workspace *ws, const Task *t) {
-  int ti = 0;
-  for (int i = 0; i < ws->NumInput(); i++, ti++) {
-    if (ws->InputIsType<CPUBackend>(i)) {
-      ws->SetInput(i, t->GetInputValue<std::shared_ptr<TensorList<CPUBackend>>>(ti));
-    } else if (ws->InputIsType<GPUBackend>(i)) {
-      ws->SetInput(i, t->GetInputValue<std::shared_ptr<TensorList<GPUBackend>>>(ti));
-    }
+void ClearWorkspacePayload(Workspace &ws) {
+  for (int i = 0; i < ws.NumInput(); i++) {
+    if (ws.InputIsType<CPUBackend>(i))
+      ws.SetInput<CPUBackend>(i, nullptr);
+    else if (ws.InputIsType<GPUBackend>(i))
+      ws.SetInput<GPUBackend>(i, nullptr);
   }
 }
 
-void AddDataDeps();
-void CreateAuxTasks();
-void Launch(Scheduler &sched);
+void ExecNode::PutWorkspace(std::unique_ptr<Workspace> ws) {
+  ClearWorkspacePayload(*ws);
+  std::lock_guard g(workspace_lock);
+  workspaces.push(std::move(ws));
+}
 
+void ExecNode::CreateMainTask(const WorkspaceParams &params) {
+  main_task = OpTaskFunc::CreateTask(this, GetWorkspace(params));
+}
 
+OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
+  SetWorkspaceInputs();
+  SetupOp();
+  RunOp();
+  auto &&ret = MoveOutWorkspaceOutputs();
+  node_->PutWorkspace(std::move(ws_));
+  return ret;
+}
+
+void OpTaskFunc::SetWorkspaceInputs() {
+  int ti = 0;
+  for (int i = 0; i < ws_->NumInput(); i++, ti++) {
+    if (ws_->InputIsType<CPUBackend>(i)) {
+      ws_->SetInput(i, TaskInput<CPUBackend>(ti));
+    } else {
+      assert(ws_->InputIsType<GPUBackend>(i));
+      ws_->SetInput(i, TaskInput<GPUBackend>(ti));
+    }
+  }
+
+  for (int i = 0; i < ws_->NumArgumentInput(); i++, ti++) {
+    ws_->SetArgumentInput(i, TaskInput<CPUBackend>(ti));
+  }
+}
+
+OpTaskFunc::OpTaskOutputs OpTaskFunc::MoveOutWorkspaceOutputs() {
+  OpTaskOutputs ret;
+  int nout = ws_->NumOutput();
+  ret.reserve(nout);
+  for (int o = 0; o < nout; o++) {
+    if (ws_->OutputIsType<CPUBackend>(o)) {
+      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
+    } else {
+      assert(ws_->OutputIsType<CPUBackend>(o));
+      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
+    }
+  }
+  return ret;
+}
+
+void ExecNode::AddDataDeps() {
+}
+
+void ExecNode::CreateAuxTasks() {
+}
+
+void ExecNode::Launch(Scheduler &sched) {
+}
+
+/*
 void SchedNode::task_setup() {
   int nout = definition->op->GetSpec().NumOutput();
   std::vector<OutputDesc> output_descs;
@@ -363,6 +403,7 @@ SchedGraph &SchedGraph::operator=(const SchedGraph &g) {
   assert_valid(*this);
   return *this;
 }
+*/
 
 }  // namespace exec2
 }  // namespace dali

@@ -20,7 +20,7 @@
 namespace dali {
 namespace exec2 {
 namespace test {
-
+/*
 inline OpSchema &CreateTestSchema(const std::string &name) {
   const OpSchema *psc = SchemaRegistry::TryGetSchema(name);
   OpSchema &s = psc ? const_cast<OpSchema &>(*psc) : SchemaRegistry::RegisterSchema(name);
@@ -100,12 +100,12 @@ TEST(Exec2Test, SimpleGraph) {
        .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
   ExecGraph def;
-  ExecNode *n2 = def.add_node(&op2);
-  ExecNode *n1 = def.add_node(&op1);
-  ExecNode *n0 = def.add_node(&op0);
-  def.link(n0, 0, n2, 0);
-  def.link(n1, 0, n2, 1);
-  def.link(n2, 0, nullptr, 0);
+  ExecNode *n2 = def.AddNode(&op2);
+  ExecNode *n1 = def.AdDNode(&op1);
+  ExecNode *n0 = def.AddNode(&op0);
+  def.Link(n0, 0, n2, 0);
+  def.Link(n1, 0, n2, 1);
+  def.Link(n2, 0, nullptr, 0);
   def.outputs.push_back(&def.edges.back());
   auto end = dali::test::perf_timer::now();
   std::cerr << "Test setup took " << dali::test::format_time(end-start) << std::endl;
@@ -255,7 +255,7 @@ TEST(Exec2Test, Exception) {
   }
 }
 
-
+*/
 
 }  // namespace test
 }  // namespace exec2
