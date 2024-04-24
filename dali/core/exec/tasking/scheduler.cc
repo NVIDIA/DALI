@@ -59,6 +59,8 @@ void Scheduler::Notify(Waitable *w) {
       waiting.emplace_back(w->waiting_[i]);
 
     for (auto &task : waiting) {
+      if (!is_completion_event && !w->IsAcquirable())
+        break;
       if (task->Ready())
         continue;
 
