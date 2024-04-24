@@ -58,8 +58,9 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
   auto path = filesystem::join_path(file_root_, entry.filename);
   auto uri = URI::Parse(path);
   FileStream::Options opts;
+  bool local_file = !uri.valid() || uri.scheme() == "file";
   opts.read_ahead = read_ahead_;
-  opts.use_mmap = !uri.valid() && !copy_read_data_;
+  opts.use_mmap = local_file && !copy_read_data_;
   opts.use_odirect = false;
   auto current_file = FileStream::Open(path, opts, entry.size);
   auto current_file_cleanup = AtScopeExit([&current_file] {
@@ -72,7 +73,7 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
     if (image_label.image.shares_data()) {
       image_label.image.Reset();
     }
-    if (!uri.valid()) {
+    if (local_file) {
       // if local file, read right away
       image_label.image.Resize({file_size}, DALI_UINT8);
       int64_t read_nbytes =

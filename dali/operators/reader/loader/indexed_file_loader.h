@@ -65,10 +65,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     meta.SetSkipSample(false);
 
     auto uri = URI::Parse(path);
+    bool local_file = !uri.valid() || uri.scheme() == "file";
     FileStream::Options opts;
     opts.read_ahead = read_ahead_;
-    opts.use_mmap = !copy_read_data_ && !uri.valid();
-    opts.use_odirect = use_o_direct_ && !uri.valid();
+    opts.use_mmap = local_file && !copy_read_data_;
+    opts.use_odirect = local_file && use_o_direct_;
 
     if (file_index != current_file_index_) {
       current_file_.reset();
@@ -233,10 +234,11 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
       current_file_.reset();
       const auto& path = paths_[file_index];
       auto uri = URI::Parse(path);
+      bool local_file = !uri.valid() || uri.scheme() == "file";
       FileStream::Options opts;
       opts.read_ahead = read_ahead_;
-      opts.use_mmap = !copy_read_data_ && !uri.valid();
-      opts.use_odirect = use_o_direct_ && !uri.valid();
+      opts.use_mmap = local_file && !copy_read_data_;
+      opts.use_odirect = local_file && use_o_direct_;
       current_file_ = FileStream::Open(path, opts);
       current_file_index_ = file_index;
       // invalidate the buffer

@@ -389,7 +389,8 @@ void WebdatasetLoader::PrepareMetadataImpl() {
   for (auto& path : paths_) {
     // If an actual URI, disable mmap
     auto uri = URI::Parse(path);
-    opts.use_mmap = uri.valid() ? false : copy_read_data_;
+    bool local_file = !uri.valid() || uri.scheme() == "file";
+    opts.use_mmap = local_file && copy_read_data_;
     wds_shards_.emplace_back(FileStream::Open(path, opts));
   }
 

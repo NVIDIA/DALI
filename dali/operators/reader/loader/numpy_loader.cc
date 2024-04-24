@@ -72,16 +72,13 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     return;
   }
 
-  FileStream::Options opts;
-  opts.read_ahead = read_ahead_;
-  opts.use_mmap = !copy_read_data_;
-  opts.use_odirect = use_o_direct_;
   auto path = filesystem::join_path(file_root_, filename);
   auto uri = URI::Parse(path);
-  if (uri.valid()) {
-    opts.use_mmap = false;
-    opts.use_odirect = false;
-  }
+  bool local_file = !uri.valid() || uri.scheme() == "file";
+  FileStream::Options opts;
+  opts.read_ahead = read_ahead_;
+  opts.use_mmap = local_file && !copy_read_data_;
+  opts.use_odirect = local_file && use_o_direct_;
   auto current_file = FileStream::Open(path, opts, size);
 
   // read the header

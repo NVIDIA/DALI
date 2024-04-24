@@ -39,9 +39,10 @@ class RecordIOLoader : public IndexedFileLoader {
     file_offsets.push_back(0);
     for (std::string& path : paths_) {
       auto uri = URI::Parse(path);
+      bool local_file = !uri.valid() || uri.scheme() == "file";
       FileStream::Options opts;
       opts.read_ahead = read_ahead_;
-      opts.use_mmap = !copy_read_data_ && !uri.valid();
+      opts.use_mmap = local_file && !copy_read_data_;
       opts.use_odirect = false;
       auto tmp = FileStream::Open(path, opts);
       file_offsets.push_back(tmp->Size() + file_offsets.back());
@@ -147,9 +148,10 @@ class RecordIOLoader : public IndexedFileLoader {
           "Incomplete or corrupted record files");
         const auto& path = paths_[++current_file_index_];
         auto uri = URI::Parse(path);
+        bool local_file = !uri.valid() || uri.scheme() == "file";
         FileStream::Options opts;
         opts.read_ahead = read_ahead_;
-        opts.use_mmap = !copy_read_data_ && !uri.valid();
+        opts.use_mmap = local_file && !copy_read_data_;
         opts.use_odirect = false;
         // Release previously opened file
         current_file_ = FileStream::Open(path, opts);
