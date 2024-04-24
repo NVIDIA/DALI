@@ -70,7 +70,7 @@ def test_enum_constant_capture(converter):
         glob="DALI enum types cannot be used with buffer protocol*"
         "use `nvidia.dali.fn.cast` to convert",
     ):
-        print(scalar)
+        scalar.as_array()
 
 
 def test_scalar_constant():
