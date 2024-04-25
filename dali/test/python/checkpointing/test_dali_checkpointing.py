@@ -1176,7 +1176,7 @@ unsupported_readers = [
 unsupported_ops = [
     "experimental.decoders.video",
     "experimental.inputs.video",
-    "experimental.decoders.image_random_crop",
+    "legacy.decoders.image_random_crop",
 ]
 
 

@@ -19,7 +19,7 @@
 namespace dali {
 namespace imgcodec {
 
-DALI_SCHEMA(experimental__PeekImageShape)
+DALI_SCHEMA(PeekImageShape)
   .DocStr(R"code(Obtains the shape of the encoded image.)code")
   .NumInput(1)
   .NumOutput(1)
@@ -115,7 +115,7 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 }
 
 
-DALI_REGISTER_OPERATOR(experimental__PeekImageShape, ImgcodecPeekImageShape, CPU);
+DALI_REGISTER_OPERATOR(PeekImageShape, ImgcodecPeekImageShape, CPU);
 
 }  // namespace imgcodec
 }  // namespace dali
