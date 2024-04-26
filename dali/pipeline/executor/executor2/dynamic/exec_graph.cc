@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "exec_graph.h"
+#include "op_task.h"
 
 namespace dali {
 namespace exec2 {
@@ -51,94 +52,11 @@ void ClearWorkspacePayload(Workspace &ws) {
 
 void ExecNode::PutWorkspace(std::unique_ptr<Workspace> ws) {
   ClearWorkspacePayload(*ws);
-  std::lock_guard g(workspace_lock);
-  workspaces.push(std::move(ws));
+  workspace_cache_.Put(std::move(ws));
 }
 
 void ExecNode::CreateMainTask(const WorkspaceParams &params) {
   main_task = OpTaskFunc::CreateTask(this, GetWorkspace(params));
-}
-
-OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
-  SetWorkspaceInputs();
-  SetupOp();
-  RunOp();
-  auto &&ret = GetWorkspaceOutputs();
-  node_->PutWorkspace(std::move(ws_));
-  return ret;
-}
-
-void OpTaskFunc::SetupOp() {
-  auto &ws = *ws_;
-  int nout = node_->op->GetSpec().NumOutput();
-  std::vector<OutputDesc> output_descs;
-  assert(ws.NumOutput() == nout);
-  output_descs.resize(nout);
-  // Run the operator setup
-  if (node_->op->Setup(output_descs, ws)) {
-    // If it returns true, then we can (and must!) resize the output arrays
-    for (int i = 0; i < nout; i++) {
-      if (ws.OutputIsType<CPUBackend>(i)) {
-        if (!ws.OutputPtr<CPUBackend>(i)) {
-          auto tl = std::make_shared<TensorList<CPUBackend>>(output_descs[i].shape.num_samples());
-          ws.SetOutput(i, tl);
-        }
-        ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      } else if (ws.OutputIsType<GPUBackend>(i)) {
-        if (!ws.OutputPtr<GPUBackend>(i)) {
-          auto tl = std::make_shared<TensorList<GPUBackend>>(output_descs[i].shape.num_samples());
-          ws.SetOutput(i, tl);
-        }
-        ws.Output<GPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-      } else {
-        assert(!"Unreachable code - uknonw backend.");
-      }
-    }
-  }
-}
-
-void OpTaskFunc::RunOp() {
-  node_->op->Run(*ws_);
-  if (ws_->has_event() && ws_->has_stream())
-    CUDA_CALL(cudaEventRecord(ws_->event(), ws_->stream()));
-}
-
-void OpTaskFunc::SetWorkspaceInputs() {
-  int ti = 0;
-  for (int i = 0; i < ws_->NumInput(); i++, ti++) {
-    if (ws_->InputIsType<CPUBackend>(i)) {
-      ws_->SetInput(i, TaskInput<CPUBackend>(ti));
-    } else {
-      assert(ws_->InputIsType<GPUBackend>(i));
-      ws_->SetInput(i, TaskInput<GPUBackend>(ti));
-    }
-  }
-
-  for (int i = 0; i < ws_->NumArgumentInput(); i++, ti++) {
-    ws_->SetArgumentInput(i, TaskInput<CPUBackend>(ti));
-  }
-}
-
-OpTaskFunc::OpTaskOutputs OpTaskFunc::GetWorkspaceOutputs() {
-  OpTaskOutputs ret;
-  int nout = ws_->NumOutput();
-  ret.reserve(nout);
-  for (int o = 0; o < nout; o++) {
-    if (ws_->OutputIsType<CPUBackend>(o)) {
-      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
-    } else {
-      assert(ws_->OutputIsType<CPUBackend>(o));
-      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
-    }
-  }
-  return ret;
-}
-
-void ExecNode::AddDataDeps() {
-  for (auto &edge : inputs) {
-    assert(edge->producer->main_task);
-    main_task->Subscribe(edge->producer->main_task, edge->producer_output_idx);
-  }
 }
 
 void ExecNode::CreateAuxTasks() {

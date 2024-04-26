@@ -22,6 +22,7 @@
 #include <variant>
 
 #include "../graph.h"
+#include "workspace_cache.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -57,30 +58,6 @@ struct DataEdge {
 
 using ExecEdge = DataEdge<ExecNode>;
 
-struct WorkspaceParams {
-  ThreadPool  *thread_pool = nullptr;
-  AccessOrder  order = AccessOrder::host();
-  std::optional<int> batch_size = 0;  // TODO(michalz): add more batch size logic
-};
-
-inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
-  ws.SetThreadPool(params.thread_pool);
-  ws.set_output_order(params.order);
-  if (params.batch_size.has_value())
-    ws.SetBatchSizes(*params.batch_size);
-}
-
-inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
-  WorkspaceParams params = {};
-  params.thread_pool = ws.HasThreadPool() ? &ws.GetThreadPool() : nullptr;
-  params.order = ws.output_order();
-  if (ws.NumOutput())
-    params.batch_size = ws.GetRequestedBatchSize(0);
-  else if (ws.NumInput())
-    params.batch_size = ws.GetInputBatchSize(0);
-  return params;
-}
-
 class ExecNode {
  public:
   ExecNode() = default;
@@ -96,55 +73,15 @@ class ExecNode {
   OperatorBase *op = nullptr;
   bool essential = false;
 
-  std::mutex workspace_lock;
-  std::queue<std::unique_ptr<Workspace>> workspaces;
-
   tasking::SharedTask prev, main_task, release_outputs;
 
   std::unique_ptr<Workspace> GetWorkspace(const WorkspaceParams &params) {
-    std::unique_ptr<Workspace> ret;
-    {
-      std::unique_lock g(workspace_lock);
-      if (!workspaces.empty()) {
-        ret = std::move(workspaces.front());
-        workspaces.pop();
-      } else {
-        g.unlock();
-        ret = CreateWorkspace();
-      }
-    }
-    ApplyWorkspaceParams(*ret, params);
-    return ret;
-  }
-
-  std::unique_ptr<Workspace> CreateWorkspace() const {
-    auto &spec = op->GetSpec();
-    auto ws = std::make_unique<Workspace>();
-    for (int i = 0; i < spec.NumInput(); i++) {
-      bool arg = spec.IsArgumentInput(i);
-      bool gpu = spec.InputDevice(i) == "gpu";
-      assert((inputs[i]->device == StorageDevice::GPU) == gpu);
-      if (arg) {
-        ws->AddArgumentInput(spec.ArgumentInputName(i), nullptr);
-      } else if (gpu) {
-        ws->AddInput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
-      } else {
-        ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
-      }
-    }
-    for (int i = 0; i < spec.NumOutput(); i++) {
-      bool gpu = spec.OutputDevice(i) == "gpu";
-      assert((outputs[i]->device == StorageDevice::GPU) == gpu);
-      if (gpu) {
-        ws->AddOutput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
-      } else {
-        ws->AddOutput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
-      }
-    }
-    return ws;
+    return workspace_cache_.GetOrCreate(op->GetSpec(), params);
   }
 
   void PutWorkspace(std::unique_ptr<Workspace> ws);
+
+  WorkspaceCache workspace_cache_;
 
   void NextIter() {
     prev = std::move(main_task);
