@@ -17,10 +17,7 @@
 namespace dali {
 
 DALI_SCHEMA(legacy__PeekImageShape)
-  .DocStr(R"code(Obtains the shape of the encoded image.
-  
-  
-  )code")
+  .DocStr(R"code(Obtains the shape of the encoded image.)code")
   .NumInput(1)
   .NumOutput(1)
   .AddOptionalTypeArg("dtype",

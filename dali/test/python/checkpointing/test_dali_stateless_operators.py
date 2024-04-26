@@ -834,7 +834,7 @@ def test_image_decoder_stateless(device):
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image")
+@stateless_signed_off("legacy.decoders.image", "legacy.image_decoder")
 def test_legacy_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.legacy.decoders.image, device)
 
@@ -846,7 +846,7 @@ def test_image_decoder_crop_stateless(device):
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_crop")
+@stateless_signed_off("legacy.decoders.image_crop", "legacy.image_decoder_crop")
 def test_legacy_image_decoder_crop_stateless(device):
     check_single_encoded_jpeg_input(fn.legacy.decoders.image_crop, device, crop=(20, 50))
 
@@ -858,7 +858,7 @@ def test_image_decoder_slice_stateless(device):
 
 
 @params("cpu", "mixed")
-@stateless_signed_off("legacy.decoders.image_slice")
+@stateless_signed_off("legacy.decoders.image_slice", "legacy.image_decoder_slice")
 def test_legacy_image_decoder_slice_stateless(device):
     check_single_encoded_jpeg_input(
         fn.legacy.decoders.image_slice, device, start=(5, 5), end=(45, 45)

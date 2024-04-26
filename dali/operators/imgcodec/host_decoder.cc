@@ -37,11 +37,21 @@ DALI_REGISTER_OPERATOR(decoders__ImageCrop, HostDecoderCrop, CPU);
 DALI_REGISTER_OPERATOR(decoders__ImageSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
 
+// Deprecated aliases: fn.image*_decoder
 DALI_REGISTER_OPERATOR(ImageDecoder, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderCrop, HostDecoderCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
+// Deprecated aliases: fn.image*_decoder
+DALI_REGISTER_OPERATOR(experimental__decoders__Image, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(experimental__ImageDecoder, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, HostDecoderCrop, CPU);
+DALI_REGISTER_OPERATOR(experimental__ImageDecoderCrop, HostDecoder, CPU);
+DALI_REGISTER_OPERATOR(experimental__decoders__ImageSlice, HostDecoderSlice, CPU);
+DALI_REGISTER_OPERATOR(experimental__ImageDecoderSlice, HostDecoderSlice, CPU);
+DALI_REGISTER_OPERATOR(experimental__decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
+DALI_REGISTER_OPERATOR(experimental__ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
 }  // namespace imgcodec
 }  // namespace dali
