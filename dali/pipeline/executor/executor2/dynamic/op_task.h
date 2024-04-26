@@ -15,7 +15,9 @@
 #ifndef DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
 #define DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
 
-#include <
+#include <memory>
+#include "dali/pipeline/workspace/workspace.h"
+#include "dali/core/exec/tasking.h"
 
 namespace dali {
 namespace exec2 {
