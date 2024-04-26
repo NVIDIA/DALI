@@ -15,7 +15,6 @@
 # sys.path.insert(0, os.path.abspath('..'))
 import os
 import sys
-import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
 from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
 from builtins import str
@@ -36,6 +35,7 @@ author = "NVIDIA Corporation"
 version_long = "0.0.0"
 with open("../VERSION") as f:
     version_long = f.readline()
+    version_long = version_long.strip()
 
 version_short = re.match(r"^[\d]+\.[\d]+", version_long).group(0)
 
@@ -97,15 +97,6 @@ else:
     main_opt = option_off
     option_nr = 0
     html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
-version = (
-    version
-    + f"""<br/>
-Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {option_nr}">
-    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{release_opt}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{main_opt}>main (unstable)</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
-</select>"""  # noqa: E501
-)
 
 # -- General configuration ---------------------------------------------------
 
@@ -195,24 +186,113 @@ napoleon_custom_sections = ["Supported backends"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+html_theme = "nvidia_sphinx_theme"
+
+html_theme_options = {
+    "switcher": {
+        # use for local testing
+        # "json_url": "http://localhost:8888/_static/switcher.json",
+        "json_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/_static/switcher.json",
+        "version_match": "main" if "dev" in version_long else version_short,
+    },
+    "navbar_start": ["navbar-logo", "version-switcher"]
+}
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    "canonical_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html",
+html_theme_options.update({
     "collapse_navigation": False,
-    "display_version": True,
-    "logo_only": False,
-}
+})
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+
+switcher_path = os.path.join(html_static_path[0], "switcher.json")
+versions = []
+# the latest is in the archive
+for i in range(10, int(version_short.split('.')[1]) - 1):
+    if i >= 34:
+        versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
+    else:
+        versions.append((f"1.{i}", f"dali_1_{i}_0"))
+# add extra path version
+versions.append((f"1.37.1", f"dali_1_37.1", "short_user"))
+versions.append(("1.11.1", "dali_1_11_1"))
+# paths are different for 1.0-1.10
+for i in range(0, 10):
+    versions.append((f"1.{i}", f"dali_1{i}0"))
+# again different convention between 0.10 and 0.31
+for i in range(10, 30):
+    if i < 24:
+        if i <= 21:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta", "devel"))
+        else:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta"))
+    else:
+        versions.append((f"0.{i}", f"dali_0{i}0"))
+# add extra path version
+versions.append(("0.25.1", "dali_0251"))
+versions.append(("0.30", "dali_030"))
+versions.append(("0.31", "dali_031"))
+# and again different convention between 0.1 and 0.9
+for i in range(1, 10):
+    # no 0.0 release, we made 0.9.1
+    if i == 9:
+        continue
+    versions.append((f"0.{i}", f"dali_0{i}_beta", "devel"))
+versions.append(("0.9.1", "dali_091_beta", "devel"))
+versions.append(("0.8.1", "dali_081_beta", "devel"))
+versions.append(("0.6.1", "dali_061_beta", "devel"))
+versions.append(("0.4.1", "dali_041_beta", "devel"))
+versions.append(("0.1.2", "dali_012_beta", "short_devel"))
+versions.append(("0.1.1", "dali_011_beta", "short_devel"))
+
+from packaging.version import Version
+versions = sorted(versions, key=lambda v: Version(v[0]), reverse=True)
+
+import json
+json_data = []
+for v in versions:
+    if len(v) > 2 and v[2] == "devel":
+        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/dali-developer-guide/docs/"})
+    elif len(v) > 2 and v[2] == "short_devel":
+        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/dali-developer-guide/"})
+    elif len(v) > 2 and v[2] == "short_user":
+        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/"})
+    else:
+        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/docs/"})
+
+if "dev" in version_long:
+    version_short_split = version_short.split(".")
+    one_before = f"{version_short_split[0]}.{int(version_short_split[1]) - 1}"
+    json_data.insert(0, {"name": f"{one_before} (current release)", "version": f"{one_before} (current release)", "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"})
+else:
+    json_data.insert(0, {"name": f"{version_short} (current release)", "version": version_short, "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"})
+
+json_data.insert(1, {"name": "main (unstable)", "version": "main", "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"})
+
+# trim to 15 last releases and add the archive
+json_data = json_data[0:10]
+
+json_data.append({"name": "older releases", "version": "archives", "url": "https://docs.nvidia.com/deeplearning/dali/archives/index.html"})
+
+# validate links
+# import httplib2
+# for d in json_data:
+#     h = httplib2.Http()
+#     resp = h.request(d["url"], 'HEAD')
+#     if int(resp[0]['status']) >= 400:
+#         print(d["url"], "NOK", resp[0]['status'])
+#         exit(1)
+
+with open(switcher_path, 'w') as f:
+    json.dump(json_data, f, ensure_ascii=False, indent=4)
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
