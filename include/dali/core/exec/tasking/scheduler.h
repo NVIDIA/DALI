@@ -205,7 +205,11 @@ class Scheduler {
 
   /** Submits a task for execution and gets a Future which can be used to get the output value
    */
+#if __cplusplus >= 201907L
   [[nodiscard("Use AddSilentTask if the result is not needed")]]
+#else
+  [[nodiscard]]
+#endif
   TaskFuture AddTask(SharedTask task) {
     if (task->state_ != TaskState::New)
       throw std::logic_error("A task can be submitted only once.");
