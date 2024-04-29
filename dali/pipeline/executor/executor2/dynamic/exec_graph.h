@@ -32,8 +32,8 @@
 namespace dali {
 namespace exec2 {
 
-class SchedNode;
 class ExecNode;
+class Iteration;
 
 template <typename NodeType = ExecNode>
 struct DataEdge {
@@ -62,7 +62,6 @@ class ExecNode {
  public:
   ExecNode() = default;
   explicit ExecNode(OperatorBase *op) : op(op) {
-
   }
 
   std::vector<const ExecEdge *> inputs, outputs;
@@ -71,7 +70,6 @@ class ExecNode {
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
   OperatorBase *op = nullptr;
-  bool essential = false;
 
   tasking::SharedTask prev, main_task, release_outputs;
 
@@ -88,13 +86,11 @@ class ExecNode {
     release_outputs.reset();
   }
 
-  void CreateMainTask(const WorkspaceParams &params);
+  void CreateMainTask(std::shared_ptr<Iteration> iter, const WorkspaceParams &params);
   void AddDataDeps();
   void CreateAuxTasks();
   void LaunchSilent(tasking::Scheduler &sched);
   tasking::TaskFuture Launch(tasking::Scheduler &sched);
-
-  mutable bool visited = false;
 };
 
 struct ExecGraph {
@@ -120,64 +116,12 @@ struct ExecGraph {
     if (consumer)
       consumer->inputs.push_back(&edge);
   }
-
-
-  void MarkEssentialNodes() {
-    for (auto &node : nodes)
-      node.essential = false;
-
-    for (auto *e : outputs) {
-      if (e->producer)
-        e->producer->essential = true;
-    }
-
-    for (auto &node : nodes) {
-      if (!node.essential) {
-        auto *op = node.op;
-        if (op && op->GetSpec().GetSchema().IsNoPrune())
-          node.essential = true;
-      }
-    }
-  }
-
-
-  /**
-   * @brief Runs a depth-first search to topologiclaly sort and prune the graph
-   */
-  void SortAndPrune(std::vector<ExecNode *> &sorted) {
-    for (auto &n : nodes)
-      n.visited = false;
-
-    MarkEssentialNodes();
-
-    sorted.clear();
-    sorted.reserve(nodes.size());
-
-    for (auto &node : nodes) {
-      if (node.essential)
-        SortSubgraph(sorted, &node);
-    }
-  }
-
-  template <typename NodePtrs>
-  void SortSubgraph(NodePtrs &sorted, ExecNode *node) {
-    if (node->visited)
-      return;
-    node->visited = true;
-    for (auto e : node->inputs)
-      SortSubgraph(sorted, e->producer);
-
-    sorted.push_back(node);
-  };
-
-  std::vector<ExecNode *> essential;
 };
 
 class Iteration {
  public:
-
-
-  tasking::TaskFuture outputs;
+  int64_t id = 0;
+  tasking::TaskFuture result;
 };
 
 

@@ -41,15 +41,20 @@ class GraphBuilder {
 
 struct OperatorNode;
 
+struct IODesc {
+  OperatorNode *op = nullptr;
+  int           index = 0;
+};
+
 struct DataNode {
-  std::string_view name;
-  OperatorNode *producer = nullptr;
-  std::vector<OperatorNode *> consumers;
+  std::string name;
   StorageDevice backend;
+  IODesc producer;
+  std::vector<IODesc> consumers;
 };
 
 struct OperatorNode {
-  std::string_view name;
+  std::string name;
   std::vector<DataNode *> inputs;
   std::vector<DataNode *> outputs;
 
