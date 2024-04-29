@@ -20,7 +20,7 @@
 namespace dali {
 namespace exec2 {
 namespace test {
-/*
+
 inline OpSchema &CreateTestSchema(const std::string &name) {
   const OpSchema *psc = SchemaRegistry::TryGetSchema(name);
   OpSchema &s = psc ? const_cast<OpSchema &>(*psc) : SchemaRegistry::RegisterSchema(name);
@@ -99,43 +99,27 @@ TEST(Exec2Test, SimpleGraph) {
        .AddOutput("op2e0", "cpu")
        .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
-  ExecGraph def;
-  ExecNode *n2 = def.AddNode(&op2);
-  ExecNode *n1 = def.AdDNode(&op1);
-  ExecNode *n0 = def.AddNode(&op0);
-  def.Link(n0, 0, n2, 0);
-  def.Link(n1, 0, n2, 1);
-  def.Link(n2, 0, nullptr, 0);
-  def.outputs.push_back(&def.edges.back());
-  auto end = dali::test::perf_timer::now();
-  std::cerr << "Test setup took " << dali::test::format_time(end-start) << std::endl;
-  start = dali::test::perf_timer::now();
+  ExecGraph g;
+  ExecNode *n2 = g.AddNode(&op2);
+  ExecNode *n1 = g.AddNode(&op1);
+  ExecNode *n0 = g.AddNode(&op0);
+  g.Link(n0, 0, n2, 0);
+  g.Link(n1, 0, n2, 1);
+  g.Link(n2, 0, nullptr, 0);
+  g.outputs.push_back(&g.edges.back());
   auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, true, "test");
-  end = dali::test::perf_timer::now();
-  std::cerr << "Thread pool construction took " << dali::test::format_time(end-start) << std::endl;
   WorkspaceParams params = {};
   params.thread_pool = tp.get();
   params.batch_size = batch_size;
   start = dali::test::perf_timer::now();
-  {
-    auto sched = SchedGraph::from_exec(def, params);
-    tf::Taskflow tf;
-    sched->schedule(tf);
-    tf::Executor ex(4);
-    ex.run(tf).get();
+  /*{
     auto &out = sched->outputs[0]->producer->ws->Output<CPUBackend>(0);
     ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
     for (int i = 0; i < batch_size; i++)
       EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
-  }
-  end = dali::test::perf_timer::now();
-  std::cerr << "Graph lowering, execution and cleanup took " << dali::test::format_time(end-start) << std::endl;
-  start = dali::test::perf_timer::now();
-  tp.reset();
-  end = dali::test::perf_timer::now();
-  std::cerr << "Thread pool disposal took " << dali::test::format_time(end-start) << std::endl;
+  }*/
 }
-
+/*
 TEST(Exec2Test, SimpleGraphRepeat) {
   int batch_size = 32;
   DummyOp::CreateSchema();

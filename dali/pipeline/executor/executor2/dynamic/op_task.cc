@@ -41,7 +41,7 @@ void OpTaskFunc::SetupOp() {
   // Run the operator setup
   bool should_resize;
   {
-    DomainTimeRange tr("[DALI][OpTaskFunc] Setup ");
+    DomainTimeRange tr("[DALI][OpTaskFunc] Setup " + GetOpDisplayName(node_->op->GetSpec()));
     should_resize = node_->op->Setup(output_descs, ws);
   }
   // If Setup returns true, we must resize the outputs;
