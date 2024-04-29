@@ -58,11 +58,14 @@ struct DataEdge {
 
 using ExecEdge = DataEdge<ExecNode>;
 
+struct PipelineOutputTag {};
+constexpr PipelineOutputTag PipelineOutput() { return {}; }
+
 class ExecNode {
  public:
   ExecNode() = default;
-  explicit ExecNode(OperatorBase *op) : op(op) {
-  }
+  explicit ExecNode(OperatorBase *op) : op(op) {}
+  explicit ExecNode(PipelineOutputTag) : is_pipeline_output(true) {}
 
   std::vector<const ExecEdge *> inputs, outputs;
 
@@ -70,6 +73,7 @@ class ExecNode {
   std::shared_ptr<tasking::Semaphore> output_queue_limit;
 
   OperatorBase *op = nullptr;
+  bool is_pipeline_output = false;
 
   tasking::SharedTask prev, main_task, release_outputs;
 
