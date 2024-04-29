@@ -55,7 +55,6 @@ bool VideoDecoderMixed::SetupImpl(
     sample.data_provider_ = std::make_unique<MemoryVideoFile>(input.raw_tensor(i), input[i].shape().num_elements());
     sample.demuxer_ = std::make_unique<FFmpegDemuxer>(sample.data_provider_.get());
     sample.current_packet_ = std::make_unique<PacketData>();
-    std::cout << "Sample #" << i << " {10x" << sample.demuxer_->GetHeight() << "x" << sample.demuxer_->GetWidth() << "x" << 3 << "}\n";
     sh.set_tensor_shape(i, dali::TensorShape<>(10, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
   }
   output_desc.resize(1);
@@ -92,47 +91,24 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 
   cuCtxPushCurrent(cuContext);
   cuStreamCreate(&cuStream, 0);
-  cuCtxPopCurrent(nullptr);
 
-  cuCtxPushCurrent(cuContext);
-  
   for (int i = 0; i < batch_size; i++) {
-    auto& sample = samples_[i];
+    auto &sample = samples_[i];
     sample.decoder_ = std::make_unique<NvDecoder>(
         cuStream, cuContext, true, FFmpeg2NvCodecId(sample.demuxer_->GetVideoCodec()), false,
         false /*_enableasyncallocations*/, false);
 
 
-    uint8_t* pVideo = NULL;
+    uint8_t *pVideo = NULL;
     int nVideoBytes = 0;
     while (sample.demuxer_->Demux(&pVideo, &nVideoBytes)) {
       if (nVideoBytes) {
         auto vecTupFrame = sample.decoder_->Decode(pVideo, nVideoBytes);
       }
     }
-
-  cuCtxPopCurrent(&cuContext);
-
-  // uint8_t* data = nullptr;
-  // int data_size = 0;
-
-  // data_provider_ = std::make_unique<HostMemDataProvider>(data, data_size);
-  // demuxer_ = std::make_unique<FFmpegDemuxer>(data_provider_.get());
-  // current_packet_ = std::make_unique<PacketData>();
-
-  // int nVideoBytes = 0, nFrameReturned = 0, nFrame = 0;
-  // uint8_t* pVideo = NULL, * pFrame;
-  // memset(current_packet_.get(), 0, sizeof(PacketData));
-
-  // while (demuxer_->Demux(&pVideo, &nVideoBytes)) {
-  //   if (nVideoBytes) {
-  //     current_packet_->bsl_data = (uintptr_t)pVideo;
-  //     current_packet_->bsl = nVideoBytes;
-  //   }
-  // }
   }
+  cuCtxPopCurrent(&cuContext);
 }
-
 
 
 DALI_SCHEMA(plugin__video__decoders__Video)
