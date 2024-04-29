@@ -93,7 +93,7 @@ def ref_iter(epochs=1, device="cpu"):
             yield np.array(output[0])
 
 
-@params(("mixed", fn.plugin.video))
+@params(("mixed", fn.experimental))
 def test_video_decoder(device, module):
     batch_size = 3
     epochs = 3
