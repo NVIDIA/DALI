@@ -24,7 +24,6 @@ from nvidia.dali import pipeline_def
 
 from nose2.tools import params
 from nose_utils import assert_raises
-from test_utils import check_output_pattern
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
