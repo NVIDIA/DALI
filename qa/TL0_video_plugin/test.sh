@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package}'
+pip_packages='${python_test_runner_package} scikit-build ninja cmake'
 target_dir=./dali/test/python
 
 # reduce the lenght of the sanitizers tests as much as possible
@@ -22,7 +22,7 @@ test_body() {
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadFail
 
     # Installing the video plugin
-    pip install ../../../nvidia-dali-video*.tar.gz
+    pip install -v ../../../nvidia-dali-video*.tar.gz
 
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk
 }
