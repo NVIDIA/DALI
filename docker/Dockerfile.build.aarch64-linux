@@ -1,9 +1,9 @@
-ARG AARCH64_BASE_IMAGE=nvidia/cuda:11.8.0-devel-ubuntu20.04
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:12.6.3-devel-ubuntu20.04
 FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    CUDA_CROSS_VERSION=11-8 \
-    CUDA_CROSS_VERSION_DOT=11.8
+    CUDA_CROSS_VERSION=12-6 \
+    CUDA_CROSS_VERSION_DOT=12.6
 
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
     apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
@@ -33,7 +33,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     python3.12 python3.12-dev \
     python3.13 python3.13-dev && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
-    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/cross-linux-aarch64/ /' && \
+    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' && \
     apt-get update && \
     apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \

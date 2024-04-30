@@ -23,6 +23,18 @@
 #include "dali/core/util.h"
 #include "dali/core/cuda_utils.h"
 
+#pragma GCC diagnostic push
+#if __GNUC__ > 11
+  // most recent gcc seems to be confused by some things in small vector raising false warnings
+  #if defined(__has_warning)
+    #if __has_warning("-Wuse-after-free")
+      #pragma GCC diagnostic ignored "-Wuse-after-free"
+    #endif
+  #else
+    #pragma GCC diagnostic ignored "-Wuse-after-free"
+  #endif
+#endif
+
 namespace dali {
 
 template <typename T, typename Allocator, bool Contextless = std::is_empty<Allocator>::value>
@@ -731,5 +743,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
 };
 
 }  // namespace dali
+
+#pragma GCC diagnostic pop
 
 #endif  // DALI_CORE_SMALL_VECTOR_H_
