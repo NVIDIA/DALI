@@ -34,6 +34,7 @@
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
 #include "dali/pipeline/executor/workspace_policy.h"
+#include "dali/pipeline/executor/iteration_data.h"
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
@@ -327,7 +328,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   WorkspacePolicy ws_policy_;
 
-  std::vector<IterationData> iteration_data_;
+  std::vector<ExecIterData> iteration_data_;
   size_t cpu_iteration_id_ = 0, mixed_iteration_id_ = 0, gpu_iteration_id_ = 0;
   size_t output_iteration_id_ = 0;
 
@@ -438,7 +439,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   /**
    * Returns the iteration data for given iteration ID and stage.
    */
-  virtual IterationData& GetCurrentIterationData(size_t iteration_id);
+  virtual ExecIterData& GetCurrentIterationData(size_t iteration_id);
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>

@@ -157,6 +157,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
+  GetCurrentIterationData(iteration_id).iter_data->iteration_index = iteration_id;
   PreRun();
   const char placement_error[] =
       "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
@@ -408,7 +409,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  ws.InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
+  ws.InjectIterationData(GetCurrentIterationData(iteration_id).iter_data);
   ws.ClearOperatorTraces();
 
   auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
@@ -589,7 +590,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, siz
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
 
-  ws->InjectOperatorTraces(GetCurrentIterationData(iteration_id).operator_traces);
+  ws->InjectIterationData(GetCurrentIterationData(iteration_id).iter_data);
 
 
   // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
@@ -654,7 +655,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitIterationData() {
   size_t iteration_data_size = CalcIterationDataSize();
   iteration_data_.resize(iteration_data_size);
   for (auto& id : iteration_data_) {
-    id.operator_traces = std::make_shared<operator_trace_map_t>();
+    id.iter_data = std::make_shared<IterationData>();
     if (checkpointing_)
       id.checkpoint.Build(*graph_);
   }
@@ -746,7 +747,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RestoreStateFromCheckpoint(const Ch
 }
 
 template<typename WorkspacePolicy, typename QueuePolicy>
-IterationData &
+ExecIterData &
 Executor<WorkspacePolicy, QueuePolicy>::GetCurrentIterationData(size_t iteration_id) {
   return iteration_data_[iteration_id % iteration_data_.size()];
 }

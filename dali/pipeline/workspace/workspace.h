@@ -25,7 +25,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/executor/iteration_data.h"
+#include "dali/pipeline/workspace/iteration_data.h"
 
 namespace dali {
 
@@ -544,18 +544,18 @@ class WorkspaceBase : public ArgumentWorkspace {
 
 
   ///@{
-  /**
-   * Set the whole operator trace map in this workspace.
-   *
-   * Sets the operator trace map that corresponds to all operators in the current iteration.
-   *
-   * Typically, this function shall be called by the Executor, when assigning the Workspace to
-   * the Operator.
-   */
-  void InjectOperatorTraces(std::shared_ptr<operator_trace_map_t> operator_trace_map) {
-    operator_traces_ = std::move(operator_trace_map);
+  /** Sets shared data associated with the current iteration */
+  void InjectIterationData(std::shared_ptr<IterationData> iter_data) {
+    if (iter_data != iter_data_) {
+      operator_traces_ = nullptr;
+      iter_data_ = std::move(iter_data);
+    }
   }
 
+  /** Gets the shared data associated with the current iteration */
+  auto &GetIterationData() const {
+    return *iter_data_;
+  }
 
   /**
    * Set the trace value for the current operator.
@@ -565,8 +565,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
-    (*operator_traces_)[GetOperatorInstanceName()].insert_or_assign(
-            trace_key, std::move(trace_value));
+    GetOperatorTraces().insert_or_assign(trace_key, std::move(trace_value));
   }
 
 
@@ -578,7 +577,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void EraseOperatorTrace(const std::string &trace_key) {
-    (*operator_traces_)[GetOperatorInstanceName()].erase(trace_key);
+    GetOperatorTraces().erase(trace_key);
   }
 
 
@@ -588,9 +587,13 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void ClearOperatorTraces() {
-    (*operator_traces_)[GetOperatorInstanceName()].clear();
+    GetOperatorTraces().clear();
   }
 
+
+  DLL_PUBLIC auto &GetOperatorTraces() const {
+    return GetOperatorTraces(GetOperatorInstanceName());
+  }
 
   /**
    * Get the trace map for a given operator.
@@ -603,16 +606,9 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @param operator_name Name (ID) of the operator.
    */
-  DLL_PUBLIC const auto &GetOperatorTraces(const std::string &operator_name) const {
-    return operator_traces_->at(operator_name);
-  }
-
-  /**
-   * Get the operator trace map for all operators in the pipeline.
-   *
-   * @see operator_trace_map_t
-   */
-  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
+  DLL_PUBLIC auto &GetOperatorTraces(const std::string &operator_name) const {
+    if (!operator_traces_)
+      operator_traces_ = &iter_data_->operator_traces.Get(operator_name);
     return *operator_traces_;
   }
   ///@}
@@ -699,11 +695,17 @@ class WorkspaceBase : public ArgumentWorkspace {
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
 
-  /// Name of the instance of the operator, to which this Workspace in associated with.
+  /** Name of the instance of the operator which this Workspace in associated with. */
   std::string operator_instance_name_;
 
-  /// Traces of the operators corresponding to all operators in the current iteration.
-  std::shared_ptr<operator_trace_map_t> operator_traces_;
+  /** Cached pointer to the traces for the operator which this Workspace is associated with.
+   *
+   * mutable, because it's an access accelerator, not a true data member.
+   */
+  mutable operator_trace_map_t *operator_traces_ = nullptr;
+
+  /** Data shared across all workspaces in the current iteration. */
+  std::shared_ptr<IterationData> iter_data_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};
