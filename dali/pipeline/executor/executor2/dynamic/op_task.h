@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_EXECUTOR2_DYNAMIC_OP_TASK_H_
 
 #include <memory>
-#include "dali/pipeline/workspace/workspace.h"
+#include "workspace_cache.h"
 #include "dali/core/exec/tasking.h"
 
 namespace dali {
@@ -26,7 +26,7 @@ class ExecNode;
 
 class OpTaskFunc {
  private:
-  OpTaskFunc(ExecNode *node, std::unique_ptr<Workspace> ws)
+  OpTaskFunc(ExecNode *node, CachedWorkspace ws)
   : node_(node), ws_(std::move(ws)) {}
 
   auto GetTaskRunnable() && {
@@ -45,7 +45,7 @@ class OpTaskFunc {
     std::abort();
   }
 
-  static tasking::SharedTask CreateTask(ExecNode *node, std::unique_ptr<Workspace> ws) {
+  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws) {
     return tasking::Task::Create(
       ws->NumOutput(),
       OpTaskFunc(node, std::move(ws)).GetTaskRunnable());
@@ -58,7 +58,7 @@ class OpTaskFunc {
 
   tasking::Task *task_ = nullptr;
   ExecNode *node_ = nullptr;
-  std::unique_ptr<Workspace> ws_;
+  CachedWorkspace ws_;
 
   template <typename Backend>
   const auto &TaskInput(int i) const {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cassert>
+#include "dali/core/cuda_event_pool.h"
 #include "exec_graph.h"
 #include "op_task.h"
 
@@ -49,7 +51,7 @@ void ClearWorkspacePayload(Workspace &ws) {
   }
 }
 
-void ExecNode::PutWorkspace(std::unique_ptr<Workspace> ws) {
+void ExecNode::PutWorkspace(CachedWorkspace ws) {
   ClearWorkspacePayload(*ws);
   workspace_cache_.Put(std::move(ws));
 }
@@ -84,16 +86,68 @@ void ExecNode::CreateAuxTasks() {
   }
 }
 
-void ExecNode::LaunchSilent(Scheduler &sched) {
+std::optional<tasking::TaskFuture> ExecNode::Launch(Scheduler &sched) {
   if (release_outputs)
     sched.AddSilentTask(release_outputs);
-  sched.AddSilentTask(main_task);
+  if (is_pipeline_output) {
+    return sched.AddTask(main_task);
+  } else {
+    sched.AddSilentTask(main_task);
+    return std::nullopt;
+  }
 }
 
-tasking::TaskFuture ExecNode::Launch(Scheduler &sched) {
-  if (release_outputs)
-    sched.AddSilentTask(release_outputs);
-  return sched.AddTask(main_task);
+CachedWorkspace ExecNode::CreateOutputWorkspace() {
+  assert(is_pipeline_output);
+  CachedWorkspace ws(new Workspace(), {});
+  bool has_gpu_outputs = false;
+  for (auto &e : inputs) {
+    if (e->device == StorageDevice::GPU) {
+      ws->AddOutput<GPUBackend>(nullptr);
+      has_gpu_outputs = true;
+    } else {
+      assert(e->device == StorageDevice::CPU);
+      ws->AddOutput<CPUBackend>(nullptr);
+    }
+  }
+  if (has_gpu_outputs) {
+    auto event = CUDAEventPool::instance().Get();
+    ws->set_event(event.release());
+  }
+  return ws;
+}
+
+CachedWorkspace ExecNode::CreateOpWorkspace() {
+  assert(op);
+  const OpSpec &spec = op->GetSpec();
+  CachedWorkspace ws(new Workspace(), {});
+  bool has_gpu_outputs = false;
+  for (int i = 0; i < spec.NumInput(); i++) {
+    bool arg = spec.IsArgumentInput(i);
+    bool gpu = spec.InputDevice(i) == "gpu";
+    has_gpu_outputs |= gpu;
+    if (arg) {
+      ws->AddArgumentInput(spec.ArgumentInputName(i), nullptr);
+    } else if (gpu) {
+      ws->AddInput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
+    } else {
+      ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
+    }
+  }
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    bool gpu = spec.OutputDevice(i) == "gpu";
+    if (gpu) {
+      has_gpu_outputs = true;
+      ws->AddOutput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
+    } else {
+      ws->AddOutput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
+    }
+  }
+  if (has_gpu_outputs) {
+    CUDAEvent event = CUDAEventPool::instance().Get();
+    ws->set_event(event.release());
+  }
+  return ws;
 }
 
 void assert_valid(ExecGraph &eg) {
@@ -119,8 +173,6 @@ void assert_valid(ExecGraph &eg) {
       }
     }
   }
-  for (auto *out : eg.outputs)
-    assert(out != nullptr);
 }
 
 }  // namespace exec2

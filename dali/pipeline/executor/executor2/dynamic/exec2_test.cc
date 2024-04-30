@@ -103,10 +103,10 @@ TEST(Exec2Test, SimpleGraph) {
   ExecNode *n2 = g.AddNode(&op2);
   ExecNode *n1 = g.AddNode(&op1);
   ExecNode *n0 = g.AddNode(&op0);
+  ExecNode *no = g.AddOutputNode();
   g.Link(n0, 0, n2, 0);
   g.Link(n1, 0, n2, 1);
-  g.Link(n2, 0, nullptr, 0);
-  g.outputs.push_back(&g.edges.back());
+  g.Link(n2, 0, no, 0);
   auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, true, "test");
   WorkspaceParams params = {};
   params.thread_pool = tp.get();
