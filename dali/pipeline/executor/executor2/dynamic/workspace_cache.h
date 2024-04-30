@@ -19,6 +19,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include "dali/core/cuda_event_pool.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -50,56 +51,43 @@ inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
   return params;
 }
 
+struct CachedWorkspaceDeleter {
+  void operator()(Workspace *ws) {
+    if (ws->has_event()) {
+      CUDAEvent event(ws->event());
+      ws->set_event(nullptr);
+      CUDAEventPool::instance().Put(std::move(event));
+    }
+    delete ws;
+  }
+};
+
+using CachedWorkspace = std::unique_ptr<Workspace, CachedWorkspaceDeleter>;
+
 class WorkspaceCache {
  public:
-  std::unique_ptr<Workspace> GetOrCreate(const OpSpec &spec, const WorkspaceParams &params) {
-    std::unique_ptr<Workspace> ret;
+  CachedWorkspace Get(const WorkspaceParams &params) {
+    CachedWorkspace ret;
     {
-      std::unique_lock g(mtx_);
-      if (!workspaces_.empty()) {
-        ret = std::move(workspaces_.front());
-        workspaces_.pop();
-      } else {
-        g.unlock();
-        ret = Create(spec);
-      }
+      std::lock_guard g(mtx_);
+      if (workspaces_.empty())
+        return nullptr;
+
+      ret = std::move(workspaces_.front());
+      workspaces_.pop();
     }
     ApplyWorkspaceParams(*ret, params);
     return ret;
   }
 
-  static std::unique_ptr<Workspace> Create(const OpSpec &spec) {
-    auto ws = std::make_unique<Workspace>();
-    for (int i = 0; i < spec.NumInput(); i++) {
-      bool arg = spec.IsArgumentInput(i);
-      bool gpu = spec.InputDevice(i) == "gpu";
-      if (arg) {
-        ws->AddArgumentInput(spec.ArgumentInputName(i), nullptr);
-      } else if (gpu) {
-        ws->AddInput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
-      } else {
-        ws->AddInput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
-      }
-    }
-    for (int i = 0; i < spec.NumOutput(); i++) {
-      bool gpu = spec.OutputDevice(i) == "gpu";
-      if (gpu) {
-        ws->AddOutput(std::shared_ptr<TensorList<GPUBackend>>(nullptr));
-      } else {
-        ws->AddOutput(std::shared_ptr<TensorList<CPUBackend>>(nullptr));
-      }
-    }
-    return ws;
-  }
-
-  void Put(std::unique_ptr<Workspace> ws) {
+  void Put(CachedWorkspace ws) {
     std::lock_guard g(mtx_);
     workspaces_.push(std::move(ws));
   }
 
  private:
   std::mutex mtx_;
-  std::queue<std::unique_ptr<Workspace>> workspaces_;
+  std::queue<CachedWorkspace> workspaces_;
 
 };
 

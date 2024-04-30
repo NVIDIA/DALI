@@ -59,7 +59,6 @@ struct DataEdge {
 using ExecEdge = DataEdge<ExecNode>;
 
 struct PipelineOutputTag {};
-constexpr PipelineOutputTag PipelineOutput() { return {}; }
 
 class ExecNode {
  public:
@@ -77,11 +76,23 @@ class ExecNode {
 
   tasking::SharedTask prev, main_task, release_outputs;
 
-  std::unique_ptr<Workspace> GetWorkspace(const WorkspaceParams &params) {
-    return workspace_cache_.GetOrCreate(op->GetSpec(), params);
+  CachedWorkspace GetWorkspace(const WorkspaceParams &params) {
+    auto ws = workspace_cache_.Get(params);
+    if (!ws) {
+      if (op) {
+        ws = CreateOpWorkspace();
+      } else {
+        ws = CreateOutputWorkspace();
+      }
+    }
+    ApplyWorkspaceParams(*ws, params);
+    return ws;
   }
 
-  void PutWorkspace(std::unique_ptr<Workspace> ws);
+  CachedWorkspace CreateOutputWorkspace();
+  CachedWorkspace CreateOpWorkspace();
+
+  void PutWorkspace(CachedWorkspace ws);
 
   WorkspaceCache workspace_cache_;
 
@@ -93,19 +104,20 @@ class ExecNode {
   void CreateMainTask(std::shared_ptr<Iteration> iter, const WorkspaceParams &params);
   void AddDataDeps();
   void CreateAuxTasks();
-  void LaunchSilent(tasking::Scheduler &sched);
-  tasking::TaskFuture Launch(tasking::Scheduler &sched);
+  std::optional<tasking::TaskFuture> Launch(tasking::Scheduler &sched);
 };
 
 struct ExecGraph {
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
 
-  std::vector<ExecEdge *> inputs, outputs;
-
   template <typename... Args>
   ExecNode *AddNode(Args &&...args) {
     return &nodes.emplace_back(std::forward<Args>(args)...);
+  }
+
+  ExecNode *AddOutputNode() {
+    return &nodes.emplace_back(PipelineOutputTag());
   }
 
   void Link(ExecNode *producer, int out_idx, ExecNode *consumer, int in_idx) {
