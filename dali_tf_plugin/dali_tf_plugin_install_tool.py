@@ -341,7 +341,7 @@ class InstallerHelper:
             dali_lflags = "-L" + tmpdir + " -ldali"
             dali_cflags = "-I" + os.path.join(self.src_path, "include")
 
-            cmd = [compiler, "-Wl,-R,'$ORIGIN/..'", "-std=c++14", "-DNDEBUG", "-shared"]
+            cmd = [compiler, "-Wl,-R,$ORIGIN/..", "-std=c++14", "-DNDEBUG", "-shared"]
             cmd += dali_stub_src.split()
             cmd += ["-o"]
             cmd += dali_stub_lib.split()
@@ -374,8 +374,8 @@ class InstallerHelper:
             root_include = "-I" + os.getenv("PREFIX", default="/usr") + "/include"
             cmd = [
                 compiler,
-                "-Wl,-R,'$ORIGIN/..'",
-                "-Wl,-rpath,'$ORIGIN'",
+                "-Wl,-R,$ORIGIN/..",
+                "-Wl,-rpath,$ORIGIN",
                 cpp_ver,
                 "-DNDEBUG",
                 "-shared",

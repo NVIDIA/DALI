@@ -25,6 +25,14 @@ test_body() {
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz
     ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
+    # Installing "current" dali tf (built against installed TF) - force rebuild without DALI using internal stubs
+    # and then install DALI again
+    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+    pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
+    DALI_TF_ALWAYS_BUILD=1 pip install --no-deps ../../../nvidia-dali-tf-plugin*.tar.gz
+    pip install ../../../nvidia_dali_*.whl
+    ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
+
     # DALI TF run
     ${python_invoke_test} test_dali_tf_plugin_run.py
 
