@@ -947,9 +947,10 @@ def check_numba_compatibility_cpu(if_skip=True):
     #
     # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
     # llvmlite directly (if still applicable)
-    if platform.processor().lower() in ("arm64", "aarch64", "armv8") and LooseVersion(
-        numba.__version__
-    ) >= LooseVersion("0.57.0"):
+    if platform.processor().lower() in ("arm64", "aarch64", "armv8") and (
+        LooseVersion(numba.__version__) >= LooseVersion("0.57.0")
+        and LooseVersion(numba.__version__) < LooseVersion("0.59.0")
+    ):
         if if_skip:
             raise SkipTest()
         else:

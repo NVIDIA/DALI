@@ -575,7 +575,19 @@ all_packages = [
         links_index=("https://storage.googleapis.com/" "jax-releases/jax_cuda_releases.html"),
     ),
     CudaPackage(
-        "numba", {"110": [PckgVer("0.57.0", python_min_ver="3.8", dependencies=["numpy<1.24"])]}
+        "numba",
+        {
+            "110": [
+                # the more recent NUMBA doesn't support python 3.8 so keep it for this version here
+                PckgVer(
+                    "0.57.0",
+                    python_min_ver="3.8",
+                    python_max_ver="3.8",
+                    dependencies=["numpy<1.24"],
+                ),
+                PckgVer("0.59.1", python_min_ver="3.9", dependencies=["numpy<1.24"]),
+            ]
+        },
     ),
 ]
 
