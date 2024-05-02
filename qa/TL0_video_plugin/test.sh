@@ -14,6 +14,9 @@ else
     epilog=(: disable_virtualenv)
 fi
 
+# Note: To link with system ffmpeg, do:
+# apt install nasm ffmpeg libavfilter-dev libavformat-dev \
+#             libavcodec-dev libswresample-dev libavutil-dev
 test_body() {
     # The package name can be nvidia-dali-video, nvidia-dali-video-weekly or nvidia-dali-video-nightly
     pip uninstall -y `pip list | grep nvidia-dali-video | cut -d " " -f1` || true

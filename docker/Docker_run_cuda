@@ -14,13 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-distutils \
         python$PYVER \
         python$PYVER-dev \
-        nasm \
-        ffmpeg \
-        libavfilter-dev \
-        libavformat-dev \
-        libavcodec-dev \
-        libswresample-dev \
-        libavutil-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONIOENCODING utf-8
