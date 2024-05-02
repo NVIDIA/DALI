@@ -13,8 +13,10 @@
 # limitations under the License.
 
 option(BUILD_FFMPEG "Whether we want to always build FFmpeg from source" $ENV{BUILD_FFMPEG})
+option(USE_PREBUILT_FFMPEG "Whether we want to always build FFmpeg from source" $ENV{USE_PREBUILT_FFMPEG})
 message(STATUS "env(FFMPEG_DIR) : $ENV{FFMPEG_DIR}")
 message(STATUS "opt(BUILD_FFMPEG) : ${BUILD_FFMPEG}")
+message(STATUS "opt(USE_PREBUILT_FFMPEG) : ${USE_PREBUILT_FFMPEG}")
 
 set(FFMPEG_SOURCE_URL $ENV{FFMPEG_SOURCE_URL})
 set(FFMPEG_SOURCE_SHA512 $ENV{FFMPEG_SOURCE_SHA512})
@@ -23,66 +25,63 @@ if ("${FFMPEG_SOURCE_URL}" STREQUAL "")
   set(FFMPEG_SOURCE_SHA512 a84209fe36a2a0262ebc34b727e7600b12d4739991a95599d7b4df533791b12e2e43586ccc6ff26aab2f935a3049866204e322ec0c5e49e378fc175ded34e183)
 endif()
 
-# Look for it first in $ENV{FFMPEG_DIR}, then in the prebuilt version found in pynvvideocodec
+set(BUNDLE_FFMPEG_LIBS OFF)
+
+# Looking for FFMPEG libs in the following order:
+# 1. ENV{FFMPEG_DIR}
+# 2. System libs
+# 3. "${pynvvideocodec_SOURCE_DIR}/external/ffmpeg
 if (NOT BUILD_FFMPEG)
-  set(BUNDLE_FFMPEG_LIBS OFF)
   # Check ENV{FFMPEG_DIR} first
-  if (DEFINED ENV{FFMPEG_DIR})
-    message(STATUS "Looking for FFMPEG in ENV{FFMPEG_DIR}=$ENV{FFMPEG_DIR} or in the system")
+  if (NOT USE_PREBUILT_FFMPEG AND DEFINED ENV{FFMPEG_DIR})
+    message(STATUS "Looking for FFMPEG in ENV{FFMPEG_DIR}=$ENV{FFMPEG_DIR}")
     find_path(
       FFMPEG_DIR
       NAMES "lib/libavformat.so"
             "lib/${CMAKE_HOST_SYSTEM_PROCESSOR}/libavformat.so"
       PATHS $ENV{FFMPEG_DIR}
-      NO_DEFAULT_PATH
-    )
-    if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
-      find_path(
-        FFMPEG_DIR
-        NAMES "lib/libavformat.so"
-              "lib/${CMAKE_HOST_SYSTEM_PROCESSOR}/libavformat.so"
-        PATHS ${pynvvideocodec_SOURCE_DIR}/external/ffmpeg
-        NO_DEFAULT_PATH
-      )
-
-      if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
-        message(FATAL_ERROR
-          "Could not find ffmpeg libs in provided ENV{FFMPEG_DIR}=$ENV{FFMPEG_DIR}. "
-          "Make sure the FFMPEG_DIR points to the ffmpeg root path. "
-          "Alternatively, set environment variable BUILD_FFMPEG to force building from source.")
-      else()
-        set(BUNDLE_FFMPEG_LIBS ON)
-        set(FFMPEG_LIBRARY_DIR ${FFMPEG_DIR}/lib)
-        install(
-          DIRECTORY ${FFMPEG_LIBRARY_DIR}
-          DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}/deps/ffmpeg
-          FILES_MATCHING PATTERN "*.so*"
-        )
-      endif()
-    endif()
-  else()
-    message(STATUS "ENV{FFMPEG_DIR} not set. Looking for ffmpeg in the system")
-    set(FFMPEG_LIBS_FOUND ON)
+      NO_DEFAULT_PATH)
+  endif()
+  if (FFMPEG_DIR STREQUAL "FFMPEG_DIR-NOTFOUND" OR NOT DEFINED FFMPEG_DIR)
+    message(STATUS "Looking for FFMPEG in the system")
+    set(FFMPEG_LIBS_FOUND OFF)
     macro(find_av_component lib_name)
       find_path(${lib_name}_INCLUDE_DIR NAMES "${lib_name}/${lib_name}.h" "lib${lib_name}/${lib_name}.h")
       find_library(${lib_name}_LIBRARY NAMES "${lib_name}")
-      if (NOT ${lib_name}_INCLUDE_DIR OR NOT ${lib_name}_LIBRARY)
+
+      if(NOT ${lib_name}_INCLUDE_DIR OR NOT ${lib_name}_LIBRARY)
         set(FFMPEG_LIBS_FOUND OFF)
       else()
         message(STATUS "Found ${lib_name}: ${${lib_name}_LIBRARY}")
       endif()
     endmacro()
-    find_av_component(avfilter)
-    find_av_component(avformat)
-    find_av_component(avcodec)
-    find_av_component(swresample)
-    find_av_component(avutil)
 
+    if (NOT USE_PREBUILT_FFMPEG)
+      set(FFMPEG_LIBS_FOUND ON)
+      find_av_component(avfilter)
+      find_av_component(avformat)
+      find_av_component(avcodec)
+      find_av_component(swresample)
+      find_av_component(avutil)
+    endif()
     if (NOT FFMPEG_LIBS_FOUND)
-      message(FATAL_ERROR
-            "Could not find ffmpeg libs in the system."
-            "You can use FFMPEG_DIR environment variable to point to the ffmpeg root path."
-            "Alternatively, you can set the environment variable BUILD_FFMPEG to force building from source.")
+      message(STATUS "Using the prebuilt version from pynvvideocodec.")
+      find_path(
+        FFMPEG_DIR
+        NAMES "lib/libavformat.so"
+        "lib/${CMAKE_HOST_SYSTEM_PROCESSOR}/libavformat.so"
+        PATHS ${pynvvideocodec_SOURCE_DIR}/external/ffmpeg
+        NO_DEFAULT_PATH)
+      if (${FFMPEG_DIR} STREQUAL "FFMPEG_DIR-NOTFOUND")
+        message(FATAL_ERROR "Could not find ffmpeg libs in pynvvideocodec.")
+      endif()
+      set(BUNDLE_FFMPEG_LIBS ON)
+      set(FFMPEG_LIBRARY_DIR ${FFMPEG_DIR}/lib)
+      install(
+        DIRECTORY ${FFMPEG_LIBRARY_DIR}
+        DESTINATION nvidia/dali/plugin/${PLUGIN_NAME}/deps/ffmpeg
+        FILES_MATCHING PATTERN "*.so*"
+      )
     endif()
   endif()
 endif()
