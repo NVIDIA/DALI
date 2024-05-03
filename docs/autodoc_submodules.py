@@ -18,6 +18,13 @@ import nvidia.dali.plugin.jax
 import inspect
 import sys
 
+try:
+    import nvidia.dali.plugin.video
+
+    print("Loaded nvidia.dali.plugin.video")
+except ImportError:
+    print("Skip nvidia.dali.plugin.video")
+
 import operations_table
 
 # Dictionary with modules that can have registered Ops
@@ -39,13 +46,23 @@ fn_modules = {
 
 exclude_fn_members = {}
 
+installation_page_url = (
+    "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+)
 
 mod_aditional_doc = {
     "nvidia.dali.fn.transforms": (
         "All operators in this module support only CPU device as they are meant to be provided"
         " as an input to named keyword operator arguments. Check for more details the relevant"
         " :ref:`pipeline documentation section<Processing Graph Structure>`."
-    )
+    ),
+    "nvidia.dali.fn.plugin.video": (
+        ".. note::\n\n    "
+        "This module belongs to the `nvidia-dali-video` plugin, that needs to be installed "
+        "as a separate package. Refer to the `Installation Guide "
+        f"<{installation_page_url}#nvidia-dali-video>`__"
+        " for more details."
+    ),
 }
 
 

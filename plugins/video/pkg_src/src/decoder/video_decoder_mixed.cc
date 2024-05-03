@@ -111,7 +111,7 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 }
 
 
-DALI_SCHEMA(plugin__video__decoders__Video)
+DALI_SCHEMA(plugin__video__Decoder)
     .DocStr(
         R"code(Decodes a video file from a memory buffer (e.g. provided by external source).
 
@@ -129,6 +129,6 @@ If set to True, each thread in the internal thread pool will be tied to a specif
 
 
 
-DALI_REGISTER_OPERATOR(plugin__video__decoders__Video, VideoDecoderMixed, dali::Mixed);
+DALI_REGISTER_OPERATOR(plugin__video__Decoder, VideoDecoderMixed, dali::Mixed);
 
 }  // namespace dali_video
