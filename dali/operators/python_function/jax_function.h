@@ -70,7 +70,7 @@ DLMTensorPtr SetupTensorResource(std::unique_ptr<DLDaliTensorResource<Backend>> 
 }
 
 template <typename Backend>
-DLMTensorPtr AsDLTensor(Tensor<Backend> tensor) {
+DLMTensorPtr AsDLTensor(Tensor<Backend>&& tensor) {
   static_assert(std::is_same_v<Backend, GPUBackend> || std::is_same_v<Backend, CPUBackend>);
   // 1. allocate DLDaliTensorResource that will hold dlpack struct and the actual tensor together
   // 2. copy relevant meta-data from the tensor to managed dl pack struct

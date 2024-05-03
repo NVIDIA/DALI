@@ -67,7 +67,7 @@ URI URI::Parse(std::string uri) {
   parsed.valid_ = true;
   size_t len = parsed.uri_.length();
   const char* p_start = parsed.uri_.data();
-  const char* p_end = parsed.uri_.data() + len;
+  const char* p_end = p_start + len;
   const char* p = p_start;
 
   // Scheme

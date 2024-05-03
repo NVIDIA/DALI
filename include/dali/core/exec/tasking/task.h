@@ -355,7 +355,7 @@ class Task : public CompletionEvent {
     } else {
       // A task with a non-scalar return value must return a collection or a tuple.
       // We can check the return type early (i.e. now) to aid debugging.
-      CheckFuncResultType(num_results, std::forward<F>(function));
+      CheckFuncResultType(num_results, function);
       wrapped_ = [f = std::forward<F>(function)](Task *t) mutable {
         if constexpr (std::is_invocable_v<Func, Task *>) {
           t->SetResults(std::forward<F>(f), t);
