@@ -171,7 +171,7 @@ def test_array_interface_types():
         np.float32,
         np.float16,
         np.short,
-        np.long,
+        int,
         np.longlong,
         np.ushort,
         np.ulonglong,

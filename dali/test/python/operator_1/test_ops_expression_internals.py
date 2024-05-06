@@ -14,7 +14,6 @@
 
 import nvidia.dali.ops as ops
 from nvidia.dali.types import Constant
-import numpy as np
 from nose.tools import assert_equal
 from nose_utils import assert_raises
 
@@ -31,7 +30,7 @@ def test_group_inputs():
     assert_raises(
         TypeError,
         ops._group_inputs,
-        [np.complex()],
+        [complex()],
         glob="Expected scalar value of type 'bool', 'int' or 'float', got *.",
     )
     _, _, _, none_reals = ops._group_inputs([e0, 10])

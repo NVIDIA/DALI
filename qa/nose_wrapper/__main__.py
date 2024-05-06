@@ -14,8 +14,9 @@ if sys.version_info >= (3, 12):
 
     def load_module(name, file, filename, details):
         PY_SOURCE = 1
-        class _HackedGetData:
+        PY_COMPILED = 2
 
+        class _HackedGetData:
             """Compatibility support for 'file' arguments of various load_*()
             functions."""
 
@@ -31,10 +32,10 @@ if sys.version_info >= (3, 12):
                     file = None
                     if not self.file.closed:
                         file = self.file
-                        if 'b' not in file.mode:
+                        if "b" not in file.mode:
                             file.close()
                     if self.file.closed:
-                        self.file = file = open(self.path, 'rb')
+                        self.file = file = open(self.path, "rb")
 
                     with file:
                         return file.read()
@@ -42,14 +43,13 @@ if sys.version_info >= (3, 12):
                     return super().get_data(path)
 
         class _LoadSourceCompatibility(_HackedGetData, machinery.SourceFileLoader):
-
             """Compatibility support for implementing load_source()."""
 
         _, mode, type_ = details
-        if mode and (not mode.startswith('r') or '+' in mode):
-            raise ValueError('invalid file open mode {!r}'.format(mode))
+        if mode and (not mode.startswith("r") or "+" in mode):
+            raise ValueError("invalid file open mode {!r}".format(mode))
         elif file is None and type_ in {PY_SOURCE, PY_COMPILED}:
-            msg = 'file object required for import (type code {})'.format(type_)
+            msg = "file object required for import (type code {})".format(type_)
             raise ValueError(msg)
         assert type_ == PY_SOURCE, "load_module replacement supports only PY_SOURCE file type"
         loader = _LoadSourceCompatibility(name, filename, file)

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import nvidia.dali as dali
-import nvidia.dali.types as types
+import nvidia.dali.types as dali_types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 from nvidia.dali import plugin_manager
 
@@ -26,6 +26,89 @@ import re
 import subprocess
 import sys
 import tempfile
+
+if sys.version_info >= (3, 12):
+    # to make sure we can import anything from nose
+    from importlib import machinery, util
+    from importlib._bootstrap import _exec, _load
+    import modulefinder
+    import types
+    import unittest
+
+    # the below are based on https://github.com/python/cpython/blob/3.11/Lib/imp.py
+    # based on PSF license
+    def find_module(name, path):
+        return modulefinder.ModuleFinder(path).find_module(name, path)
+
+    def load_module(name, file, filename, details):
+        PY_SOURCE = 1
+        PY_COMPILED = 2
+
+        class _HackedGetData:
+            """Compatibility support for 'file' arguments of various load_*()
+            functions."""
+
+            def __init__(self, fullname, path, file=None):
+                super().__init__(fullname, path)
+                self.file = file
+
+            def get_data(self, path):
+                """Gross hack to contort loader to deal w/ load_*()'s bad API."""
+                if self.file and path == self.path:
+                    # The contract of get_data() requires us to return bytes. Reopen the
+                    # file in binary mode if needed.
+                    file = None
+                    if not self.file.closed:
+                        file = self.file
+                        if "b" not in file.mode:
+                            file.close()
+                    if self.file.closed:
+                        self.file = file = open(self.path, "rb")
+
+                    with file:
+                        return file.read()
+                else:
+                    return super().get_data(path)
+
+        class _LoadSourceCompatibility(_HackedGetData, machinery.SourceFileLoader):
+            """Compatibility support for implementing load_source()."""
+
+        _, mode, type_ = details
+        if mode and (not mode.startswith("r") or "+" in mode):
+            raise ValueError("invalid file open mode {!r}".format(mode))
+        elif file is None and type_ in {PY_SOURCE, PY_COMPILED}:
+            msg = "file object required for import (type code {})".format(type_)
+            raise ValueError(msg)
+        assert type_ == PY_SOURCE, "load_module replacement supports only PY_SOURCE file type"
+        loader = _LoadSourceCompatibility(name, filename, file)
+        spec = util.spec_from_file_location(name, filename, loader=loader)
+        if name in sys.modules:
+            module = _exec(spec, sys.modules[name])
+        else:
+            module = _load(spec)
+        # To allow reloading to potentially work, use a non-hacked loader which
+        # won't rely on a now-closed file object.
+        module.__loader__ = machinery.SourceFileLoader(name, filename)
+        module.__spec__.loader = module.__loader__
+        return module
+
+    def acquire_lock():
+        pass
+
+    def release_lock():
+        pass
+
+    context = {
+        "find_module": find_module,
+        "load_module": load_module,
+        "acquire_lock": acquire_lock,
+        "release_lock": release_lock,
+    }
+    imp_module = types.ModuleType("imp", "Mimics old imp module")
+    imp_module.__dict__.update(context)
+    sys.modules["imp"] = imp_module
+    unittest._TextTestResult = unittest.TextTestResult
+
 from nose import SkipTest
 
 from distutils.version import LooseVersion
@@ -557,21 +640,21 @@ def dali_type(t):
     if t is None:
         return None
     if t is np.float16:
-        return types.FLOAT16
+        return dali_types.FLOAT16
     if t is np.float32:
-        return types.FLOAT
+        return dali_types.FLOAT
     if t is np.uint8:
-        return types.UINT8
+        return dali_types.UINT8
     if t is np.int8:
-        return types.INT8
+        return dali_types.INT8
     if t is np.uint16:
-        return types.UINT16
+        return dali_types.UINT16
     if t is np.int16:
-        return types.INT16
+        return dali_types.INT16
     if t is np.uint32:
-        return types.UINT32
+        return dali_types.UINT32
     if t is np.int32:
-        return types.INT32
+        return dali_types.INT32
     raise TypeError("Unsupported type: " + str(t))
 
 
@@ -633,18 +716,18 @@ def dali_type_to_np(type):
     import_numpy()
 
     dali_types_to_np_dict = {
-        types.BOOL: np.bool_,
-        types.INT8: np.int8,
-        types.INT16: np.int16,
-        types.INT32: np.int32,
-        types.INT64: np.int64,
-        types.UINT8: np.uint8,
-        types.UINT16: np.uint16,
-        types.UINT32: np.uint32,
-        types.UINT64: np.uint64,
-        types.FLOAT16: np.float16,
-        types.FLOAT: np.float32,
-        types.FLOAT64: np.float64,
+        dali_types.BOOL: np.bool_,
+        dali_types.INT8: np.int8,
+        dali_types.INT16: np.int16,
+        dali_types.INT32: np.int32,
+        dali_types.INT64: np.int64,
+        dali_types.UINT8: np.uint8,
+        dali_types.UINT16: np.uint16,
+        dali_types.UINT32: np.uint32,
+        dali_types.UINT64: np.uint64,
+        dali_types.FLOAT16: np.float16,
+        dali_types.FLOAT: np.float32,
+        dali_types.FLOAT64: np.float64,
     }
     return dali_types_to_np_dict[type]
 
@@ -653,18 +736,18 @@ def np_type_to_dali(type):
     import_numpy()
 
     np_types_to_dali_dict = {
-        np.bool_: types.BOOL,
-        np.int8: types.INT8,
-        np.int16: types.INT16,
-        np.int32: types.INT32,
-        np.int64: types.INT64,
-        np.uint8: types.UINT8,
-        np.uint16: types.UINT16,
-        np.uint32: types.UINT32,
-        np.uint64: types.UINT64,
-        np.float16: types.FLOAT16,
-        np.float32: types.FLOAT,
-        np.float64: types.FLOAT64,
+        np.bool_: dali_types.BOOL,
+        np.int8: dali_types.INT8,
+        np.int16: dali_types.INT16,
+        np.int32: dali_types.INT32,
+        np.int64: dali_types.INT64,
+        np.uint8: dali_types.UINT8,
+        np.uint16: dali_types.UINT16,
+        np.uint32: dali_types.UINT32,
+        np.uint64: dali_types.UINT64,
+        np.float16: dali_types.FLOAT16,
+        np.float32: dali_types.FLOAT,
+        np.float64: dali_types.FLOAT64,
         np.longlong: types.INT64,
         np.ulonglong: types.UINT64,
     }

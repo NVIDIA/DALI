@@ -93,7 +93,7 @@ def test_select_masks():
     nvertices_range = (3, 40)
     for batch_size in [1, 3]:
         for vertex_ndim in [2, 3, 6]:
-            for vertex_dtype in [np.float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
+            for vertex_dtype in [float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
                 reindex_masks = random.choice([False, True])
                 yield (
                     check_select_masks,

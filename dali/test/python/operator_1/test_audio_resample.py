@@ -96,7 +96,7 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
                 print(out_arr.dtype, out_arr.shape)
                 print("Reference: ", ref)
                 print(ref.dtype, ref.shape)
-                print("Diff: ", out_arr.astype(np.float) - ref)
+                print("Diff: ", out_arr.astype(float) - ref)
                 assert np.allclose(out_arr, ref, 1e-6, eps)
 
 

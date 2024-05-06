@@ -53,13 +53,13 @@ def test_serialize_deserialize():
         [(2, 3, 4), (2, 3, 5), (3, 4, 5)],
         [],
     ]:
-        for dtype in [np.int8, np.float, np.int32]:
+        for dtype in [np.int8, float, np.int32]:
             yield check_serialize_deserialize, [np.full(s, 42, dtype=dtype) for s in shapes]
 
 
 def test_serialize_deserialize_random():
     for max_shape in [(12, 200, 100, 3), (200, 300, 3), (300, 2)]:
-        for dtype in [np.uint8, np.float]:
+        for dtype in [np.uint8, float]:
             rsdi = RandomlyShapedDataIterator(10, max_shape=max_shape, dtype=dtype)
             for i, batch in enumerate(rsdi):
                 if i == 10:
