@@ -3,7 +3,13 @@
 {% extends "!footer.html" %}
 {%- block extrafooter %}
 
-<p>
+<style>
+.footer-notice {
+  font-size: 85%;
+}
+</style>
+
+<p class="footer-notice">
   <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">Privacy Policy</a>
   |
   <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/" target="_blank">Manage My Privacy</a>
@@ -22,7 +28,7 @@
 </p>
 
 {%- if show_copyright_backup %}
-<p>
+<p class="footer-notice">
   {# from https://github.com/readthedocs/sphinx_rtd_theme/blob/1.0.0/sphinx_rtd_theme/footer.html#L20 #}
   {%- if hasdoc('copyright') %}
     {%- trans path=pathto('copyright'), copyright=copyright|e %}&#169; <a href="{{ path }}">Copyright</a> {{ copyright }}.{% endtrans %}
