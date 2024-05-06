@@ -20,10 +20,8 @@ import sys
 
 try:
     import nvidia.dali.plugin.video
-
-    print("Loaded nvidia.dali.plugin.video")
 except ImportError:
-    print("Skip nvidia.dali.plugin.video")
+    pass  # nvidia-dali-plugin not present
 
 import operations_table
 
