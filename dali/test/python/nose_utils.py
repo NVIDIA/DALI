@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
-
 import collections
 import nose.case
 import nose.inspector
 import nose.loader
 import nose.suite
 import nose.plugins.attrib
-import unittest
 
 if sys.version_info >= (3, 10) and not hasattr(collections, "Callable"):
     nose.case.collections = collections.abc
@@ -71,7 +69,7 @@ def get_pattern(glob=None, regex=None, match_case=None):
 
 def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kwargs):
     """
-    Wrapper combining `unittest.TestCase.assert_raises` and `unittest.TestCase.assert_raises_regex`.
+    Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
     Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception
     against the pattern.
     Value for `glob` must be a string, `regex` can be either a literal or compiled regex pattern.
@@ -81,18 +79,18 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
     """
 
     if glob is None and regex is None:
-        return unittest.TestCase.assertRaise(exception, *args, **kwargs)
+        return tools.assert_raises(exception, *args, **kwargs)
 
     pattern = get_pattern(glob, regex, match_case)
-    return unittest.TestCase.assertRaisesRegex(None, exception, pattern, *args, **kwargs)
+    return tools.assert_raises_regex(exception, pattern, *args, **kwargs)
 
 
 def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs):
     if glob is None and regex is None:
-        return unittest.TestCase.assertWarns(exception, *args, **kwargs)
+        return tools.assert_warns(exception, *args, **kwargs)
 
     pattern = get_pattern(glob, regex, match_case)
-    return unittest.TestCase.assertWarnsRegexp(None, exception, pattern, *args, **kwargs)
+    return tools.assert_warns_regex(exception, pattern, *args, **kwargs)
 
 
 def raises(exception, glob=None, regex=None, match_case=None):
