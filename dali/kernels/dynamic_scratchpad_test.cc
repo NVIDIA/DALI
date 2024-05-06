@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,8 +113,8 @@ TEST(DynamicScratchpad, Perf) {
 
   for (int attempt = 0; attempt < max_attempts; attempt++) {
     auto s = streams[attempt % 2];
-    std::aligned_storage_t<sizeof(DynamicScratchpad), alignof(DynamicScratchpad)> scratch_placement;
-    auto *scratch = new(&scratch_placement) DynamicScratchpad({}, AccessOrder(s));
+    alignas(DynamicScratchpad) std::byte scratch_placement[sizeof(DynamicScratchpad)];
+    auto *scratch = new(scratch_placement) DynamicScratchpad({}, AccessOrder(s));
     for (int k = 0; k < nkinds; k++) {
       auto kind = static_cast<mm::memory_kind_id>(k);
       if (kind == mm::memory_kind_id::managed)

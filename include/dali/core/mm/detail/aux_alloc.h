@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,12 +77,12 @@ struct fixed_size_allocator {
       if (Block *blk = free_list_) {
         free_list_ = blk->next;
         blk->next = nullptr;
-        return reinterpret_cast<T*>(&blk->storage);
+        return reinterpret_cast<T*>(blk->storage);
       }
     }
     Block *blk = static_cast<Block*>(memalign(alignment, sizeof(Block)));
     blk->next = nullptr;
-    return reinterpret_cast<T*>(&blk->storage);
+    return reinterpret_cast<T*>(blk->storage);
   }
 
   /**
@@ -123,7 +123,7 @@ struct fixed_size_allocator {
   }
 
   struct Block {
-    std::aligned_storage_t<size, alignment> storage;
+    alignas(alignment) std::byte storage[size];  // NOLINT(runtime/arrays)
     Block *next;
   };
   Block *free_list_ = nullptr;
