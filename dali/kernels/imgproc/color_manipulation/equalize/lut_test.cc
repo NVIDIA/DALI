@@ -164,9 +164,12 @@ TEST_F(EqualizeLutGpuTest, SinglePoint) {
   for (int sample_idx = 0; sample_idx < batch_shape.num_samples(); sample_idx++) {
     for (int channel_idx = 0; channel_idx < batch_shape[sample_idx][0]; channel_idx++) {
       ASSERT_EQ(batch_shape[sample_idx][1], range_size);
+      int nonzero_idx = 71 * sample_idx + channel_idx;
+      ASSERT_LT(nonzero_idx, range_size);
+      int nonzero_value = (sample_idx << 11) + channel_idx;
       for (int i = 0; i < range_size; i++) {
         in_view[sample_idx].data[channel_idx * range_size + i] =
-            (i == 71 + channel_idx) ? ((sample_idx << 11) + channel_idx) : 0;
+            i == nonzero_idx ? nonzero_value : 0;
       }
     }
   }
