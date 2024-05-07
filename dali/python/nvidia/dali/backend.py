@@ -27,7 +27,6 @@ from nvidia.dali.backend_impl import *  # noqa: F401, F403
 
 from . import __cuda_version__
 import warnings
-import os
 import sys
 
 
