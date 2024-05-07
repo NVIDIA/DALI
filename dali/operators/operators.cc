@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/core/api_helper.h"
 #include "dali/operators.h"
-#include "dali/npp/npp.h"
+#include "dali/core/api_helper.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/npp/npp.h"
+#include "dali/plugin/plugin_manager.h"
 
 #if DALI_USE_NVJPEG
-  #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
 #endif
 
+#include <dlfcn.h>
 #include <nvimgcodec.h>
+
 
 /*
  * The point of these functions is to force the linker to link against dali_operators lib
@@ -35,7 +38,9 @@ namespace dali {
 
 DLL_PUBLIC void InitOperatorsLib() {
   (void)CUDAStreamPool::instance();
+  dali::PluginManager::LoadDefaultPlugins();
 }
+
 
 DLL_PUBLIC int GetNppVersion() {
   return NPPGetVersion();

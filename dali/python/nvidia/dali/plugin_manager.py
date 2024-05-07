@@ -33,3 +33,23 @@ def load_library(library_path: str, global_symbols: bool = False):
     """
     b.LoadLibrary(library_path, global_symbols)
     ops.Reload()
+
+
+def load_directory(plugin_dir_path: str, global_symbols: bool = False):
+    """Loads a DALI plugin directory, containing one or more DALI plugins, following the pattern:
+    {plugin_dir_path}/{sub_path}/libdali_{plugin_name}.so
+
+    Args:
+        plugin_dir_path: Path to the directory to search for plugins
+        global_symbols: If ``True``, the library is loaded with ``RTLD_GLOBAL`` flag or equivalent;
+            otherwise ``RTLD_LOCAL`` is used. Some libraries (for example Halide) require being
+            loaded with ``RTLD_GLOBAL`` - use this setting if your plugin uses any such library.
+
+    Returns:
+        None.
+
+    Raises:
+        RuntimeError: when unable to load the library.
+    """
+    b.LoadDirectory(plugin_dir_path, global_symbols)
+    ops.Reload()

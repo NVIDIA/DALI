@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,10 +71,10 @@ class CustomPipeline(Pipeline):
 
 def load_empty_plugin():
     try:
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        plugin_manager.load_library(test_bin_dir + "/libdali_customdummyplugin.so")
     except RuntimeError:
-        # in conda "libcustomdummyplugin" lands inside lib/ dir
-        plugin_manager.load_library("libcustomdummyplugin.so")
+        # in conda "libdali_customdummyplugin" lands inside lib/ dir
+        plugin_manager.load_library("libdali_customdummyplugin.so")
 
 
 class TestLoadedPlugin(unittest.TestCase):
