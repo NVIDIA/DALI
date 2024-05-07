@@ -976,7 +976,6 @@ def test_noise_shot(device):
 @random_signed_off(
     "image_decoder_random_crop",
     "decoders.image_random_crop",
-    "experimental.image_decoder_random_crop",
     "experimental.decoders.image_random_crop",
 )
 def test_image_random_crop(device):

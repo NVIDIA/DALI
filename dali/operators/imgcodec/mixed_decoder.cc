@@ -46,13 +46,9 @@ DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, MixedDecoderRandomCrop, Mixed);
 
 // Deprecated aliases: fn.experimental.decoders.image*
 DALI_REGISTER_OPERATOR(experimental__decoders__Image, MixedDecoder, Mixed);
-DALI_REGISTER_OPERATOR(experimental__ImageDecoder, MixedDecoder, Mixed);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, MixedDecoderCrop, Mixed);
-DALI_REGISTER_OPERATOR(experimental__ImageDecoderCrop, MixedDecoder, Mixed);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageSlice, MixedDecoderSlice, Mixed);
-DALI_REGISTER_OPERATOR(experimental__ImageDecoderSlice, MixedDecoderSlice, Mixed);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageRandomCrop, MixedDecoderRandomCrop, Mixed);
-DALI_REGISTER_OPERATOR(experimental__ImageDecoderRandomCrop, MixedDecoderRandomCrop, Mixed);
 
 }  // namespace imgcodec
 }  // namespace dali

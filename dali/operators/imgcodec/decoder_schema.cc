@@ -328,18 +328,6 @@ DALI_SCHEMA(experimental__decoders__Image)
         R"code(Experimental features of the decoders have been moved to the main decoder module
 :mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
 
-DALI_SCHEMA(experimental__ImageDecoder)
-    .DocStr("Alias for :meth:`image_decoder`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__Image")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__Image",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
-
-
 // Fused
 
 DALI_SCHEMA(ImageDecoderCrop)
@@ -355,17 +343,6 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 DALI_SCHEMA(experimental__decoders__ImageCrop)
-    .DocStr("Alias for :meth:`decoders.image_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageCrop")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageCrop",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
-
-DALI_SCHEMA(experimental__ImageDecoderCrop)
     .DocStr("Alias for :meth:`decoders.image_crop`.")
     .NumInput(1)
     .NumOutput(1)
@@ -399,17 +376,6 @@ DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
         R"code(Experimental features of the decoders have been moved to the main decoder module
 :mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
 
-DALI_SCHEMA(experimental__ImageDecoderRandomCrop)
-    .DocStr("Alias for :meth:`decoders.image_random_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageRandomCrop")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageRandomCrop",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
-
 DALI_SCHEMA(ImageDecoderSlice)
     .DocStr("Alias for :meth:`decoders.image_slice`.")
     .NumInput(1, 3)
@@ -423,17 +389,6 @@ submodule and renamed to follow a common pattern. This is a placeholder operator
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)
-    .DocStr("Alias for :meth:`decoders.image_slice`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageSlice")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "decoders__ImageSlice",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
-
-DALI_SCHEMA(experimental__ImageDecoderSlice)
     .DocStr("Alias for :meth:`decoders.image_slice`.")
     .NumInput(1)
     .NumOutput(1)
