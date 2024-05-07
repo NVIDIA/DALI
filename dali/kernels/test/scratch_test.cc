@@ -1,4 +1,4 @@
-// Copyright (c) 2018 - 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2021, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,31 +81,31 @@ TEST(Scratch, Estimator) {
 }
 
 TEST(Scratch, BumpAllocator) {
-  const size_t size = 1024;
-  std::aligned_storage<size, 64>::type storage;
-  BumpAllocator allocator(reinterpret_cast<char*>(&storage), size);
+  const size_t kSize = 1024;
+  alignas(64) char storage[kSize];
+  BumpAllocator allocator(storage, kSize);
   size_t n0 = 10, n1 = 20, n2 = 33;
 
-  EXPECT_EQ(allocator.total(), size);
-  EXPECT_EQ(allocator.avail(), size);
+  EXPECT_EQ(allocator.total(), kSize);
+  EXPECT_EQ(allocator.avail(), kSize);
   EXPECT_EQ(allocator.used(), 0);
   auto *p0 = allocator.alloc(n0);
   auto *p1 = allocator.alloc(n1);
   auto *p2 = allocator.alloc(n2);
 
-  EXPECT_EQ(allocator.avail(), size-(n0+n1+n2));
+  EXPECT_EQ(allocator.avail(), kSize-(n0+n1+n2));
   EXPECT_EQ(allocator.used(), n0+n1+n2);
   EXPECT_EQ(p1-p0, n0);
   EXPECT_EQ(p2-p1, n1);
-  EXPECT_EQ(allocator.total(), size) << "Total size should remain constant";
+  EXPECT_EQ(allocator.total(), kSize) << "Total size should remain constant";
 
   BumpAllocator allocator2 = std::move(allocator);
   EXPECT_EQ(allocator.total(), 0) << "After move, allocator should be empty";
 
-  auto *p3 = allocator2.alloc(size-(n0+n1+n2));
+  auto *p3 = allocator2.alloc(kSize-(n0+n1+n2));
   EXPECT_EQ(p3-p0, n0+n1+n2);
-  EXPECT_EQ(allocator2.total(), size) << "Total size should remain constant";
-  EXPECT_EQ(allocator2.used(), size);
+  EXPECT_EQ(allocator2.total(), kSize) << "Total size should remain constant";
+  EXPECT_EQ(allocator2.used(), kSize);
   EXPECT_EQ(allocator2.avail(), 0);
 }
 

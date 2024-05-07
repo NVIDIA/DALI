@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -120,8 +120,8 @@ struct DefaultResources {
     // is allocated dynamically on stack and never destroyed.
     // This accomplishes the intentional leaking of the pointer.
     using Ptr = std::shared_ptr<T>;
-    std::aligned_storage_t<sizeof(Ptr), alignof(Ptr)> dump;
-    new (&dump) Ptr(std::move(p));
+    alignas(Ptr) std::byte dump[sizeof(Ptr)];
+    new (dump) Ptr(std::move(p));
   }
 };
 
