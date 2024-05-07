@@ -879,6 +879,6 @@ void daliRestoreFromSerializedCheckpoint(
 
 void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context) {
   if (external_context->pipeline_data.data) daliFree(external_context->pipeline_data.data);
-  if (external_context->pipeline_data.data) daliFree(external_context->iterator_data.data);
+  if (external_context->iterator_data.data) daliFree(external_context->iterator_data.data);
 }
 

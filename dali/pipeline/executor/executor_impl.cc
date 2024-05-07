@@ -685,7 +685,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::InitCheckpointing() {
     return;
 
   if (std::is_same_v<QueuePolicy, SeparateQueuePolicy>)
-    DALI_FAIL("Checkpointing is not supported with `separated` pipeline exection mode enabled. ")
+    DALI_FAIL("Checkpointing is not supported with `separated` pipeline execution mode enabled. ")
 
   // Create initial checkpoint.
   // This way, we make sure there is always a checkpoint that can be accessed.

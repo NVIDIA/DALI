@@ -76,9 +76,9 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
           int64_t read_nbytes =
               sample.file_stream->Read(image_output.raw_mutable_tensor(sample_idx), sz);
           sample.file_stream->Close();
-          sample.file_stream.reset();
           DALI_ENFORCE(read_nbytes == sz,
                        make_string("Failed to read file: ", sample.file_stream->path()));
+          sample.file_stream.reset();
         } else {
           std::memcpy(image_output.raw_mutable_tensor(sample_idx), sample.image.raw_data(),
                       sample.image.size());
