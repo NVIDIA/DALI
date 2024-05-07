@@ -26,7 +26,7 @@ void PluginManager::LoadLibrary(const std::string& lib_path, bool global_symbols
   // dlopen is thread safe
   int flags = global_symbols ? RTLD_GLOBAL : RTLD_LOCAL;
   flags |= RTLD_LAZY;
-  std::cout << "Loading " << lib_path << "\n";
+  LOG_LINE << "Loading " << lib_path << "\n";
   auto handle = dlopen(lib_path.c_str(), flags);
   DALI_ENFORCE(handle != nullptr, "Failed to load library: " + std::string(dlerror()));
 }
