@@ -64,12 +64,18 @@ target_include_directories(dali_${PLUGIN_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR
 target_link_directories(dali_${PLUGIN_NAME} PUBLIC ${DALI_LIB_DIR})
 target_link_libraries(dali_${PLUGIN_NAME} PUBLIC dali dali_core dali_kernels VideoCodecSDKUtils)
 
+# Need to find the libcuda.so stub so that the shared-object library can be loaded
+# to generate the Python signature files
+find_library(cuda_LIBRARY cuda
+             PATHS ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
+             PATH_SUFFIXES lib/stubs lib64/stubs)
+
 # Generates .pyi stubs
-# Need to add the _deps/ffmpeg/lib dir so that the plugin can be loaded
+# Note: Needs to preload libcuda.so stub so that the shared-object library can be loaded
 add_custom_target(dali_${PLUGIN_NAME}_generate_stubs ALL
   DEPENDS dali_${PLUGIN_NAME}
   BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/fn/plugin/video/
-  COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/generate_plugin_stubs.py
+  COMMAND LD_PRELOAD=${cuda_LIBRARY} ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/generate_plugin_stubs.py
       ${CMAKE_CURRENT_BINARY_DIR}
       ${PROJECT_BINARY_DIR}/libdali_${PLUGIN_NAME}.so
       )
