@@ -76,7 +76,14 @@ class ExecNode {
 
   tasking::SharedTask prev, main_task, release_outputs;
 
-  CachedWorkspace GetWorkspace(const WorkspaceParams &params) {
+  void PrepareCurrentWorkspace(std::shared_ptr<IterationData> iter_data,
+                               const WorkspaceParams &params) {
+    current_workspace_ = GetWorkspace(std::move(iter_data), params);
+  }
+  void PutWorkspace(CachedWorkspace ws);
+
+  CachedWorkspace GetWorkspace(std::shared_ptr<IterationData> iter_data,
+                               const WorkspaceParams &params) {
     auto ws = workspace_cache_.Get(params);
     if (!ws) {
       if (op) {
@@ -86,28 +93,33 @@ class ExecNode {
       }
     }
     ApplyWorkspaceParams(*ws, params);
+    ws->InjectIterationData(iter_data);
     return ws;
   }
 
+private:
   CachedWorkspace CreateOutputWorkspace();
   CachedWorkspace CreateOpWorkspace();
 
-  void PutWorkspace(CachedWorkspace ws);
 
   WorkspaceCache workspace_cache_;
+  CachedWorkspace current_workspace_;
 
   void NextIter() {
     prev = std::move(main_task);
     release_outputs.reset();
   }
 
-  void CreateMainTask(std::shared_ptr<Iteration> iter, const WorkspaceParams &params);
+  friend class ExecGraph;
+
+  void CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params);
   void AddDataDeps();
   void CreateAuxTasks();
   std::optional<tasking::TaskFuture> Launch(tasking::Scheduler &sched);
 };
 
-struct ExecGraph {
+class ExecGraph {
+ public:
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
 
@@ -132,6 +144,11 @@ struct ExecGraph {
     if (consumer)
       consumer->inputs.push_back(&edge);
   }
+
+  void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
+                        const WorkspaceParams &params);
+
+  void Launch(tasking::Scheduler &sched);
 };
 
 class Iteration {

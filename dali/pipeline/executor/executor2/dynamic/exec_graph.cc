@@ -49,6 +49,7 @@ void ClearWorkspacePayload(Workspace &ws) {
     else if (ws.OutputIsType<GPUBackend>(o))
       ws.SetOutput<GPUBackend>(o, nullptr);
   }
+  ws.InjectIterationData(nullptr);
 }
 
 void ExecNode::PutWorkspace(CachedWorkspace ws) {
@@ -56,8 +57,8 @@ void ExecNode::PutWorkspace(CachedWorkspace ws) {
   workspace_cache_.Put(std::move(ws));
 }
 
-void ExecNode::CreateMainTask(std::shared_ptr<Iteration> iter, const WorkspaceParams &params) {
-  main_task = OpTaskFunc::CreateTask(this, GetWorkspace(params));
+void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
+  main_task = OpTaskFunc::CreateTask(this, GetWorkspace(std::move(iter), params));
 }
 
 void ExecNode::CreateAuxTasks() {
@@ -174,6 +175,18 @@ void assert_valid(ExecGraph &eg) {
     }
   }
 }
+
+void ExecGraph::PrepareIteration(
+    const std::shared_ptr<IterationData> &iter_data,
+    const WorkspaceParams &params) {
+  for (auto &n : nodes)
+    n.PrepareCurrentWorkspace(iter_data, params);
+
+  for (auto &n : nodes)
+    n.CreateMainTask(iter_data, params);
+}
+
+void Launch(tasking::Scheduler &sched);
 
 }  // namespace exec2
 }  // namespace dali

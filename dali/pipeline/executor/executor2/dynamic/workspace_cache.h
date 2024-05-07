@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
-#define DALI_PIPELINE_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
 
 #include <memory>
 #include <mutex>
@@ -28,6 +28,7 @@ namespace exec2 {
 
 
 struct WorkspaceParams {
+  std::shared_ptr<IterationData> iter_data;
   ThreadPool  *thread_pool = nullptr;
   AccessOrder  order = AccessOrder::host();
   std::optional<int> batch_size = 0;  // TODO(michalz): add more batch size logic
@@ -36,19 +37,9 @@ struct WorkspaceParams {
 inline void ApplyWorkspaceParams(Workspace &ws, const WorkspaceParams &params) {
   ws.SetThreadPool(params.thread_pool);
   ws.set_output_order(params.order);
+  ws.InjectIterationData(params.iter_data);
   if (params.batch_size.has_value())
     ws.SetBatchSizes(*params.batch_size);
-}
-
-inline WorkspaceParams GetWorkspaceParams(const Workspace &ws) {
-  WorkspaceParams params = {};
-  params.thread_pool = ws.HasThreadPool() ? &ws.GetThreadPool() : nullptr;
-  params.order = ws.output_order();
-  if (ws.NumOutput())
-    params.batch_size = ws.GetRequestedBatchSize(0);
-  else if (ws.NumInput())
-    params.batch_size = ws.GetInputBatchSize(0);
-  return params;
 }
 
 struct CachedWorkspaceDeleter {
@@ -94,4 +85,4 @@ class WorkspaceCache {
 }  // namespace exec2
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_DYNAMIC_WORKSPACE_CACHE_H_

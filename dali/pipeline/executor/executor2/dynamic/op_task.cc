@@ -23,11 +23,57 @@
 namespace dali {
 namespace exec2 {
 
+auto OpTaskFunc::GetOutputTaskRunnable() && {
+  assert(node_->is_pipeline_output);
+  return [self = std::move(*this)](tasking::Task *t) mutable {
+    self.task_ = t;
+    return self.GetOutput();
+  };
+}
+
+auto OpTaskFunc::GetOpTaskRunnable() && {
+  assert(!node_->is_pipeline_output);
+  return [self = std::move(*this)](tasking::Task *t) mutable {
+    self.task_ = t;
+    return self.Run();
+  };
+}
+
+tasking::SharedTask OpTaskFunc::CreateTask(ExecNode *node, CachedWorkspace ws) {
+  if (node->is_pipeline_output) {
+    return tasking::Task::Create(
+      ws->NumOutput(),
+      OpTaskFunc(node, std::move(ws)).GetOutputTaskRunnable());
+  } else {
+    return tasking::Task::Create(
+      ws->NumOutput(),
+      OpTaskFunc(node, std::move(ws)).GetOpTaskRunnable());
+  }
+}
+
 OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
   SetWorkspaceInputs();
   SetupOp();
   RunOp();
   auto &&ret = GetWorkspaceOutputs();
+  node_->PutWorkspace(std::move(ws_));
+  return ret;
+}
+
+
+Workspace OpTaskFunc::GetOutput() {
+  assert(ws_->NumInput() == 0);
+  assert(ws_->NumArgumentInput() == 0);
+  for (int o = 0; o < ws_->NumOutput(); o++) {
+    if (ws_->OutputIsType<CPUBackend>(o)) {
+      ws_->SetOutput(o, TaskInput<CPUBackend>(o));
+    } else {
+      assert(ws_->OutputIsType<GPUBackend>(o));
+      ws_->SetOutput(o, TaskInput<GPUBackend>(o));
+    }
+  }
+
+  Workspace ret = *ws_;
   node_->PutWorkspace(std::move(ws_));
   return ret;
 }
