@@ -29,12 +29,9 @@ class OpTaskFunc {
   OpTaskFunc(ExecNode *node, CachedWorkspace ws)
   : node_(node), ws_(std::move(ws)) {}
 
-  auto GetTaskRunnable() && {
-    return [self = std::move(*this)](tasking::Task *t) mutable {
-      self.task_ = t;
-      return self.Run();
-    };
-  }
+  auto GetOutputTaskRunnable() &&;
+  auto GetOpTaskRunnable() &&;
+
 
  public:
   OpTaskFunc(OpTaskFunc &&) = default;
@@ -45,11 +42,7 @@ class OpTaskFunc {
     std::abort();
   }
 
-  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws) {
-    return tasking::Task::Create(
-      ws->NumOutput(),
-      OpTaskFunc(node, std::move(ws)).GetTaskRunnable());
-  }
+  static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
 
  private:
   using OpTaskOutputs = SmallVector<std::any, 8>;
@@ -70,6 +63,7 @@ class OpTaskFunc {
   void RunOp();
   void ResetWorkspaceInputs();
   OpTaskOutputs GetWorkspaceOutputs();
+  Workspace GetOutput();
 };
 
 
