@@ -3,7 +3,7 @@
 test_body() {
   DIRNAME=$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))')
   # skip non core libs
-  for SOFILE in $(find $DIRNAME -iname 'libdali*.so' -not -iname '*tf*')
+  for SOFILE in $(find $DIRNAME -not \( -path $DIRNAME/test -prune \) -iname 'libdali*.so' -not -iname '*tf*')
   do
       # first line is for the debug
       echo $SOFILE":"
