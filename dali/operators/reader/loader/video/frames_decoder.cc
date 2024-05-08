@@ -339,8 +339,8 @@ IMPL_HAS_MEMBER(read_seek2);
 
 template <typename FormatDesc>
 bool IsFormatSeekableHelper(FormatDesc *iformat) {
-  if constexpr (has_member_read_seek_v<decltype(*iformat)>) {
-    static_assert(has_member_read_seek2_v<decltype(*iformat)>);
+  if constexpr (has_member_read_seek_v<FormatDesc>) {
+    static_assert(has_member_read_seek2_v<FormatDesc>);
     if (iformat->read_seek == nullptr &&
         iformat->read_seek2 == nullptr)
       return false;
