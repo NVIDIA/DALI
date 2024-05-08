@@ -809,7 +809,7 @@ def test_inflate_stateless():
     check_is_pipeline_stateless(pipeline)
 
 
-@stateless_signed_off("peek_image_shape")
+@stateless_signed_off("peek_image_shape", "experimental.peek_image_shape")
 def test_peek_image_shape_stateless():
     check_single_encoded_jpeg_input(fn.peek_image_shape, "cpu")
 

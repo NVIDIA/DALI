@@ -577,7 +577,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
    * @brief Checks that nvImageCodec version is at least a given version
    */
   bool version_at_least(int req_major, int req_minor, int req_patch) {
-    int req_majormajor = -1, minor = -1, patch = -1;
+    int req_major = -1, minor = -1, patch = -1;
     get_nvimgcodec_version(&major, &minor, &patch);
     return MAKE_SEMANTIC_VERSION(major, minor, patch) >=
            MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
