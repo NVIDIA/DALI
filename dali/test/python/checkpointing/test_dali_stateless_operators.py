@@ -828,9 +828,7 @@ def test_audio_decoder_stateless():
 
 
 @params("cpu", "mixed")
-@stateless_signed_off(
-    "decoders.image", "image_decoder", "experimental.decoders.image"
-)
+@stateless_signed_off("decoders.image", "image_decoder", "experimental.decoders.image")
 def test_image_decoder_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image, device)
 
@@ -843,9 +841,7 @@ def test_legacy_image_decoder_stateless(device):
 
 @params("cpu", "mixed")
 @stateless_signed_off(
-    "decoders.image_crop",
-    "image_decoder_crop",
-    "experimental.decoders.image_crop"
+    "decoders.image_crop", "image_decoder_crop", "experimental.decoders.image_crop"
 )
 def test_image_decoder_crop_stateless(device):
     check_single_encoded_jpeg_input(fn.decoders.image_crop, device, crop=(20, 50))

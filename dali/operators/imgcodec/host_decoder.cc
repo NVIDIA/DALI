@@ -43,7 +43,7 @@ DALI_REGISTER_OPERATOR(ImageDecoderCrop, HostDecoderCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderSlice, HostDecoderSlice, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);
 
-// Deprecated aliases: fn.image*_decoder
+// Deprecated aliases: fn.experimental.decoders.image*_decoder
 DALI_REGISTER_OPERATOR(experimental__decoders__Image, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, HostDecoderCrop, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageSlice, HostDecoderSlice, CPU);

@@ -1513,7 +1513,7 @@ tested_methods = [
     "batch_permutation",
     "squeeze",
     "peek_image_shape",
-    "experimental.peek_image_shape"
+    "experimental.peek_image_shape",
     "legacy.peek_image_shape",
     "expand_dims",
     "coord_transform",

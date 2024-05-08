@@ -1224,13 +1224,6 @@ def test_peek_image_shape():
         eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
     )
 
-def test_peek_image_shape():
-    check_single_input(
-        "experimental.peek_image_shape",
-        pipe_fun=reader_op_pipeline,
-        fn_source=images_dir,
-        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
-    )
 
 def test_legacy_peek_image_shape():
     check_single_input(
