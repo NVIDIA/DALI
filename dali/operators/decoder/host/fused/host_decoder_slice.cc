@@ -29,6 +29,5 @@ HostDecoderSlice::HostDecoderSlice(const OpSpec &spec)
 }
 
 DALI_REGISTER_OPERATOR(legacy__decoders__ImageSlice, HostDecoderSlice, CPU);
-DALI_REGISTER_OPERATOR(legacy__ImageDecoderSlice, HostDecoderSlice, CPU);
 
 }  // namespace dali

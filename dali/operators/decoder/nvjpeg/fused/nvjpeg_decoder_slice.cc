@@ -18,6 +18,5 @@
 namespace dali {
 
 DALI_REGISTER_OPERATOR(legacy__decoders__ImageSlice, nvJPEGDecoderSlice, Mixed);
-DALI_REGISTER_OPERATOR(legacy__ImageDecoderSlice, nvJPEGDecoderSlice, Mixed);
 
 }  // namespace dali

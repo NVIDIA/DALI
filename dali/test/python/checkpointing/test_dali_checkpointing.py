@@ -989,7 +989,7 @@ def test_image_random_crop(device):
 
 
 @params("cpu", "mixed")
-@random_signed_off("legacy.image_decoder_random_crop", "legacy.decoders.image_random_crop")
+@random_signed_off("legacy.decoders.image_random_crop")
 def test_legacy_image_random_crop(device):
     @pipeline_def
     def pipeline():

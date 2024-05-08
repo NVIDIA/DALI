@@ -51,6 +51,5 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
 }
 
 DALI_REGISTER_OPERATOR(legacy__decoders__Image, HostDecoder, CPU);
-DALI_REGISTER_OPERATOR(legacy__ImageDecoder, HostDecoder, CPU);
 
 }  // namespace dali

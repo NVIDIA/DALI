@@ -30,6 +30,5 @@ HostDecoderCrop::HostDecoderCrop(const OpSpec &spec)
 }
 
 DALI_REGISTER_OPERATOR(legacy__decoders__ImageCrop, HostDecoderCrop, CPU);
-DALI_REGISTER_OPERATOR(legacy__ImageDecoderCrop, HostDecoderCrop, CPU);
 
 }  // namespace dali

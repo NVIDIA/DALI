@@ -41,6 +41,5 @@ nvJPEGDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::str
 }
 
 DALI_REGISTER_OPERATOR(legacy__decoders__ImageRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
-DALI_REGISTER_OPERATOR(legacy__ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 
 }  // namespace dali
