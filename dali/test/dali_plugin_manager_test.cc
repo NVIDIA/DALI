@@ -65,18 +65,21 @@ void TestPlugin(const std::string& backend) {
 TEST(DummyTest, TestPluginCPU) {
   GTEST_FLAG_SET(death_test_style, "threadsafe");
   LoadDummyPlugin();
+  // This is crucial so that each test case has a chance to load the plugin (new process).
   EXPECT_EXIT(TestPlugin("cpu"), testing::ExitedWithCode(0), "");
 }
 
 TEST(DummyTest, TestPluginGPU) {
   GTEST_FLAG_SET(death_test_style, "threadsafe");
   LoadDummyPlugin();
+  // This is crucial so that each test case has a chance to load the plugin (new process).
   EXPECT_EXIT(TestPlugin("gpu"), testing::ExitedWithCode(0), "");
 }
 
 TEST(DummyTest, LoadDirectory) {
   GTEST_FLAG_SET(death_test_style, "threadsafe");
   ::dali::PluginManager::LoadDirectory(dali::test::CurrentExecutableDir());
+  // This is crucial so that each test case has a chance to load the plugin (new process).
   EXPECT_EXIT(TestPlugin("cpu"), testing::ExitedWithCode(0), "");
 }
 
