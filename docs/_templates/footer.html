@@ -1,0 +1,42 @@
+{%- set show_copyright_backup = show_copyright -%}
+{%- set show_copyright = false -%}
+{% extends "!footer.html" %}
+{%- block extrafooter %}
+
+<style>
+.footer-notice {
+  font-size: 85%;
+}
+</style>
+
+<p class="footer-notice">
+  <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">Privacy Policy</a>
+  |
+  <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/" target="_blank">Manage My Privacy</a>
+  |
+  <a href="https://www.nvidia.com/en-us/preferences/start/" target="_blank">Do Not Sell or Share My Data</a>
+  |
+  <a href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/" target="_blank">Terms of Service</a>
+  |
+  <a href="https://www.nvidia.com/en-us/about-nvidia/accessibility/" target="_blank">Accessibility</a>
+  |
+  <a href="https://www.nvidia.com/en-us/about-nvidia/company-policies/" target="_blank">Corporate Policies</a>
+  |
+  <a href="https://www.nvidia.com/en-us/product-security/" target="_blank">Product Security</a>
+  |
+  <a href="https://www.nvidia.com/en-us/contact/" target="_blank">Contact</a>
+</p>
+
+{%- if show_copyright_backup %}
+<p class="footer-notice">
+  {# from https://github.com/readthedocs/sphinx_rtd_theme/blob/1.0.0/sphinx_rtd_theme/footer.html#L20 #}
+  {%- if hasdoc('copyright') %}
+    {%- trans path=pathto('copyright'), copyright=copyright|e %}&#169; <a href="{{ path }}">Copyright</a> {{ copyright }}.{% endtrans %}
+  {%- else %}
+    {%- trans copyright=copyright|e %}Copyright &#169; {{ copyright }}.{% endtrans %}
+  {%- endif %}
+</p>
+{%- endif %}
+{{ super() }}
+
+{% endblock %}
