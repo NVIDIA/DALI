@@ -68,27 +68,21 @@ inline void PluginManager::LoadDirectory(const std::string& path, bool global_sy
 
 inline void PreloadPluginList(const std::string& dali_preload_plugins) {
   const char delimiter = ':';
-  size_t previous = 0;
   std::string preload(dali_preload_plugins);
-  size_t index = dali_preload_plugins.find(delimiter);
-  std::vector<std::string> plugins;
-  while (index != string::npos) {
-    auto plugin_path = dali_preload_plugins.substr(previous, index - previous);
+  size_t index = 0;
+  size_t previous = 0;
+  do {
+    index = dali_preload_plugins.find(delimiter, previous);
+    auto plugin_path = (index != std::string::npos) ?
+      dali_preload_plugins.substr(previous, index - previous) :
+      dali_preload_plugins.substr(previous);
     if (fs::is_directory(plugin_path)) {
       PluginManager::LoadDirectory(plugin_path);
     } else {
       PluginManager::LoadLibrary(plugin_path);
     }
     previous = index + 1;
-    index = dali_preload_plugins.find(delimiter, previous);
-  }
-  auto plugin_path = dali_preload_plugins.substr(previous);
-  if (fs::is_directory(plugin_path)) {
-    PluginManager::LoadDirectory(plugin_path);
-  } else {
-    PluginManager::LoadLibrary(plugin_path);
-  }
-  plugins.push_back(dali_preload_plugins.substr(previous));
+  } while (index != std::string::npos);
 }
 
 void PluginManager::LoadDefaultPlugins() {
