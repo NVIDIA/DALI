@@ -37,6 +37,9 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libcurand-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcusolver-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcublas-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcublaslt-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
