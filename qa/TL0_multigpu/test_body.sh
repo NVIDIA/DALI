@@ -51,7 +51,7 @@ test_jax() {
     if [ "$DALI_CUDA_MAJOR_VERSION" == "12" ]
     then
       python -m pip uninstall -y jax jaxlib
-      python -m pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+      python -m pip install --upgrade "jax[cuda12_pip]==0.4.26" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
       CUDA_VISIBLE_DEVICES="0,1" ${python_new_invoke_test} -s jax_plugin test_multigpu
 
