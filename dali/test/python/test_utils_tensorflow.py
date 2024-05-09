@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -104,7 +104,11 @@ def get_mix_size_image_pipeline(
             image_ids=True,
         )
         images = fn.decoders.image(
-            jpegs, device=("mixed" if device == "gpu" else "cpu"), output_type=types.RGB
+            jpegs,
+            device=("mixed" if device == "gpu" else "cpu"),
+            output_type=types.RGB,
+            device_memory_padding=0,
+            host_memory_padding=0,
         )
 
         pipe.set_outputs(images)
@@ -133,7 +137,11 @@ def get_image_pipeline(
             image_ids=True,
         )
         images = fn.decoders.image(
-            jpegs, device=("mixed" if device == "gpu" else "cpu"), output_type=types.RGB
+            jpegs,
+            device=("mixed" if device == "gpu" else "cpu"),
+            output_type=types.RGB,
+            device_memory_padding=0,
+            host_memory_padding=0,
         )
         images = fn.resize(images, resize_x=224, resize_y=224, interp_type=types.INTERP_LINEAR)
         images = fn.crop_mirror_normalize(
