@@ -455,8 +455,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArgument<uint64_t>(spec, "hybrid_huffman_threshold");
     GetDecoderSpecificArgument<int>(spec, "device_memory_padding");
     GetDecoderSpecificArgument<int>(spec, "host_memory_padding");
-    GetDecoderSpecificArgument<int>(spec, "device_memory_padding_jpeg2k");
-    GetDecoderSpecificArgument<int>(spec, "host_memory_padding_jpeg2k");
     GetDecoderSpecificArgument<float>(spec, "hw_decoder_load");
     GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
