@@ -717,7 +717,15 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
 }
 
 void daliLoadLibrary(const char* lib_path) {
-    dali::PluginManager::LoadLibrary(lib_path);
+  dali::PluginManager::LoadLibrary(lib_path);
+}
+
+void daliLoadPluginDirectory(const char* plugin_dir) {
+  dali::PluginManager::LoadDirectory(plugin_dir);
+}
+
+void daliLoadDefaultPlugins() {
+  dali::PluginManager::LoadDefaultPlugins();
 }
 
 void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,

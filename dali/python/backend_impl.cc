@@ -1664,6 +1664,12 @@ PYBIND11_MODULE(backend_impl, m) {
     py::arg("lib_path"),
     py::arg("global_symbols") = false);
 
+  m.def("LoadDirectory", &PluginManager::LoadDirectory,
+    py::arg("dir_path"),
+    py::arg("global_symbols") = false);
+
+  m.def("LoadDefaultPlugins", &PluginManager::LoadDefaultPlugins);
+
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
   m.def("IsDriverInitialized", [] {

@@ -655,6 +655,22 @@ DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
 DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
 
 /**
+ * @brief The plugin paths will have the following pattern:
+ *        {lib_path}/{sub_path}/libdali_{plugin_name}.so
+ */
+DLL_PUBLIC void daliLoadPluginDirectory(const char* plugin_dir);
+
+/**
+ * @brief Load default plugin library
+ * @remarks DALI_PRELOAD_PLUGINS are environment variables that can be used to control what
+ * plugins are loaded. If the variable is set, it is interpreted as a list of paths separated 
+ * by colon (:), where each element can be a directory or library path.
+ * If not set, the "default" path is scanned, which is a subdirectory called plugin under the
+ * directory where the DALI library is installed.
+ */
+DLL_PUBLIC void daliLoadDefaultPlugins();
+
+/**
  * @brief Returns the named reader metadata
  *  @param reader_name Name of the reader to query
  *  @param meta Pointer to metadata to be filled by the function
