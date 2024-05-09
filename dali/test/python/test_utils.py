@@ -939,17 +939,15 @@ def check_numba_compatibility_cpu(if_skip=True):
     import numba
     from nose import SkipTest
 
-    # At present (as of Numba 0.57) there's a bug in LLVM JIT linker that makes the tests fail
-    # randomly on 64-bit ARM platform.
+    # There's a bug in LLVM JIT linker that makes the tests fail
+    # randomly on 64-bit ARM platform for some NUMBA versions.
     #
     # Numba bug:
     # https://github.com/numba/numba/issues/8567
-    #
-    # TODO(michalz): Update the Numba version range when there's a fix - or possibly check
-    # llvmlite directly (if still applicable)
-    if platform.processor().lower() in ("arm64", "aarch64", "armv8") and LooseVersion(
-        numba.__version__
-    ) >= LooseVersion("0.57.0"):
+    if platform.processor().lower() in ("arm64", "aarch64", "armv8") and (
+        LooseVersion(numba.__version__) >= LooseVersion("0.57.0")
+        and LooseVersion(numba.__version__) < LooseVersion("0.59.0")
+    ):
         if if_skip:
             raise SkipTest()
         else:
