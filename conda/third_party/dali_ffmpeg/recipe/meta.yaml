@@ -29,8 +29,9 @@
 
   requirements:
     build:
-      - {{ compiler('c') }}
-      - {{ compiler('cxx') }}
+      - {{ compiler("c") }}
+      - {{ compiler("cxx") }}
+      - {{ stdlib("c") }}
       - make
       - nasm
       - libtool
