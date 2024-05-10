@@ -24,6 +24,9 @@ namespace exec2 {
 
 class ExecNode;
 
+template <typename Backend>
+using OpTaskOutput = std::pair<TensorList<Backend>, cudaEvent_t>;
+
 class OpTaskFunc {
  private:
   OpTaskFunc(ExecNode *node, CachedWorkspace ws)
