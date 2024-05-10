@@ -64,7 +64,7 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
     - pkg-config
-    - cmake >=3.12.4
+    - cmake >=3.18
     - make
     - patchelf
     - python-clang
@@ -79,10 +79,10 @@ requirements:
   host:
     - dali-opencv
     - dali-ffmpeg
-    - libprotobuf-static >=3.6.1
+    - libprotobuf-static >=3.26.1
     - python
     - future
-    - protobuf >=3.6.1
+    - protobuf >=3.26.1
     - astunparse >=1.6.0
     - gast >=0.3.3
     - dm-tree >=0.1.8
