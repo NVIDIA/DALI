@@ -114,11 +114,11 @@ fname_with_sha256() {
 }
 
 DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.60"
-    "$PREFIX/lib/libavcodec.so.60"
-    "$PREFIX/lib/libavfilter.so.9"
-    "$PREFIX/lib/libavutil.so.58"
-    "$PREFIX/lib/libswscale.so.7"
+    "$PREFIX/lib/libavformat.so.61"
+    "$PREFIX/lib/libavcodec.so.61"
+    "$PREFIX/lib/libavfilter.so.10"
+    "$PREFIX/lib/libavutil.so.59"
+    "$PREFIX/lib/libswscale.so.8"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
 )

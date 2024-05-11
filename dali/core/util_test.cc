@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,5 +62,15 @@ TEST(Volume, Ranges) {
   auto e = il.end();
   EXPECT_EQ(volume(b + 2, e - 2), 4*9*2*3);
 }
+
+namespace {
+struct Foo {
+  int foo;
+};
+IMPL_HAS_MEMBER(foo);
+}
+
+static_assert(has_member_foo_v<Foo>);
+static_assert(!has_member_foo_v<int>);
 
 }  // namespace dali
