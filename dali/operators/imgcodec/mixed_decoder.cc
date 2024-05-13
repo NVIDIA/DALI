@@ -33,22 +33,11 @@ using MixedDecoderCrop = WithCropAttr<MixedDecoder, MixedBackend>;
 using MixedDecoderSlice = WithSliceAttr<MixedDecoder, MixedBackend>;
 using MixedDecoderRandomCrop = WithRandomCropAttr<MixedDecoder, MixedBackend>;
 
-DALI_REGISTER_OPERATOR(decoders__Image, MixedDecoder, Mixed);
-DALI_REGISTER_OPERATOR(decoders__ImageCrop, MixedDecoderCrop, Mixed);
-DALI_REGISTER_OPERATOR(decoders__ImageSlice, MixedDecoderSlice, Mixed);
-DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, MixedDecoderRandomCrop, Mixed);
-
-// Deprecated aliases: fn.image*_decoder
-DALI_REGISTER_OPERATOR(ImageDecoder, MixedDecoder, Mixed);
-DALI_REGISTER_OPERATOR(ImageDecoderCrop, MixedDecoderCrop, Mixed);
-DALI_REGISTER_OPERATOR(ImageDecoderSlice, MixedDecoderSlice, Mixed);
-DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, MixedDecoderRandomCrop, Mixed);
-
-// Deprecated aliases: fn.experimental.decoders.image*
 DALI_REGISTER_OPERATOR(experimental__decoders__Image, MixedDecoder, Mixed);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, MixedDecoderCrop, Mixed);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageSlice, MixedDecoderSlice, Mixed);
-DALI_REGISTER_OPERATOR(experimental__decoders__ImageRandomCrop, MixedDecoderRandomCrop, Mixed);
+DALI_REGISTER_OPERATOR(experimental__decoders__ImageRandomCrop,
+                       MixedDecoderRandomCrop, Mixed);
 
 }  // namespace imgcodec
 }  // namespace dali
