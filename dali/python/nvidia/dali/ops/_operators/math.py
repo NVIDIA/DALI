@@ -190,6 +190,53 @@ def _generate_input_desc(categories_idx, integers, reals):
     return input_desc
 
 
+def _has_nested_datanodes(value, visited):
+    i = id(value)
+    if i in visited:
+        return False
+    visited.add(i)
+    for x in value:
+        if isinstance(x, _DataNode):
+            return True
+        if isinstance(x, (list, tuple)):
+            if _has_nested_datanodes(value, visited):
+                return True
+    return False
+
+
+def _check_nested_datanode(op, arg, value):
+    if isinstance(value, (list, tuple)):
+        if _has_nested_datanodes(value, set()):
+            input_keyword = "argument" if isinstance(arg, str) else "input"
+            raise TypeError(
+                f"The {input_keyword} {repr(arg)} of operator `{op}` must be a `DataNode` or "
+                f"a compatible constant. "
+                f"Got a `{type(value).__name__}` with nested `DataNode`(s).\n"
+                f"Did you pass a return value of an operator producing multiple outputs?"
+            )
+
+
+_op_display_name = {
+    "add": "+",
+    "sub": "-",
+    "plus": "(unary) +",
+    "minus": "(unary) -",
+    "mul": "*",
+    "pow": "**",
+    "div": "//",
+    "fdiv": "/",
+    "bitand": "&",
+    "bitor": "|",
+    "bitxor": "^",
+    "eq": "==",
+    "neq": "!=",
+    "lt": "<",
+    "leq": "<=",
+    "gt": ">",
+    "geq": ">=",
+}
+
+
 def _arithm_op(name, *inputs, definition_frame_end=None):
     """
     Create arguments for ArithmeticGenericOp and call it with supplied inputs.
@@ -203,6 +250,10 @@ def _arithm_op(name, *inputs, definition_frame_end=None):
         automatically.
     """
     import nvidia.dali.ops  # Allow for late binding of the ArithmeticGenericOp from parent module.
+
+    display_name = _op_display_name.get(name, name)
+    for i, inp in enumerate(inputs):
+        _check_nested_datanode(display_name, i, inp)
 
     categories_idxs, edges, integers, reals = _group_inputs(inputs)
     input_desc = _generate_input_desc(categories_idxs, integers, reals)

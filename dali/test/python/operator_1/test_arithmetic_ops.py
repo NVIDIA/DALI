@@ -1189,3 +1189,37 @@ def test_broadcasting_incompatible_shapes():
     for device in ["cpu", "gpu"]:
         with assert_raises(RuntimeError, glob=error_msg2):
             impl(device, shape_a2, shape_b2)
+
+
+def test_nested_datanode_error_math():
+    @pipeline_def(device_id=None, batch_size=1, num_threads=4)
+    def err_pipe():
+        u = fn.random.uniform(range=[0, 1])
+        v = fn.random.uniform(range=[0, 1])
+        return math.max([u, v], 5)
+
+    with assert_raises(
+        TypeError, glob="input 0 of operator `max` must be*" "Got a `list` with nested *DataNode"
+    ):
+        _ = err_pipe()
+
+
+@params(
+    *(
+        (x,)
+        for x in ("+", "-", "*", "/", "//", "**", "&", "|", "^", "==", "!=", "<", ">", "<=", ">=")
+    )
+)
+def test_nested_datanode_error_arithm(op):
+    print(op)
+
+    @pipeline_def(device_id=None, batch_size=1, num_threads=4)
+    def err_pipe():
+        u = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        v = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        return eval(f"u {op} [v]")
+
+    with assert_raises(
+        TypeError, glob=f"input 1 of operator `{op}` must be*" "Got a `list` with nested *DataNode"
+    ):
+        _ = err_pipe()
