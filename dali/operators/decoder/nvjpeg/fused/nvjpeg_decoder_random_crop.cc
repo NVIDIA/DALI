@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ nvJPEGDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::str
     SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
 }
 
-DALI_REGISTER_OPERATOR(legacy__decoders__ImageRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
+DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
+DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 
 }  // namespace dali

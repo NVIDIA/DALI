@@ -1151,16 +1151,16 @@ def test_image_decoders():
         for pipe_template in image_decoder_pipes:
             pipe = partial(pipe_template, fn.decoders)
             yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
-            pipe = partial(pipe_template, fn.legacy.decoders)
+            pipe = partial(pipe_template, fn.experimental.decoders)
             yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
         yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
-        pipe = partial(image_decoder_rcrop_pipe, fn.legacy.decoders)
+        pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
         yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
 
     pipe = partial(peek_image_shape_pipe, fn)
     yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
-    pipe = partial(peek_image_shape_pipe, fn.legacy)
+    pipe = partial(peek_image_shape_pipe, fn.experimental)
     yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
 
 
@@ -1593,6 +1593,7 @@ tested_methods = [
     "experimental.filter",
     "experimental.inflate",
     "experimental.median_blur",
+    "experimental.peek_image_shape",
     "experimental.remap",
     "external_source",
     "fast_resize_crop_mirror",
@@ -1609,10 +1610,6 @@ tested_methods = [
     "jitter",
     "jpeg_compression_distortion",
     "laplacian",
-    "legacy.decoders.image",
-    "legacy.decoders.image_crop",
-    "legacy.decoders.image_slice",
-    "legacy.decoders.image_random_crop",
     "lookup_table",
     "math.abs",
     "math.acos",
@@ -1657,8 +1654,6 @@ tested_methods = [
     "pad",
     "paste",
     "peek_image_shape",
-    "experimental.peek_image_shape",
-    "legacy.peek_image_shape",
     "per_frame",
     "permute_batch",
     "power_spectrum",

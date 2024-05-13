@@ -11,16 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // limitations under the License.
 
+#include <vector>
+#include <string>
 #include <map>
 #include <memory>
-#include <string>
-#include <vector>
+
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/operators/imgcodec/imgcodec.h"
-#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
@@ -77,7 +77,6 @@ template <typename Decoder, typename Backend>
 class WithRandomCropAttr : public Decoder, RandomCropAttr {
  public:
   explicit WithRandomCropAttr(const OpSpec &spec) : Decoder(spec), RandomCropAttr(spec) {}
-
  protected:
   void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {}
 
@@ -85,27 +84,7 @@ class WithRandomCropAttr : public Decoder, RandomCropAttr {
              TensorShape<> shape) override {
     return RoiFromCropWindowGenerator(RandomCropAttr::GetCropWindowGenerator(data_idx), shape);
   }
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    cpt.MutableCheckpointState() = RNGSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-    RestoreRNGState(rngs);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-    return SnapshotSerializer().Serialize(state);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    cpt.MutableCheckpointState() =
-        SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
-  }
 };
-
 
 }  // namespace imgcodec
 }  // namespace dali

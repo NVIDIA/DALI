@@ -19,7 +19,7 @@
 namespace dali {
 namespace imgcodec {
 
-DALI_SCHEMA(PeekImageShape)
+DALI_SCHEMA(experimental__PeekImageShape)
   .DocStr(R"code(Obtains the shape of the encoded image.)code")
   .NumInput(1)
   .NumOutput(1)
@@ -29,17 +29,6 @@ DALI_SCHEMA(PeekImageShape)
     R"code(Use the EXIF orientation metadata when calculating the shape.)code", true)
   .AddOptionalArg("image_type",
     R"code(Color format of the image.)code", DALI_RGB);
-
-DALI_SCHEMA(experimental__PeekImageShape)
-    .DocStr("Alias for :meth:`peek_image_shape`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("PeekImageShape")
-    .MakeDocPartiallyHidden()
-    .Deprecate(
-        "PeekImageShape",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn`, this is just an alias maintained for backward compatibility.)code");  // Deprecated in 1.38
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
     : StatelessOperator<CPUBackend>(spec) {
@@ -126,7 +115,6 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 }
 
 
-DALI_REGISTER_OPERATOR(PeekImageShape, ImgcodecPeekImageShape, CPU);
 DALI_REGISTER_OPERATOR(experimental__PeekImageShape, ImgcodecPeekImageShape, CPU);
 
 }  // namespace imgcodec
