@@ -151,7 +151,7 @@ libclang
 libcuda
 libcufft
 libcufile
-libdali_customdummyplugin
+libcustomdummyplugin
 libcustomplugin
 libjpeg
 libjpegturbo

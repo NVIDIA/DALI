@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@ const char kNonExistingLibName[] = "not_a_dali_plugin.so";
 
 static const std::string& DummyPluginLibPath() {
   static const std::string plugin_lib =
-      dali::test::CurrentExecutableDir() + "/libdali_customdummyplugin.so";
+      dali::test::CurrentExecutableDir() + "/libcustomdummyplugin.so";
   return plugin_lib;
 }
 
 static const std::string& DummyPluginLibPathGlobal() {
-  static const std::string plugin_lib = "libdali_customdummyplugin.so";
+  static const std::string plugin_lib = "libcustomdummyplugin.so";
   return plugin_lib;
 }
 
