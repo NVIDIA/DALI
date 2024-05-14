@@ -32,6 +32,8 @@ namespace test {
 
 std::string CurrentExecutableDir();
 
+const std::string& DefaultGlobalLibPath();
+
 /**
  * @brief Produces a batch of ND random data
  *        with random shapes between a minimum and a maximum shape
