@@ -60,7 +60,7 @@ using ExecEdge = DataEdge<ExecNode>;
 
 struct PipelineOutputTag {};
 
-class ExecNode {
+class DLL_PUBLIC ExecNode {
  public:
   ExecNode() = default;
   explicit ExecNode(OperatorBase *op) : op(op) {}
@@ -76,10 +76,6 @@ class ExecNode {
 
   tasking::SharedTask prev, main_task, release_outputs;
 
-  void PrepareCurrentWorkspace(std::shared_ptr<IterationData> iter_data,
-                               const WorkspaceParams &params) {
-    current_workspace_ = GetWorkspace(std::move(iter_data), params);
-  }
   void PutWorkspace(CachedWorkspace ws);
 
   CachedWorkspace GetWorkspace(std::shared_ptr<IterationData> iter_data,
@@ -118,7 +114,7 @@ private:
   std::optional<tasking::TaskFuture> Launch(tasking::Scheduler &sched);
 };
 
-class ExecGraph {
+class DLL_PUBLIC ExecGraph {
  public:
   std::list<ExecNode> nodes;
   std::list<ExecEdge> edges;
@@ -148,7 +144,7 @@ class ExecGraph {
   void PrepareIteration(const std::shared_ptr<IterationData> &iter_data,
                         const WorkspaceParams &params);
 
-  void Launch(tasking::Scheduler &sched);
+  tasking::TaskFuture Launch(tasking::Scheduler &sched);
 };
 
 class Iteration {

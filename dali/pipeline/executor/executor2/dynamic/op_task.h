@@ -18,6 +18,7 @@
 #include <memory>
 #include "workspace_cache.h"
 #include "dali/core/exec/tasking.h"
+#include "exec_graph.h"
 
 namespace dali {
 namespace exec2 {
@@ -25,16 +26,31 @@ namespace exec2 {
 class ExecNode;
 
 template <typename Backend>
-using OpTaskOutput = std::pair<TensorList<Backend>, cudaEvent_t>;
+struct OperatorIO {
+  const std::shared_ptr<TensorList<Backend>> data;
+  cudaEvent_t event = nullptr;
+};
 
 class OpTaskFunc {
  private:
   OpTaskFunc(ExecNode *node, CachedWorkspace ws)
   : node_(node), ws_(std::move(ws)) {}
 
-  auto GetOutputTaskRunnable() &&;
-  auto GetOpTaskRunnable() &&;
+  auto GetOutputTaskRunnable() && {
+    assert(node_->is_pipeline_output);
+    return [self = std::move(*this)](tasking::Task *t) mutable {
+      self.task_ = t;
+      return self.GetOutput();
+    };
+  }
 
+  auto GetOpTaskRunnable() && {
+    assert(!node_->is_pipeline_output);
+    return [self = std::move(*this)](tasking::Task *t) mutable {
+      self.task_ = t;
+      return self.Run();
+    };
+  }
 
  public:
   OpTaskFunc(OpTaskFunc &&) = default;
@@ -47,7 +63,6 @@ class OpTaskFunc {
 
   static tasking::SharedTask CreateTask(ExecNode *node, CachedWorkspace ws);
 
- private:
   using OpTaskOutputs = SmallVector<std::any, 8>;
 
   OpTaskOutputs Run();
@@ -58,7 +73,7 @@ class OpTaskFunc {
 
   template <typename Backend>
   const auto &TaskInput(int i) const {
-    return task_->GetInputValue<const std::shared_ptr<TensorList<Backend>> &>(i);
+    return task_->GetInputValue<const OperatorIO<Backend> &>(i);
   }
 
   void SetWorkspaceInputs();
