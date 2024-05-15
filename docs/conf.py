@@ -23,6 +23,9 @@ import re
 import subprocess
 from pathlib import Path
 from datetime import date
+import json
+from packaging.version import Version
+import httplib2
 
 # -- Project information -----------------------------------------------------
 
@@ -186,16 +189,26 @@ napoleon_custom_sections = ["Supported backends"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "nvidia_sphinx_theme"
+try:
+    import nvidia_sphinx_theme  # noqa: F401
+
+    html_theme = "nvidia_sphinx_theme"
+except ImportError:
+    import sphinx_rtd_theme
+
+    html_theme = "sphinx_rtd_theme"
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
 
 html_theme_options = {
     "switcher": {
         # use for local testing
         # "json_url": "http://localhost:8888/_static/switcher.json",
-        "json_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/_static/switcher.json",
+        "json_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/"
+        "docs/_static/switcher.json",
         "version_match": "main" if "dev" in version_long else version_short,
     },
-    "navbar_start": ["navbar-logo", "version-switcher"]
+    "navbar_start": ["navbar-logo", "version-switcher"],
 }
 
 
@@ -203,9 +216,11 @@ html_theme_options = {
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options.update({
-    "collapse_navigation": False,
-})
+html_theme_options.update(
+    {
+        "collapse_navigation": False,
+    }
+)
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -216,13 +231,13 @@ html_static_path = ["_static"]
 switcher_path = os.path.join(html_static_path[0], "switcher.json")
 versions = []
 # the latest is in the archive
-for i in range(10, int(version_short.split('.')[1]) - 1):
+for i in range(10, int(version_short.split(".")[1]) - 1):
     if i >= 34:
         versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
     else:
         versions.append((f"1.{i}", f"dali_1_{i}_0"))
 # add extra path version
-versions.append((f"1.37.1", f"dali_1_37.1", "short_user"))
+versions.append(("1.37.1", "dali_1_37.1", "short_user"))
 versions.append(("1.11.1", "dali_1_11_1"))
 # paths are different for 1.0-1.10
 for i in range(0, 10):
@@ -253,45 +268,103 @@ versions.append(("0.4.1", "dali_041_beta", "devel"))
 versions.append(("0.1.2", "dali_012_beta", "short_devel"))
 versions.append(("0.1.1", "dali_011_beta", "short_devel"))
 
-from packaging.version import Version
 versions = sorted(versions, key=lambda v: Version(v[0]), reverse=True)
 
-import json
+
 json_data = []
 for v in versions:
     if len(v) > 2 and v[2] == "devel":
-        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/dali-developer-guide/docs/"})
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/docs/",
+            }
+        )
     elif len(v) > 2 and v[2] == "short_devel":
-        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/dali-developer-guide/"})
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/",
+            }
+        )
     elif len(v) > 2 and v[2] == "short_user":
-        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/"})
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/",
+            }
+        )
     else:
-        json_data.append({"name": v[0], "version": v[0], "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/docs/"})
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/user-guide/docs/",
+            }
+        )
 
 if "dev" in version_long:
     version_short_split = version_short.split(".")
     one_before = f"{version_short_split[0]}.{int(version_short_split[1]) - 1}"
-    json_data.insert(0, {"name": f"{one_before} (current release)", "version": f"{one_before} (current release)", "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"})
+    json_data.insert(
+        0,
+        {
+            "name": f"{one_before} (current release)",
+            "version": f"{one_before} (current release)",
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
 else:
-    json_data.insert(0, {"name": f"{version_short} (current release)", "version": version_short, "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"})
+    json_data.insert(
+        0,
+        {
+            "name": f"{version_short} (current release)",
+            "version": version_short,
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
 
-json_data.insert(1, {"name": "main (unstable)", "version": "main", "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"})
+json_data.insert(
+    1,
+    {
+        "name": "main (unstable)",
+        "version": "main",
+        "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/",
+    },
+)
 
 # trim to 15 last releases and add the archive
 json_data = json_data[0:10]
 
-json_data.append({"name": "older releases", "version": "archives", "url": "https://docs.nvidia.com/deeplearning/dali/archives/index.html"})
+json_data.append(
+    {
+        "name": "older releases",
+        "version": "archives",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/index.html",
+    }
+)
 
 # validate links
-# import httplib2
-# for d in json_data:
-#     h = httplib2.Http()
-#     resp = h.request(d["url"], 'HEAD')
-#     if int(resp[0]['status']) >= 400:
-#         print(d["url"], "NOK", resp[0]['status'])
-#         exit(1)
 
-with open(switcher_path, 'w') as f:
+for i, d in enumerate(json_data):
+    if i == 2:
+        # as we just generate the switcher.json for the next release the one before is
+        # not in the archive yet skip checking it
+        print(f"skip checking not archived release location for the switcher: {d['url']}")
+        continue
+    h = httplib2.Http()
+    resp = h.request(d["url"], "HEAD")
+    if int(resp[0]["status"]) >= 400:
+        print(d["url"], "NOK", resp[0]["status"])
+        exit(1)
+
+with open(switcher_path, "w") as f:
     json.dump(json_data, f, ensure_ascii=False, indent=4)
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
