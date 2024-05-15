@@ -46,7 +46,7 @@ reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates one device buffer of the
 requested size per thread. If the value is correctly selected, no additional allocations
 will occur during the pipeline execution.)code",
-      16*1024*1024)
+      0)
   .AddOptionalArg("device_memory_padding_jpeg2k",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -56,9 +56,7 @@ reallocated to decode the image.
 
 If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
 according to the hint provided. If the value is correctly selected, no additional allocations
-will occur during the pipeline execution. One way to find the ideal value is to do a complete
-run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
-allocation value that was printed in the statistics.)code",
+will occur during the pipeline execution.)code",
       0)
   .AddOptionalArg("host_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.
@@ -70,7 +68,7 @@ to be reallocated to decode the image.
 If a value greater than 0 is provided, the operator preallocates two (because of double-buffering)
 host-pinned buffers of the requested size per thread. If selected correctly, no additional
 allocations will occur during the pipeline execution.)code",
-      8*1024*1024)  // based on ImageNet heuristics (8MB)
+      0)
   .AddOptionalArg("host_memory_padding_jpeg2k",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -80,9 +78,7 @@ to be reallocated to decode the image.
 
 If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
 according to the hint provided. If the value is correctly selected, no additional
-allocations will occur during the pipeline execution. One way to find the ideal value is to
-do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
-the largest allocation value that is printed in the statistics.)code",
+allocations will occur during the pipeline execution.)code",
       0)
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
