@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "op_task.h"
@@ -23,26 +24,9 @@
 namespace dali {
 namespace exec2 {
 
-auto OpTaskFunc::GetOutputTaskRunnable() && {
-  assert(node_->is_pipeline_output);
-  return [self = std::move(*this)](tasking::Task *t) mutable {
-    self.task_ = t;
-    return self.GetOutput();
-  };
-}
-
-auto OpTaskFunc::GetOpTaskRunnable() && {
-  assert(!node_->is_pipeline_output);
-  return [self = std::move(*this)](tasking::Task *t) mutable {
-    self.task_ = t;
-    return self.Run();
-  };
-}
-
 tasking::SharedTask OpTaskFunc::CreateTask(ExecNode *node, CachedWorkspace ws) {
   if (node->is_pipeline_output) {
     return tasking::Task::Create(
-      ws->NumOutput(),
       OpTaskFunc(node, std::move(ws)).GetOutputTaskRunnable());
   } else {
     return tasking::Task::Create(
@@ -64,14 +48,28 @@ OpTaskFunc::OpTaskOutputs OpTaskFunc::Run() {
 Workspace OpTaskFunc::GetOutput() {
   assert(ws_->NumInput() == 0);
   assert(ws_->NumArgumentInput() == 0);
+  std::unordered_set<cudaEvent_t> events(ws_->NumOutput());
+
   for (int o = 0; o < ws_->NumOutput(); o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
-      ws_->SetOutput(o, TaskInput<CPUBackend>(o));
+      auto &inp = TaskInput<CPUBackend>(o);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetOutput(o, inp.data);
     } else {
       assert(ws_->OutputIsType<GPUBackend>(o));
-      ws_->SetOutput(o, TaskInput<GPUBackend>(o));
+      auto &inp = TaskInput<GPUBackend>(o);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetOutput(o, inp.data);
     }
   }
+
+  for (auto e : events)
+    ws_->output_order().wait(e);
+
+  if (ws_->has_event() && ws_->has_stream())
+    CUDA_CALL(cudaEventRecord(ws_->event() , ws_->stream()));
 
   Workspace ret = *ws_;
   node_->PutWorkspace(std::move(ws_));
@@ -125,32 +123,47 @@ void OpTaskFunc::RunOp() {
 
 void OpTaskFunc::SetWorkspaceInputs() {
   int ti = 0;
+  std::unordered_set<cudaEvent_t> events(ws_->NumInput() + ws_->NumArgumentInput());
   for (int i = 0; i < ws_->NumInput(); i++, ti++) {
     if (ws_->InputIsType<CPUBackend>(i)) {
-      ws_->SetInput(i, TaskInput<CPUBackend>(ti));
+      auto inp = TaskInput<CPUBackend>(ti);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetInput(i, inp.data);
     } else {
       assert(ws_->InputIsType<GPUBackend>(i));
-      ws_->SetInput(i, TaskInput<GPUBackend>(ti));
+      auto inp = TaskInput<CPUBackend>(ti);
+      if (inp.event)
+        events.insert(inp.event);
+      ws_->SetInput(i, inp.data);
     }
   }
 
   for (int i = 0; i < ws_->NumArgumentInput(); i++, ti++) {
-    ws_->SetArgumentInput(i, TaskInput<CPUBackend>(ti));
+    auto &inp = TaskInput<CPUBackend>(ti);
+    if (inp.event)
+      events.insert(inp.event);
+    ws_->SetArgumentInput(i, inp.data);
   }
+
+  for (auto e : events)
+    ws_->output_order().wait(e);
 }
 
 OpTaskFunc::OpTaskOutputs OpTaskFunc::GetWorkspaceOutputs() {
   OpTaskOutputs ret;
   int nout = ws_->NumOutput();
   ret.reserve(nout);
+  cudaEvent_t event = ws_->has_event() ? ws_->event() : nullptr;
   for (int o = 0; o < nout; o++) {
     if (ws_->OutputIsType<CPUBackend>(o)) {
-      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
+      ret.push_back(OperatorIO<CPUBackend>{ws_->OutputPtr<CPUBackend>(o), event});
     } else {
-      assert(ws_->OutputIsType<CPUBackend>(o));
-      ret.push_back(ws_->OutputPtr<CPUBackend>(o));
+      assert(ws_->OutputIsType<GPUBackend>(o));
+      ret.push_back(OperatorIO<GPUBackend>{ws_->OutputPtr<GPUBackend>(o), event});
     }
   }
+
   return ret;
 }
 

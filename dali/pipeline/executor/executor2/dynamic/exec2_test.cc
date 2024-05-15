@@ -107,12 +107,25 @@ TEST(Exec2Test, SimpleGraph) {
   g.Link(n0, 0, n2, 0);
   g.Link(n1, 0, n2, 1);
   g.Link(n2, 0, no, 0);
-  auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, true, "test");
+
   WorkspaceParams params = {};
+  auto tp = std::make_unique<Thread/Pool>(std::thread::hardware_concurrency(), 0, true, "test");
   params.thread_pool = tp.get();
   params.batch_size = batch_size;
-  start = dali::test::perf_timer::now();
-  /*{
+
+  auto iter = std::make_shared<IterationData>();
+  g.PrepareIteration(iter, params);
+  tasking::Executor ex(1);
+  ex.Start();
+  auto fut = g.Launch(ex);
+  Workspace ws = fut.Value<Workspace>();
+
+  auto &out = ws.Output<CPUBackend>(0);
+  ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
+  for (int i = 0; i < batch_size; i++)
+    EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
+
+  {
     auto &out = sched->outputs[0]->producer->ws->Output<CPUBackend>(0);
     ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
     for (int i = 0; i < batch_size; i++)

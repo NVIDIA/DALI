@@ -24,14 +24,6 @@ using tasking::Task;
 using tasking::Semaphore;
 using tasking::Scheduler;
 
-template <typename Case>
-auto backend_switch(StorageDevice device, Case &&callable) {
-  if (device == StorageDevice::CPU)
-    return callable(CPUBackend());
-  else
-    return callable(GPUBackend());
-}
-
 void ClearWorkspacePayload(Workspace &ws) {
   for (int i = 0; i < ws.NumInput(); i++) {
     if (ws.InputIsType<CPUBackend>(i))
@@ -58,7 +50,7 @@ void ExecNode::PutWorkspace(CachedWorkspace ws) {
 }
 
 void ExecNode::CreateMainTask(std::shared_ptr<IterationData> iter, const WorkspaceParams &params) {
-  main_task = OpTaskFunc::CreateTask(this, std::move(current_workspace_));
+  main_task = OpTaskFunc::CreateTask(this, GetWorkspace(iter, params));
 }
 
 void ExecNode::CreateAuxTasks() {
@@ -180,13 +172,26 @@ void ExecGraph::PrepareIteration(
     const std::shared_ptr<IterationData> &iter_data,
     const WorkspaceParams &params) {
   for (auto &n : nodes)
-    n.PrepareCurrentWorkspace(iter_data, params);
-
-  for (auto &n : nodes)
     n.CreateMainTask(iter_data, params);
+  for (auto &n : nodes) {
+    n.AddDataDeps();
+    n.CreateAuxTasks();
+  }
 }
 
-void Launch(tasking::Scheduler &sched);
+tasking::TaskFuture ExecGraph::Launch(tasking::Scheduler &sched) {
+  std::optional<tasking::TaskFuture> ret;
+  for (auto &n : nodes) {
+    auto maybe_future = n.Launch(sched);
+    if (maybe_future) {
+      assert(!ret && "Internal error - multiple output nodes present");
+      ret = std::move(maybe_future);
+    }
+  }
+  assert(ret && "Internal error - no output node present");
+  // In case of error, if the above assert is absent (in release), the following line will throw.
+  return std::move(ret).value();
+}
 
 }  // namespace exec2
 }  // namespace dali
