@@ -48,8 +48,18 @@ requested size per thread. If the value is correctly selected, no additional all
 will occur during the pipeline execution.)code",
       16*1024*1024)
   .AddOptionalArg("device_memory_padding_jpeg2k",
-      R"code(Deprecated argument. Use `device_memory_padding`)code", 0)
-  .DeprecateArg("device_memory_padding_jpeg2k", false)  // deprecated since 1.38dev
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+The padding for nvJPEG2k's device memory allocations, in bytes. This parameter helps to avoid
+reallocation in nvJPEG2k when a larger image is encountered, and the internal buffer needs to be
+reallocated to decode the image.
+
+If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
+according to the hint provided. If the value is correctly selected, no additional allocations
+will occur during the pipeline execution. One way to find the ideal value is to do a complete
+run over the dataset with the ``memory_stats`` argument set to True and then copy the largest
+allocation value that was printed in the statistics.)code",
+      0)
   .AddOptionalArg("host_memory_padding",
       R"code(Applies **only** to the ``mixed`` backend type.
 
@@ -62,8 +72,18 @@ host-pinned buffers of the requested size per thread. If selected correctly, no 
 allocations will occur during the pipeline execution.)code",
       8*1024*1024)  // based on ImageNet heuristics (8MB)
   .AddOptionalArg("host_memory_padding_jpeg2k",
-      R"code(Deprecated argument. Use `host_memory_padding`.)code", 0)
-  .DeprecateArg("host_memory_padding_jpeg2k", false)
+      R"code(Applies **only** to the ``mixed`` backend type.
+
+The padding for nvJPEG2k's host memory allocations, in bytes. This parameter helps to prevent
+the reallocation in nvJPEG2k when a larger image is encountered, and the internal buffer needs
+to be reallocated to decode the image.
+
+If a value greater than 0 is provided, the operator preallocates the necessary number of buffers
+according to the hint provided. If the value is correctly selected, no additional
+allocations will occur during the pipeline execution. One way to find the ideal value is to
+do a complete run over the dataset with the ``memory_stats`` argument set to True, and then copy
+the largest allocation value that is printed in the statistics.)code",
+      0)
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
 

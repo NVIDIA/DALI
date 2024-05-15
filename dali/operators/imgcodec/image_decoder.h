@@ -245,7 +245,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
       dev_alloc_.device_malloc = static_dali_device_malloc;
       dev_alloc_.device_free = static_dali_device_free;
       dev_alloc_.device_ctx = mm::GetDefaultResource<mm::memory_kind::device>();
-      dev_alloc_.device_mem_padding = spec.GetArgument<int64_t>("device_memory_padding");
+      dev_alloc_.device_mem_padding = decoder_params_.count("device_memory_padding") == 0 ?
+                                          0 :
+                                          spec.GetArgument<int64_t>("device_memory_padding");
       dev_alloc_ptr = &dev_alloc_;
 
       pinned_alloc_.struct_type = NVIMGCODEC_STRUCTURE_TYPE_PINNED_ALLOCATOR;
@@ -254,7 +256,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
       pinned_alloc_.pinned_malloc = static_dali_pinned_malloc;
       pinned_alloc_.pinned_free = static_dali_pinned_free;
       pinned_alloc_.pinned_ctx = mm::GetDefaultResource<mm::memory_kind::pinned>();
-      pinned_alloc_.pinned_mem_padding = spec.GetArgument<int64_t>("host_memory_padding");
+      pinned_alloc_.pinned_mem_padding = decoder_params_.count("pinned_memory_padding") == 0 ?
+                                             0 :
+                                             spec.GetArgument<int64_t>("pinned_memory_padding");
       pinned_alloc_ptr = &pinned_alloc_;
     }
 
@@ -331,10 +335,24 @@ class ImageDecoder : public StatelessOperator<Backend> {
       } else if (key == "preallocate_height_hint") {
         opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_height_hint",
                                 std::max(1, std::any_cast<int>(value)));
+      } else if (key == "device_memory_padding") {
+        opts_.add_module_option("nvjpeg_cuda_decoder", "device_memory_padding",
+                                std::any_cast<size_t>(value));
+      } else if (key == "host_memory_padding") {
+        opts_.add_module_option("nvjpeg_cuda_decoder", "host_memory_padding",
+                                std::any_cast<size_t>(value));
+      } else if (key == "device_memory_padding_jpeg2k") {
+        opts_.add_module_option("nvjpeg2k_cuda_decoder", "device_memory_padding",
+                                std::any_cast<size_t>(value));
+      } else if (key == "host_memory_padding_jpeg2k") {
+        opts_.add_module_option("nvjpeg2k_cuda_decoder", "host_memory_padding",
+                                std::any_cast<size_t>(value));
       } else {
         continue;
       }
     }
+    // Preallocate buffers to the padding size
+    opts_.add_module_option("nvjpeg_cuda_decoder", "preallocate_buffers", true);
 
     // Batch size
     opts_.add_module_option("nvjpeg_hw_decoder", "preallocate_batch_size",
@@ -375,24 +393,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                             NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
                                             {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
                                              sizeof(nvimgcodecBackendParams_t), nullptr, 1.0f}});
-
-    // Forcing allocations, so that we have memory available in the pools when nvimgcodec requests
-    // it. This should not be needed when nvjpegBufferPinnedResize/nvjpegBufferDeviceResize is
-    // functional
-    if (nvimgcodec_device_id != NVIMGCODEC_DEVICE_CPU_ONLY) {
-      std::vector<mm::uptr<uint8_t>> tmp_buffs;
-      for (int i = 0; i < num_threads_; i++) {
-        tmp_buffs.push_back(mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(
-            dev_alloc_ptr->device_mem_padding));
-        if (!RestrictPinnedMemUsage()) {
-          tmp_buffs.push_back(mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(
-              pinned_alloc_ptr->pinned_mem_padding));
-          tmp_buffs.push_back(mm::alloc_raw_unique<uint8_t, mm::memory_kind::pinned>(
-              pinned_alloc_ptr->pinned_mem_padding));
-        }
-      }
-      tmp_buffs.clear();  // return all memory to the pools
-    }
 
     exec_params_.backends = backends_.data();
     exec_params_.num_backends = backends_.size();
@@ -453,8 +453,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   void GetDecoderSpecificArguments(const OpSpec &spec) {
     GetDecoderSpecificArgument<uint64_t>(spec, "hybrid_huffman_threshold");
-    GetDecoderSpecificArgument<int>(spec, "device_memory_padding");
-    GetDecoderSpecificArgument<int>(spec, "host_memory_padding");
+    GetDecoderSpecificArgument<size_t>(spec, "device_memory_padding");
+    GetDecoderSpecificArgument<size_t>(spec, "device_memory_padding_jpeg2k");
+    GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding");
+    GetDecoderSpecificArgument<size_t>(spec, "host_memory_padding_jpeg2k");
     GetDecoderSpecificArgument<float>(spec, "hw_decoder_load");
     GetDecoderSpecificArgument<int>(spec, "preallocate_width_hint");
     GetDecoderSpecificArgument<int>(spec, "preallocate_height_hint");
