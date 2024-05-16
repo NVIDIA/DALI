@@ -67,7 +67,6 @@ class DummyOp : public Operator<CPUBackend> {
 };
 
 TEST(Exec2Test, SimpleGraph) {
-  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   auto start = dali::test::perf_timer::now();
   int batch_size = 32;
   DummyOp::CreateSchema();
@@ -109,7 +108,7 @@ TEST(Exec2Test, SimpleGraph) {
   g.Link(n2, 0, no, 0);
 
   WorkspaceParams params = {};
-  auto tp = std::make_unique<Thread/Pool>(std::thread::hardware_concurrency(), 0, true, "test");
+  auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, false, "test");
   params.thread_pool = tp.get();
   params.batch_size = batch_size;
 
@@ -124,13 +123,6 @@ TEST(Exec2Test, SimpleGraph) {
   ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
   for (int i = 0; i < batch_size; i++)
     EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
-
-  {
-    auto &out = sched->outputs[0]->producer->ws->Output<CPUBackend>(0);
-    ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
-    for (int i = 0; i < batch_size; i++)
-      EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
-  }*/
 }
 /*
 TEST(Exec2Test, SimpleGraphRepeat) {
