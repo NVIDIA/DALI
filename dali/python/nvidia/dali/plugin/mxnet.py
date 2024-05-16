@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorGPU, TensorListGPU
+from nvidia.dali.backend import TensorGPU, TensorListGPU, deprecation_warning
 from nvidia.dali import types
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
@@ -20,6 +20,11 @@ import mxnet as mx
 import ctypes
 import numpy as np
 from collections.abc import Iterable
+
+deprecation_warning(
+    "DALI 1.39 is the last release to support MXnet as the MXNet project "
+    "has been retired for a while already."
+)
 
 
 ##################################################
