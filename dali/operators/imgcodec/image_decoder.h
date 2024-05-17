@@ -27,7 +27,6 @@
 #include "dali/operators/imgcodec/util/convert_gpu.h"
 #include "dali/operators/imgcodec/util/convert_utils.h"
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
-#include "dali/operators/imgcodec/util/output_shape.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -523,8 +522,6 @@ class ImageDecoder : public StatelessOperator<Backend> {
     while (static_cast<int>(state_.size()) < nsamples)
       state_.push_back(std::make_unique<SampleState>());
     rois_.resize(nsamples);
-    bool is_planar_layout = false;
-
 
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
     auto get_task = [&](int block_idx, int nblocks) {
@@ -548,9 +545,28 @@ class ImageDecoder : public StatelessOperator<Backend> {
           ParseSample(st->parsed_sample,
                       span<const uint8_t>{static_cast<const uint8_t *>(input_sample.raw_data()),
                                           volume(input_sample.shape())});
-          ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->parsed_sample.dali_img_info.shape);
-          OutputShape(st->out_shape, st->parsed_sample.dali_img_info, format_,
-                      is_planar_layout, use_orientation_, roi);
+          st->out_shape = st->parsed_sample.dali_img_info.shape;
+          st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
+          if (use_orientation_ &&
+              ((st->parsed_sample.nvimgcodec_img_info.orientation.rotated / 90) & 1)) {
+            std::swap(st->out_shape[0], st->out_shape[1]);
+          }
+          ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
+          if (roi.use_roi()) {
+            auto roi_sh = roi.shape();
+            if (roi.end.size() >= 2) {
+              DALI_ENFORCE(0 <= roi.end[0] && roi.end[0] <= st->out_shape[0] &&
+                               0 <= roi.end[1] && roi.end[1] <= st->out_shape[1],
+                           "ROI end must fit within the image bounds");
+            }
+            if (roi.begin.size() >= 2) {
+              DALI_ENFORCE(0 <= roi.begin[0] && roi.begin[0] <= st->out_shape[0] &&
+                               0 <= roi.begin[1] && roi.begin[1] <= st->out_shape[1],
+                           "ROI begin must fit within the image bounds");
+            }
+            st->out_shape[0] = roi_sh[0];
+            st->out_shape[1] = roi_sh[1];
+          }
           shapes.set_tensor_shape(i, st->out_shape);
         }
       };

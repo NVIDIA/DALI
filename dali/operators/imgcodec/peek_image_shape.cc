@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "dali/operators/imgcodec/peek_image_shape.h"
-#include "dali/operators/imgcodec/util/output_shape.h"
 #include "dali/operators.h"
 
 namespace dali {
@@ -110,9 +109,11 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
       CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetImageInfo(encoded_stream, &nvimgcodec_img_info));
       auto info = to_dali_img_info(nvimgcodec_img_info);
 
-      TensorShape<> shape;
-      OutputShape(shape, info, image_type_, false, use_orientation_, {});
-
+      TensorShape<> shape = info.shape;
+      shape[2] = NumberOfChannels(image_type_, shape[2]);
+      if (use_orientation_ && ((info.orientation.rotated / 90) & 1)) {
+        std::swap(shape[0], shape[1]);
+      }
       TYPE_SWITCH(output_type_, type2id, Type,
                   (int32_t, uint32_t, int64_t, uint64_t, float, double), (
         auto out = view<Type, 1>(output[i]);
