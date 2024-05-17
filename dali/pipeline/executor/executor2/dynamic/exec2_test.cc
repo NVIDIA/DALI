@@ -124,9 +124,9 @@ TEST(Exec2Test, SimpleGraph) {
   for (int i = 0; i < batch_size; i++)
     EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
 }
-/*
+
 TEST(Exec2Test, SimpleGraphRepeat) {
-  int batch_size = 32;
+  int batch_size = 256;
   DummyOp::CreateSchema();
   OpSpec spec0("DummyOp");
   spec0.AddArg("addend", 10)
@@ -157,31 +157,30 @@ TEST(Exec2Test, SimpleGraphRepeat) {
        .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
   ExecGraph def;
-  ExecNode *n2 = def.add_node(&op2);
-  ExecNode *n1 = def.add_node(&op1);
-  ExecNode *n0 = def.add_node(&op0);
-  def.link(n0, 0, n2, 0);
-  def.link(n1, 0, n2, 1);
-  def.link(n2, 0, nullptr, 0);
-  def.outputs.push_back(&def.edges.back());
-  ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
+  ExecNode *n2 = def.AddNode(&op2);
+  ExecNode *n1 = def.AddNode(&op1);
+  ExecNode *n0 = def.AddNode(&op0);
+  ExecNode *no = def.AddOutputNode();
+  def.Link(n0, 0, n2, 0);
+  def.Link(n1, 0, n2, 1);
+  def.Link(n2, 0, no, 0);
+  ThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
   params.thread_pool = &tp;
   params.batch_size = batch_size;
+
   {
-    auto sched_template = SchedGraph::from_exec(def, params);
-    auto start = dali::test::perf_timer::now();
     int N = 100;
+    tasking::Executor ex(4);
+    ex.Start();
+    auto start = dali::test::perf_timer::now();
     for (int i = 0; i < N; i++) {
-      auto sched = sched_template->clone();
-      tf::Taskflow tf;
-      sched->schedule(tf);
-      tf::Executor ex(4);
-      ex.run(tf).get();
-      auto &out = sched->outputs[0]->producer->ws->Output<CPUBackend>(0);
-      ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
+      def.PrepareIteration(std::make_shared<IterationData>(), params);
+      auto ws = def.Launch(ex).Value<Workspace>();
+      auto &out = ws.Output<CPUBackend>(0);
+      /*ASSERT_EQ(out.shape(), uniform_list_shape(batch_size, TensorShape<0>()));
       for (int i = 0; i < batch_size; i++)
-        EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);
+        EXPECT_EQ(*out[i].data<int>(), 1110 + 3 * i);*/
     }
     auto end = dali::test::perf_timer::now();
     print(std::cerr, "Average iteration time over ", N, " iterations is ",
@@ -221,30 +220,28 @@ TEST(Exec2Test, Exception) {
        .AddArg("instance_name", "op2");
   DummyOp op2(spec2);
   ExecGraph def;
-  ExecNode *n2 = def.add_node(&op2);
-  ExecNode *n1 = def.add_node(&op1);
-  ExecNode *n0 = def.add_node(&op0);
-  def.link(n0, 0, n2, 0);
-  def.link(n1, 0, n2, 1);
-  def.link(n2, 0, nullptr, 0);
-  def.outputs.push_back(&def.edges.back());
-  ThreadPool tp(std::thread::hardware_concurrency(), 0, true, "test");
+  ExecNode *n2 = def.AddNode(&op2);
+  ExecNode *n1 = def.AddNode(&op1);
+  ExecNode *n0 = def.AddNode(&op0);
+  ExecNode *no = def.AddOutputNode();
+  def.Link(n0, 0, n2, 0);
+  def.Link(n1, 0, n2, 1);
+  def.Link(n2, 0, no, 0);
+  ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
   params.thread_pool = &tp;
   params.batch_size = 32;
   {
-    auto sched_template = SchedGraph::from_exec(def, params);
-    tf::Executor ex(4);
+    tasking::Executor ex(4);
+    ex.Start();
     for (int i = 0; i < 10; i++) {
-      tf::Taskflow tf;
-      auto sched = sched_template->clone();
-      sched->schedule(tf);
-      EXPECT_THROW(ex.run(tf).get(), DALIException);
+      def.PrepareIteration(std::make_shared<IterationData>(), params);
+      auto fut = def.Launch(ex);
+      EXPECT_THROW(fut.Value<Workspace>(), DALIException);
     }
   }
 }
 
-*/
 
 }  // namespace test
 }  // namespace exec2
