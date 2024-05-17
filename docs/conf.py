@@ -235,7 +235,7 @@ for i in range(10, int(version_short.split(".")[1]) - 1):
     else:
         versions.append((f"1.{i}", f"dali_1_{i}_0"))
 # add extra path version
-versions.append(("1.37.1", "dali_1_37.1", "short_user"))
+versions.append(("1.37.1", "dali_1_37_1", "short_user"))
 versions.append(("1.11.1", "dali_1_11_1"))
 # paths are different for 1.0-1.10
 for i in range(0, 10):
