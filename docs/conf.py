@@ -225,7 +225,6 @@ html_theme_options.update(
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-
 switcher_path = os.path.join(html_static_path[0], "switcher.json")
 versions = []
 # the latest is in the archive
@@ -254,20 +253,22 @@ versions.append(("0.25.1", "dali_0251"))
 versions.append(("0.30", "dali_030"))
 versions.append(("0.31", "dali_031"))
 # and again different convention between 0.1 and 0.9
-for i in range(1, 10):
-    # no 0.0 release, we made 0.9.1
-    if i == 9:
-        continue
-    versions.append((f"0.{i}", f"dali_0{i}_beta", "devel"))
 versions.append(("0.9.1", "dali_091_beta", "devel"))
 versions.append(("0.8.1", "dali_081_beta", "devel"))
+versions.append(("0.8", "dali_08_beta", "devel"))
+versions.append(("0.7", "dali_07_beta", "devel"))
 versions.append(("0.6.1", "dali_061_beta", "devel"))
+versions.append(("0.6", "dali_06_beta", "devel"))
+versions.append(("0.5", "dali_05_beta", "devel"))
 versions.append(("0.4.1", "dali_041_beta", "devel"))
+versions.append(("0.4", "dali_04_beta", "devel"))
+versions.append(("0.3", "dali_03_beta", "devel"))
+versions.append(("0.2", "dali_02_beta", "devel"))
 versions.append(("0.1.2", "dali_012_beta", "short_devel"))
 versions.append(("0.1.1", "dali_011_beta", "short_devel"))
+versions.append(("0.1", "dali_01_beta", "devel"))
 
 versions = sorted(versions, key=lambda v: Version(v[0]), reverse=True)
-
 
 json_data = []
 for v in versions:
