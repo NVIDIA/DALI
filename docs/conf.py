@@ -337,7 +337,7 @@ json_data.insert(
     },
 )
 
-# trim to 15 last releases and add the archive
+# trim to N last releases and add the archive
 json_data = json_data[0:10]
 
 json_data.append(
