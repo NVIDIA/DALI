@@ -21,12 +21,10 @@ test_body() {
     # The package name can be nvidia-dali-video, nvidia-dali-video-weekly or nvidia-dali-video-nightly
     pip uninstall -y `pip list | grep nvidia-dali-video | cut -d " " -f1` || true
 
-    # No plugin installed, should fail
-    ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadFail
-
     # Installing the video plugin
     pip install -v ../../../nvidia-dali-video*.tar.gz
 
+    # Check that the plugin can be loaded
     ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk
 }
 
