@@ -15,12 +15,14 @@
 #include "decoder/video_decoder_mixed.h"
 #include "dali/core/tensor_shape.h"
 
+#include "color_space.h"
+
 namespace dali_video {
 
 class MemoryVideoFile : public FFmpegDemuxer::DataProvider {
  public:
   MemoryVideoFile(const void *data, int64_t size)
-    : data_(static_cast<const uint8_t*>(data)), size_(size), position_(0) {}
+      : data_(static_cast<const uint8_t *>(data)), size_(size), position_(0) {}
 
 
   int GetData(uint8_t *buffer, int buffer_size) override {
@@ -41,8 +43,8 @@ class MemoryVideoFile : public FFmpegDemuxer::DataProvider {
   int64_t position_;
 };
 
-bool VideoDecoderMixed::SetupImpl(
-  std::vector<dali::OutputDesc> &output_desc, const dali::Workspace &ws) {
+bool VideoDecoderMixed::SetupImpl(std::vector<dali::OutputDesc> &output_desc,
+                                  const dali::Workspace &ws) {
   ValidateInput(ws);
   const auto &input = ws.Input<dali::CPUBackend>(0);
   int batch_size = input.num_samples();
@@ -51,13 +53,13 @@ bool VideoDecoderMixed::SetupImpl(
   samples_.resize(batch_size);
   dali::TensorListShape<> sh(batch_size, 4);
   for (int i = 0; i < batch_size; i++) {
-    auto& sample = samples_[i];
+    auto &sample = samples_[i];
     sample.data_provider_ =
         std::make_unique<MemoryVideoFile>(input.raw_tensor(i), input[i].shape().num_elements());
     sample.demuxer_ = std::make_unique<FFmpegDemuxer>(sample.data_provider_.get());
     sample.current_packet_ = std::make_unique<PacketData>();
     sh.set_tensor_shape(
-        i, dali::TensorShape<>(10, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
+        i, dali::TensorShape<>(60, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
   }
   output_desc.resize(1);
   output_desc[0].shape = sh;
@@ -81,34 +83,89 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 
   for (int i = 0; i < batch_size; i++) {
     cuCtxGetCurrent(&cuContext);
-    if (!cuContext) {
+    if(!cuContext) {
       createCudaContext(&cuContext, device_id_, 0);
       m_bDestroyContext = true;
     }
     cuCtxPopCurrent(&cuContext);
   }
 
-  if (!cuContext)
+  if(!cuContext)
     throw std::runtime_error("Failed to create a cuda context");
 
   cuCtxPushCurrent(cuContext);
   cuStreamCreate(&cuStream, 0);
+  cuCtxPopCurrent(nullptr);
+
+  cuCtxPushCurrent(cuContext);
+
+  auto output_sample = output[s];
+
+  uint8_t *output_data = output_sample.template mutable_data<uint8_t>();
 
   for (int i = 0; i < batch_size; i++) {
-    auto &sample = samples_[i];
+    auto& sample = samples_[i];
     sample.decoder_ = std::make_unique<NvDecoder>(
         cuStream, cuContext, true, FFmpeg2NvCodecId(sample.demuxer_->GetVideoCodec()), false,
         false /*_enableasyncallocations*/, false);
 
+    std::cout << sample.decoder_->GetVideoInfo() << std::endl;
 
-    uint8_t *pVideo = NULL;
-    int nVideoBytes = 0;
-    while (sample.demuxer_->Demux(&pVideo, &nVideoBytes)) {
-      if (nVideoBytes) {
-        auto vecTupFrame = sample.decoder_->Decode(pVideo, nVideoBytes);
-      }
-    }
+
+    uint8_t *pVideo = NULL, *pFrame = nullptr;
+    int nVideoBytes = 0, nFrameReturned = 0, nFrame = 0;
+
+    int num_frames = 0;
+
+     do {
+        sample.demuxer_->Demux(&pVideo, &nVideoBytes);
+        nFrameReturned = sample.decoder_->Decode(pVideo, nVideoBytes);
+
+        for (int i = 0; i < nFrameReturned; i++) {
+          pFrame = sample.decoder_->GetFrame();
+          // std::cout << "Frame " << nFrame++ << " decoded in the operator" << std::endl;
+
+          uint8_t *dpFrame = output_data + num_frames * sample.demuxer_->GetHeight() * sample.demuxer_->GetWidth() * 3;
+          int nWidth = sample.decoder_->GetWidth();
+          int nPitch = sample.decoder_->GetWidth();
+          int iMatrix = sample.decoder_->GetVideoFormatInfo().video_signal_description.matrix_coefficients;
+          bool full_range = sample.decoder_->GetVideoFormatInfo().video_signal_description.video_full_range_flag;
+
+          // if (sample.decoder_->GetBitDepth() == 8) {
+          //   if (sample.decoder_->GetOutputFormat() == cudaVideoSurfaceFormat_YUV444) {
+          //     std::cout << "YUV444" << std::endl;
+          //     YUV444ToColor32<RGBA32>(pFrame, sample.decoder_->GetWidth(), (uint8_t *)dpFrame, nPitch, sample.decoder_->GetWidth(), sample.decoder_->GetHeight(), iMatrix);
+          //   } else {
+          //     std::cout << "YUV420" << std::endl;
+          //     Nv12ToColor32<RGBA32>(pFrame, sample.decoder_->GetWidth(), (uint8_t *)dpFrame, nPitch, sample.decoder_->GetWidth(), sample.decoder_->GetHeight(), iMatrix);
+          //   }
+          // } else {
+          //   if (sample.decoder_->GetOutputFormat() == cudaVideoSurfaceFormat_YUV444) {
+          //     std::cout << "YUV444P16" << std::endl;
+          //     YUV444P16ToColor32<RGBA32>(pFrame, 2 * sample.decoder_->GetWidth(), (uint8_t *)dpFrame, nPitch, sample.decoder_->GetWidth(), sample.decoder_->GetHeight(), iMatrix);
+          //   } else {
+          //     std::cout << "YUV420P16" << std::endl;
+          //     P016ToColor32<RGBA32>(pFrame, 2 * sample.decoder_->GetWidth(), (uint8_t *)dpFrame, nPitch, sample.decoder_->GetWidth(), sample.decoder_->GetHeight(), iMatrix);
+          //   }
+          // }
+
+          // std::cout << "DALI color change" << std::endl;
+          yuv_to_rgb(
+            pFrame,
+            nPitch,
+            (uint8_t *)dpFrame,
+            sample.decoder_->GetWidth() * 3,
+            sample.decoder_->GetWidth(),
+            sample.decoder_->GetHeight(),
+            full_range,
+            cuStream);
+            CUDA_CALL(cudaStreamSynchronize(cuStream));
+
+          ++num_frames;
+        }
+    } while (nVideoBytes);
   }
+
   cuCtxPopCurrent(&cuContext);
 }
 
@@ -124,11 +181,11 @@ The video streams can be in most of the container file formats. FFmpeg is used t
     .NumOutput(1)
     .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.")
     .AddOptionalArg("affine",
-    R"code(Applies only to the mixed backend type.
+                    R"code(Applies only to the mixed backend type.
 
 If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
- Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true);
-
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.)code",
+                    true);
 
 
 DALI_REGISTER_OPERATOR(plugin__video__Decoder, VideoDecoderMixed, dali::Mixed);
