@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
+#ifndef PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_VIDEO_DECODER_MIXED_H_
+#define PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_VIDEO_DECODER_MIXED_H_
 
 #include <vector>
 #include <memory>
@@ -24,9 +25,7 @@
 
 namespace dali_video {
 
-class VideoDecoderMixed
-        : public dali::Operator<dali::MixedBackend> {
-
+class VideoDecoderMixed : public dali::Operator<dali::MixedBackend> {
  public:
   explicit VideoDecoderMixed(const dali::OpSpec &spec)
     : Operator<dali::MixedBackend>(spec)
@@ -64,7 +63,8 @@ class VideoDecoderMixed
     std::shared_ptr<PacketData> current_packet_;
   };
   std::vector<SampleCtx> samples_;
-
 };
 
 }  // namespace dali_video
+
+#endif  // PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_VIDEO_DECODER_MIXED_H_

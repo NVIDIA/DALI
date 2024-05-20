@@ -52,10 +52,12 @@ bool VideoDecoderMixed::SetupImpl(
   dali::TensorListShape<> sh(batch_size, 4);
   for (int i = 0; i < batch_size; i++) {
     auto& sample = samples_[i];
-    sample.data_provider_ = std::make_unique<MemoryVideoFile>(input.raw_tensor(i), input[i].shape().num_elements());
+    sample.data_provider_ =
+        std::make_unique<MemoryVideoFile>(input.raw_tensor(i), input[i].shape().num_elements());
     sample.demuxer_ = std::make_unique<FFmpegDemuxer>(sample.data_provider_.get());
     sample.current_packet_ = std::make_unique<PacketData>();
-    sh.set_tensor_shape(i, dali::TensorShape<>(10, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
+    sh.set_tensor_shape(
+        i, dali::TensorShape<>(10, sample.demuxer_->GetHeight(), sample.demuxer_->GetWidth(), 3));
   }
   output_desc.resize(1);
   output_desc[0].shape = sh;
@@ -79,14 +81,14 @@ void VideoDecoderMixed::Run(dali::Workspace &ws) {
 
   for (int i = 0; i < batch_size; i++) {
     cuCtxGetCurrent(&cuContext);
-    if(!cuContext) {
+    if (!cuContext) {
       createCudaContext(&cuContext, device_id_, 0);
       m_bDestroyContext = true;
     }
     cuCtxPopCurrent(&cuContext);
   }
 
-  if(!cuContext)
+  if (!cuContext)
     throw std::runtime_error("Failed to create a cuda context");
 
   cuCtxPushCurrent(cuContext);

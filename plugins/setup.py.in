@@ -22,14 +22,17 @@ if __name__ == "__main__":
         from pkg_resources import require
 
         try:
+            os.environ['DALI_PRELOAD_PLUGINS'] = ""  # no need to load plugins
             import nvidia.dali as dali
         except:
             installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
             print(f"Error: NVIDIA DALI is not available. Please install it and try again: {installation_url}")
             sys.exit(1)
 
-        # We don't want to put those in pyproject.toml because it results in an isolated build 
-        # (won't look for DALI in the python path, for example)
+        # For released packages, those dependencies should be pulled automatically at installation (via pyproject.toml)
+        # However, for dev builds, we might want to build with --no-build-isolation so that we used the installed
+        # version of DALI instead of a dependency from pip. For no-build-isolation, we expect the used to have
+        # those installed.
         requirements = [
             "setuptools>=42",
             "scikit-build",
