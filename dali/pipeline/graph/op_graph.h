@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -468,6 +468,7 @@ class DLL_PUBLIC OpGraph {
   void RemoveOpNode(OpNodeId id);
 
   std::map<std::string, TensorNodeId> tensor_name_to_id_;
+  mutable std::map<TensorNodeId, bool> has_consumers_in_other_stage_;
 
   bool pass_through_computed_ = false;
 };
