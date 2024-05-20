@@ -233,7 +233,7 @@ for i in range(10, int(version_short.split(".")[1]) - 1):
         versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
     else:
         versions.append((f"1.{i}", f"dali_1_{i}_0"))
-# add extra path version
+# add extra patch version
 versions.append(("1.37.1", "dali_1_37_1", "short_user"))
 versions.append(("1.11.1", "dali_1_11_1"))
 # paths are different for 1.0-1.10
@@ -345,7 +345,7 @@ json_data.append(
     {
         "name": "older releases",
         "version": "archives",
-        "url": "https://docs.nvidia.com/deeplearning/dali/archives/index.html",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/",
     }
 )
 
@@ -358,7 +358,7 @@ for i, d in enumerate(json_data):
         print(f"skip checking not archived release location for the switcher: {d['url']}")
         continue
     h = httplib2.Http()
-    resp = h.request(d["url"], "HEAD")
+    resp = h.request(d["url"] + "index.html", "HEAD")
     if int(resp[0]["status"]) >= 400:
         print(d["url"], "NOK", resp[0]["status"])
         exit(1)
