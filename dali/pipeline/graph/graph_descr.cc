@@ -666,21 +666,25 @@ std::vector<TensorNodeId> OpGraph::FollowPassThroughUp(OpNodeId op, TensorNodeId
 
 
 bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const {
+  auto it = has_consumers_in_other_stage_.find(tensor.id);
+  if (it != has_consumers_in_other_stage_.end())
+    return it->second;
+  bool &res = has_consumers_in_other_stage_[tensor.id];
   for (const auto& cons_edge : tensor.consumers) {
     // We found a consumer from different stage, this tensor is a stage output
     const OpNode &cons_op = Node(cons_edge.node);
     if (cons_op.op_type != this_stage) {
-      return true;
+      return (res = true);
     }
     const OpSchema &schema = cons_op.spec.GetSchema();
     // note, that out_idxs may be empty
     auto out_idxs = schema.GetPassThroughOutputIdx(cons_edge.index, cons_op.spec);
     for (int out_idx : out_idxs) {
       if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
-        return true;
+        return (res = true);
     }
   }
-  return false;
+  return (res = false);
 }
 
 std::vector<TensorNodeId> OpGraph::GetStageOutputs(OpType stage) const {
