@@ -16,17 +16,21 @@ import sys
 import os
 
 import skbuild
+from packaging.version import Version
 
 if __name__ == "__main__":
     if sys.argv[1] != 'sdist':
         from pkg_resources import require
-
         try:
             os.environ['DALI_PRELOAD_PLUGINS'] = ""  # no need to load plugins
             import nvidia.dali as dali
         except:
             installation_url = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
             print(f"Error: NVIDIA DALI is not available. Please install it and try again: {installation_url}")
+            sys.exit(1)
+
+        if (Version(dali.__version__) < Version('@DALI_VERSION@')):
+            print(f"Error: At least NVIDIA DALI version @DALI_VERSION@ is required. Found version {dali.__version__}.")
             sys.exit(1)
 
         # For released packages, those dependencies should be pulled automatically at installation (via pyproject.toml)
