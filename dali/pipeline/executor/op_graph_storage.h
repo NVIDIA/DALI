@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 

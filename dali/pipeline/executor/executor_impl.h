@@ -37,7 +37,7 @@
 #include "dali/pipeline/executor/queue_policy.h"
 #include "dali/pipeline/executor/workspace_policy.h"
 #include "dali/pipeline/executor/iteration_data.h"
-#include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"

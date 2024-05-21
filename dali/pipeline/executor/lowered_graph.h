@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_GRAPH_OP_GRAPH_H_
-#define DALI_PIPELINE_GRAPH_OP_GRAPH_H_
+#ifndef DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
+#define DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
 
 #include <map>
 #include <unordered_set>
@@ -475,4 +475,4 @@ class DLL_PUBLIC OpGraph {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_GRAPH_OP_GRAPH_H_
+#endif  // DALI_PIPELINE_EXECUTOR_LOWERED_GRAPH_H_
