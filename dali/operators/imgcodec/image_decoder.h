@@ -548,7 +548,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st->out_shape = st->parsed_sample.dali_img_info.shape;
           st->out_shape[2] = NumberOfChannels(format_, st->out_shape[2]);
           if (use_orientation_ &&
-              ((st->parsed_sample.nvimgcodec_img_info.orientation.rotated / 90) & 1)) {
+              (st->parsed_sample.nvimgcodec_img_info.orientation.rotated % 180 != 0)) {
             std::swap(st->out_shape[0], st->out_shape[1]);
           }
           ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
@@ -728,7 +728,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
     decode_params.enable_roi = static_cast<int>(has_any_roi);
 
-    assert(static_cast<int>(state_.size()) == nsamples);
+    assert(static_cast<int>(state_.size()) >= nsamples);
     batch_encoded_streams_.clear();
     batch_encoded_streams_.reserve(nsamples);
     batch_images_.clear();
@@ -780,10 +780,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
           tp_->AddWork(get_task(block_idx, nblocks), -block_idx);
         }
         tp_->RunAll(false);                 // start work but not wait
-        get_task(block_idx, nblocks)(-1);  // run last block
+        get_task(block_idx, nblocks)(-1);   // run last block
         tp_->WaitForWork();                 // wait for the other threads
-      } else {                             // not worth parallelizing
-        get_task(0, 1)(-1);                // run all in current thread
+      } else {                              // not worth parallelizing
+        get_task(0, 1)(-1);                 // run all in current thread
       }
 
       for (int orig_idx : decode_sample_idxs_) {
@@ -795,7 +795,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     // This is a workaround for nvImageCodec <= 0.2
     auto any_need_processing = [&]() {
-      for (auto &st : state_) {
+      for (int orig_idx : decode_sample_idxs_) {
+        auto& st = state_[orig_idx];
         assert(ws.stream() == st->image_info.cuda_stream);  // assuming this is true
         if (st->need_processing)
           return true;

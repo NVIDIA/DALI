@@ -111,7 +111,7 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 
       TensorShape<> shape = info.shape;
       shape[2] = NumberOfChannels(image_type_, shape[2]);
-      if (use_orientation_ && ((info.orientation.rotated / 90) & 1)) {
+      if (use_orientation_ && (info.orientation.rotated % 180 != 0)) {
         std::swap(shape[0], shape[1]);
       }
       TYPE_SWITCH(output_type_, type2id, Type,
