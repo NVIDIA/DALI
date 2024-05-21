@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_NVDECODE_COLOR_SPACE_GPU_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_NVDECODE_COLOR_SPACE_GPU_H_
+#ifndef PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_COLOR_SPACE_H_
+#define PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_COLOR_SPACE_H_
 
 #include <stdint.h>
 
@@ -27,4 +27,4 @@ void yuv_to_rgb(
     bool full_range,
     cudaStream_t stream);
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_NVDECODE_COLOR_SPACE_GPU_H_
+#endif  // PLUGINS_VIDEO_PKG_SRC_SRC_DECODER_COLOR_SPACE_H_
